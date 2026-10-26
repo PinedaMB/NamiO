@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo, OutboxItem } from '@shared/ipc'
+import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo, OutboxItem, SearchHit } from '@shared/ipc'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ThreadList } from './components/ThreadList'
+import { SearchResults } from './components/SearchResults'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
 import { ContextRail } from './components/ContextRail'
 import { StatusBar } from './components/StatusBar'
@@ -92,6 +93,9 @@ export function App(): React.JSX.Element {
   })
   const [now, setNow] = useState(() => Date.now())
   const [outbox, setOutbox] = useState<readonly OutboxItem[]>([])
+  const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<readonly SearchHit[]>([])
+  const [searching, setSearching] = useState(false)
 
   // "live" = hay cuenta configurada. La conexión puede faltar: en ese caso se
   // sirve la caché local (modo offline), no los datos de demostración.
@@ -127,10 +131,10 @@ export function App(): React.JSX.Element {
   }, [live, mailboxes, t])
 
   const loadFolder = useCallback(
-    async (path: string): Promise<void> => {
+    async (path: string, focusUid?: number): Promise<void> => {
       setLoadingFolder(true)
       setFolder(path)
-      setSelectedId(null)
+      if (focusUid === undefined) setSelectedId(null)
       const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
       setLoadingFolder(false)
 
@@ -143,11 +147,54 @@ export function App(): React.JSX.Element {
       setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
       const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
       setThreads(mapped)
-      setSelectedId(mapped[0]?.id ?? null)
+      setSelectedId(focusUid !== undefined ? `live:${focusUid}` : (mapped[0]?.id ?? null))
       setLiveError(null)
     },
     [locale]
   )
+
+  /** Abre un resultado de búsqueda: cambia de buzón si hace falta y selecciona el mensaje. */
+  const openHit = useCallback(
+    (hit: SearchHit): void => {
+      setFilter(hit.unread ? 'focused' : 'other')
+      if (hit.mailbox !== folder) {
+        void loadFolder(hit.mailbox, hit.uid)
+        return
+      }
+      setSelectedId(`live:${hit.uid}`)
+    },
+    [folder, loadFolder]
+  )
+
+  // Búsqueda con debounce: 2 caracteres mínimo y una sola consulta en vuelo.
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      setHits([])
+      setSearching(false)
+      return
+    }
+
+    let cancelled = false
+    setSearching(true)
+    const timer = window.setTimeout(() => {
+      void window.api
+        .search(trimmed, 60)
+        .then((result) => {
+          if (cancelled) return
+          setHits(result)
+          setSearching(false)
+        })
+        .catch(() => {
+          if (!cancelled) setSearching(false)
+        })
+    }, 200)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [query])
 
   /** Relee la caché sin tocar la red: lo usa el aviso de "buzón sincronizado". */
   const refreshFromCache = useCallback(async (): Promise<void> => {
@@ -504,6 +551,11 @@ export function App(): React.JSX.Element {
         <Topbar
           unreadCount={unreadCount}
           filter={filter}
+          query={query}
+          onQuery={(next) => {
+            setQuery(next)
+            setView('mailbox')
+          }}
           onFilter={(next) => {
             setFilter(next)
             setView('mailbox')
@@ -529,7 +581,16 @@ export function App(): React.JSX.Element {
             <Settings onBack={() => setView('mailbox')} />
           ) : (
             <>
-              <ThreadList
+              {query.trim().length >= 2 ? (
+                <SearchResults
+                  query={query.trim()}
+                  hits={hits}
+                  loading={searching}
+                  selectedKey={selected ? `${folder}:${uidOf(selected.id) ?? ''}` : null}
+                  onOpen={openHit}
+                />
+              ) : (
+                <ThreadList
                 threads={visible}
                 selectedId={selected?.id ?? null}
                 filter={filter}
@@ -541,6 +602,7 @@ export function App(): React.JSX.Element {
                 onFilter={setFilter}
                 onSelect={select}
               />
+              )}
 
               {selected ? (
                 <ThreadPane

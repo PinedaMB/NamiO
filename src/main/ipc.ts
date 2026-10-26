@@ -15,6 +15,7 @@ import {
   getMessage,
   listEnvelopes,
   listMailboxes,
+  searchMail,
   setFlagged
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, retryOutbox, sendMail } from './mail'
@@ -116,6 +117,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.outboxList, () => outboxItems())
   ipcMain.handle(IPC.outboxRetry, (_event, id: string) => retryOutbox(id))
   ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
+
+  ipcMain.handle(IPC.searchQuery, (_event, query: string, limit: number = 60) =>
+    searchMail(String(query ?? '').slice(0, 200), Math.min(Math.max(limit, 1), 100))
+  )
 
   ipcMain.handle(IPC.shellOpen, async (_event, url: string): Promise<boolean> => {
     // Solo se abre lo que el usuario puede esperar: sin file://, sin protocolos raros.

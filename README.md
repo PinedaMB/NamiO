@@ -233,6 +233,26 @@ al reconectar.
 Limitaciones de M4: sin borradores persistidos, sin adjuntos ni HTML en el envío, y sin IDLE (la
 bandeja se sondea cada 60 s).
 
+## M5: búsqueda local (FTS5)
+
+![Búsqueda sobre la caché](docs/search.png)
+
+- Índice **FTS5** dentro de la misma base de la caché (`unicode61 remove_diacritics 2`): encuentra
+  "valoración" buscando `valoracion`, y funciona con prefijos.
+- Se indexan asunto y remitentes de **todos** los mensajes sincronizados, y el **cuerpo** cuando se
+  descarga. El índice se mantiene al vuelo (se reindexa al insertar, al actualizar el asunto y al
+  guardar el cuerpo).
+- Resultados con **fragmento resaltado** (`snippet()` de FTS5), buzón de origen y salto directo al
+  mensaje; si vive en otro buzón, la app cambia de carpeta y lo abre.
+- La consulta se sanea (comillas, paréntesis, operadores) para que nada de lo que se escriba rompa el
+  motor, y va con debounce de 200 ms y mínimo dos caracteres.
+
+Verificado: `sequoia` devuelve 2 mensajes (coincidencia en remitente), `embargo` devuelve 1 con el
+fragmento resaltado y `zzzz` no devuelve nada.
+
+Limitación honesta: se busca **solo en la caché**, y los cuerpos entran al índice cuando se abren. La
+búsqueda contra el servidor (IMAP `SEARCH`) queda pendiente.
+
 ## Comandos
 
 ```bash
@@ -274,6 +294,7 @@ Los artefactos quedan en `release/`.
 | Reapertura con el servidor caído mostrando la caché | ✅ |
 | M4: envío SMTP, copia en Enviados, cola con reintentos | ✅ |
 | Archivar y eliminar aplicados en el servidor | ✅ |
+| M5: búsqueda FTS5 sobre la caché con fragmentos | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
@@ -325,7 +346,8 @@ núcleo responde `stage: "M0"`.
 | ✅ M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
 | ✅ M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
 | ✅ M4 | Envío SMTP + cola de salida + archivar/eliminar | Me envío un correo y me llega |
-| M5 | Búsqueda FTS + reglas/filtros | Buscar dentro de todos los cuerpos |
+| ✅ M5 | Búsqueda FTS5 sobre la caché | Encuentro un correo por una palabra del cuerpo |
+| M6 | Reglas y filtros locales | Un remitente molesto se archiva solo |
 | M5 | Multi-cuenta, búsqueda FTS5, hilos por `References` | Buscar devuelve resultados correctos |
 | M6 | OAuth2 (Gmail/Outlook) + empaquetado | Instalable en Linux vía `.deb` |
 

@@ -13,6 +13,7 @@ import {
   type MailApi,
   type MessageDetail,
   type OutboxItem,
+  type SearchHit,
   type SendMailPayload
 } from '@shared/ipc'
 
@@ -45,6 +46,7 @@ const api: MailApi = {
   listOutbox: (): Promise<OutboxItem[]> => ipcRenderer.invoke(IPC.outboxList),
   retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
+  search: (query: string, limit = 60): Promise<SearchHit[]> => ipcRenderer.invoke(IPC.searchQuery, query, limit),
   onOutboxChanged: (listener: () => void): (() => void) => {
     const handler = (): void => listener()
     ipcRenderer.on(IPC.outboxChanged, handler)

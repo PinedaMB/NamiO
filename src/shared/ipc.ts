@@ -24,7 +24,8 @@ export const IPC = {
   outboxList: 'outbox:list',
   outboxRetry: 'outbox:retry',
   outboxCancel: 'outbox:cancel',
-  outboxChanged: 'outbox:changed'
+  outboxChanged: 'outbox:changed',
+  searchQuery: 'search:query'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -163,6 +164,19 @@ export interface SendMailPayload {
   text: string
 }
 
+export interface SearchHit {
+  mailbox: string
+  mailboxName: string
+  uid: number
+  subject: string
+  from: EnvelopeAddress | null
+  date: string
+  unread: boolean
+  flagged: boolean
+  /** Fragmento con marcadores ⟦…⟧ alrededor de las coincidencias. */
+  snippet: string
+}
+
 export interface MailAction {
   ok: boolean
   /** `true` si quedó en la cola en vez de aplicarse en el acto. */
@@ -195,6 +209,8 @@ export interface MailApi {
   retryOutbox(id: string): Promise<void>
   cancelOutbox(id: string): Promise<void>
   onOutboxChanged(listener: () => void): () => void
+  /** Búsqueda de texto completo sobre la caché local. */
+  search(query: string, limit?: number): Promise<SearchHit[]>
 
   /** Abre un enlace en el navegador del sistema. Solo http(s) y mailto. */
   openExternal(url: string): Promise<boolean>

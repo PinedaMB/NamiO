@@ -9,6 +9,8 @@ interface TopbarProps {
   unreadCount: number
   filter: FilterId
   onFilter: (filter: FilterId) => void
+  query: string
+  onQuery: (value: string) => void
   onOpenPalette: () => void
   onOpenSettings: () => void
 }
@@ -24,6 +26,8 @@ export function Topbar({
   unreadCount,
   filter,
   onFilter,
+  query,
+  onQuery,
   onOpenPalette,
   onOpenSettings
 }: TopbarProps): React.JSX.Element {
@@ -55,18 +59,47 @@ export function Topbar({
         </div>
       </div>
 
-      <button className="search" type="button" onClick={onOpenPalette}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name="search" size={16} />
-          {t('topbar.search')}
-        </span>
-        <span className="search__hint">
-          <kbd className="kbd">⌘</kbd>
-          <kbd className="kbd">K</kbd>
-        </span>
-      </button>
+      <div className="search">
+        <Icon name="search" size={16} className="search__icon" />
+        <input
+          className="search__input"
+          type="search"
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              onQuery('')
+              event.currentTarget.blur()
+            }
+          }}
+          placeholder={t('topbar.search')}
+          aria-label={t('topbar.search')}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        {query === '' ? (
+          <span className="search__hint">
+            <kbd className="kbd">⌘</kbd>
+            <kbd className="kbd">K</kbd>
+          </span>
+        ) : (
+          <button className="search__clear" type="button" onClick={() => onQuery('')} title={t('common.close')}>
+            <Icon name="close" size={14} />
+          </button>
+        )}
+      </div>
 
       <div className="topbar__right">
+        <button
+          className="icon-btn"
+          type="button"
+          title={t('status.actions')}
+          aria-label={t('status.actions')}
+          onClick={onOpenPalette}
+        >
+          <Icon name="keyboard_command_key" size={18} />
+        </button>
         <div className="lang-switch" role="group" aria-label={t('topbar.language')}>
           {LOCALES.map((item) => (
             <button

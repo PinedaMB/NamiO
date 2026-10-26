@@ -100,6 +100,17 @@ export function initCache(): void {
       last_error TEXT,
       created_at INTEGER NOT NULL
     );
+
+    -- Búsqueda de texto completo. remove_diacritics permite encontrar
+    -- "valoración" buscando "valoracion"; el índice vive en la caché local.
+    CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(
+      subject,
+      peers,
+      body,
+      mailbox UNINDEXED,
+      uid UNINDEXED,
+      tokenize = 'unicode61 remove_diacritics 2'
+    );
   `)
 
   // Migración aditiva: la tabla ya existe en instalaciones previas.
@@ -223,6 +234,7 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
         envelope.unread ? 1 : 0,
         envelope.flagged ? 1 : 0
       )
+      reindexMessage(mailbox, envelope.uid)
     }
     database.exec('COMMIT')
   } catch (error) {
@@ -473,6 +485,89 @@ export function saveBody(
       mailbox,
       uid
     )
+
+  // El cuerpo recién descargado entra al índice de búsqueda.
+  reindexMessage(mailbox, uid)
+}
+
+/** Reindexa un mensaje (asunto, remitentes y cuerpo si ya se descargó). */
+export function reindexMessage(mailbox: string, uid: number): void {
+  const database = handle()
+  const row = database
+    .prepare('SELECT subject, from_name, from_addr, body_text FROM messages WHERE mailbox = ? AND uid = ?')
+    .get(mailbox, uid) as unknown as
+    | { subject: string; from_name: string; from_addr: string; body_text: string | null }
+    | undefined
+
+  database.prepare('DELETE FROM search WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+  if (!row) return
+
+  const peers = [row.from_name, row.from_addr].filter((part) => part !== '').join(' ')
+  database
+    .prepare('INSERT INTO search (subject, peers, body, mailbox, uid) VALUES (?, ?, ?, ?, ?)')
+    .run(row.subject, peers, row.body_text ?? '', mailbox, uid)
+}
+
+/** Convierte lo que escribe el usuario en una consulta FTS5 segura (prefijos). */
+function toFtsQuery(query: string): string {
+  const tokens = query
+    .split(/\s+/)
+    .map((token) => token.replace(/["'()*:^~{}[\]-]/g, ''))
+    .filter((token) => token.length > 0)
+  return tokens.map((token) => `"${token}"*`).join(' ')
+}
+
+export function searchMessages(query: string, limit: number): {
+  mailbox: string
+  uid: number
+  subject: string
+  fromName: string
+  fromAddr: string
+  date: number
+  unread: boolean
+  flagged: boolean
+  snippet: string
+}[] {
+  const expression = toFtsQuery(query)
+  if (expression === '') return []
+
+  const rows = handle()
+    .prepare(
+      `SELECT search.mailbox AS mailbox,
+              search.uid AS uid,
+              search.subject AS subject,
+              snippet(search, 2, '⟦', '⟧', '…', 14) AS snippet,
+              m.date AS date, m.from_name AS from_name, m.from_addr AS from_addr,
+              m.unread AS unread, m.flagged AS flagged
+       FROM search
+       JOIN messages m ON m.mailbox = search.mailbox AND m.uid = search.uid
+       WHERE search MATCH ?
+       ORDER BY m.date DESC
+       LIMIT ?`
+    )
+    .all(expression, limit) as unknown as {
+    mailbox: string
+    uid: number
+    subject: string
+    snippet: string
+    date: number
+    from_name: string
+    from_addr: string
+    unread: number
+    flagged: number
+  }[]
+
+  return rows.map((row) => ({
+    mailbox: row.mailbox,
+    uid: row.uid,
+    subject: row.subject,
+    fromName: row.from_name,
+    fromAddr: row.from_addr,
+    date: row.date,
+    unread: row.unread === 1,
+    flagged: row.flagged === 1,
+    snippet: row.snippet
+  }))
 }
 
 export function getMeta(key: string): string | null {

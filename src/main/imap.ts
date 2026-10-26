@@ -12,6 +12,7 @@ import type {
   MailboxInfo,
   MessageAttachment,
   MessageDetail,
+  SearchHit,
   SyncMeta
 } from '@shared/ipc'
 import {
@@ -28,6 +29,7 @@ import {
   pruneExcept,
   saveBody,
   saveMailboxSync,
+  searchMessages,
   setFlagged as cacheFlagged,
   setMeta,
   upsertEnvelopes,
@@ -498,6 +500,28 @@ export function setFlagged(path: string, uid: number, flagged: boolean): Promise
       return { ok: false as const, code: classify(error), detail: describe(error) }
     }
   })
+}
+
+/** Búsqueda local sobre lo ya sincronizado (asunto, remitentes y cuerpos). */
+export function searchMail(query: string, limit = 60): SearchHit[] {
+  const names = new Map(readMailboxes().map((box) => [box.path, box.name]))
+
+  try {
+    return searchMessages(query, limit).map((row) => ({
+      mailbox: row.mailbox,
+      mailboxName: names.get(row.mailbox) ?? row.mailbox,
+      uid: row.uid,
+      subject: row.subject,
+      from: row.fromAddr ? { name: row.fromName, address: row.fromAddr } : null,
+      date: new Date(row.date).toISOString(),
+      unread: row.unread,
+      flagged: row.flagged,
+      snippet: row.snippet
+    }))
+  } catch {
+    // Consulta inválida para FTS: la UI muestra "sin resultados" y sigue viva.
+    return []
+  }
 }
 
 /** Sincroniza la bandeja de entrada y avisa a la UI. Silencioso ante errores. */
