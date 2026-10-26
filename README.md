@@ -1,8 +1,8 @@
-# Correo — cliente de email para Linux
+# NamiO — cliente de email para Linux
 
-Cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y desarrollado en
-Windows. Estado actual: **M0 + shell visual** — aislamiento real entre UI y núcleo, y la identidad
-visual del producto aplicada sobre datos de demostración.
+NamiO es un cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y
+desarrollado en Windows. Estado actual: **M0 + shell visual** — aislamiento real entre UI y núcleo, y
+la identidad visual del producto aplicada sobre datos de demostración.
 
 ## Stack y por qué
 
@@ -52,8 +52,9 @@ Decisiones de seguridad ya aplicadas en M0:
 
 ![Bandeja de tres paneles](docs/inbox.png)
 
-La interfaz sigue la identidad **Veloce**: superficie casi negra con acentos índigo-lavanda, Inter
-para el contenido y JetBrains Mono para metadatos, etiquetas y atajos. Los tokens viven en
+La interfaz sigue la identidad de los mockups **Veloce** —superficie casi negra con acentos
+índigo-lavanda, Inter para el contenido y JetBrains Mono para metadatos, etiquetas y atajos— con la
+marca **NamiO**. Los tokens viven en
 [`src/renderer/src/styles/tokens.css`](src/renderer/src/styles/tokens.css): cambiar la marca es
 cambiar ese archivo.
 
@@ -68,6 +69,11 @@ cambiar ese archivo.
 La UI se adapta al ancho: debajo de 1560px la ficha del remitente pasa a dos filas, debajo de 1520px
 los atajos salen del toolbar de lectura (siguen en el pie) y debajo de 1280px se oculta el panel de
 contexto.
+
+El panel de contexto (IA) se colapsa con el botón del extremo derecho del toolbar: la lectura gana
+todo el ancho y la preferencia se recuerda en `settings.json`.
+
+![Panel de contexto colapsado](docs/inbox-collapsed.png)
 
 | Compositor | Paleta de comandos |
 | --- | --- |
@@ -208,7 +214,7 @@ núcleo responde `stage: "M0"`.
 | # | Entrega | Criterio de listo |
 | --- | --- | --- |
 | ✅ M0 | Esqueleto, aislamiento y contrato IPC | La app abre y reporta estado del núcleo |
-| ✅ Shell | Identidad visual Veloce sobre datos de demostración | Bandeja, compositor y paleta navegables |
+| ✅ Shell | Identidad visual de NamiO sobre datos de demostración | Bandeja, compositor y paleta navegables |
 | M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
 | M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
 | M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |

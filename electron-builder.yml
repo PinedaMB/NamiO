@@ -1,5 +1,5 @@
-appId: dev.linuxmail.correo
-productName: Correo
+appId: dev.namio.app
+productName: NamiO
 copyright: Copyright © 2026
 
 directories:
@@ -21,9 +21,9 @@ linux:
   description: Cliente de correo IMAP/SMTP con caché local, pensado para escritorio Linux.
   desktop:
     entry:
-      Name: Correo
+      Name: NamiO
       Comment: Cliente de correo
-      Keywords: email;mail;correo;imap;
+      Keywords: email;mail;imap;
 
 win:
   target:

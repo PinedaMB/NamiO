@@ -86,7 +86,7 @@ export interface Slot {
 
 export const ACCOUNT = {
   name: 'Alex Rivera',
-  email: 'alex@veloce.dev',
+  email: 'alex@namio.dev',
   initials: 'AR'
 } as const
 
@@ -137,7 +137,7 @@ export const THREADS: readonly Thread[] = [
       {
         id: 'm1',
         from: ELENA,
-        to: [ALEX, { name: 'Legal', email: 'legal@veloce.ai', initials: 'LG' }],
+        to: [ALEX, { name: 'Legal', email: 'legal@namio.dev', initials: 'LG' }],
         sentAt: 'Today at 10:42 AM (18m ago)',
         body: [
           'Alex,',

@@ -23,8 +23,8 @@ export function Sidebar({
       <div>
         <div className="rail__brand">
           <div className="rail__brand-left">
-            <div className="rail__logo">V</div>
-            <span className="rail__wordmark">Veloce</span>
+            <div className="rail__logo">N</div>
+            <span className="rail__wordmark">NamiO</span>
           </div>
           <button className="icon-btn" type="button" title={t('sidebar.collapse')} aria-label={t('sidebar.collapse')}>
             <Icon name="dock_to_left" size={16} />

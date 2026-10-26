@@ -26,7 +26,7 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
   }
 
   return (
-    <aside className="context" aria-label={t('context.brief')}>
+    <aside className="context" id="context-rail" aria-label={t('context.brief')}>
       <div className="card">
         <div className="card__head">
           <span className="card__title">

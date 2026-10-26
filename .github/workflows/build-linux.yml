@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: correo-linux
+          name: namio-linux
           path: |
             release/*.AppImage
             release/*.deb

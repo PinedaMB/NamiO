@@ -2765,9 +2765,17 @@
   .context {
     display: none;
   }
+  .ctx-toggle {
+    display: none;
+  }
   :root {
     --list-w: 360px;
   }
+}
+
+.tool-btn--active {
+  background: var(--surface-container-high);
+  color: var(--primary);
 }
 
 @media (max-width: 1080px) {

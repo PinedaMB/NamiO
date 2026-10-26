@@ -30,7 +30,7 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#0d1014',
     autoHideMenuBar: true,
-    title: 'Correo',
+    title: 'NamiO',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       // Un cliente de correo procesa contenido hostil: estos cuatro flags no se tocan.

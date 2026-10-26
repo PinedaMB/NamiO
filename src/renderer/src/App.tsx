@@ -60,6 +60,7 @@ export function App(): React.JSX.Element {
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [contextOpen, setContextOpen] = useState(true)
 
   const visible = useMemo(
     () => threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter)),
@@ -96,6 +97,24 @@ export function App(): React.JSX.Element {
     const timer = window.setTimeout(() => setToast(null), 2400)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    window.api
+      ?.getSettings?.()
+      .then((settings) => {
+        if (typeof settings?.contextPanel === 'boolean') setContextOpen(settings.contextPanel)
+      })
+      .catch(() => undefined)
+  }, [])
+
+  /** La preferencia de layout se guarda como el idioma o los atajos. */
+  const toggleContext = (): void => {
+    // El efecto va FUERA del updater: StrictMode lo invoca dos veces y
+    // persistiría el valor descartado.
+    const next = !contextOpen
+    setContextOpen(next)
+    window.api?.setSettings?.({ contextPanel: next }).catch(() => undefined)
+  }
 
   useEffect(() => {
     if (selectedId && visible.some((thread) => thread.id === selectedId)) return
@@ -267,6 +286,8 @@ export function App(): React.JSX.Element {
                   position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
                   total={visible.length}
                   bindings={bindings}
+                  contextOpen={contextOpen}
+                  onToggleContext={toggleContext}
                   onArchive={archive}
                   onSnooze={() => setToast(t('toast.snoozed'))}
                   onDelete={() => {
@@ -283,12 +304,14 @@ export function App(): React.JSX.Element {
                 <ThreadPaneEmpty />
               )}
 
-              <ContextRail
-                brief={BRIEF}
-                actions={ACTION_ITEMS}
-                slots={SLOTS}
-                onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
-              />
+              {contextOpen && (
+                <ContextRail
+                  brief={BRIEF}
+                  actions={ACTION_ITEMS}
+                  slots={SLOTS}
+                  onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
+                />
+              )}
             </>
           )}
         </div>

@@ -32,6 +32,8 @@ export interface AppSettings {
   language: Language
   /** Acción → combinación normalizada (`j`, `mod+k`). */
   shortcuts?: Record<string, string>
+  /** Panel de contexto (IA) visible en la bandeja. */
+  contextPanel?: boolean
 }
 
 export interface MailApi {

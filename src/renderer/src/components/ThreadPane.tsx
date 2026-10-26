@@ -2,12 +2,15 @@ import type { Attachment, Message, Thread } from '../data/demo'
 import { useI18n } from '../i18n'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
 import { Icon } from './Icon'
+import { cx } from '../lib/cx'
 
 interface ThreadPaneProps {
   thread: Thread
   position: number
   total: number
   bindings: Bindings
+  contextOpen: boolean
+  onToggleContext: () => void
   onArchive: () => void
   onSnooze: () => void
   onDelete: () => void
@@ -74,6 +77,8 @@ export function ThreadPane({
   position,
   total,
   bindings,
+  contextOpen,
+  onToggleContext,
   onArchive,
   onSnooze,
   onDelete,
@@ -122,6 +127,17 @@ export function ThreadPane({
           </button>
           <button className="tool-btn tool-btn--icon" type="button" onClick={onNext} title={t('thread.next')}>
             <Icon name="chevron_right" size={16} />
+          </button>
+          <span className="vsep ctx-toggle" style={{ margin: '0 4px' }} />
+          <button
+            className={cx('tool-btn tool-btn--icon', 'ctx-toggle', !contextOpen && 'tool-btn--active')}
+            type="button"
+            onClick={onToggleContext}
+            title={contextOpen ? t('thread.hideContext') : t('thread.showContext')}
+            aria-expanded={contextOpen}
+            aria-controls="context-rail"
+          >
+            <Icon name={contextOpen ? 'right_panel_close' : 'right_panel_open'} size={16} />
           </button>
         </div>
       </div>

@@ -6,7 +6,7 @@ export type Locale = 'es' | 'en'
 export type { TranslationKey }
 
 const DICTIONARIES: Record<Locale, Dictionary> = { es, en }
-const STORAGE_KEY = 'correo.language'
+const STORAGE_KEY = 'namio.language'
 
 export const LOCALES: ReadonlyArray<{ id: Locale; label: string }> = [
   { id: 'es', label: 'ES' },

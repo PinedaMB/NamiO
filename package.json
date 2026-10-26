@@ -1,7 +1,8 @@
 {
-  "name": "linux-mail-client",
+  "name": "namio",
   "version": "0.1.0",
-  "description": "Cliente de correo de escritorio para Linux",
+  "productName": "NamiO",
+  "description": "NamiO — cliente de correo de escritorio para Linux",
   "main": "./out/main/index.js",
   "author": {
     "name": "linux-mail-client",
