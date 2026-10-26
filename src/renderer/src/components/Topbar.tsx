@@ -3,7 +3,7 @@ import { LOCALES, useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
-export type FilterId = 'focused' | 'other' | 'vip' | 'files' | 'needs-reply'
+export type FilterId = 'focused' | 'other' | 'all' | 'vip' | 'files' | 'needs-reply'
 
 interface TopbarProps {
   unreadCount: number
@@ -39,7 +39,7 @@ export function Topbar({
   return (
     <header className="topbar">
       <div className="topbar__left">
-        <div className="zero-pill">
+        <div className={cx('zero-pill', live && 'zero-pill--live')}>
           <span className="dot" />
           {live ? (
             <>

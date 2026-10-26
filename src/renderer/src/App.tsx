@@ -122,6 +122,7 @@ export function App(): React.JSX.Element {
       // también (cascada de mensajes "leídos" sin abrir).
       if (filter === 'focused') return threads.filter((thread) => thread.unread || thread.id === selectedId)
       if (filter === 'other') return threads.filter((thread) => !thread.unread)
+      if (filter === 'all') return threads
       return threads
     }
     return threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
@@ -134,6 +135,7 @@ export function App(): React.JSX.Element {
 
   const unreadCount = threads.filter((thread) => thread.unread).length
   const otherCount = threads.filter((thread) => !thread.unread).length
+  const allCount = threads.length
   const vipCount = threads.filter((thread) => thread.vip).length
 
   const folderViews = useMemo<readonly FolderView[]>(() => {
@@ -315,6 +317,11 @@ export function App(): React.JSX.Element {
   }, [])
 
   // Sin `settingsLoaded` la bienvenida parpadearía un frame si la cuenta llega antes.
+  // Con cuenta real se abre en "Todos": la bandeja con los últimos mensajes.
+  useEffect(() => {
+    if (live) setFilter('all')
+  }, [live])
+
   const onboarding =
     settingsLoaded && account !== null && !account.configured && settings.onboarded !== true
 
@@ -726,9 +733,18 @@ export function App(): React.JSX.Element {
                 filter={filter}
                 unreadCount={unreadCount}
                 otherCount={otherCount}
+                allCount={allCount}
                 vipCount={vipCount}
                 loading={loadingFolder}
-                emptyLabel={live ? t('account.liveEmpty') : undefined}
+                emptyLabel={
+                  live
+                    ? filter === 'focused'
+                      ? t('list.emptyUnread')
+                      : filter === 'other'
+                        ? t('list.emptyRead')
+                        : t('account.liveEmpty')
+                    : undefined
+                }
                 onFilter={setFilter}
                 onSelect={select}
                 showVip={!live}

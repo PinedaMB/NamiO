@@ -3648,7 +3648,7 @@
   }
   /* En español los chips son más largos: el resumen del Inbox Zero es lo
      primero que se puede perder sin quitar funcionalidad. */
-  .zero-pill {
+  .zero-pill:not(.zero-pill--live) {
     display: none;
   }
   .search {
@@ -3778,7 +3778,7 @@
   .filter-row .filter-chip:not(.filter-chip--active) {
     display: none;
   }
-  .zero-pill {
+  .zero-pill:not(.zero-pill--live) {
     display: none;
   }
   .legend__item:nth-child(n + 5) {

@@ -10,6 +10,8 @@ interface ThreadListProps {
   filter: FilterId
   unreadCount: number
   otherCount: number
+  /** Mensajes cargados en la ventana (sin filtrar): describe la cola. */
+  allCount: number
   vipCount: number
   loading?: boolean
   emptyLabel?: string
@@ -24,6 +26,7 @@ interface ThreadListProps {
 const QUEUE_LABEL: Record<FilterId, TranslationKey> = {
   focused: 'list.highPriority',
   other: 'list.everythingElse',
+  all: 'list.all',
   vip: 'list.vipOnly',
   files: 'list.withAttachments',
   'needs-reply': 'list.needsReply'
@@ -49,6 +52,7 @@ export function ThreadList({
   filter,
   unreadCount,
   otherCount,
+  allCount,
   vipCount,
   loading = false,
   emptyLabel,
@@ -77,6 +81,17 @@ export function ThreadList({
             >
               {focusedLabel} <span className="seg__count">{unreadCount}</span>
             </button>
+            {live && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filter === 'all'}
+                className={cx('seg__btn', filter === 'all' && 'seg__btn--active')}
+                onClick={() => onFilter('all')}
+              >
+                {t('list.all')} <span className="seg__count">{allCount}</span>
+              </button>
+            )}
             <button
               type="button"
               role="tab"
@@ -113,7 +128,7 @@ export function ThreadList({
         <div className="list__queue">
           <span>
             {live
-              ? t('list.liveQueue', { count: threads.length }).toUpperCase()
+              ? t('list.liveQueue', { count: allCount }).toUpperCase()
               : t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}
           </span>
           {!live && <strong>{t('list.triaged')}</strong>}
