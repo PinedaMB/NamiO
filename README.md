@@ -58,6 +58,9 @@ marca **NamiO**. Los tokens viven en
 [`src/renderer/src/styles/tokens.css`](src/renderer/src/styles/tokens.css): cambiar la marca es
 cambiar ese archivo.
 
+El sistema completo (paleta con contrastes medidos, escala tipográfica, layout, componentes, motion,
+accesibilidad y reglas de implementación) está en **[DESIGN.md](DESIGN.md)**.
+
 | Pieza | Decisión |
 | --- | --- |
 | Paleta | `#0f131c` superficie · `#c0c1ff` primario · `#bdc2ff` secundario · `#b8c4ff` terciario · `#ffb4ab` error |
