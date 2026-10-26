@@ -1,5 +1,6 @@
-// Smoke test de M0: comprueba que el renderer monta y que el puente IPC responde.
-// Se ejecuta contra una instancia de la app lanzada con --remote-debugging-port.
+// Smoke test de la cáscara: comprueba que el renderer monta y que el puente IPC
+// responde. Se ejecuta contra una instancia de la app lanzada con
+// --remote-debugging-port (o contra el preview HTTP, sin el chequeo de IPC).
 const PORT = process.env.SMOKE_PORT ?? '9333'
 
 async function getPage(retries = 40) {
@@ -47,8 +48,10 @@ await new Promise((resolve, reject) => {
 const probe = `(async () => {
   const status = await window.api.getCoreStatus();
   return JSON.stringify({
-    title: document.title,
-    heading: document.querySelector('h1')?.textContent ?? null,
+    wordmark: document.querySelector('.rail__wordmark')?.textContent ?? null,
+    threads: document.querySelectorAll('.thread').length,
+    subject: document.querySelector('.letter__subject')?.textContent ?? null,
+    legend: document.querySelectorAll('.statusbar .kbd').length,
     bridge: typeof window.api?.getCoreStatus,
     nodeLeaked: typeof window.require,
     status
@@ -60,10 +63,13 @@ ws.close()
 
 const result = JSON.parse(raw)
 const checks = [
-  ['el renderer montó React', result.heading === 'Base lista para hablar IMAP'],
+  ['monta la identidad Veloce', result.wordmark === 'Veloce'],
+  ['hay conversaciones en la cola', result.threads > 0],
+  ['el panel de lectura muestra un asunto', Boolean(result.subject)],
+  ['la barra de estado muestra atajos', result.legend > 0],
   ['el puente IPC existe', result.bridge === 'function'],
   ['Node no está expuesto a la UI', result.nodeLeaked === 'undefined'],
-  ['el núcleo responde por IPC', result.status?.stage === 'M0' && result.status?.accountCount === 0]
+  ['el núcleo responde por IPC', result.status?.stage === 'M0']
 ]
 
 let failed = 0

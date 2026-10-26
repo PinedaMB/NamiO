@@ -1,7 +1,8 @@
 # Correo — cliente de email para Linux
 
 Cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y desarrollado en
-Windows. Estado actual: **M0 terminado** — esqueleto con aislamiento real entre UI y núcleo.
+Windows. Estado actual: **M0 + shell visual** — aislamiento real entre UI y núcleo, y la identidad
+visual del producto aplicada sobre datos de demostración.
 
 ## Stack y por qué
 
@@ -47,6 +48,38 @@ Decisiones de seguridad ya aplicadas en M0:
 - Permisos de la sesión denegados por defecto; se habilitan uno por uno cuando una feature lo justifique.
 - Instancia única: dos procesos escribiendo la misma caché SQLite es un bug garantizado.
 
+## Identidad visual
+
+![Bandeja de tres paneles](docs/inbox.png)
+
+La interfaz sigue la identidad **Veloce**: superficie casi negra con acentos índigo-lavanda, Inter
+para el contenido y JetBrains Mono para metadatos, etiquetas y atajos. Los tokens viven en
+[`src/renderer/src/styles/tokens.css`](src/renderer/src/styles/tokens.css): cambiar la marca es
+cambiar ese archivo.
+
+| Pieza | Decisión |
+| --- | --- |
+| Paleta | `#0f131c` superficie · `#c0c1ff` primario · `#bdc2ff` secundario · `#b8c4ff` terciario · `#ffb4ab` error |
+| Tipografía | Inter Variable (contenido) + JetBrains Mono Variable (metadatos, `kbd`, direcciones) |
+| Iconos | Material Symbols Outlined, **empaquetado**: 4 MB de woff2, cero pedidos a CDN |
+| Estructura | rail 224 · cola 380 · lectura flexible · contexto 320 · pie 36 |
+| Atajos | `J`/`K` navegar · `E` archivar · `S` destacar · `R` responder · `C` redactar · `⌘K` paleta |
+
+La UI se adapta al ancho: debajo de 1560px la ficha del remitente pasa a dos filas, debajo de 1520px
+los atajos salen del toolbar de lectura (siguen en el pie) y debajo de 1280px se oculta el panel de
+contexto.
+
+| Compositor | Paleta de comandos |
+| --- | --- |
+| ![Compositor con copiloto](docs/compose.png) | ![Paleta de comandos](docs/palette.png) |
+
+Dos decisiones a tener presentes:
+
+- **La copia de la UI está en inglés** porque es el idioma del diseño. Los strings viven en cada
+  componente; se extraen a i18n cuando empecemos M1.
+- **`src/renderer/src/data/demo.ts` es demostración**, no datos reales. Cuando llegue el motor de
+  sync esto se reemplaza por la caché SQLite sin tocar los componentes.
+
 ## Comandos
 
 ```bash
@@ -55,6 +88,15 @@ pnpm dev          # app en modo desarrollo con HMR
 pnpm typecheck    # tsc para main/preload y para el renderer
 pnpm build        # typecheck + build de producción en out/
 pnpm build:linux  # AppImage + .deb (requiere Linux o CI)
+pnpm preview      # sirve out/renderer en http://127.0.0.1:4173 (revisar UI sin Electron)
+```
+
+Herramientas de revisión visual (usan Edge o Chromium headless, no Electron):
+
+```bash
+node scripts/shoot.mjs http://127.0.0.1:4173/ .cache/inbox.png   # captura PNG
+node scripts/shoot.mjs http://127.0.0.1:4173/ .cache/x.png "document.querySelector('.search').click()"
+node scripts/probe.mjs "document.querySelector('.statusbar').getBoundingClientRect().width"
 ```
 
 Los artefactos quedan en `release/`.
@@ -66,6 +108,7 @@ Los artefactos quedan en `release/`.
 | `pnpm install` reproducible (pnpm 12, builds autorizados) | ✅ |
 | `pnpm typecheck` (main/preload y renderer) | ✅ |
 | `pnpm build` → `out/main`, `out/preload`, `out/renderer` | ✅ |
+| UI renderizada y capturada en Chromium headless (bandeja, compositor, paleta) | ✅ |
 | Ventana abierta con IPC respondiendo | ⚠️ pendiente de probar en una sesión gráfica propia |
 
 El arranque de la ventana **no se pudo verificar desde el entorno del agente**: ahí `electron.exe`
@@ -100,6 +143,7 @@ núcleo responde `stage: "M0"`.
 | # | Entrega | Criterio de listo |
 | --- | --- | --- |
 | ✅ M0 | Esqueleto, aislamiento y contrato IPC | La app abre y reporta estado del núcleo |
+| ✅ Shell | Identidad visual Veloce sobre datos de demostración | Bandeja, compositor y paleta navegables |
 | M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
 | M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
 | M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |

@@ -1,151 +1,284 @@
-import { useEffect, useState } from 'react'
-import type { CoreStatus, Milestone } from '@shared/ipc'
+import { useEffect, useMemo, useState } from 'react'
+import type { CoreStatus } from '@shared/ipc'
+import {
+  ACTION_ITEMS,
+  BRIEF,
+  COPILOT_DRAFT,
+  SLOTS,
+  THREADS,
+  type Thread
+} from './data/demo'
+import { Sidebar } from './components/Sidebar'
+import { Topbar, type FilterId } from './components/Topbar'
+import { ThreadList } from './components/ThreadList'
+import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
+import { ContextRail } from './components/ContextRail'
+import { StatusBar } from './components/StatusBar'
+import { CommandPalette } from './components/CommandPalette'
+import { ComposeOverlay } from './components/ComposeOverlay'
+import { Icon } from './components/Icon'
 
-const ROADMAP: ReadonlyArray<{ id: Milestone; title: string; detail: string }> = [
-  { id: 'M0', title: 'Esqueleto y contrato IPC', detail: 'Ventana, aislamiento y núcleo tipado' },
-  { id: 'M1', title: 'IMAP: conectar y listar', detail: 'Una cuenta real, carpetas e INBOX' },
-  { id: 'M2', title: 'Visor de mensaje', detail: 'MIME, HTML sanitizado y adjuntos' },
-  { id: 'M3', title: 'Caché local y offline', detail: 'SQLite + sync incremental por UID' },
-  { id: 'M4', title: 'Enviar y borradores', detail: 'SMTP y cola de salida' },
-  { id: 'M5', title: 'Multi-cuenta y búsqueda', detail: 'FTS5 e hilos por References' },
-  { id: 'M6', title: 'OAuth2 y empaquetado', detail: 'AppImage y .deb para Linux' }
-]
+interface ComposeState {
+  to: string
+  subject: string
+  body: string
+}
 
-const FOLDERS = ['Recibidos', 'Enviados', 'Borradores', 'Papelera', 'Spam'] as const
+function matchesFilter(thread: Thread, filter: FilterId): boolean {
+  switch (filter) {
+    case 'focused':
+      return thread.unread
+    case 'other':
+      return !thread.unread
+    case 'vip':
+      return thread.vip
+    case 'files':
+      return thread.messages.some((message) => (message.attachments?.length ?? 0) > 0)
+    case 'needs-reply':
+      // Heurística de demo: lo que es VIP y sigue sin leer es lo que espera respuesta.
+      return thread.unread && thread.vip
+    default:
+      return true
+  }
+}
 
-function App(): React.JSX.Element {
-  const [status, setStatus] = useState<CoreStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
+function matchesFolder(thread: Thread, folder: string): boolean {
+  if (folder === 'starred') return thread.starred
+  if (folder === 'vip') return thread.vip
+  if (folder === 'trash') return false
+  return true
+}
 
+export function App(): React.JSX.Element {
+  const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
+  const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
+  const [filter, setFilter] = useState<FilterId>('focused')
+  const [folder, setFolder] = useState('inbox')
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [compose, setCompose] = useState<ComposeState | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+
+  const visible = useMemo(
+    () => threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter)),
+    [threads, folder, filter]
+  )
+
+  const selected = useMemo(
+    () => threads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
+    [threads, selectedId, visible]
+  )
+
+  const unreadCount = threads.filter((thread) => thread.unread).length
+  const otherCount = threads.filter((thread) => !thread.unread).length
+  const vipCount = threads.filter((thread) => thread.vip).length
+
+  /** El núcleo reporta su versión; en un navegador (sin preload) simplemente no hay dato. */
   useEffect(() => {
+    const bridge = (window as unknown as { api?: { getCoreStatus?: () => Promise<CoreStatus> } }).api
+    if (!bridge?.getCoreStatus) return
     let alive = true
-    window.api
+    bridge
       .getCoreStatus()
-      .then((value) => {
-        if (alive) setStatus(value)
+      .then((status) => {
+        if (alive) setAppVersion(status.appVersion)
       })
-      .catch((reason: unknown) => {
-        if (alive) setError(reason instanceof Error ? reason.message : String(reason))
-      })
+      .catch(() => undefined)
     return () => {
       alive = false
     }
   }, [])
 
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 2400)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  useEffect(() => {
+    if (selectedId && visible.some((thread) => thread.id === selectedId)) return
+    setSelectedId(visible[0]?.id ?? null)
+  }, [visible, selectedId])
+
+  const select = (id: string): void => {
+    setSelectedId(id)
+  }
+
+  const step = (delta: number): void => {
+    if (visible.length === 0) return
+    const current = visible.findIndex((thread) => thread.id === selected?.id)
+    const next = visible[(current + delta + visible.length) % visible.length]
+    if (next) setSelectedId(next.id)
+  }
+
+  const archive = (): void => {
+    if (!selected) return
+    const index = visible.findIndex((thread) => thread.id === selected.id)
+    const next = visible[index + 1] ?? visible[index - 1] ?? null
+    setThreads((current) => current.filter((thread) => thread.id !== selected.id))
+    setSelectedId(next?.id ?? null)
+    setToast('Thread archived')
+  }
+
+  const toggleStar = (): void => {
+    if (!selected) return
+    setThreads((current) =>
+      current.map((thread) => (thread.id === selected.id ? { ...thread, starred: !thread.starred } : thread))
+    )
+    setToast(selected.starred ? 'Removed from starred' : 'Starred')
+  }
+
+  const openReply = (body = ''): void => {
+    if (!selected) return
+    const sender = selected.participants[0]
+    setCompose({ to: sender?.email ?? '', subject: `Re: ${selected.subject}`, body })
+  }
+
+  const openCompose = (): void => {
+    setCompose({ to: '', subject: '', body: '' })
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null
+      const typing =
+        target !== null &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
+        return
+      }
+
+      if (event.key === 'Escape') {
+        if (paletteOpen) {
+          setPaletteOpen(false)
+          return
+        }
+        if (compose) {
+          setCompose(null)
+        }
+        return
+      }
+
+      if (typing || paletteOpen || compose) return
+
+      switch (event.key.toLowerCase()) {
+        case 'j':
+          event.preventDefault()
+          step(1)
+          break
+        case 'k':
+          event.preventDefault()
+          step(-1)
+          break
+        case 'e':
+          archive()
+          break
+        case 's':
+          toggleStar()
+          break
+        case 'r':
+          openReply()
+          break
+        case 'c':
+          openCompose()
+          break
+        default:
+          break
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  })
+
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          <div>
-            <strong>Correo</strong>
-            <span className="brand-sub">para Linux</span>
-          </div>
-        </div>
+      <Sidebar activeFolder={folder} onSelectFolder={setFolder} onCompose={openCompose} />
 
-        <div className="account">
-          <span className="account-label">Cuenta</span>
-          <p className="account-empty">Ninguna configurada</p>
-          <button className="btn-primary" type="button" disabled>
-            Conectar cuenta · M1
-          </button>
-        </div>
+      <div className="shell">
+        <Topbar
+          unreadCount={unreadCount}
+          filter={filter}
+          onFilter={setFilter}
+          onOpenPalette={() => setPaletteOpen(true)}
+        />
 
-        <nav className="folders" aria-label="Carpetas">
-          {FOLDERS.map((folder) => (
-            <button key={folder} type="button" className="folder" disabled>
-              <span>{folder}</span>
-              <span className="count">0</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-foot">
-          <span className="dot" aria-hidden="true" />
-          Núcleo en línea
-        </div>
-      </aside>
-
-      <main className="main">
-        <header className="topbar">
-          <input
-            className="search"
-            type="search"
-            placeholder="Buscar correos · llega en M5"
-            disabled
-            aria-label="Buscar correos"
+        <div className="panes">
+          <ThreadList
+            threads={visible}
+            selectedId={selected?.id ?? null}
+            filter={filter}
+            unreadCount={unreadCount}
+            otherCount={otherCount}
+            vipCount={vipCount}
+            onFilter={setFilter}
+            onSelect={select}
           />
-        </header>
 
-        <section className="content">
-          <div className="hero">
-            <span className="badge">Hito M0 completado</span>
-            <h1>Base lista para hablar IMAP</h1>
-            <p>
-              El proceso principal ya aísla la UI: el renderer no tiene red, ni disco, ni Node. El
-              siguiente paso es el motor de sincronización.
-            </p>
-          </div>
+          {selected ? (
+            <ThreadPane
+              thread={selected}
+              position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
+              total={visible.length}
+              onArchive={archive}
+              onSnooze={() => setToast('Snoozed until tomorrow 9:00 AM')}
+              onDelete={() => {
+                setThreads((current) => current.filter((thread) => thread.id !== selected.id))
+                setToast('Moved to trash')
+              }}
+              onStar={toggleStar}
+              onReply={() => openReply()}
+              onQuickDraft={() => openReply(COPILOT_DRAFT)}
+              onPrev={() => step(-1)}
+              onNext={() => step(1)}
+            />
+          ) : (
+            <ThreadPaneEmpty />
+          )}
 
-          <div className="grid">
-            <article className="card">
-              <h2>Diagnóstico</h2>
-              {error ? (
-                <p className="error">No se pudo leer el núcleo: {error}</p>
-              ) : status ? (
-                <dl className="facts">
-                  <div>
-                    <dt>Etapa</dt>
-                    <dd className="mono">{status.stage}</dd>
-                  </div>
-                  <div>
-                    <dt>Versión</dt>
-                    <dd className="mono">{status.appVersion}</dd>
-                  </div>
-                  <div>
-                    <dt>Electron</dt>
-                    <dd className="mono">{status.electronVersion}</dd>
-                  </div>
-                  <div>
-                    <dt>Plataforma</dt>
-                    <dd className="mono">{status.platform}</dd>
-                  </div>
-                  <div>
-                    <dt>Cuentas</dt>
-                    <dd className="mono">{status.accountCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Empaquetado</dt>
-                    <dd className="mono">{status.isPackaged ? 'sí' : 'no'}</dd>
-                  </div>
-                </dl>
-              ) : (
-                <p className="muted">Consultando al núcleo…</p>
-              )}
-            </article>
+          <ContextRail
+            brief={BRIEF}
+            actions={ACTION_ITEMS}
+            slots={SLOTS}
+            onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
+          />
+        </div>
 
-            <article className="card">
-              <h2>Roadmap</h2>
-              <ol className="roadmap">
-                {ROADMAP.map((item) => (
-                  <li key={item.id} className={item.id === 'M0' ? 'done' : undefined}>
-                    <span className="milestone">{item.id}</span>
-                    <div>
-                      <strong>{item.title}</strong>
-                      <span>{item.detail}</span>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </article>
-          </div>
+        <StatusBar appVersion={appVersion} />
+      </div>
 
-          <p className="footnote">
-            Arquitectura: main (ventanas, keyring, IPC) · worker (sync IMAP) · SQLite FTS5 · cola
-            SMTP. La UI solo lee de la caché local.
-          </p>
-        </section>
-      </main>
+      <CommandPalette
+        open={paletteOpen}
+        threads={visible}
+        onClose={() => setPaletteOpen(false)}
+        onOpenThread={select}
+        onCompose={openCompose}
+        onArchive={archive}
+        onSnooze={() => setToast('Snoozed until tomorrow 9:00 AM')}
+        onSelectFolder={setFolder}
+      />
+
+      <ComposeOverlay
+        open={compose !== null}
+        to={compose?.to ?? ''}
+        subject={compose?.subject ?? ''}
+        body={compose?.body ?? ''}
+        onClose={() => setCompose(null)}
+        onSend={({ to, subject }) => {
+          setCompose(null)
+          setToast(`Sent to ${to || 'recipient'} · "${subject || 'no subject'}" (demo)`)
+        }}
+      />
+
+      {toast && (
+        <div className="toast" role="status">
+          <Icon name="check_circle" size={16} />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
