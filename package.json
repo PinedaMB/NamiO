@@ -14,9 +14,10 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:raw": "electron-vite dev",
     "dev:web": "vite --config vite.web.config.mts",
-    "dev:restricted": "node scripts/dev-restricted.mjs",
+    "dev:restricted": "node scripts/dev.mjs --force-unsandboxed",
     "preview": "node scripts/preview.mjs",
     "start": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",

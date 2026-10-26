@@ -84,9 +84,10 @@ Dos decisiones a tener presentes:
 
 ```bash
 pnpm install
-pnpm dev            # app en modo desarrollo con HMR
+pnpm dev            # app en desarrollo con HMR; detecta solo si puede usar el sandbox
+pnpm dev:raw        # electron-vite dev crudo (sin detección)
 pnpm dev:web        # solo el renderer (Vite + HMR), sin Electron
-pnpm dev:restricted # desarrollo en entornos sin sandbox de Chromium (ver más abajo)
+pnpm dev:restricted # fuerza sandbox desactivado (ver más abajo)
 pnpm typecheck      # tsc para main/preload y para el renderer
 pnpm build          # typecheck + build de producción en out/
 pnpm build:linux    # AppImage + .deb (requiere Linux o CI)
@@ -125,20 +126,24 @@ independientes, y conviene distinguirlas porque los códigos se parecen:
 2. **Perfil no escribible.** Si `%APPDATA%` está bloqueado por un sandbox de archivos, Chromium muere
    con `ACCESS_VIOLATION` (`0xc0000005`) mientras inicializa su perfil, sin ningún mensaje de error.
 
-| Situación | Comando |
-| --- | --- |
-| Terminal normal de Windows/Linux | `pnpm dev` |
-| Entorno restringido (contenedor, CI, terminal embebida) | `pnpm dev:restricted` |
-| Solo la UI, con HMR y sin Electron | `pnpm dev:web` → http://localhost:5173 |
-
-`pnpm dev:restricted` desactiva el sandbox de Chromium **solo en desarrollo** y mueve el perfil a
-`.cache/userdata`. Si querés conservar el sandbox y solo cambiar el perfil:
+`scripts/dev.mjs` resuelve las dos antes de arrancar: sonda `electron --version` (no necesita perfil
+ni ventana, y falla exactamente cuando el sandbox no puede crearse) y mueve el perfil a
+`.cache/userdata`, que siempre es escribible dentro del proyecto.
 
 ```bash
-CORREO_USER_DATA_DIR=.cache/userdata pnpm dev
+pnpm dev              # detecta y se adapta; no hace falta que elijas nada
+pnpm dev:restricted   # fuerza sandbox desactivado (si la sonda te da un falso positivo)
+pnpm dev:raw          # electron-vite dev crudo, para diagnosticar
 ```
 
-Nunca se desactiva el sandbox en los builds de producción: eso queda solo en el script de desarrollo.
+| Situación | Resultado de `pnpm dev` |
+| --- | --- |
+| Terminal normal de Windows/Linux | sandbox activo, perfil en `.cache/userdata` |
+| Contenedor, CI o terminal embebida | sandbox desactivado **solo en desarrollo** + aviso en consola |
+| Solo la UI, sin Electron | `pnpm dev:web` → http://localhost:5173 |
+
+Nunca se desactiva el sandbox en los builds de producción: eso vive únicamente en el lanzador de
+desarrollo. El perfil de desarrollo se resetea borrando `.cache/userdata`.
 
 Smoke test automático (necesita la app con `--remote-debugging-port=9333`):
 
