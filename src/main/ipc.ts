@@ -1,4 +1,5 @@
-import { ipcMain, shell } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { app } from 'electron'
 import {
   IPC,
@@ -15,8 +16,10 @@ import {
   getMessage,
   listEnvelopes,
   listMailboxes,
+  readAttachment,
   searchMail,
-  setFlagged
+  setFlagged,
+  setSeen
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, retryOutbox, sendMail } from './mail'
 import { encryptSecret, readSettings, writeSettings } from './settings'
@@ -110,8 +113,22 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)
   )
+  ipcMain.handle(IPC.messageSeen, (_event, path: string, uid: number, seen: boolean) => setSeen(path, uid, seen))
   ipcMain.handle(IPC.messageArchive, (_event, path: string, uid: number) => archiveMessage(path, uid))
   ipcMain.handle(IPC.messageDelete, (_event, path: string, uid: number) => deleteMessageAction(path, uid))
+
+  ipcMain.handle(IPC.attachmentSave, async (event, path: string, uid: number, index: number) => {
+    const attachment = await readAttachment(path, uid, index)
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const options = { defaultPath: attachment.name }
+    const result = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options)
+
+    if (result.canceled || !result.filePath) return null
+    await writeFile(result.filePath, attachment.content)
+    return result.filePath
+  })
 
   ipcMain.handle(IPC.mailSend, (_event, payload: SendMailPayload) => sendMail(payload))
   ipcMain.handle(IPC.outboxList, () => outboxItems())

@@ -288,6 +288,32 @@ export function setFlagged(mailbox: string, uid: number, flagged: boolean): void
     .run(flagged ? 1 : 0, mailbox, uid)
 }
 
+export function setUnread(mailbox: string, uid: number, unread: boolean): void {
+  handle()
+    .prepare('UPDATE messages SET unread = ? WHERE mailbox = ? AND uid = ?')
+    .run(unread ? 1 : 0, mailbox, uid)
+}
+
+/** Refresca solo los flags del tramo reciente (no toca asunto ni cuerpo). */
+export function updateFlags(
+  mailbox: string,
+  rows: readonly { uid: number; unread: boolean; flagged: boolean }[]
+): void {
+  if (rows.length === 0) return
+  const database = handle()
+  const statement = database.prepare('UPDATE messages SET unread = ?, flagged = ? WHERE mailbox = ? AND uid = ?')
+  database.exec('BEGIN')
+  try {
+    for (const row of rows) {
+      statement.run(row.unread ? 1 : 0, row.flagged ? 1 : 0, mailbox, row.uid)
+    }
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
+}
+
 export function deleteMessageRow(mailbox: string, uid: number): void {
   handle().prepare('DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo, OutboxItem, SearchHit } from '@shared/ipc'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
@@ -96,6 +96,8 @@ export function App(): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
+  /** Solo se marca leído lo que el usuario abrió; la selección automática no cuenta. */
+  const userNavigated = useRef(false)
 
   // "live" = hay cuenta configurada. La conexión puede faltar: en ese caso se
   // sirve la caché local (modo offline), no los datos de demostración.
@@ -103,12 +105,15 @@ export function App(): React.JSX.Element {
 
   const visible = useMemo(() => {
     if (live) {
-      if (filter === 'focused') return threads.filter((thread) => thread.unread)
+      // El hilo abierto sigue visible aunque se marque leído: si desapareciera
+      // del filtro, la selección saltaría al siguiente y lo marcaría leído
+      // también (cascada de mensajes "leídos" sin abrir).
+      if (filter === 'focused') return threads.filter((thread) => thread.unread || thread.id === selectedId)
       if (filter === 'other') return threads.filter((thread) => !thread.unread)
       return threads
     }
     return threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
-  }, [live, threads, filter, folder])
+  }, [live, threads, filter, folder, selectedId])
 
   const selected = useMemo(
     () => threads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
@@ -147,23 +152,38 @@ export function App(): React.JSX.Element {
       setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
       const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
       setThreads(mapped)
+      userNavigated.current = false
       setSelectedId(focusUid !== undefined ? `live:${focusUid}` : (mapped[0]?.id ?? null))
       setLiveError(null)
     },
     [locale]
   )
 
+  /** Marca leído un hilo concreto (estado local + `\Seen` en el servidor). */
+  const markRead = useCallback(
+    (path: string, uid: number, id: string): void => {
+      setThreads((current) => current.map((thread) => (thread.id === id ? { ...thread, unread: false } : thread)))
+      if (live) void window.api.setSeen(path, uid, true).catch(() => undefined)
+    },
+    [live]
+  )
+
   /** Abre un resultado de búsqueda: cambia de buzón si hace falta y selecciona el mensaje. */
   const openHit = useCallback(
     (hit: SearchHit): void => {
       setFilter(hit.unread ? 'focused' : 'other')
+      userNavigated.current = true
+      const id = `live:${hit.uid}`
+
       if (hit.mailbox !== folder) {
         void loadFolder(hit.mailbox, hit.uid)
-        return
+      } else {
+        setSelectedId(id)
       }
-      setSelectedId(`live:${hit.uid}`)
+
+      if (hit.unread) markRead(hit.mailbox, hit.uid, id)
     },
-    [folder, loadFolder]
+    [folder, loadFolder, markRead]
   )
 
   // Búsqueda con debounce: 2 caracteres mínimo y una sola consulta en vuelo.
@@ -351,7 +371,12 @@ export function App(): React.JSX.Element {
   }, [live, selected, folder, locale])
 
   const select = (id: string): void => {
+    userNavigated.current = true
     setSelectedId(id)
+
+    const thread = threads.find((item) => item.id === id)
+    const uid = uidOf(id)
+    if (thread?.unread && uid !== null) markRead(folder, uid, id)
   }
 
   const selectFolder = (id: string): void => {
@@ -372,7 +397,50 @@ export function App(): React.JSX.Element {
     if (visible.length === 0) return
     const current = visible.findIndex((thread) => thread.id === selected?.id)
     const next = visible[(current + delta + visible.length) % visible.length]
-    if (next) setSelectedId(next.id)
+    if (next) select(next.id)
+  }
+
+  /** Descarga un adjunto y lo guarda donde el usuario elija. */
+  const openAttachment = (index: number): void => {
+    if (!selected) return
+    if (!live) {
+      setToast(t('toast.attachmentOffline'))
+      return
+    }
+    const uid = uidOf(selected.id)
+    if (uid === null) return
+
+    void window.api
+      .saveAttachment(folder, uid, index)
+      .then((saved) => {
+        if (saved) setToast(t('toast.saved', { path: saved }))
+      })
+      .catch((error: unknown) => {
+        setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'adjunto' }))
+      })
+  }
+
+  /** Alterna leído/no leído; en modo real escribe `\Seen` en el servidor. */
+  const toggleRead = (): void => {
+    if (!selected) return
+    const next = !selected.unread
+    setThreads((current) =>
+      current.map((thread) => (thread.id === selected.id ? { ...thread, unread: next } : thread))
+    )
+    setToast(next ? t('toast.markedRead') : t('toast.markedUnread'))
+
+    if (!live) return
+    const uid = uidOf(selected.id)
+    if (uid === null) return
+
+    void window.api.setSeen(folder, uid, next).then((result) => {
+      if (result.ok) return
+      // Si el servidor rechaza, se revierte para no mentir en pantalla.
+      setThreads((current) =>
+        current.map((thread) => (thread.id === selected.id ? { ...thread, unread: !next } : thread))
+      )
+      setToast(t('toast.actionFailed', { error: result.detail }))
+    })
   }
 
   const archive = (): void => {
@@ -427,7 +495,16 @@ export function App(): React.JSX.Element {
   const openReply = (body = ''): void => {
     if (!selected) return
     const sender = selected.participants[0]
-    setCompose({ to: sender?.email ?? '', subject: `Re: ${selected.subject}`, body })
+    const message = selected.messages[0]
+    const quoted = (message?.body ?? []).map((line) => `> ${line}`).join('\n')
+    const attribution = message ? `${message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
+    const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
+
+    setCompose({
+      to: sender?.email ?? '',
+      subject: prefix,
+      body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n')
+    })
   }
 
   const openCompose = (): void => {
@@ -499,6 +576,9 @@ export function App(): React.JSX.Element {
           break
         case 'snooze':
           setToast(live ? t('toast.readOnly') : t('toast.snoozed'))
+          break
+        case 'read':
+          toggleRead()
           break
         case 'reply':
           openReply()
@@ -601,6 +681,7 @@ export function App(): React.JSX.Element {
                 emptyLabel={live ? t('account.liveEmpty') : undefined}
                 onFilter={setFilter}
                 onSelect={select}
+                showVip={!live}
               />
               )}
 
@@ -613,8 +694,10 @@ export function App(): React.JSX.Element {
                   contextOpen={contextOpen}
                   canToggleContext={!live}
                   canMutate={true}
+                  unread={selected.unread}
                   onToggleContext={toggleContext}
                   onArchive={archive}
+                  onToggleRead={toggleRead}
                   onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
                   onDelete={() => {
                     if (!selected) return
@@ -634,6 +717,7 @@ export function App(): React.JSX.Element {
                   }}
                   onStar={toggleStar}
                   onReply={() => openReply()}
+                  onOpenAttachment={openAttachment}
                   onQuickDraft={() => openReply(COPILOT_DRAFT)}
                   onPrev={() => step(-1)}
                   onNext={() => step(1)}
@@ -680,6 +764,7 @@ export function App(): React.JSX.Element {
         to={compose?.to ?? ''}
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
+        copilot={!live}
         onClose={() => setCompose(null)}
         onSend={({ to, subject, body }) => {
           setCompose(null)

@@ -5,6 +5,7 @@ export type ShortcutAction =
   | 'next'
   | 'prev'
   | 'archive'
+  | 'read'
   | 'star'
   | 'snooze'
   | 'reply'
@@ -26,6 +27,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   { id: 'next', group: 'navigation', icon: 'south', labelKey: 'shortcut.next', hintKey: 'shortcut.nextHint' },
   { id: 'prev', group: 'navigation', icon: 'north', labelKey: 'shortcut.prev', hintKey: 'shortcut.prevHint' },
   { id: 'archive', group: 'triage', icon: 'done_all', labelKey: 'shortcut.archive', hintKey: 'shortcut.archiveHint' },
+  { id: 'read', group: 'triage', icon: 'mark_email_unread', labelKey: 'shortcut.read', hintKey: 'shortcut.readHint' },
   { id: 'star', group: 'triage', icon: 'star', labelKey: 'shortcut.star', hintKey: 'shortcut.starHint' },
   { id: 'snooze', group: 'triage', icon: 'schedule', labelKey: 'shortcut.snooze', hintKey: 'shortcut.snoozeHint' },
   { id: 'reply', group: 'composition', icon: 'reply', labelKey: 'shortcut.reply', hintKey: 'shortcut.replyHint' },
@@ -47,6 +49,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   next: 'j',
   prev: 'k',
   archive: 'e',
+  read: 'u',
   star: 's',
   snooze: 'h',
   reply: 'r',

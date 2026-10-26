@@ -12,15 +12,18 @@ interface ThreadPaneProps {
   bindings: Bindings
   contextOpen: boolean
   canToggleContext: boolean
-  /** En modo real todavía no hay caché local: archivar/eliminar no aplican. */
+  /** Hay cuenta real: archivar, eliminar y leído aplican sobre el servidor. */
   canMutate: boolean
+  unread: boolean
   onToggleContext: () => void
   onArchive: () => void
+  onToggleRead: () => void
   onSnooze: () => void
   onDelete: () => void
   onStar: () => void
   onReply: () => void
   onQuickDraft: () => void
+  onOpenAttachment: (index: number) => void
   onPrev: () => void
   onNext: () => void
 }
@@ -94,13 +97,16 @@ export function ThreadPane({
   contextOpen,
   canToggleContext,
   canMutate,
+  unread,
   onToggleContext,
   onArchive,
+  onToggleRead,
   onSnooze,
   onDelete,
   onStar,
   onReply,
   onQuickDraft,
+  onOpenAttachment,
   onPrev,
   onNext
 }: ThreadPaneProps): React.JSX.Element {
@@ -114,6 +120,15 @@ export function ThreadPane({
     <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
+          <button
+            className="tool-btn tool-btn--icon"
+            type="button"
+            onClick={onToggleRead}
+            disabled={!canMutate}
+            title={`${unread ? t('common.markRead') : t('common.markUnread')} (${formatCombo(bindings.read)})`}
+          >
+            <Icon name={unread ? 'mark_email_read' : 'mark_email_unread'} size={15} />
+          </button>
           <button
             className="tool-btn"
             type="button"
@@ -238,15 +253,15 @@ export function ThreadPane({
 
                 {message.attachments && message.attachments.length > 0 && (
                   <div className="attachments" aria-label={t('thread.attachments')}>
-                    {message.attachments.map((attachment) => {
+                    {message.attachments.map((attachment, index) => {
                       const meta = ATTACHMENT_ICON[attachment.kind]
                       return (
-                        <a
-                          key={attachment.name}
+                        <button
+                          key={`${attachment.name}-${index}`}
                           className="attachment"
-                          href="#archivo"
+                          type="button"
                           title={t('thread.download')}
-                          onClick={(event) => event.preventDefault()}
+                          onClick={() => onOpenAttachment(index)}
                         >
                           <Icon name={meta.icon} size={18} className="attachment__icon" />
                           <span className="attachment__meta">
@@ -256,7 +271,7 @@ export function ThreadPane({
                             </span>
                           </span>
                           <Icon name="download" size={15} />
-                        </a>
+                        </button>
                       )
                     })}
                   </div>

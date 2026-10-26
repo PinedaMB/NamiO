@@ -1013,9 +1013,13 @@
   align-items: center;
   gap: 10px;
   padding: 6px 12px;
+  border: 0;
   border-radius: var(--r-lg);
   background: var(--surface-container-high);
   color: var(--on-surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   transition: background var(--fast) var(--ease);
 }
 
@@ -1840,6 +1844,15 @@
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+/* Modo real: sin copiloto de demo, el editor ocupa todo el ancho. */
+.composer__split--solo .copilot {
+  display: none;
+}
+
+.composer__split--solo .editor {
+  flex: 1 1 auto;
 }
 
 .editor {

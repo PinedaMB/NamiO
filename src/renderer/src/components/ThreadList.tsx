@@ -13,6 +13,8 @@ interface ThreadListProps {
   vipCount: number
   loading?: boolean
   emptyLabel?: string
+  /** El filtro VIP es de la demo: en modo real no hay datos para él. */
+  showVip?: boolean
   onFilter: (filter: FilterId) => void
   onSelect: (id: string) => void
 }
@@ -48,6 +50,7 @@ export function ThreadList({
   vipCount,
   loading = false,
   emptyLabel,
+  showVip = true,
   onFilter,
   onSelect
 }: ThreadListProps): React.JSX.Element {
@@ -76,16 +79,18 @@ export function ThreadList({
             >
               {t('list.other')} <span className="seg__count">{otherCount}</span>
             </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === 'vip'}
-              className={cx('seg__btn', filter === 'vip' && 'seg__btn--active')}
-              onClick={() => onFilter('vip')}
-            >
-              <Icon name="star" size={13} className="seg__star" />
-              {t('list.vip')} <span className="seg__count">{vipCount}</span>
-            </button>
+            {showVip !== false && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filter === 'vip'}
+                className={cx('seg__btn', filter === 'vip' && 'seg__btn--active')}
+                onClick={() => onFilter('vip')}
+              >
+                <Icon name="star" size={13} className="seg__star" />
+                {t('list.vip')} <span className="seg__count">{vipCount}</span>
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

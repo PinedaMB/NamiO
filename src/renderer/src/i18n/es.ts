@@ -6,6 +6,8 @@
  */
 export const es = {
   'common.archive': 'Archivar',
+  'common.markRead': 'Marcar como leído',
+  'common.markUnread': 'Marcar como no leído',
   'common.snooze': 'Posponer',
   'common.move': 'Mover',
   'common.delete': 'Eliminar',
@@ -193,6 +195,10 @@ export const es = {
   'toast.snoozed': 'Pospuesto hasta mañana 9:00',
   'toast.trashed': 'Movido a la papelera',
   'toast.sent': 'Enviado',
+  'toast.saved': 'Guardado en {path}',
+  'toast.attachmentOffline': 'Los adjuntos se descargan del servidor: se necesita conexión.',
+  'toast.markedRead': 'Marcado como leído',
+  'toast.markedUnread': 'Marcado como no leído',
   'toast.queued': 'En cola: se enviará cuando vuelva la conexión',
   'toast.sendFailed': 'No se pudo enviar: {error}',
   'toast.actionFailed': 'No se pudo completar: {error}',
@@ -251,6 +257,8 @@ export const es = {
   'shortcut.prevHint': 'Subir por la cola',
   'shortcut.archive': 'Archivar hilo',
   'shortcut.archiveHint': 'Sacarlo de la bandeja y pasar al siguiente',
+  'shortcut.read': 'Leído / no leído',
+  'shortcut.readHint': 'Alterna el estado de lectura',
   'shortcut.star': 'Destacar',
   'shortcut.starHint': 'Marcar para seguimiento',
   'shortcut.snooze': 'Posponer',

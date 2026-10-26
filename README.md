@@ -253,6 +253,28 @@ fragmento resaltado y `zzzz` no devuelve nada.
 Limitación honesta: se busca **solo en la caché**, y los cuerpos entran al índice cuando se abren. La
 búsqueda contra el servidor (IMAP `SEARCH`) queda pendiente.
 
+## Pulido para uso diario
+
+![Responder con cita](docs/reply.png)
+
+Antes de empaquetar se cerraron los huecos que hacían ruido al usar la app de verdad:
+
+- **Leído / no leído**: abrir un mensaje escribe `\Seen` en el servidor y el cambio se refleja al
+  instante; `U` (remapeable) lo alterna y el botón de la barra hace lo mismo. El hilo abierto no
+  desaparece del filtro "Sin leer" mientras lo leés: si desapareciera, la selección saltaría al
+  siguiente y lo marcaría leído también (una cascada de mensajes leídos sin abrir).
+- **Responder con cita**: `R` precarga destinatario, `Re: …` y el cuerpo original citado con `>`.
+- **Adjuntos descargables**: cada adjunto se baja del servidor y se guarda con el diálogo del sistema.
+- **Flags frescos**: en cada sincronización se refrescan los flags del tramo reciente, así leer desde
+  el móvil se ve acá (antes la caché se quedaba con el estado viejo para siempre).
+- **Filtros honestos**: en modo real solo se muestran los filtros que tienen datos; el de VIP es de la
+  demo y ya no aparece con una cuenta conectada.
+- **Compositor limpio**: con cuenta real no aparece el copiloto de demo, ni los adjuntos de ejemplo,
+  ni las etiquetas de "guardado automático" y "retención cero" que no eran ciertas.
+
+Limitaciones conocidas: no se pueden **adjuntar** archivos al enviar y cerrar el compositor descarta
+lo escrito (no hay borradores persistidos).
+
 ## Comandos
 
 ```bash
@@ -295,6 +317,7 @@ Los artefactos quedan en `release/`.
 | M4: envío SMTP, copia en Enviados, cola con reintentos | ✅ |
 | Archivar y eliminar aplicados en el servidor | ✅ |
 | M5: búsqueda FTS5 sobre la caché con fragmentos | ✅ |
+| Leído/no leído, responder con cita y adjuntos descargables | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 

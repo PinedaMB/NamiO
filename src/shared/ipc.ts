@@ -16,8 +16,10 @@ export const IPC = {
   messagesList: 'messages:list',
   messageGet: 'message:get',
   messageFlag: 'message:flag',
+  messageSeen: 'message:seen',
   messageArchive: 'message:archive',
   messageDelete: 'message:delete',
+  attachmentSave: 'attachment:save',
   shellOpen: 'shell:open',
   cacheChanged: 'cache:changed',
   mailSend: 'mail:send',
@@ -116,6 +118,8 @@ export interface MessageAttachment {
   name: string
   size: number
   type: string
+  /** Posición en el mensaje original; la usa el guardado. */
+  index: number
 }
 
 export interface MessageDetail extends Envelope {
@@ -200,9 +204,13 @@ export interface MailApi {
   getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>
+  /** Marca/desmarca `\Seen` (leído) en el servidor y en la caché. */
+  setSeen(path: string, uid: number, seen: boolean): Promise<ImapResult<boolean>>
   /** Archivar y eliminar pasan por la cola de salida (idempotente, con reintentos). */
   archiveMessage(path: string, uid: number): Promise<MailAction>
   deleteMessage(path: string, uid: number): Promise<MailAction>
+  /** Descarga un adjunto y lo guarda donde el usuario elija. Devuelve la ruta o null si canceló. */
+  saveAttachment(path: string, uid: number, index: number): Promise<string | null>
 
   sendMail(payload: SendMailPayload): Promise<MailAction>
   listOutbox(): Promise<OutboxItem[]>

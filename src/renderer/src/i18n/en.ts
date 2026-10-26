@@ -3,6 +3,8 @@ import type { Dictionary } from './es'
 /** English copy. Typed as a complete Dictionary: una clave faltante rompe el build. */
 export const en: Dictionary = {
   'common.archive': 'Archive',
+  'common.markRead': 'Mark as read',
+  'common.markUnread': 'Mark as unread',
   'common.snooze': 'Snooze',
   'common.move': 'Move',
   'common.delete': 'Delete',
@@ -190,6 +192,10 @@ export const en: Dictionary = {
   'toast.snoozed': 'Snoozed until tomorrow 9:00 AM',
   'toast.trashed': 'Moved to trash',
   'toast.sent': 'Sent',
+  'toast.markedRead': 'Marked as read',
+  'toast.markedUnread': 'Marked as unread',
+  'toast.saved': 'Saved to {path}',
+  'toast.attachmentOffline': 'Attachments come from the server: a connection is required.',
   'toast.queued': 'Queued: it will be sent when the connection returns',
   'toast.sendFailed': 'Could not send: {error}',
   'toast.actionFailed': 'Could not complete: {error}',
@@ -248,6 +254,8 @@ export const en: Dictionary = {
   'shortcut.prevHint': 'Scan up the queue',
   'shortcut.archive': 'Archive thread',
   'shortcut.archiveHint': 'Dismiss and jump to the next one',
+  'shortcut.read': 'Read / unread',
+  'shortcut.readHint': 'Toggle the read state',
   'shortcut.star': 'Toggle star',
   'shortcut.starHint': 'Pin for follow-up',
   'shortcut.snooze': 'Snooze',

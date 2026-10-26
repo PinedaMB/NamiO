@@ -10,6 +10,8 @@ interface ComposeOverlayProps {
   to: string
   subject: string
   body: string
+  /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
+  copilot?: boolean
   onClose: () => void
   onSend: (payload: { to: string; subject: string; body: string }) => void
 }
@@ -29,6 +31,7 @@ export function ComposeOverlay({
   to,
   subject,
   body,
+  copilot = true,
   onClose,
   onSend
 }: ComposeOverlayProps): React.JSX.Element | null {
@@ -43,10 +46,14 @@ export function ComposeOverlay({
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
   const [generating, setGenerating] = useState(false)
   const [applied, setApplied] = useState(false)
-  const [attachments, setAttachments] = useState<ReadonlyArray<{ name: string; detail: string; icon: string }>>([
-    { name: 'Executed_Addendum_v3.pdf', detail: '248 KB · Signed with DocuSign', icon: 'picture_as_pdf' },
-    { name: 'Calendar Invite: Series A Sync', detail: 'Tomorrow, 2:00 PM – 2:30 PM PST', icon: 'event' }
-  ])
+  const [attachments, setAttachments] = useState<ReadonlyArray<{ name: string; detail: string; icon: string }>>(
+    copilot
+      ? [
+          { name: 'Executed_Addendum_v3.pdf', detail: '248 KB · Signed with DocuSign', icon: 'picture_as_pdf' },
+          { name: 'Calendar Invite: Series A Sync', detail: 'Tomorrow, 2:00 PM – 2:30 PM PST', icon: 'event' }
+        ]
+      : []
+  )
 
   useEffect(() => {
     if (!open) return
@@ -56,7 +63,16 @@ export function ComposeOverlay({
     setBodyValue(body)
     setApplied(false)
     setGenerating(false)
-  }, [open, to, subject, body])
+    // Los adjuntos de ejemplo solo existen en la demo.
+    setAttachments(
+      copilot
+        ? [
+            { name: 'Executed_Addendum_v3.pdf', detail: '248 KB · Signed with DocuSign', icon: 'picture_as_pdf' },
+            { name: 'Calendar Invite: Series A Sync', detail: 'Tomorrow, 2:00 PM – 2:30 PM PST', icon: 'event' }
+          ]
+        : []
+    )
+  }, [open, to, subject, body, copilot])
 
   const addRecipient = (): void => {
     const value = draftRecipient.trim().replace(/,$/, '')
@@ -91,7 +107,9 @@ export function ComposeOverlay({
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
             <span>{subjectValue || t('compose.newMessage')}</span>
-            {subjectValue.startsWith('Re:') && <span className="chip">{t('compose.threadId')}</span>}
+            {subjectValue.startsWith('Re:') && copilot && (
+              <span className="chip">{t('compose.threadId')}</span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button className="icon-btn" type="button" title={t('compose.minimize')}>
@@ -174,7 +192,7 @@ export function ComposeOverlay({
           </div>
         </div>
 
-        <div className="composer__split">
+        <div className={cx('composer__split', !copilot && 'composer__split--solo')}>
           <div className="editor">
             <div className="formatbar">
               <div className="formatbar__tools">
@@ -207,8 +225,12 @@ export function ComposeOverlay({
                 </button>
               </div>
               <span className="t-kbd" style={{ color: 'var(--outline)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Icon name="cloud_done" size={14} style={{ color: 'var(--tertiary)' }} />
-                {t('compose.autosaved')}
+                {copilot && (
+                  <>
+                    <Icon name="cloud_done" size={14} style={{ color: 'var(--tertiary)' }} />
+                    {t('compose.autosaved')}
+                  </>
+                )}
               </span>
             </div>
 
@@ -222,10 +244,12 @@ export function ComposeOverlay({
                 aria-label={t('compose.placeholder')}
               />
 
-              <div className="composer__sign">
-                <strong>Alex Rivera</strong>
-                <span>{t('compose.signatureRole')}</span>
-              </div>
+              {copilot && (
+                <div className="composer__sign">
+                  <strong>Alex Rivera</strong>
+                  <span>{t('compose.signatureRole')}</span>
+                </div>
+              )}
 
               <div className="attach-row">
                 {attachments.map((attachment) => (
@@ -374,18 +398,24 @@ export function ComposeOverlay({
                 <Icon name="arrow_drop_down" size={16} />
               </button>
             </div>
-            <button className="tool-btn" type="button">
-              <Icon name="schedule_send" size={16} />
-              {t('compose.sendTomorrow')}
-            </button>
+            {copilot && (
+              <button className="tool-btn" type="button">
+                <Icon name="schedule_send" size={16} />
+                {t('compose.sendTomorrow')}
+              </button>
+            )}
           </div>
 
           <div className="composer__foot-right">
-            <span>
-              <Icon name="security" size={16} />
-              {t('compose.zeroKnowledge')}
-            </span>
-            <span className="vsep" />
+            {copilot && (
+              <>
+                <span>
+                  <Icon name="security" size={16} />
+                  {t('compose.zeroKnowledge')}
+                </span>
+                <span className="vsep" />
+              </>
+            )}
             <button className="tool-btn btn--danger" type="button" onClick={onClose}>
               <Icon name="delete" size={16} />
               {t('common.discard')}

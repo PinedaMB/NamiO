@@ -32,6 +32,8 @@ import {
   searchMessages,
   setFlagged as cacheFlagged,
   setMeta,
+  setUnread as cacheUnread,
+  updateFlags,
   upsertEnvelopes,
   upsertMailboxes
 } from './db'
@@ -293,6 +295,20 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     setMeta('lastSync', String(Date.now()))
     offline = false
 
+    // Los flags cambian desde otros clientes: se refresca el tramo visible.
+    if (exists > 0) {
+      const recentStart = Math.max(1, exists - 19)
+      const flags: { uid: number; unread: boolean; flagged: boolean }[] = []
+      for await (const message of client.fetch(`${recentStart}:*`, { uid: true, flags: true })) {
+        flags.push({
+          uid: message.uid,
+          unread: !message.flags?.has('\\Seen'),
+          flagged: message.flags?.has('\\Flagged') ?? false
+        })
+      }
+      updateFlags(path, flags)
+    }
+
     // Reconciliación: si el servidor cuenta más mensajes de los que tenemos, el
     // UIDNEXT pudo quedar desfasado (entrega a mitad de camino). Se re-lee el
     // tramo final por secuencia, que es idempotente.
@@ -405,10 +421,11 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
       })
     )
 
-    const attachments: MessageAttachment[] = parsed.attachments.map((attachment) => ({
-      name: attachment.filename ?? 'adjunto',
+    const attachments: MessageAttachment[] = parsed.attachments.map((attachment, index) => ({
+      name: attachment.filename ?? `adjunto-${index + 1}`,
       size: attachment.size ?? 0,
-      type: attachment.contentType ?? 'application/octet-stream'
+      type: attachment.contentType ?? 'application/octet-stream',
+      index
     }))
 
     const envelope = readEnvelope(path, uid)
@@ -437,10 +454,11 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
   if (!envelope) return null
 
   const body = readBody(path, uid)
-  const attachments: MessageAttachment[] = body.attachments.map((attachment) => ({
+  const attachments: MessageAttachment[] = body.attachments.map((attachment, index) => ({
     name: attachment.name,
     size: attachment.size,
-    type: attachment.type
+    type: attachment.type,
+    index
   }))
 
   return {
@@ -536,6 +554,57 @@ export async function syncInbox(limit = 50): Promise<void> {
   } catch {
     // sin red o sin sesión: la UI sigue con la caché
   }
+}
+
+export function setSeen(path: string, uid: number, seen: boolean): Promise<ImapResult<boolean>> {
+  return serial(async () => {
+    try {
+      const client = await ensureClient()
+      const lock = await client.getMailboxLock(path)
+      try {
+        if (seen) await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
+        else await client.messageFlagsRemove(String(uid), ['\\Seen'], { uid: true })
+      } finally {
+        lock.release()
+      }
+      cacheUnread(path, uid, !seen)
+      offline = false
+      return { ok: true as const, data: seen }
+    } catch (error) {
+      return { ok: false as const, code: classify(error), detail: describe(error) }
+    }
+  })
+}
+
+/** Descarga un adjunto puntual (los cuerpos cacheados no guardan los bytes). */
+export function readAttachment(
+  path: string,
+  uid: number,
+  index: number
+): Promise<{ name: string; content: Buffer }> {
+  return serial(async () => {
+    const client = await ensureClient()
+    const lock = await client.getMailboxLock(path)
+
+    try {
+      const download = await client.download(String(uid), undefined, { uid: true })
+      if (!download.content) throw new Error('El mensaje no tiene contenido')
+
+      const chunks: Buffer[] = []
+      for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
+
+      const parsed = await simpleParser(Buffer.concat(chunks))
+      const attachment = parsed.attachments[index]
+      if (!attachment?.content) throw new Error('Adjunto no encontrado')
+
+      return {
+        name: attachment.filename ?? `adjunto-${index + 1}`,
+        content: Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content)
+      }
+    } finally {
+      lock.release()
+    }
+  })
 }
 
 /** Ruta del buzón de archivo, si el servidor la expone. */
