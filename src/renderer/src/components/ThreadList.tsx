@@ -15,6 +15,8 @@ interface ThreadListProps {
   emptyLabel?: string
   /** El filtro VIP es de la demo: en modo real no hay datos para él. */
   showVip?: boolean
+  /** Cuenta real: las pestañas dicen "sin leer / leídos" en vez de prioridad. */
+  live?: boolean
   onFilter: (filter: FilterId) => void
   onSelect: (id: string) => void
 }
@@ -51,13 +53,18 @@ export function ThreadList({
   loading = false,
   emptyLabel,
   showVip = true,
+  live = false,
   onFilter,
   onSelect
 }: ThreadListProps): React.JSX.Element {
   const { t } = useI18n()
+  // En modo real las pestañas no son "prioridad": son sin leer / leídos, y el
+  // pie no puede decir "clasificado hace…" porque nadie clasifica nada.
+  const focusedLabel = live ? t('list.unread') : t('list.focused')
+  const otherLabel = live ? t('list.read') : t('list.other')
 
   return (
-    <section className="list" aria-label={t('list.queue', { name: t(QUEUE_LABEL[filter]) })}>
+    <section className="list" aria-label={t('list.queue', { name: focusedLabel })}>
       <div className="list__filters">
         <div className="list__filters-row">
           <div className="seg" role="tablist">
@@ -68,7 +75,7 @@ export function ThreadList({
               className={cx('seg__btn', filter === 'focused' && 'seg__btn--active')}
               onClick={() => onFilter('focused')}
             >
-              {t('list.focused')} <span className="seg__count">{unreadCount}</span>
+              {focusedLabel} <span className="seg__count">{unreadCount}</span>
             </button>
             <button
               type="button"
@@ -77,7 +84,7 @@ export function ThreadList({
               className={cx('seg__btn', filter === 'other' && 'seg__btn--active')}
               onClick={() => onFilter('other')}
             >
-              {t('list.other')} <span className="seg__count">{otherCount}</span>
+              {otherLabel} <span className="seg__count">{otherCount}</span>
             </button>
             {showVip !== false && (
               <button
@@ -104,8 +111,12 @@ export function ThreadList({
         </div>
 
         <div className="list__queue">
-          <span>{t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}</span>
-          <strong>{t('list.triaged')}</strong>
+          <span>
+            {live
+              ? t('list.liveQueue', { count: threads.length }).toUpperCase()
+              : t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}
+          </span>
+          {!live && <strong>{t('list.triaged')}</strong>}
         </div>
       </div>
 

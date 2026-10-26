@@ -83,6 +83,9 @@ export const en: Dictionary = {
 
   'list.focused': 'Focused',
   'list.other': 'Other',
+  'list.unread': 'Unread',
+  'list.read': 'Read',
+  'list.liveQueue': 'Latest {count} messages',
   'list.vip': 'VIP',
   'list.queue': 'QUEUE: {name}',
   'list.highPriority': 'High Priority',

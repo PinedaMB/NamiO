@@ -8,6 +8,8 @@ export type FilterId = 'focused' | 'other' | 'vip' | 'files' | 'needs-reply'
 interface TopbarProps {
   unreadCount: number
   filter: FilterId
+  /** Cuenta real: se ocultan los filtros de demo y el resumen cambia de texto. */
+  live?: boolean
   onFilter: (filter: FilterId) => void
   query: string
   onQuery: (value: string) => void
@@ -25,6 +27,7 @@ const FILTERS: ReadonlyArray<{ id: FilterId; labelKey: 'topbar.unread' | 'topbar
 export function Topbar({
   unreadCount,
   filter,
+  live = false,
   onFilter,
   query,
   onQuery,
@@ -38,25 +41,41 @@ export function Topbar({
       <div className="topbar__left">
         <div className="zero-pill">
           <span className="dot" />
-          <strong>{t('topbar.zero')}</strong>
-          <span>· {unreadCount === 1 ? t('topbar.remainingOne') : t('topbar.remaining', { count: unreadCount })}</span>
+          {live ? (
+            <>
+              <strong>{t('topbar.unread')}</strong>
+              <span>{` · ${unreadCount}`}</span>
+            </>
+          ) : (
+            <>
+              <strong>{t('topbar.zero')}</strong>
+              <span>
+                ·{' '}
+                {unreadCount === 1 ? t('topbar.remainingOne') : t('topbar.remaining', { count: unreadCount })}
+              </span>
+            </>
+          )}
         </div>
 
         <div className="vsep" />
 
-        <div className="filter-row">
-          {FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cx('filter-chip', filter === item.id && 'filter-chip--active')}
-              onClick={() => onFilter(item.id)}
-            >
-              {item.icon && <Icon name={item.icon} size={14} />}
-              {t(item.labelKey)}
-            </button>
-          ))}
-        </div>
+        {/* En modo real los filtros de demo (VIP, adjuntos, respuesta) no tienen
+            datos: los reemplazan las pestañas "Sin leer / Leídos" de la lista. */}
+        {!live && (
+          <div className="filter-row">
+            {FILTERS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={cx('filter-chip', filter === item.id && 'filter-chip--active')}
+                onClick={() => onFilter(item.id)}
+              >
+                {item.icon && <Icon name={item.icon} size={14} />}
+                {t(item.labelKey)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="search">

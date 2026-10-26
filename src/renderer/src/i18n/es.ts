@@ -86,6 +86,9 @@ export const es = {
 
   'list.focused': 'Prioritarios',
   'list.other': 'Otros',
+  'list.unread': 'Sin leer',
+  'list.read': 'Leídos',
+  'list.liveQueue': 'Últimos {count} mensajes',
   'list.vip': 'VIP',
   'list.queue': 'COLA: {name}',
   'list.highPriority': 'Alta prioridad',

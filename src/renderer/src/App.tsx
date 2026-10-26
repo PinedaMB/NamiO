@@ -680,6 +680,7 @@ export function App(): React.JSX.Element {
         <Topbar
           unreadCount={unreadCount}
           filter={filter}
+          live={live}
           query={query}
           onQuery={(next) => {
             setQuery(next)
@@ -731,6 +732,7 @@ export function App(): React.JSX.Element {
                 onFilter={setFilter}
                 onSelect={select}
                 showVip={!live}
+                live={live}
               />
               )}
 
