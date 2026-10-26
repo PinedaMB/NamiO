@@ -62,25 +62,23 @@ export function ThreadList({
   onSelect
 }: ThreadListProps): React.JSX.Element {
   const { t } = useI18n()
-  // En modo real las pestañas no son "prioridad": son sin leer / leídos, y el
-  // pie no puede decir "clasificado hace…" porque nadie clasifica nada.
+  // En modo real las pestañas no son "prioridad": son todos / sin leer / leídos,
+  // y el pie no puede decir "clasificado hace…" porque nadie clasifica nada.
   const focusedLabel = live ? t('list.unread') : t('list.focused')
   const otherLabel = live ? t('list.read') : t('list.other')
+  const activeLabel = live
+    ? filter === 'all'
+      ? t('list.all')
+      : filter === 'other'
+        ? otherLabel
+        : focusedLabel
+    : t(QUEUE_LABEL[filter])
 
   return (
-    <section className="list" aria-label={t('list.queue', { name: focusedLabel })}>
+    <section className="list" aria-label={t('list.queue', { name: activeLabel })}>
       <div className="list__filters">
         <div className="list__filters-row">
           <div className="seg" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === 'focused'}
-              className={cx('seg__btn', filter === 'focused' && 'seg__btn--active')}
-              onClick={() => onFilter('focused')}
-            >
-              {focusedLabel} <span className="seg__count">{unreadCount}</span>
-            </button>
             {live && (
               <button
                 type="button"
@@ -92,6 +90,15 @@ export function ThreadList({
                 {t('list.all')} <span className="seg__count">{allCount}</span>
               </button>
             )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filter === 'focused'}
+              className={cx('seg__btn', filter === 'focused' && 'seg__btn--active')}
+              onClick={() => onFilter('focused')}
+            >
+              {focusedLabel} <span className="seg__count">{unreadCount}</span>
+            </button>
             <button
               type="button"
               role="tab"
