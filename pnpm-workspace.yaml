@@ -1,0 +1,7 @@
+# Configuración de pnpm 12.
+# Desde pnpm 12 los settings ya no se leen desde el campo "pnpm" de package.json:
+# la única vía para autorizar scripts de instalación es "allowBuilds".
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true

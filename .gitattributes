@@ -1,0 +1,4 @@
+# El objetivo es Linux: el repo se normaliza a LF para no ensuciar diffs desde Windows.
+* text=auto eol=lf
+*.png binary
+*.ico binary
