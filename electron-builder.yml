@@ -6,28 +6,36 @@ directories:
   buildResources: build
   output: release
 
+# Solo la app compilada: electron-builder agrega las dependencias de producción
+# de package.json (imapflow, mailparser, nodemailer) y descarta las de desarrollo.
 files:
   - out/**
   - package.json
-  # Dependencias de runtime (imapflow, mailparser) se resuelven desde node_modules:
-  # el bundle de main las externaliza. electron-builder descarta las de desarrollo.
-  - node_modules/**/*
 
 asar: true
+asarUnpack:
+  # Nada nativo por ahora: node:sqlite viene en Electron, no hay .node que extraer.
 
 linux:
   target:
     - AppImage
     - deb
+  icon: icon.png
   category: Network;Email
   synopsis: Cliente de correo de escritorio
   description: Cliente de correo IMAP/SMTP con caché local, pensado para escritorio Linux.
+  # WM_CLASS / app_id: sin esto, GNOME y KDE no asocian la ventana con el .desktop
+  # (el nombre va en package.json: "desktopName").
+  syncDesktopName: true
+  maintainer: linux-mail-client <dev@example.com>
   desktop:
     entry:
       Name: NamiO
       Comment: Cliente de correo
       Keywords: email;mail;imap;
+      Categories: Network;Email;
 
 win:
   target:
     - nsis
+  icon: icon.png

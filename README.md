@@ -315,6 +315,7 @@ pnpm dev:restricted # fuerza sandbox desactivado (ver más abajo)
 pnpm typecheck      # tsc para main/preload y para el renderer
 pnpm build          # typecheck + build de producción en out/
 pnpm build:linux    # AppImage + .deb (requiere Linux o CI)
+pnpm css:audit      # integridad del CSS contra el JSX
 pnpm preview        # sirve out/renderer en http://127.0.0.1:4173 (revisar UI sin Electron)
 ```
 
@@ -327,6 +328,59 @@ node scripts/probe.mjs "document.querySelector('.statusbar').getBoundingClientRe
 ```
 
 Los artefactos quedan en `release/`.
+
+## Empaquetado
+
+### Qué se puede construir desde Windows
+
+| Comando | Resultado | Sirve para |
+| --- | --- | --- |
+| `pnpm build` | `out/` (main, preload, renderer) | desarrollo y empaquetado |
+| `pnpm exec electron-builder --win dir` | `release/win-unpacked` | **probar el runtime empaquetado** |
+| `pnpm exec electron-builder --linux dir` | `release/linux-unpacked` | validar el contenido del paquete |
+
+El paquete de Linux quedó verificado así: `app.asar` de **12.55 MB / 855 archivos** con las
+dependencias de runtime (`imapflow`, `mailparser`, `nodemailer` y sus transitivas), **13 fuentes
+woff2 (4.1 MB)** incluidas las de Material Symbols, y `out/main`, `out/preload` y `out/renderer`
+completos.
+
+Y sobre la app ya empaquetada (`isPackaged: true`, cargando desde `app.asar`):
+
+- Inter Variable, JetBrains Mono y Material Symbols **cargan desde el asar** (`document.fonts.check`).
+- La **CSP se aplica de verdad**: un script inline y un `fetch` remoto fueron bloqueados.
+- El **correo HTML renderiza** en su iframe (`frame-src 'self' about:`) con imágenes bloqueadas.
+- IPC, modo demo y conexión IMAP funcionan igual que en desarrollo.
+- Cero errores de consola propios.
+
+### Por qué AppImage y .deb necesitan Linux
+
+- **AppImage** arma el layout con symlinks; Windows devuelve `EPERM` sin modo desarrollador o
+  privilegios de administrador.
+- **deb** usa `fpm`, que no existe en Windows.
+
+En Linux (o en CI, que es lo recomendado):
+
+```bash
+pnpm install
+pnpm run build:linux     # → release/NamiO-0.1.0.AppImage + release/namio_0.1.0_amd64.deb
+```
+
+La CI está en [`.github/workflows/release-linux.yml`](.github/workflows/release-linux.yml): corre en
+`ubuntu-latest` con Node 22 y pnpm 12, audita el CSS, compila y sube los dos instalables como
+artefactos (se dispara con un tag `v*` o a mano).
+
+### Marca y asociación de ventana
+
+- `build/icon.png` (512×512): la "N" sobre el degradado índigo del rail (`#8083ff → #b8c4ff`).
+- `desktopName: namio.desktop` en `package.json` + `linux.syncDesktopName` en `electron-builder.yml`
+  para que GNOME/KDE asocien la ventana con el lanzador.
+- **Antes de publicar**: reemplazar `homepage` (hoy `https://example.com/namio`) y `maintainer`.
+
+### La CSP en producción va por meta, no por cabecera
+
+La app empaquetada carga `file://`, donde no existen cabeceras de respuesta: una CSP puesta con
+`onHeadersReceived` **no se aplica**. Por eso la política viaja como `<meta http-equiv>` inyectado
+solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el HMR.
 
 ## Estado de verificación
 

@@ -9,6 +9,8 @@
     "email": "dev@example.com"
   },
   "license": "MIT",
+  "homepage": "https://example.com/namio",
+  "desktopName": "namio.desktop",
   "private": true,
   "packageManager": "pnpm@12.14.0",
   "engines": {

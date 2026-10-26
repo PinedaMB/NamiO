@@ -1,0 +1,47 @@
+name: release-linux
+
+# Los instalables de Linux se generan en Linux: `deb` necesita fpm y AppImage
+# crea symlinks que Windows no permite sin privilegios. Este workflow corre en
+# ubuntu-latest y deja los artefactos como descarga.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Auditar el CSS
+        run: pnpm run css:audit
+
+      - name: Compilar
+        run: pnpm run build
+
+      - name: Empaquetar (AppImage + deb)
+        run: pnpm exec electron-builder --linux --publish never
+
+      - name: Publicar artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: namio-linux
+          if-no-files-found: error
+          path: |
+            release/*.AppImage
+            release/*.deb
