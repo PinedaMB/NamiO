@@ -7,9 +7,15 @@ interface SidebarProps {
   activeFolder: string
   onSelectFolder: (id: string) => void
   onCompose: () => void
+  onOpenSettings: () => void
 }
 
-export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProps): React.JSX.Element {
+export function Sidebar({
+  activeFolder,
+  onSelectFolder,
+  onCompose,
+  onOpenSettings
+}: SidebarProps): React.JSX.Element {
   const { t } = useI18n()
 
   return (
@@ -91,7 +97,13 @@ export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProp
             <span className="dot dot--tertiary pulse" />
             {t('sidebar.synced')}
           </span>
-          <button className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')}>
+          <button
+            className="icon-btn"
+            type="button"
+            title={t('sidebar.settings')}
+            aria-label={t('sidebar.settings')}
+            onClick={onOpenSettings}
+          >
             <Icon name="settings" size={16} />
           </button>
         </div>

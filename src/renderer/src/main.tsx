@@ -10,6 +10,7 @@ import './styles/tokens.css'
 import './styles/app.css'
 import App from './App'
 import { I18nProvider } from './i18n'
+import { ShortcutsProvider } from './settings/ShortcutsProvider'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Falta el nodo #root en index.html')
@@ -17,7 +18,9 @@ if (!container) throw new Error('Falta el nodo #root en index.html')
 createRoot(container).render(
   <StrictMode>
     <I18nProvider>
-      <App />
+      <ShortcutsProvider>
+        <App />
+      </ShortcutsProvider>
     </I18nProvider>
   </StrictMode>
 )

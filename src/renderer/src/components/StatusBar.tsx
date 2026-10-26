@@ -1,9 +1,11 @@
 import { Fragment } from 'react'
 import { useI18n, type TranslationKey } from '../i18n'
+import { formatCombo, type Bindings } from '../settings/shortcuts'
 import { Icon } from './Icon'
 
 interface StatusBarProps {
   appVersion: string | null
+  bindings: Bindings
 }
 
 interface LegendEntry {
@@ -11,25 +13,13 @@ interface LegendEntry {
   labelKey: TranslationKey
 }
 
-const PRIMARY: ReadonlyArray<LegendEntry> = [
-  { keys: ['J', 'K'], labelKey: 'status.navigate' },
-  { keys: ['E'], labelKey: 'status.archive' },
-  { keys: ['S'], labelKey: 'status.snooze' },
-  { keys: ['R'], labelKey: 'status.reply' }
-]
-
-const SECONDARY: ReadonlyArray<LegendEntry> = [
-  { keys: ['C'], labelKey: 'status.compose' },
-  { keys: ['⌘K'], labelKey: 'status.actions' }
-]
-
 function LegendItem({ entry }: { entry: LegendEntry }): React.JSX.Element {
   const { t } = useI18n()
   return (
     <span className="legend__item">
       {entry.keys.map((key) => (
         <kbd key={key} className="kbd">
-          {key}
+          {formatCombo(key)}
         </kbd>
       ))}
       <span>{t(entry.labelKey)}</span>
@@ -37,13 +27,26 @@ function LegendItem({ entry }: { entry: LegendEntry }): React.JSX.Element {
   )
 }
 
-export function StatusBar({ appVersion }: StatusBarProps): React.JSX.Element {
+export function StatusBar({ appVersion, bindings }: StatusBarProps): React.JSX.Element {
   const { t } = useI18n()
+
+  // La leyenda sale de los atajos activos: si remapeás, el pie lo refleja.
+  const primary: ReadonlyArray<LegendEntry> = [
+    { keys: [bindings.prev, bindings.next], labelKey: 'status.navigate' },
+    { keys: [bindings.archive], labelKey: 'status.archive' },
+    { keys: [bindings.star], labelKey: 'status.star' },
+    { keys: [bindings.reply], labelKey: 'status.reply' }
+  ]
+
+  const secondary: ReadonlyArray<LegendEntry> = [
+    { keys: [bindings.compose], labelKey: 'status.compose' },
+    { keys: [bindings.palette], labelKey: 'status.actions' }
+  ]
 
   return (
     <footer className="statusbar">
       <div className="legend">
-        {PRIMARY.map((entry, index) => (
+        {primary.map((entry, index) => (
           <Fragment key={entry.labelKey}>
             {index > 0 && <span className="legend__sep">·</span>}
             <LegendItem entry={entry} />
@@ -51,7 +54,7 @@ export function StatusBar({ appVersion }: StatusBarProps): React.JSX.Element {
         ))}
 
         <span className="legend__secondary">
-          {SECONDARY.map((entry) => (
+          {secondary.map((entry) => (
             <Fragment key={entry.labelKey}>
               <span className="legend__sep">·</span>
               <LegendItem entry={entry} />

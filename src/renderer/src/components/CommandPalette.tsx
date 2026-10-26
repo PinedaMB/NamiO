@@ -13,6 +13,7 @@ interface CommandPaletteProps {
   onArchive: () => void
   onSnooze: () => void
   onSelectFolder: (folder: string) => void
+  onOpenSettings: () => void
 }
 
 interface Item {
@@ -40,7 +41,8 @@ export function CommandPalette({
   onCompose,
   onArchive,
   onSnooze,
-  onSelectFolder
+  onSelectFolder,
+  onOpenSettings
 }: CommandPaletteProps): React.JSX.Element | null {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
@@ -119,11 +121,11 @@ export function CommandPalette({
           { id: 'nav-inbox', label: t('palette.goInbox'), icon: 'inbox', keys: ['G', 'I'], run: run(() => onSelectFolder('inbox')) },
           { id: 'nav-starred', label: t('palette.goStarred'), icon: 'star', keys: ['G', 'S'], run: run(() => onSelectFolder('starred')) },
           { id: 'nav-drafts', label: t('palette.goDrafts'), icon: 'draft', keys: ['G', 'D'], run: run(() => onSelectFolder('drafts')) },
-          { id: 'nav-settings', label: t('palette.goSettings'), icon: 'settings', keys: ['G', ','], run: onClose }
+          { id: 'nav-settings', label: t('palette.goSettings'), icon: 'settings', keys: ['G', ','], run: run(onOpenSettings) }
         ]
       }
     ]
-  }, [threads, onClose, onCompose, onArchive, onSnooze, onOpenThread, onSelectFolder, t])
+  }, [threads, onClose, onCompose, onArchive, onSnooze, onOpenThread, onSelectFolder, onOpenSettings, t])
 
   const filtered = useMemo<Group[]>(() => {
     const needle = query.trim().toLowerCase()

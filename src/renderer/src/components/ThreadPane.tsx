@@ -1,11 +1,13 @@
 import type { Attachment, Message, Thread } from '../data/demo'
 import { useI18n } from '../i18n'
+import { formatCombo, type Bindings } from '../settings/shortcuts'
 import { Icon } from './Icon'
 
 interface ThreadPaneProps {
   thread: Thread
   position: number
   total: number
+  bindings: Bindings
   onArchive: () => void
   onSnooze: () => void
   onDelete: () => void
@@ -71,6 +73,7 @@ export function ThreadPane({
   thread,
   position,
   total,
+  bindings,
   onArchive,
   onSnooze,
   onDelete,
@@ -90,20 +93,19 @@ export function ThreadPane({
     <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
-          <button className="tool-btn" type="button" onClick={onArchive} title={`${t('common.archive')} (E)`}>
+          <button className="tool-btn" type="button" onClick={onArchive} title={`${t('common.archive')} (${formatCombo(bindings.archive)})`}>
             <Icon name="archive" size={15} />
             {t('common.archive')}
-            <kbd className="kbd">E</kbd>
+            <kbd className="kbd">{formatCombo(bindings.archive)}</kbd>
           </button>
-          <button className="tool-btn" type="button" onClick={onSnooze} title={`${t('common.snooze')} (S)`}>
+          <button className="tool-btn" type="button" onClick={onSnooze} title={`${t('common.snooze')} (${formatCombo(bindings.snooze)})`}>
             <Icon name="schedule" size={15} />
             {t('common.snooze')}
-            <kbd className="kbd">S</kbd>
+            <kbd className="kbd">{formatCombo(bindings.snooze)}</kbd>
           </button>
-          <button className="tool-btn" type="button" title={`${t('common.move')} (M)`}>
+          <button className="tool-btn" type="button" title={t('common.move')}>
             <Icon name="drive_file_move" size={15} />
             {t('common.move')}
-            <kbd className="kbd">M</kbd>
           </button>
           <button className="tool-btn tool-btn--icon btn--danger" type="button" title={t('common.spam')}>
             <Icon name="report" size={15} />
@@ -206,10 +208,7 @@ export function ThreadPane({
               <span className="quick-reply__own">
                 <Icon name="reply" size={16} />
               </span>
-              <span>
-                {t('thread.hintPrefix')} <kbd className="kbd kbd--quiet">R</kbd> {t('thread.hintMid')}{' '}
-                <kbd className="kbd kbd--quiet">A</kbd> {t('thread.hintSuffix')}
-              </span>
+              <span>{t('thread.replyHint', { key: formatCombo(bindings.reply) })}</span>
             </div>
             <div className="quick-reply__actions">
               <button className="tool-btn" type="button" onClick={onQuickDraft}>

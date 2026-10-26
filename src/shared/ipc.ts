@@ -30,6 +30,8 @@ export type Language = 'es' | 'en'
 
 export interface AppSettings {
   language: Language
+  /** Acción → combinación normalizada (`j`, `mod+k`). */
+  shortcuts?: Record<string, string>
 }
 
 export interface MailApi {

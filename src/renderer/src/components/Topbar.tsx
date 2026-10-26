@@ -10,6 +10,7 @@ interface TopbarProps {
   filter: FilterId
   onFilter: (filter: FilterId) => void
   onOpenPalette: () => void
+  onOpenSettings: () => void
 }
 
 const FILTERS: ReadonlyArray<{ id: FilterId; labelKey: 'topbar.unread' | 'topbar.needsReply' | 'topbar.vips' | 'topbar.files'; icon?: string }> = [
@@ -19,7 +20,13 @@ const FILTERS: ReadonlyArray<{ id: FilterId; labelKey: 'topbar.unread' | 'topbar
   { id: 'files', labelKey: 'topbar.files', icon: 'attachment' }
 ]
 
-export function Topbar({ unreadCount, filter, onFilter, onOpenPalette }: TopbarProps): React.JSX.Element {
+export function Topbar({
+  unreadCount,
+  filter,
+  onFilter,
+  onOpenPalette,
+  onOpenSettings
+}: TopbarProps): React.JSX.Element {
   const { t, locale, setLocale } = useI18n()
 
   return (
@@ -77,7 +84,13 @@ export function Topbar({ unreadCount, filter, onFilter, onOpenPalette }: TopbarP
         <button className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')}>
           <Icon name="sync" size={18} />
         </button>
-        <button className="icon-btn" type="button" title={t('topbar.preferences')} aria-label={t('topbar.preferences')}>
+        <button
+          className="icon-btn"
+          type="button"
+          title={t('topbar.preferences')}
+          aria-label={t('topbar.preferences')}
+          onClick={onOpenSettings}
+        >
           <Icon name="tune" size={18} />
         </button>
         <div className="vsep" />

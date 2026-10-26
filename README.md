@@ -101,6 +101,33 @@ La interfaz está en español e inglés, con un conmutador `ES / EN` en la barra
 
 Sumar un idioma es crear `pt.ts` tipado como `Dictionary` y agregarlo a `LOCALES` y `DICTIONARIES`.
 
+## Configuración y atajos
+
+![Configuración](docs/settings.png)
+
+Se abre con `⌘,`, con el engranaje del rail o con el ícono de preferencias. Tiene cinco secciones:
+General y velocidad, Atajos de teclado, Cuentas y alias, Ajuste del copiloto, y Reglas y filtros.
+
+- **Atajos remapeables de verdad**: clic en una fila, se presiona la combinación nueva y se aplica.
+  Los atajos viven en un provider compartido, así que la bandeja, la leyenda del pie y la paleta
+  reaccionan en el acto, y persisten en `settings.json` entre reinicios.
+- Detección de conflictos (`⌘K` ya lo usa «Abrir la paleta»), `Esc` reservado para cerrar y botón
+  para volver al esquema por defecto.
+- Las secciones sin motor todavía (Cuentas, Copiloto, Reglas) son estados vacíos explícitos, no
+  maquetas falsas: dicen qué falta y en qué hito llega.
+- El diagnóstico muestra versión, Electron y plataforma reales, obtenidos por IPC.
+
+| Acción | Por defecto |
+| --- | --- |
+| Siguiente / anterior | `J` / `K` |
+| Archivar | `E` |
+| Destacar | `S` |
+| Posponer | `H` |
+| Responder | `R` |
+| Redactar | `C` |
+| Paleta de comandos | `⌘K` |
+| Ajustes | `⌘,` |
+
 ## Comandos
 
 ```bash
@@ -134,6 +161,7 @@ Los artefactos quedan en `release/`.
 | `pnpm build` → `out/main`, `out/preload`, `out/renderer` | ✅ |
 | App Electron real: ventana, IPC y smoke test 7/7 | ✅ |
 | UI capturada en Chromium headless (bandeja, compositor, paleta) | ✅ |
+| Remapeo de atajos: aplicado en vivo y persistido en `settings.json` | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 

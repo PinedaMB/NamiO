@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CoreStatus } from '@shared/ipc'
-import {
-  ACTION_ITEMS,
-  BRIEF,
-  COPILOT_DRAFT,
-  SLOTS,
-  THREADS,
-  type Thread
-} from './data/demo'
+import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, SLOTS, THREADS, type Thread } from './data/demo'
 import { Sidebar } from './components/Sidebar'
-import { useI18n } from './i18n'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ThreadList } from './components/ThreadList'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
@@ -17,13 +9,19 @@ import { ContextRail } from './components/ContextRail'
 import { StatusBar } from './components/StatusBar'
 import { CommandPalette } from './components/CommandPalette'
 import { ComposeOverlay } from './components/ComposeOverlay'
+import { Settings } from './components/Settings'
 import { Icon } from './components/Icon'
+import { useI18n } from './i18n'
+import { useShortcuts } from './settings/ShortcutsProvider'
+import { actionForCombo, comboFromEvent } from './settings/shortcuts'
 
 interface ComposeState {
   to: string
   subject: string
   body: string
 }
+
+type View = 'mailbox' | 'settings'
 
 function matchesFilter(thread: Thread, filter: FilterId): boolean {
   switch (filter) {
@@ -52,6 +50,8 @@ function matchesFolder(thread: Thread, folder: string): boolean {
 
 export function App(): React.JSX.Element {
   const { t } = useI18n()
+  const { bindings } = useShortcuts()
+  const [view, setView] = useState<View>('mailbox')
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
   const [filter, setFilter] = useState<FilterId>('focused')
@@ -106,6 +106,22 @@ export function App(): React.JSX.Element {
     setSelectedId(id)
   }
 
+  const selectFolder = (id: string): void => {
+    setFolder(id)
+    setView('mailbox')
+  }
+
+  /** Filtrar desde Ajustes devuelve a la bandeja: el filtro no se aplica a una pantalla de opciones. */
+  const filterBy = (next: FilterId): void => {
+    setFilter(next)
+    setView('mailbox')
+  }
+
+  const openSettings = (): void => {
+    setPaletteOpen(false)
+    setView('settings')
+  }
+
   const step = (delta: number): void => {
     if (visible.length === 0) return
     const current = visible.findIndex((thread) => thread.id === selected?.id)
@@ -147,12 +163,6 @@ export function App(): React.JSX.Element {
         target !== null &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
 
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setPaletteOpen((open) => !open)
-        return
-      }
-
       if (event.key === 'Escape') {
         if (paletteOpen) {
           setPaletteOpen(false)
@@ -160,31 +170,52 @@ export function App(): React.JSX.Element {
         }
         if (compose) {
           setCompose(null)
+          return
         }
+        if (view === 'settings') setView('mailbox')
         return
       }
 
-      if (typing || paletteOpen || compose) return
+      const combo = comboFromEvent(event)
+      if (!combo) return
+      const action = actionForCombo(bindings, combo)
 
-      switch (event.key.toLowerCase()) {
-        case 'j':
+      // Paleta y ajustes funcionan en cualquier vista, incluso con el foco en un input.
+      if (action === 'palette') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
+        return
+      }
+      if (action === 'settings') {
+        event.preventDefault()
+        setView((current) => (current === 'settings' ? 'mailbox' : 'settings'))
+        return
+      }
+
+      if (typing || paletteOpen || compose !== null || view === 'settings') return
+
+      switch (action) {
+        case 'next':
           event.preventDefault()
           step(1)
           break
-        case 'k':
+        case 'prev':
           event.preventDefault()
           step(-1)
           break
-        case 'e':
+        case 'archive':
           archive()
           break
-        case 's':
+        case 'star':
           toggleStar()
           break
-        case 'r':
+        case 'snooze':
+          setToast(t('toast.snoozed'))
+          break
+        case 'reply':
           openReply()
           break
-        case 'c':
+        case 'compose':
           openCompose()
           break
         default:
@@ -198,58 +229,71 @@ export function App(): React.JSX.Element {
 
   return (
     <div className="app">
-      <Sidebar activeFolder={folder} onSelectFolder={setFolder} onCompose={openCompose} />
+      <Sidebar
+        activeFolder={folder}
+        onSelectFolder={selectFolder}
+        onCompose={openCompose}
+        onOpenSettings={openSettings}
+      />
 
       <div className="shell">
         <Topbar
           unreadCount={unreadCount}
           filter={filter}
-          onFilter={setFilter}
+          onFilter={filterBy}
           onOpenPalette={() => setPaletteOpen(true)}
+          onOpenSettings={openSettings}
         />
 
         <div className="panes">
-          <ThreadList
-            threads={visible}
-            selectedId={selected?.id ?? null}
-            filter={filter}
-            unreadCount={unreadCount}
-            otherCount={otherCount}
-            vipCount={vipCount}
-            onFilter={setFilter}
-            onSelect={select}
-          />
-
-          {selected ? (
-            <ThreadPane
-              thread={selected}
-              position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
-              total={visible.length}
-              onArchive={archive}
-              onSnooze={() => setToast(t('toast.snoozed'))}
-              onDelete={() => {
-                setThreads((current) => current.filter((thread) => thread.id !== selected.id))
-                setToast(t('toast.trashed'))
-              }}
-              onStar={toggleStar}
-              onReply={() => openReply()}
-              onQuickDraft={() => openReply(COPILOT_DRAFT)}
-              onPrev={() => step(-1)}
-              onNext={() => step(1)}
-            />
+          {view === 'settings' ? (
+            <Settings onBack={() => setView('mailbox')} />
           ) : (
-            <ThreadPaneEmpty />
-          )}
+            <>
+              <ThreadList
+                threads={visible}
+                selectedId={selected?.id ?? null}
+                filter={filter}
+                unreadCount={unreadCount}
+                otherCount={otherCount}
+                vipCount={vipCount}
+                onFilter={filterBy}
+                onSelect={select}
+              />
 
-          <ContextRail
-            brief={BRIEF}
-            actions={ACTION_ITEMS}
-            slots={SLOTS}
-            onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
-          />
+              {selected ? (
+                <ThreadPane
+                  thread={selected}
+                  position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
+                  total={visible.length}
+                  bindings={bindings}
+                  onArchive={archive}
+                  onSnooze={() => setToast(t('toast.snoozed'))}
+                  onDelete={() => {
+                    setThreads((current) => current.filter((thread) => thread.id !== selected.id))
+                    setToast(t('toast.trashed'))
+                  }}
+                  onStar={toggleStar}
+                  onReply={() => openReply()}
+                  onQuickDraft={() => openReply(COPILOT_DRAFT)}
+                  onPrev={() => step(-1)}
+                  onNext={() => step(1)}
+                />
+              ) : (
+                <ThreadPaneEmpty />
+              )}
+
+              <ContextRail
+                brief={BRIEF}
+                actions={ACTION_ITEMS}
+                slots={SLOTS}
+                onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
+              />
+            </>
+          )}
         </div>
 
-        <StatusBar appVersion={appVersion} />
+        <StatusBar appVersion={appVersion} bindings={bindings} />
       </div>
 
       <CommandPalette
@@ -260,7 +304,8 @@ export function App(): React.JSX.Element {
         onCompose={openCompose}
         onArchive={archive}
         onSnooze={() => setToast(t('toast.snoozed'))}
-        onSelectFolder={setFolder}
+        onSelectFolder={selectFolder}
+        onOpenSettings={openSettings}
       />
 
       <ComposeOverlay
