@@ -11,6 +11,8 @@ interface ThreadListProps {
   unreadCount: number
   otherCount: number
   vipCount: number
+  loading?: boolean
+  emptyLabel?: string
   onFilter: (filter: FilterId) => void
   onSelect: (id: string) => void
 }
@@ -44,6 +46,8 @@ export function ThreadList({
   unreadCount,
   otherCount,
   vipCount,
+  loading = false,
+  emptyLabel,
   onFilter,
   onSelect
 }: ThreadListProps): React.JSX.Element {
@@ -101,6 +105,13 @@ export function ThreadList({
       </div>
 
       <div className="thread-list">
+        {loading && threads.length === 0 && (
+          <div className="list-loading">
+            <Icon name="progress_activity" size={18} className="spin" />
+            {t('list.loading')}
+          </div>
+        )}
+
         {threads.map((thread) => {
           const sender = thread.participants[0]
           const active = thread.id === selectedId
@@ -145,7 +156,7 @@ export function ThreadList({
                 {thread.messageCount > 1 && <span className="thread__count">{thread.messageCount}</span>}
               </div>
 
-              <p className="thread__preview">{thread.preview}</p>
+              {thread.preview !== '' && <p className="thread__preview">{thread.preview}</p>}
 
               <div className="thread__tags">
                 {thread.tags.map((tag) => (
@@ -159,9 +170,9 @@ export function ThreadList({
           )
         })}
 
-        {threads.length === 0 && (
+        {threads.length === 0 && !loading && (
           <p className="muted" style={{ padding: '24px 12px', textAlign: 'center' }}>
-            {t('list.empty')}
+            {emptyLabel ?? t('list.empty')}
           </p>
         )}
       </div>

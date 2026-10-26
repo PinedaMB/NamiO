@@ -1,20 +1,31 @@
-import { ACCOUNT, FOLDERS, TAGS } from '../data/demo'
+import { TAGS } from '../data/demo'
+import type { FolderView } from '../data/live'
 import { useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
 interface SidebarProps {
   activeFolder: string
+  folders: readonly FolderView[]
+  accountLabel: string
+  accountConnected: boolean
+  showTags: boolean
   onSelectFolder: (id: string) => void
   onCompose: () => void
   onOpenSettings: () => void
+  onOpenAccount: () => void
 }
 
 export function Sidebar({
   activeFolder,
+  folders,
+  accountLabel,
+  accountConnected,
+  showTags,
   onSelectFolder,
   onCompose,
-  onOpenSettings
+  onOpenSettings,
+  onOpenAccount
 }: SidebarProps): React.JSX.Element {
   const { t } = useI18n()
 
@@ -32,12 +43,12 @@ export function Sidebar({
         </div>
 
         <div className="rail__block">
-          <button className="account" type="button">
+          <button className="account" type="button" onClick={onOpenAccount} title={t('account.connect')}>
             <span className="account__id">
-              <span className="dot" />
-              <span className="account__mail">{ACCOUNT.email}</span>
+              <span className={cx('dot', !accountConnected && 'dot--idle')} />
+              <span className="account__mail">{accountLabel}</span>
             </span>
-            <Icon name="unfold_more" size={16} />
+            <Icon name={accountConnected ? 'tune' : 'add'} size={16} />
           </button>
         </div>
 
@@ -52,7 +63,7 @@ export function Sidebar({
         </div>
 
         <nav className="rail__nav" aria-label={t('sidebar.inbox')}>
-          {FOLDERS.map((folder) => (
+          {folders.map((folder) => (
             <button
               key={folder.id}
               type="button"
@@ -62,9 +73,9 @@ export function Sidebar({
             >
               <span className="nav-item__label">
                 <Icon name={folder.icon} size={18} />
-                {t(folder.labelKey)}
+                {folder.label}
               </span>
-              {folder.count !== undefined && (
+              {folder.count !== undefined && folder.count > 0 && (
                 <span className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}>
                   {folder.count}
                 </span>
@@ -73,37 +84,33 @@ export function Sidebar({
           ))}
         </nav>
 
-        <div className="rail__tags">
-          <div className="rail__section-head">
-            <span>{t('common.tags')}</span>
-            <button className="icon-btn" type="button" title={t('sidebar.newTag')} aria-label={t('sidebar.newTag')}>
-              <Icon name="add" size={14} />
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
-            {TAGS.map((tag) => (
-              <button key={tag.labelKey} type="button" className="tag-item">
-                <span className={`dot dot--${tag.tone === 'error' ? 'error' : tag.tone === 'secondary' ? 'tertiary' : ''}`} />
-                {t(tag.labelKey)}
+        {showTags && (
+          <div className="rail__tags">
+            <div className="rail__section-head">
+              <span>{t('common.tags')}</span>
+              <button className="icon-btn" type="button" title={t('sidebar.newTag')} aria-label={t('sidebar.newTag')}>
+                <Icon name="add" size={14} />
               </button>
-            ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+              {TAGS.map((tag) => (
+                <button key={tag.labelKey} type="button" className="tag-item">
+                  <span className={`dot dot--${tag.tone === 'error' ? 'error' : tag.tone === 'secondary' ? 'tertiary' : ''}`} />
+                  {t(tag.labelKey)}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="rail__foot">
         <div className="sync-pill">
           <span className="sync-pill__state">
-            <span className="dot dot--tertiary pulse" />
+            <span className={cx('dot dot--tertiary', accountConnected && 'pulse')} />
             {t('sidebar.synced')}
           </span>
-          <button
-            className="icon-btn"
-            type="button"
-            title={t('sidebar.settings')}
-            aria-label={t('sidebar.settings')}
-            onClick={onOpenSettings}
-          >
+          <button className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
             <Icon name="settings" size={16} />
           </button>
         </div>

@@ -10,6 +10,9 @@ interface ThreadPaneProps {
   total: number
   bindings: Bindings
   contextOpen: boolean
+  canToggleContext: boolean
+  /** En modo real todavía no hay caché local: archivar/eliminar no aplican. */
+  canMutate: boolean
   onToggleContext: () => void
   onArchive: () => void
   onSnooze: () => void
@@ -78,6 +81,8 @@ export function ThreadPane({
   total,
   bindings,
   contextOpen,
+  canToggleContext,
+  canMutate,
   onToggleContext,
   onArchive,
   onSnooze,
@@ -98,24 +103,42 @@ export function ThreadPane({
     <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
-          <button className="tool-btn" type="button" onClick={onArchive} title={`${t('common.archive')} (${formatCombo(bindings.archive)})`}>
+          <button
+            className="tool-btn"
+            type="button"
+            onClick={onArchive}
+            disabled={!canMutate}
+            title={canMutate ? `${t('common.archive')} (${formatCombo(bindings.archive)})` : t('toast.readOnly')}
+          >
             <Icon name="archive" size={15} />
             {t('common.archive')}
             <kbd className="kbd">{formatCombo(bindings.archive)}</kbd>
           </button>
-          <button className="tool-btn" type="button" onClick={onSnooze} title={`${t('common.snooze')} (${formatCombo(bindings.snooze)})`}>
+          <button
+            className="tool-btn"
+            type="button"
+            onClick={onSnooze}
+            disabled={!canMutate}
+            title={canMutate ? `${t('common.snooze')} (${formatCombo(bindings.snooze)})` : t('toast.readOnly')}
+          >
             <Icon name="schedule" size={15} />
             {t('common.snooze')}
             <kbd className="kbd">{formatCombo(bindings.snooze)}</kbd>
           </button>
-          <button className="tool-btn" type="button" title={t('common.move')}>
+          <button className="tool-btn" type="button" disabled={!canMutate} title={t('common.move')}>
             <Icon name="drive_file_move" size={15} />
             {t('common.move')}
           </button>
-          <button className="tool-btn tool-btn--icon btn--danger" type="button" title={t('common.spam')}>
+          <button className="tool-btn tool-btn--icon btn--danger" type="button" disabled={!canMutate} title={t('common.spam')}>
             <Icon name="report" size={15} />
           </button>
-          <button className="tool-btn tool-btn--icon btn--danger" type="button" onClick={onDelete} title={t('common.delete')}>
+          <button
+            className="tool-btn tool-btn--icon btn--danger"
+            type="button"
+            onClick={onDelete}
+            disabled={!canMutate}
+            title={t('common.delete')}
+          >
             <Icon name="delete" size={15} />
           </button>
         </div>
@@ -128,17 +151,21 @@ export function ThreadPane({
           <button className="tool-btn tool-btn--icon" type="button" onClick={onNext} title={t('thread.next')}>
             <Icon name="chevron_right" size={16} />
           </button>
-          <span className="vsep ctx-toggle" style={{ margin: '0 4px' }} />
-          <button
-            className={cx('tool-btn tool-btn--icon', 'ctx-toggle', !contextOpen && 'tool-btn--active')}
-            type="button"
-            onClick={onToggleContext}
-            title={contextOpen ? t('thread.hideContext') : t('thread.showContext')}
-            aria-expanded={contextOpen}
-            aria-controls="context-rail"
-          >
-            <Icon name={contextOpen ? 'right_panel_close' : 'right_panel_open'} size={16} />
-          </button>
+          {canToggleContext && (
+            <>
+              <span className="vsep ctx-toggle" style={{ margin: '0 4px' }} />
+              <button
+                className={cx('tool-btn tool-btn--icon', 'ctx-toggle', !contextOpen && 'tool-btn--active')}
+                type="button"
+                onClick={onToggleContext}
+                title={contextOpen ? t('thread.hideContext') : t('thread.showContext')}
+                aria-expanded={contextOpen}
+                aria-controls="context-rail"
+              >
+                <Icon name={contextOpen ? 'right_panel_close' : 'right_panel_open'} size={16} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -157,7 +184,8 @@ export function ThreadPane({
                 className="icon-btn"
                 type="button"
                 onClick={onStar}
-                title={thread.starred ? t('thread.unstar') : t('thread.star')}
+                disabled={!canMutate}
+                title={canMutate ? (thread.starred ? t('thread.unstar') : t('thread.star')) : t('toast.readOnly')}
                 aria-pressed={thread.starred}
               >
                 <Icon name="star" size={16} fill={thread.starred} />
@@ -165,59 +193,68 @@ export function ThreadPane({
             </div>
           </div>
 
-          <div className="participants">
-            <div className="participants__top">
-              <div className="participants__who">
-                <span className="avatar avatar--lg avatar--accent">{from?.initials ?? '??'}</span>
-                <div>
-                  <div className="participants__name">
-                    <span className="t-headline-sm">{from?.name}</span>
-                    <span className="participants__addr">&lt;{from?.email}&gt;</span>
+          {!message ? (
+            <div className="letter-loading">
+              <Icon name="progress_activity" size={18} className="spin" />
+              {t('thread.loading')}
+            </div>
+          ) : (
+            <>
+              <div className="participants">
+                <div className="participants__top">
+                  <div className="participants__who">
+                    <span className="avatar avatar--lg avatar--accent">{from?.initials ?? '??'}</span>
+                    <div>
+                      <div className="participants__name">
+                        <span className="t-headline-sm">{from?.name}</span>
+                        <span className="participants__addr">&lt;{from?.email}&gt;</span>
+                      </div>
+                      <div className="participants__to">
+                        <span>{t('thread.to')}</span>
+                        <span style={{ color: 'var(--on-surface)', fontWeight: 500 }}>{toLine}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="participants__to">
-                    <span>{t('thread.to')}</span>
-                    <span style={{ color: 'var(--on-surface)', fontWeight: 500 }}>{toLine}</span>
+
+                  <div className="participants__right">
+                    <span>{message.sentAt}</span>
+                    <span className="participants__tls">
+                      <span className="dot" />
+                      {t('thread.encrypted')}
+                    </span>
                   </div>
                 </div>
+
+                {message.attachments && message.attachments.length > 0 && (
+                  <div className="attachments" aria-label={t('thread.attachments')}>
+                    {message.attachments.map((attachment) => {
+                      const meta = ATTACHMENT_ICON[attachment.kind]
+                      return (
+                        <a
+                          key={attachment.name}
+                          className="attachment"
+                          href="#archivo"
+                          title={t('thread.download')}
+                          onClick={(event) => event.preventDefault()}
+                        >
+                          <Icon name={meta.icon} size={18} className="attachment__icon" />
+                          <span className="attachment__meta">
+                            <span className="attachment__name">{attachment.name}</span>
+                            <span className="attachment__detail">
+                              {attachment.size} · {attachment.detail}
+                            </span>
+                          </span>
+                          <Icon name="download" size={15} />
+                        </a>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
-              <div className="participants__right">
-                <span>{message?.sentAt}</span>
-                <span className="participants__tls">
-                  <span className="dot" />
-                  {t('thread.encrypted')}
-                </span>
-              </div>
-            </div>
-
-            {message?.attachments && message.attachments.length > 0 && (
-              <div className="attachments" aria-label={t('thread.attachments')}>
-                {message.attachments.map((attachment) => {
-                  const meta = ATTACHMENT_ICON[attachment.kind]
-                  return (
-                    <a
-                      key={attachment.name}
-                      className="attachment"
-                      href="#archivo"
-                      title={t('thread.download')}
-                      onClick={(event) => event.preventDefault()}
-                    >
-                      <Icon name={meta.icon} size={18} className="attachment__icon" />
-                      <span className="attachment__meta">
-                        <span className="attachment__name">{attachment.name}</span>
-                        <span className="attachment__detail">
-                          {attachment.size} · {attachment.detail}
-                        </span>
-                      </span>
-                      <Icon name="download" size={15} />
-                    </a>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {message && <Body message={message} />}
+              <Body message={message} />
+            </>
+          )}
 
           <div className="quick-reply">
             <div className="quick-reply__hint">
@@ -242,12 +279,12 @@ export function ThreadPane({
   )
 }
 
-export function ThreadPaneEmpty(): React.JSX.Element {
+export function ThreadPaneEmpty({ label }: { label?: string }): React.JSX.Element {
   const { t } = useI18n()
   return (
     <main className="reading" aria-label={t('thread.select')}>
       <div className="reading__scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p className="muted">{t('thread.select')}</p>
+        <p className="muted">{label ?? t('thread.select')}</p>
       </div>
     </main>
   )

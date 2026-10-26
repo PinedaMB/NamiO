@@ -139,6 +139,38 @@ General y velocidad, Atajos de teclado, Cuentas y alias, Ajuste del copiloto, y 
 | Paleta de comandos | `⌘K` |
 | Ajustes | `⌘,` |
 
+## M1: IMAP real
+
+![Cuenta conectada](docs/inbox-live.png)
+
+Conectar una cuenta real ya funciona de punta a punta: diálogo de credenciales, buzones del servidor,
+bandeja con los últimos 50 mensajes y lectura del cuerpo de texto.
+
+![Conectar cuenta](docs/account.png)
+
+- **Credenciales**: la contraseña se guarda cifrada por el SO con `safeStorage` (DPAPI en Windows,
+  libsecret/kwallet en Linux). Si el sistema no ofrece cifrado, no se persiste y el diálogo lo avisa.
+- **Transporte**: `imapflow` vive solo en el proceso principal; el renderer no abre sockets. Todo pasa
+  por IPC y devuelve `{ ok: true, data }` o `{ ok: false, code, detail }`, con códigos de error
+  (auth, dns, refused, timeout, tls, network) que la UI traduce.
+- **Buzones**: `LIST` + `STATUS` por buzón (hasta 30) para mostrar totales. Es lento a propósito en M1;
+  M3 lo resuelve con la caché local.
+- **Mensajes**: `ENVELOPE` + `FLAGS` + tamaño; al abrir, se descarga la fuente y se parsea con
+  `mailparser` para mostrar texto y adjuntos. El HTML sanitizado es M2.
+- **Destacar** sí escribe en el servidor (`\Flagged`). Archivar, mover, posponer y eliminar quedan
+  deshabilitados hasta que exista la caché local (M3): mejor un botón apagado que uno que mienta.
+
+Limitaciones conocidas de M1: sin OAuth2 (solo contraseña de aplicación), sin STARTTLS (el cifrado se
+elige con el switch), sin caché (cada carpeta se consulta al servidor) y sin HTML.
+
+Para probar sin cuenta real:
+
+```bash
+node scripts/fake-imap.mjs 1143   # servidor IMAP en memoria: testuser / testpass
+```
+
+En la app: Conectar cuenta → Local (pruebas) → Conectar.
+
 ## Comandos
 
 ```bash
@@ -173,6 +205,8 @@ Los artefactos quedan en `release/`.
 | App Electron real: ventana, IPC y smoke test 7/7 | ✅ |
 | UI capturada en Chromium headless (bandeja, compositor, paleta) | ✅ |
 | Remapeo de atajos: aplicado en vivo y persistido en `settings.json` | ✅ |
+| M1: cuenta IMAP, buzones, bandeja, cuerpo y adjuntos (contra servidor de prueba) | ✅ |
+| Destacar (`\Flagged`) escrito en el servidor | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
@@ -220,7 +254,7 @@ núcleo responde `stage: "M0"`.
 | --- | --- | --- |
 | ✅ M0 | Esqueleto, aislamiento y contrato IPC | La app abre y reporta estado del núcleo |
 | ✅ Shell | Identidad visual de NamiO sobre datos de demostración | Bandeja, compositor y paleta navegables |
-| M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
+| ✅ M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
 | M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
 | M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
 | M4 | Redactar/enviar SMTP + borradores | Llega un mail enviado a uno mismo |

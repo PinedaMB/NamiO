@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { CoreStatus } from '@shared/ipc'
-import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, SLOTS, THREADS, type Thread } from './data/demo'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo } from '@shared/ipc'
+import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
+import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ThreadList } from './components/ThreadList'
@@ -10,6 +11,7 @@ import { StatusBar } from './components/StatusBar'
 import { CommandPalette } from './components/CommandPalette'
 import { ComposeOverlay } from './components/ComposeOverlay'
 import { Settings } from './components/Settings'
+import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
 import { Icon } from './components/Icon'
 import { useI18n } from './i18n'
 import { useShortcuts } from './settings/ShortcutsProvider'
@@ -22,6 +24,8 @@ interface ComposeState {
 }
 
 type View = 'mailbox' | 'settings'
+
+const PAGE_SIZE = 50
 
 function matchesFilter(thread: Thread, filter: FilterId): boolean {
   switch (filter) {
@@ -48,9 +52,16 @@ function matchesFolder(thread: Thread, folder: string): boolean {
   return true
 }
 
+function uidOf(threadId: string): number | null {
+  if (!threadId.startsWith('live:')) return null
+  const uid = Number(threadId.slice(5))
+  return Number.isInteger(uid) ? uid : null
+}
+
 export function App(): React.JSX.Element {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { bindings } = useShortcuts()
+
   const [view, setView] = useState<View>('mailbox')
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
@@ -62,10 +73,22 @@ export function App(): React.JSX.Element {
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [contextOpen, setContextOpen] = useState(true)
 
-  const visible = useMemo(
-    () => threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter)),
-    [threads, folder, filter]
-  )
+  const [account, setAccount] = useState<AccountState | null>(null)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
+  const [liveError, setLiveError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
+  const [loadingFolder, setLoadingFolder] = useState(false)
+
+  const live = account?.connected === true
+
+  const visible = useMemo(() => {
+    if (live) {
+      if (filter === 'focused') return threads.filter((thread) => thread.unread)
+      if (filter === 'other') return threads.filter((thread) => !thread.unread)
+      return threads
+    }
+    return threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
+  }, [live, threads, filter, folder])
 
   const selected = useMemo(
     () => threads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
@@ -75,6 +98,75 @@ export function App(): React.JSX.Element {
   const unreadCount = threads.filter((thread) => thread.unread).length
   const otherCount = threads.filter((thread) => !thread.unread).length
   const vipCount = threads.filter((thread) => thread.vip).length
+
+  const folderViews = useMemo<readonly FolderView[]>(() => {
+    if (live) return mailboxes.map(mailboxToFolder)
+    return FOLDERS.map((item) => ({
+      id: item.id,
+      icon: item.icon,
+      label: t(item.labelKey),
+      count: item.count,
+      accent: item.accent
+    }))
+  }, [live, mailboxes, t])
+
+  const loadFolder = useCallback(
+    async (path: string): Promise<void> => {
+      setLoadingFolder(true)
+      setFolder(path)
+      setSelectedId(null)
+      const result = await window.api.listEnvelopes(path, PAGE_SIZE).catch(() => null)
+      setLoadingFolder(false)
+
+      if (!result) return
+      if (!result.ok) {
+        setLiveError({ code: result.code, detail: result.detail })
+        return
+      }
+
+      const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
+      setThreads(mapped)
+      setSelectedId(mapped[0]?.id ?? null)
+      setLiveError(null)
+    },
+    [locale]
+  )
+
+  const loadMailboxes = useCallback(
+    async (state: AccountState): Promise<void> => {
+      const result = await window.api.listMailboxes().catch(() => null)
+      if (!result) return
+      if (!result.ok) {
+        setLiveError({ code: result.code, detail: result.detail })
+        return
+      }
+
+      setMailboxes(result.data)
+      const inbox =
+        result.data.find((box) => box.specialUse === '\\Inbox' || box.path.toUpperCase() === 'INBOX') ?? result.data[0]
+      if (inbox) await loadFolder(inbox.path)
+      void state
+    },
+    [loadFolder]
+  )
+
+  const refreshAccount = useCallback(async (): Promise<void> => {
+    const state = await window.api.accountStatus().catch(() => null)
+    if (!state) return
+    setAccount(state)
+
+    if (state.connected) {
+      await loadMailboxes(state)
+      return
+    }
+
+    // Sin conexión se vuelve al modo demostración y se limpia el estado real.
+    setThreads(THREADS)
+    setSelectedId(THREADS[0]?.id ?? null)
+    setMailboxes([])
+    setFolder('inbox')
+    setLiveError(null)
+  }, [loadMailboxes])
 
   /** El núcleo reporta su versión; en un navegador (sin preload) simplemente no hay dato. */
   useEffect(() => {
@@ -91,6 +183,10 @@ export function App(): React.JSX.Element {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    void refreshAccount()
+  }, [refreshAccount])
 
   useEffect(() => {
     if (!toast) return
@@ -121,19 +217,44 @@ export function App(): React.JSX.Element {
     setSelectedId(visible[0]?.id ?? null)
   }, [visible, selectedId])
 
+  /** En modo real, abrir un hilo dispara una descarga de la fuente del mensaje. */
+  useEffect(() => {
+    if (!live || !selected || selected.messages.length > 0) return
+    const uid = uidOf(selected.id)
+    if (uid === null) return
+
+    let cancelled = false
+    window.api
+      .getMessage(folder, uid)
+      .then((result) => {
+        if (cancelled) return
+        if (!result.ok) {
+          setLiveError({ code: result.code, detail: result.detail })
+          return
+        }
+        const message = detailToMessage(result.data, locale)
+        setThreads((current) =>
+          current.map((thread) => (thread.id === selected.id ? { ...thread, messages: [message] } : thread))
+        )
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [live, selected, folder, locale])
+
   const select = (id: string): void => {
     setSelectedId(id)
   }
 
   const selectFolder = (id: string): void => {
+    setView('mailbox')
+    if (live) {
+      void loadFolder(id)
+      return
+    }
     setFolder(id)
-    setView('mailbox')
-  }
-
-  /** Filtrar desde Ajustes devuelve a la bandeja: el filtro no se aplica a una pantalla de opciones. */
-  const filterBy = (next: FilterId): void => {
-    setFilter(next)
-    setView('mailbox')
   }
 
   const openSettings = (): void => {
@@ -150,6 +271,10 @@ export function App(): React.JSX.Element {
 
   const archive = (): void => {
     if (!selected) return
+    if (live) {
+      setToast(t('toast.readOnly'))
+      return
+    }
     const index = visible.findIndex((thread) => thread.id === selected.id)
     const next = visible[index + 1] ?? visible[index - 1] ?? null
     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
@@ -159,6 +284,24 @@ export function App(): React.JSX.Element {
 
   const toggleStar = (): void => {
     if (!selected) return
+
+    if (live) {
+      const uid = uidOf(selected.id)
+      if (uid === null) return
+      const next = !selected.starred
+      setThreads((current) =>
+        current.map((thread) => (thread.id === selected.id ? { ...thread, starred: next } : thread))
+      )
+      window.api
+        .setFlagged(folder, uid, next)
+        .then((result) => {
+          if (result.ok) setToast(next ? t('toast.starred') : t('toast.unstarred'))
+          else setLiveError({ code: result.code, detail: result.detail })
+        })
+        .catch(() => undefined)
+      return
+    }
+
     setThreads((current) =>
       current.map((thread) => (thread.id === selected.id ? { ...thread, starred: !thread.starred } : thread))
     )
@@ -175,6 +318,12 @@ export function App(): React.JSX.Element {
     setCompose({ to: '', subject: '', body: '' })
   }
 
+  const onConnected = (state: AccountState): void => {
+    setAccount(state)
+    setAccountOpen(false)
+    void loadMailboxes(state)
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null
@@ -189,6 +338,10 @@ export function App(): React.JSX.Element {
         }
         if (compose) {
           setCompose(null)
+          return
+        }
+        if (accountOpen) {
+          setAccountOpen(false)
           return
         }
         if (view === 'settings') setView('mailbox')
@@ -211,7 +364,7 @@ export function App(): React.JSX.Element {
         return
       }
 
-      if (typing || paletteOpen || compose !== null || view === 'settings') return
+      if (typing || paletteOpen || compose !== null || accountOpen || view === 'settings') return
 
       switch (action) {
         case 'next':
@@ -229,7 +382,7 @@ export function App(): React.JSX.Element {
           toggleStar()
           break
         case 'snooze':
-          setToast(t('toast.snoozed'))
+          setToast(live ? t('toast.readOnly') : t('toast.snoozed'))
           break
         case 'reply':
           openReply()
@@ -246,20 +399,34 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
+  const accountLabel = live
+    ? account?.account?.user ?? ''
+    : account?.configured
+      ? t('account.connect')
+      : t('account.demo')
+
   return (
     <div className="app">
       <Sidebar
         activeFolder={folder}
+        folders={folderViews}
+        accountLabel={accountLabel}
+        accountConnected={live}
+        showTags={!live}
         onSelectFolder={selectFolder}
         onCompose={openCompose}
         onOpenSettings={openSettings}
+        onOpenAccount={() => setAccountOpen(true)}
       />
 
       <div className="shell">
         <Topbar
           unreadCount={unreadCount}
           filter={filter}
-          onFilter={filterBy}
+          onFilter={(next) => {
+            setFilter(next)
+            setView('mailbox')
+          }}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenSettings={openSettings}
         />
@@ -276,7 +443,9 @@ export function App(): React.JSX.Element {
                 unreadCount={unreadCount}
                 otherCount={otherCount}
                 vipCount={vipCount}
-                onFilter={filterBy}
+                loading={loadingFolder}
+                emptyLabel={live ? t('account.liveEmpty') : undefined}
+                onFilter={setFilter}
                 onSelect={select}
               />
 
@@ -287,10 +456,16 @@ export function App(): React.JSX.Element {
                   total={visible.length}
                   bindings={bindings}
                   contextOpen={contextOpen}
+                  canToggleContext={!live}
+                  canMutate={!live}
                   onToggleContext={toggleContext}
                   onArchive={archive}
-                  onSnooze={() => setToast(t('toast.snoozed'))}
+                  onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
                   onDelete={() => {
+                    if (live) {
+                      setToast(t('toast.readOnly'))
+                      return
+                    }
                     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
                     setToast(t('toast.trashed'))
                   }}
@@ -301,21 +476,23 @@ export function App(): React.JSX.Element {
                   onNext={() => step(1)}
                 />
               ) : (
-                <ThreadPaneEmpty />
+                <ThreadPaneEmpty label={live ? t('account.liveEmpty') : undefined} />
               )}
 
-              <div
-                className={contextOpen ? 'context-shell' : 'context-shell context-shell--closed'}
-                aria-hidden={!contextOpen}
-                inert={!contextOpen}
-              >
-                <ContextRail
-                  brief={BRIEF}
-                  actions={ACTION_ITEMS}
-                  slots={SLOTS}
-                  onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
-                />
-              </div>
+              {!live && (
+                <div
+                  className={contextOpen ? 'context-shell' : 'context-shell context-shell--closed'}
+                  aria-hidden={!contextOpen}
+                  inert={!contextOpen}
+                >
+                  <ContextRail
+                    brief={BRIEF}
+                    actions={ACTION_ITEMS}
+                    slots={SLOTS}
+                    onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -330,7 +507,7 @@ export function App(): React.JSX.Element {
         onOpenThread={select}
         onCompose={openCompose}
         onArchive={archive}
-        onSnooze={() => setToast(t('toast.snoozed'))}
+        onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
         onSelectFolder={selectFolder}
         onOpenSettings={openSettings}
       />
@@ -346,6 +523,29 @@ export function App(): React.JSX.Element {
           setToast(t('toast.sent', { to: to || '—', subject: subject || '—' }))
         }}
       />
+
+      <AccountDialog
+        open={accountOpen}
+        account={account}
+        onClose={() => {
+          setAccountOpen(false)
+          void refreshAccount()
+        }}
+        onConnected={onConnected}
+      />
+
+      {liveError && (
+        <div className="live-banner" role="alert">
+          <Icon name="error" size={16} />
+          <div>
+            <strong>{t(ERROR_KEYS[liveError.code])}</strong>
+            <span>{liveError.detail}</span>
+          </div>
+          <button className="icon-btn" type="button" onClick={() => setLiveError(null)} title={t('common.close')}>
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div className="toast" role="status">

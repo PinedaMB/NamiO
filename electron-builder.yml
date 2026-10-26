@@ -9,6 +9,9 @@ directories:
 files:
   - out/**
   - package.json
+  # Dependencias de runtime (imapflow, mailparser) se resuelven desde node_modules:
+  # el bundle de main las externaliza. electron-builder descarta las de desarrollo.
+  - node_modules/**/*
 
 asar: true
 

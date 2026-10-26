@@ -35,7 +35,7 @@ export function Topbar({
         <div className="zero-pill">
           <span className="dot" />
           <strong>{t('topbar.zero')}</strong>
-          <span>· {t('topbar.remaining', { count: unreadCount })}</span>
+          <span>· {unreadCount === 1 ? t('topbar.remainingOne') : t('topbar.remaining', { count: unreadCount })}</span>
         </div>
 
         <div className="vsep" />

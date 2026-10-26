@@ -2777,6 +2777,157 @@
   animation: dialog-out 140ms var(--ease) forwards;
 }
 
+/* Cuenta IMAP */
+.account-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+  width: min(560px, 100%);
+  padding: 20px;
+  border-radius: var(--r-xl);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-lg);
+}
+
+.account-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+}
+
+.account-modal__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.account-modal__subtitle {
+  margin: 4px 0 0;
+  max-width: 52ch;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.account-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.account-preset {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 9px;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-field > span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+
+.account-field input {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--surface-container-highest);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: 0;
+  transition: border-color var(--fast) var(--ease);
+}
+
+.account-field input:focus {
+  border-color: var(--primary);
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+.account-field--port input {
+  text-align: left;
+}
+
+.account-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.account-hint--warn {
+  color: var(--tertiary);
+}
+
+.account-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--error-container) 35%, transparent);
+  color: var(--on-error-container);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.account-error div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-error span {
+  color: color-mix(in srgb, var(--on-error-container) 75%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.account-modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding-top: 6px;
+}
+
+.account-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ==========================================================================
    Utilidades puntuales
    ========================================================================== */
@@ -2884,6 +3035,81 @@
 .tool-btn--active {
   background: var(--surface-container-high);
   color: var(--primary);
+}
+
+.tool-btn:disabled,
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tool-btn:disabled:hover {
+  background: var(--surface-container);
+}
+
+/* Carga del mensaje real */
+.letter-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 28px;
+  border-radius: var(--r-xl);
+  background: var(--surface-container-low);
+  color: var(--outline);
+  font-size: 13px;
+}
+
+.list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 12px;
+  color: var(--outline);
+  font-size: 13px;
+}
+
+/* Error de conexión: banner flotante arriba, sin mover el layout. */
+.live-banner {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 48px));
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface-container-high);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+  animation: view-in 180ms var(--ease) both;
+}
+
+.live-banner > .icon {
+  color: var(--error);
+}
+
+.live-banner div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.live-banner strong {
+  font-weight: 600;
+}
+
+.live-banner span {
+  color: var(--outline);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1080px) {

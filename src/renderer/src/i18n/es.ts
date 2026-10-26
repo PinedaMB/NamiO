@@ -33,6 +33,7 @@ export const es = {
 
   'topbar.zero': 'Inbox Zero a la vista',
   'topbar.remaining': '{count} restantes',
+  'topbar.remainingOne': '1 restante',
   'topbar.unread': 'Sin leer',
   'topbar.needsReply': 'Requiere respuesta',
   'topbar.vips': 'VIPs',
@@ -53,12 +54,14 @@ export const es = {
   'list.needsReply': 'Requiere respuesta',
   'list.triaged': 'Clasificado hace 8m',
   'list.empty': 'Nada en esta vista. Probá otro filtro.',
+  'list.loading': 'Cargando bandeja…',
   'list.sort': 'Ordenar',
   'list.filter': 'Filtrar',
 
   'thread.threadOf': 'Hilo {n} de {total}',
   'thread.encrypted': 'Cifrado TLS 1.3',
   'thread.replyHint': 'Presioná {key} para responder al hilo, o generá un borrador con IA…',
+  'thread.loading': 'Cargando mensaje…',
   'thread.quickDraft': 'Borrador IA',
   'thread.star': 'Destacar (S)',
   'thread.unstar': 'Quitar destacado (S)',
@@ -177,6 +180,7 @@ export const es = {
   'toast.snoozed': 'Pospuesto hasta mañana 9:00',
   'toast.trashed': 'Movido a la papelera',
   'toast.sent': 'Enviado a {to} · «{subject}» (demo)',
+  'toast.readOnly': 'Archivar y eliminar llegan con la caché local (M3)',
 
   'status.star': 'Destacar',
 
@@ -245,7 +249,37 @@ export const es = {
   'settings.copilot.empty': 'El copiloto todavía no tiene motor: los borradores son de demostración.',
   'settings.rules.title': 'Reglas y filtros',
   'settings.rules.empty': 'Las reglas se van a evaluar sobre la caché local, no en el servidor.',
-  'settings.soon': 'Próximamente'
+  'settings.soon': 'Próximamente',
+
+  'account.connect': 'Conectar cuenta',
+  'account.title': 'Conectar cuenta IMAP',
+  'account.subtitle': 'Las credenciales quedan en este equipo; la contraseña se guarda cifrada por el sistema.',
+  'account.provider': 'Proveedor',
+  'account.custom': 'Otro',
+  'account.local': 'Local (pruebas)',
+  'account.host': 'Servidor',
+  'account.port': 'Puerto',
+  'account.tls': 'Cifrado',
+  'account.tlsOn': 'SSL/TLS',
+  'account.tlsOff': 'Sin cifrar',
+  'account.user': 'Usuario',
+  'account.password': 'Contraseña',
+  'account.hint': 'Gmail y Outlook piden contraseña de aplicación. OAuth2 llega en M6.',
+  'account.test': 'Conectar',
+  'account.testing': 'Conectando…',
+  'account.disconnect': 'Desconectar',
+  'account.cancel': 'Cancelar',
+  'account.demo': 'Demostración',
+  'account.connected': 'Conectada',
+  'account.notStored': 'Este sistema no ofrece cifrado: la contraseña no se guarda y habrá que reingresarla al reiniciar.',
+  'account.error.auth': 'Usuario o contraseña rechazados por el servidor.',
+  'account.error.dns': 'No se encontró el servidor. Revisá el nombre.',
+  'account.error.refused': 'El servidor rechazó la conexión. Revisá puerto y cifrado.',
+  'account.error.timeout': 'El servidor no respondió a tiempo.',
+  'account.error.tls': 'El certificado del servidor no es válido.',
+  'account.error.network': 'Se cortó la conexión con el servidor.',
+  'account.error.unknown': 'No se pudo conectar.',
+  'account.liveEmpty': 'No hay mensajes en esta carpeta.'
 } as const
 
 export type TranslationKey = keyof typeof es
