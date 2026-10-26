@@ -60,6 +60,8 @@ export interface AppSettings {
   contextPanel?: boolean
   /** Imágenes remotas en el HTML de los correos: bloqueadas salvo que se permita. */
   remoteImages?: RemoteImagePolicy
+  /** Ya eligió cuenta o demo: no se vuelve a mostrar la bienvenida. */
+  onboarded?: boolean
 }
 
 export type RemoteImagePolicy = 'block' | 'allow'

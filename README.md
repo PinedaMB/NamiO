@@ -329,6 +329,27 @@ se canjea con el `code_verifier`, el access token entra al IMAP de pruebas por X
 funciona sin navegador al reiniciar y el envío SMTP sale autenticado con el mismo token.
 **Microsoft no se probó contra un tenant real.**
 
+## Primer arranque
+
+![Bienvenida: elegir proveedor](docs/onboarding.png)
+
+Un perfil vacío ya no cae directo en la demo: abre una bienvenida con el camino corto.
+
+1. **Elegir proveedor** — Gmail y Outlook / Microsoft 365 (OAuth2), otro correo IMAP (Fastmail,
+   iCloud, Proton, tu servidor) o servidor local para pruebas.
+2. **Conectar** — el diálogo se abre **ya preseleccionado**: hosts, puerto, TLS y método de acceso
+   según el proveedor. Solo quedan las credenciales.
+3. **Usar el correo** — al conectar se cargan buzones y bandeja; la bienvenida no vuelve a aparecer.
+
+![Paso de Gmail, preseleccionado](docs/onboarding-gmail.png)
+
+"Explorar la demo" sigue a un click y la decisión se guarda en `settings.json` (`onboarded`), así que
+no vuelve a preguntar. Quien ya tiene cuenta configurada nunca ve la bienvenida.
+
+Verificado: Gmail abre `imap.gmail.com:993` en OAuth2 con proveedor Google; "Servidor local" abre
+`127.0.0.1:1143` en modo contraseña; conectar la cuenta de pruebas carga `Archive/INBOX/Sent` y el
+reinicio ya no muestra la bienvenida.
+
 ## Comandos
 
 ```bash
@@ -434,6 +455,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Leído/no leído, responder con cita y adjuntos descargables | ✅ |
 | Adjuntos al enviar (multipart) y borrador persistido | ✅ |
 | OAuth2 (PKCE + loopback) con XOAUTH2 en IMAP y SMTP | ✅ |
+| Bienvenida guiada: proveedor → conexión → bandeja | ✅ |
 | Icono, metadatos y paquete linux-unpacked (12.6 MB de asar) | ✅ |
 | CSP activa en la app empaquetada | ✅ |
 

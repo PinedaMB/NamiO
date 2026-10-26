@@ -3165,6 +3165,184 @@
 }
 
 /* ==========================================================================
+   Bienvenida (primer arranque)
+   ========================================================================== */
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--secondary-container) 22%, transparent), transparent 55%),
+    radial-gradient(circle at 90% 110%, color-mix(in srgb, var(--tertiary) 10%, transparent), transparent 45%),
+    var(--surface);
+}
+
+.onboarding__panel {
+  width: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onboarding__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.onboarding__logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(192, 193, 255, 0.25));
+}
+
+.onboarding__wordmark {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.onboarding__title {
+  margin: 4px 0 0;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+.onboarding__subtitle {
+  margin: 0;
+  max-width: 58ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--on-surface-variant);
+}
+
+.onboarding__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.onboarding__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid transparent;
+  border-radius: var(--r-xl);
+  background: var(--surface-container-low);
+  text-align: left;
+  transition:
+    background var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.onboarding__card:hover {
+  background: var(--surface-container);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  transform: translateY(-1px);
+}
+
+.onboarding__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.onboarding__card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.onboarding__card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.onboarding__card-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--outline);
+}
+
+.onboarding__chevron {
+  margin-left: auto;
+  color: var(--outline);
+  flex-shrink: 0;
+}
+
+.onboarding__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--outline);
+}
+
+.onboarding__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--surface-container-highest) 55%, transparent);
+}
+
+.onboarding__demo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background var(--fast) var(--ease);
+}
+
+.onboarding__demo:hover {
+  background: var(--surface-container-highest);
+}
+
+.onboarding__demo-hint {
+  font-size: 12px;
+  color: var(--outline);
+}
+
+@media (max-width: 720px) {
+  .onboarding__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding__title {
+    font-size: 24px;
+  }
+}
+
+/* ==========================================================================
    Utilidades puntuales
    ========================================================================== */
 

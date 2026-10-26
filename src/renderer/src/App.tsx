@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo, OutboxItem, SearchHit } from '@shared/ipc'
+import type {
+  AccountState,
+  AppSettings,
+  CoreStatus,
+  ImapErrorCode,
+  MailboxInfo,
+  OutboxItem,
+  SearchHit
+} from '@shared/ipc'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
@@ -13,6 +21,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { ComposeOverlay } from './components/ComposeOverlay'
 import { Settings } from './components/Settings'
 import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
+import { Onboarding, type OnboardingChoice } from './components/Onboarding'
 import { Icon } from './components/Icon'
 import { useI18n } from './i18n'
 import { useShortcuts } from './settings/ShortcutsProvider'
@@ -84,6 +93,11 @@ export function App(): React.JSX.Element {
 
   const [account, setAccount] = useState<AccountState | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [initialAccount, setInitialAccount] = useState<{
+    preset: 'gmail' | 'outlook' | 'local' | 'custom'
+  } | null>(null)
+  const [settings, setSettings] = useState<Partial<AppSettings>>({})
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
   const [liveError, setLiveError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
   const [loadingFolder, setLoadingFolder] = useState(false)
@@ -253,7 +267,6 @@ export function App(): React.JSX.Element {
     const state = await window.api.accountStatus().catch(() => null)
     if (!state) return
     setAccount(state)
-
     if (state.configured) {
       await loadMailboxes(state)
       return
@@ -286,6 +299,31 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     void refreshAccount()
   }, [refreshAccount])
+
+  /** Preferencias sueltas (por ahora, si ya pasó por la bienvenida). */
+  useEffect(() => {
+    void window.api
+      .getSettings()
+      .then((value) => {
+        setSettings(value ?? {})
+        setSettingsLoaded(true)
+      })
+      .catch(() => setSettingsLoaded(true))
+  }, [])
+
+  const markOnboarded = useCallback((): void => {
+    setSettings((current) => ({ ...current, onboarded: true }))
+    void window.api.setSettings({ onboarded: true }).catch(() => undefined)
+  }, [])
+
+  // Sin `settingsLoaded` la bienvenida parpadearía un frame si la cuenta llega antes.
+  const onboarding =
+    settingsLoaded && account !== null && !account.configured && settings.onboarded !== true
+
+  const pickProvider = (choice: OnboardingChoice): void => {
+    setInitialAccount({ preset: choice })
+    setAccountOpen(true)
+  }
 
   const refreshOutbox = useCallback(async (): Promise<void> => {
     const items = await window.api.listOutbox().catch(() => null)
@@ -526,6 +564,8 @@ export function App(): React.JSX.Element {
   const onConnected = (state: AccountState): void => {
     setAccount(state)
     setAccountOpen(false)
+    setInitialAccount(null)
+    markOnboarded()
     void loadMailboxes(state)
   }
 
@@ -808,12 +848,24 @@ export function App(): React.JSX.Element {
       <AccountDialog
         open={accountOpen}
         account={account}
+        initial={initialAccount}
         onClose={() => {
           setAccountOpen(false)
+          setInitialAccount(null)
           void refreshAccount()
         }}
         onConnected={onConnected}
       />
+
+      {onboarding && !accountOpen && (
+        <Onboarding
+          onPick={pickProvider}
+          onDemo={() => {
+            markOnboarded()
+            setToast(t('onboarding.demoStarted'))
+          }}
+        />
+      )}
 
       {liveError && (
         <div className="live-banner" role="alert">

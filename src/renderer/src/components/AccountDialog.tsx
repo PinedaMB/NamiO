@@ -27,6 +27,8 @@ export const ERROR_KEYS: Record<ImapErrorCode, TranslationKey> = {
 interface AccountDialogProps {
   open: boolean
   account: AccountState | null
+  /** Preselección desde la bienvenida: proveedor y método de acceso. */
+  initial?: { preset: 'gmail' | 'outlook' | 'local' | 'custom'; auth?: AuthMethod } | null
   onClose: () => void
   onConnected: (state: AccountState) => void
 }
@@ -59,7 +61,7 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
   }
 ]
 
-export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
+export function AccountDialog({ open, account, initial = null, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 160)
 
@@ -106,7 +108,27 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setPassword('')
     setBusy(false)
     setError(null)
-  }, [open])
+
+    // La bienvenida preselecciona el proveedor y el método: el usuario solo
+    // completa credenciales.
+    if (initial) {
+      const preset = PRESETS.find((item) => item.id === initial.preset)
+      if (preset) {
+        setHost(preset.imap.host)
+        setPort(String(preset.imap.port))
+        setSecure(preset.imap.secure)
+        setSmtpHost(preset.smtp.host)
+        setSmtpPort(String(preset.smtp.port))
+        setSmtpSecure(preset.smtp.secure)
+      }
+      if (initial.preset === 'gmail' || initial.preset === 'outlook') {
+        setAuth('oauth2')
+        setProvider(initial.preset === 'gmail' ? 'google' : 'microsoft')
+      } else {
+        setAuth(initial.auth ?? 'password')
+      }
+    }
+  }, [open, initial])
 
   if (!mounted) return null
 
