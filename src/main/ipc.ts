@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 import { app } from 'electron'
 import {
   IPC,
@@ -38,7 +38,7 @@ export function registerIpcHandlers(): void {
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
-      stage: 'M1',
+      stage: 'M2',
       accountCount: 0
     }
   })
@@ -97,4 +97,17 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)
   )
+
+  ipcMain.handle(IPC.shellOpen, async (_event, url: string): Promise<boolean> => {
+    // Solo se abre lo que el usuario puede esperar: sin file://, sin protocolos raros.
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      return false
+    }
+    if (!['https:', 'http:', 'mailto:'].includes(parsed.protocol)) return false
+    await shell.openExternal(url)
+    return true
+  })
 }

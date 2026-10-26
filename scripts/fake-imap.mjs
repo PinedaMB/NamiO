@@ -22,16 +22,33 @@ const INBOX = [
         'Date: Wed, 22 Oct 2026 10:42:00 -0700',
         'Message-ID: <series-a-001@sequoia.vc>',
         'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=utf-8'
+        'Content-Type: multipart/alternative; boundary="alt-series-a"'
       ].join('\r\n'),
       [
+        '--alt-series-a',
+        'Content-Type: text/plain; charset=utf-8',
+        '',
         'Alex,',
         '',
         'Our investment committee closed consensus this morning. The $18M valuation cap holds with revised pro-rata rights.',
         '',
         'Once Latham gives the green light on clause 4.2, we can sign digitally before 5:00 PM PT.',
         '',
-        'Elena'
+        'Elena',
+        '',
+        '--alt-series-a',
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        '<div style="font-family:Arial,Helvetica,sans-serif;color:#222;font-size:14px">',
+        '  <p>Alex,</p>',
+        '  <p>Our investment committee <strong>closed consensus</strong> this morning. The $18M valuation cap holds with revised pro-rata rights.</p>',
+        '  <p><a href="https://example.com/term-sheet">Ver el term sheet completo</a></p>',
+        '  <p><img src="https://example.com/logo.png" width="120" height="40" alt="Sequoia" /></p>',
+        '  <p><img src="https://tracker.example.com/pixel.gif" width="1" height="1" alt="" /></p>',
+        '  <p>Elena</p>',
+        '</div>',
+        '',
+        '--alt-series-a--'
       ].join('\r\n')
     )
   },

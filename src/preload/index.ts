@@ -32,7 +32,8 @@ const api: MailApi = {
   getMessage: (path: string, uid: number): Promise<ImapResult<MessageDetail>> =>
     ipcRenderer.invoke(IPC.messageGet, path, uid),
   setFlagged: (path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>> =>
-    ipcRenderer.invoke(IPC.messageFlag, path, uid, flagged)
+    ipcRenderer.invoke(IPC.messageFlag, path, uid, flagged),
+  openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC.shellOpen, url)
 }
 
 contextBridge.exposeInMainWorld('api', api)

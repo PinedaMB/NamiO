@@ -84,6 +84,7 @@ export function detailToMessage(detail: MessageDetail, locale: string): Message 
       minute: '2-digit'
     }).format(new Date(detail.date)),
     body: body.length > 0 ? body : ['(mensaje sin cuerpo de texto)'],
+    html: detail.html ?? undefined,
     attachments: detail.attachments.map((attachment) => ({
       name: attachment.name,
       size: formatBytes(attachment.size),

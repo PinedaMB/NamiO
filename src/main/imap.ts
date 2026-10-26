@@ -281,6 +281,7 @@ export function getMessage(path: string, uid: number): Promise<ImapResult<Messag
         flagged: false,
         size: Buffer.concat(chunks).length,
         text: parsed.text ?? '',
+        html: typeof parsed.html === 'string' ? parsed.html : null,
         attachments
       }
     } finally {

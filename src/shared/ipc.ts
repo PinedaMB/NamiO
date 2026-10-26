@@ -15,7 +15,8 @@ export const IPC = {
   mailboxesList: 'mailboxes:list',
   messagesList: 'messages:list',
   messageGet: 'message:get',
-  messageFlag: 'message:flag'
+  messageFlag: 'message:flag',
+  shellOpen: 'shell:open'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -97,6 +98,8 @@ export interface MessageDetail extends Envelope {
   to: EnvelopeAddress[]
   cc: EnvelopeAddress[]
   text: string
+  /** HTML crudo del mensaje: lo sanitiza el renderer antes de mostrarlo. */
+  html: string | null
   attachments: MessageAttachment[]
 }
 
@@ -117,4 +120,6 @@ export interface MailApi {
   getMessage(path: string, uid: number): Promise<ImapResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>
+  /** Abre un enlace en el navegador del sistema. Solo http(s) y mailto. */
+  openExternal(url: string): Promise<boolean>
 }

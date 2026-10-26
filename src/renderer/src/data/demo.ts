@@ -38,6 +38,8 @@ export interface Message {
   to: Person[]
   sentAt: string
   body: string[]
+  /** HTML crudo del correo; se sanitiza y se pinta en un iframe aislado. */
+  html?: string
   summary?: { title: string; bullets: string[] }
   attachments?: Attachment[]
   signature?: { name: string; role: string; place: string }

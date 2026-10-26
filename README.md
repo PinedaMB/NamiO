@@ -171,6 +171,28 @@ node scripts/fake-imap.mjs 1143   # servidor IMAP en memoria: testuser / testpas
 
 En la app: Conectar cuenta → Local (pruebas) → Conectar.
 
+## M2: HTML de correo
+
+![Correo HTML con imágenes bloqueadas](docs/html-email.png)
+
+- El HTML se sanitiza con **DOMPurify** y se pinta en un **iframe aislado** (`sandbox="allow-same-origin"`,
+  sin `allow-scripts`) con su propia CSP: `default-src 'none'`, imágenes solo `data:` por defecto, sin
+  formularios y con `base-uri 'none'`. Aunque la sanitización fallara, no hay scripts posibles.
+- **Imágenes remotas bloqueadas por defecto**: se reemplazan por un GIF transparente antes de renderizar,
+  así el píxel de tracking nunca se pide. Un banner permite cargarlas solo para ese mensaje.
+- **Links**: los clicks se interceptan y se abren con `shell.openExternal`, que solo acepta `http(s)` y
+  `mailto:`. Nada de `javascript:`, `data:` ni `file:`.
+- El correo se dibuja sobre **papel claro** dentro del tema oscuro, como hacen la mayoría de los clientes:
+  el HTML ajeno asume fondo blanco.
+- **Altura automática**: el iframe comparte origen (sin scripts), el padre lo mide y evita el scroll
+  anidado.
+
+Verificado: 2 imágenes remotas pasan a `data:`, el click de un link no navega el iframe (queda en
+`about:srcdoc`, o sea que el `preventDefault` corre) y al mostrar imágenes vuelven las URLs reales.
+
+Limitaciones de M2: sin `cid:` (imágenes embebidas como adjunto), sin preferencia "siempre mostrar
+imágenes" y sin zoom de texto.
+
 ## Comandos
 
 ```bash
@@ -207,6 +229,7 @@ Los artefactos quedan en `release/`.
 | Remapeo de atajos: aplicado en vivo y persistido en `settings.json` | ✅ |
 | M1: cuenta IMAP, buzones, bandeja, cuerpo y adjuntos (contra servidor de prueba) | ✅ |
 | Destacar (`\Flagged`) escrito en el servidor | ✅ |
+| M2: HTML sanitizado en iframe, imágenes bloqueadas y links externos | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
@@ -255,7 +278,7 @@ núcleo responde `stage: "M0"`.
 | ✅ M0 | Esqueleto, aislamiento y contrato IPC | La app abre y reporta estado del núcleo |
 | ✅ Shell | Identidad visual de NamiO sobre datos de demostración | Bandeja, compositor y paleta navegables |
 | ✅ M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
-| M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
+| ✅ M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
 | M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
 | M4 | Redactar/enviar SMTP + borradores | Llega un mail enviado a uno mismo |
 | M5 | Multi-cuenta, búsqueda FTS5, hilos por `References` | Buscar devuelve resultados correctos |

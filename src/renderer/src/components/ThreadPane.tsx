@@ -1,6 +1,7 @@
 import type { Attachment, Message, Thread } from '../data/demo'
 import { useI18n } from '../i18n'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
+import { EmailBody } from './EmailBody'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -252,7 +253,7 @@ export function ThreadPane({
                 )}
               </div>
 
-              <Body message={message} />
+              {message.html ? <EmailBody html={message.html} /> : <Body message={message} />}
             </>
           )}
 
