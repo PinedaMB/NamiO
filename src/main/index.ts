@@ -2,7 +2,7 @@ import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
-import { setCacheListener, syncInbox } from './imap'
+import { setCacheListener, setSyncProgressListener, syncInbox } from './imap'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 
@@ -121,6 +121,13 @@ void app.whenReady().then(() => {
   setCacheListener((mailbox) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send(IPC.cacheChanged, mailbox)
+    }
+  })
+
+  // Progreso de la sincronización completa (barra en el pie).
+  setSyncProgressListener((progress) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(IPC.syncProgress, progress)
     }
   })
 

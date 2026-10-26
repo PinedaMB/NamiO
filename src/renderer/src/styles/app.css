@@ -656,6 +656,30 @@
   padding: 0 6px var(--sp-md);
   overflow-y: auto;
   min-height: 0;
+  /* El resto de la app oculta la barra; acá se navega con ella. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--on-surface) 22%, transparent) transparent;
+}
+
+.thread-list::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+}
+
+.thread-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thread-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--on-surface) 20%, transparent);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: var(--r-full);
+}
+
+.thread-list::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--on-surface) 32%, transparent);
+  background-clip: content-box;
 }
 
 .thread {
@@ -1452,6 +1476,39 @@
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--outline);
+}
+
+/* Descarga completa del buzón: etiqueta + barra fina en el pie. */
+.sync-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.sync-progress__label {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-progress__bar {
+  display: block;
+  width: 90px;
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--surface-container-highest);
+  overflow: hidden;
+}
+
+.sync-progress__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tertiary);
+  transition: width var(--normal) var(--ease);
 }
 
 /* Valores técnicos (versiones, rutas, correos) en monoespaciada. */

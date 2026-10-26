@@ -490,6 +490,14 @@ export function countMessages(mailbox: string): number {
   return row.total
 }
 
+/** UID más bajo cacheado: desde ahí se sigue bajando en la sync completa. */
+export function lowestUid(mailbox: string): number | null {
+  const row = handle()
+    .prepare('SELECT MIN(uid) AS uid FROM messages WHERE mailbox = ?')
+    .get(mailbox) as unknown as { uid: number | null }
+  return row.uid ?? null
+}
+
 export interface CachedBody {
   text: string | null
   html: string | null

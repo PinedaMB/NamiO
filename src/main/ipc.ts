@@ -16,6 +16,7 @@ import {
   disconnectAccount,
   getAccountState,
   getMessage,
+  getSyncProgress,
   listEnvelopes,
   listMailboxes,
   readAttachment,
@@ -143,7 +144,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.mailboxesList, (_event, sync: boolean = true) => listMailboxes(sync))
   ipcMain.handle(IPC.messagesList, (_event, path: string, limit: number, sync: boolean = true) =>
-    listEnvelopes(path, Math.min(Math.max(limit, 1), 500), sync)
+    listEnvelopes(path, Math.min(Math.max(limit, 1), 2000), sync)
   )
   ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number) => getMessage(path, uid))
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
@@ -180,6 +181,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.outboxList, () => outboxItems())
   ipcMain.handle(IPC.outboxRetry, (_event, id: string) => retryOutbox(id))
   ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
+
+  ipcMain.handle(IPC.syncProgress, () => getSyncProgress())
 
   ipcMain.handle(IPC.searchQuery, (_event, query: string, limit: number = 60) =>
     searchMail(String(query ?? '').slice(0, 200), Math.min(Math.max(limit, 1), 100))

@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import type { SyncProgress } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
 import { Icon } from './Icon'
@@ -8,6 +9,8 @@ interface StatusBarProps {
   bindings: Bindings
   /** Elementos esperando en la cola de salida. */
   pending: number
+  /** Descarga completa del buzón en curso. */
+  progress?: SyncProgress | null
 }
 
 interface LegendEntry {
@@ -29,8 +32,10 @@ function LegendItem({ entry }: { entry: LegendEntry }): React.JSX.Element {
   )
 }
 
-export function StatusBar({ appVersion, bindings, pending }: StatusBarProps): React.JSX.Element {
+export function StatusBar({ appVersion, bindings, pending, progress = null }: StatusBarProps): React.JSX.Element {
   const { t } = useI18n()
+  const percent =
+    progress && progress.total > 0 ? Math.min(100, Math.round((progress.cached / progress.total) * 100)) : 0
 
   // La leyenda sale de los atajos activos: si remapeás, el pie lo refleja.
   const primary: ReadonlyArray<LegendEntry> = [
@@ -66,6 +71,17 @@ export function StatusBar({ appVersion, bindings, pending }: StatusBarProps): Re
       </div>
 
       <div className="statusbar__right">
+        {progress && (
+          <span className="sync-progress" title={t('sync.progress', { cached: progress.cached, total: progress.total })}>
+            <Icon name="cloud_download" size={12} />
+            <span className="sync-progress__label">
+              {t('sync.progress', { cached: progress.cached, total: progress.total })}
+            </span>
+            <span className="sync-progress__bar">
+              <span className="sync-progress__fill" style={{ width: `${percent}%` }} />
+            </span>
+          </span>
+        )}
         {pending > 0 && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--tertiary)' }}>
             <Icon name="outbox" size={12} />

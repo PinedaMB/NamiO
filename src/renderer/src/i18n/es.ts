@@ -89,6 +89,7 @@ export const es = {
   'list.unread': 'Sin leer',
   'list.read': 'Leídos',
   'list.all': 'Todos',
+  'sync.progress': 'Sincronizando {cached}/{total}',
   'list.emptyUnread': 'No hay mensajes sin leer.',
   'list.emptyRead': 'No hay mensajes leídos en esta carpeta.',
   'list.liveQueue': 'Últimos {count} mensajes',

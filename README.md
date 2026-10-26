@@ -360,6 +360,24 @@ vuelve a la grilla de proveedores; "Servidor local" precarga `127.0.0.1:1143` y 
 de pruebas, que carga `Archive/INBOX/Sent`; y sin servidor, el error aparece **inline**
 ("El servidor rechazó la conexión") en vez de un banner global.
 
+## Sincronización completa y navegación
+
+![Progreso de sincronización en el pie](docs/sync-progress.png)
+
+- **El contador de cada carpeta es de no leídos** (como en cualquier cliente): INBOX mostraba el
+  total (2088) y ahora muestra los que esperan respuesta.
+- **La lista tiene barra de scroll visible** (el resto de la app la oculta a propósito) y **crece de
+  a 100** al llegar al final, hasta 2000: como la caché ya tiene todo, es instantáneo.
+- **Sync completa en segundo plano**: el primer sync baja los últimos 50 y, si el servidor tiene más,
+  sigue tramo a tramo de 100 (con una pausa corta entre tramos para no trabar la lectura) hasta
+  cubrir el buzón. El progreso va en el pie: `Sincronizando 550/1204` con barra.
+- Se reanuda sola al abrir la app o al reabrir la carpeta si quedó incompleta, y nunca corre dos
+  veces en paralelo.
+
+Verificado con un buzón de **1204 mensajes**: la caché terminó con los 1204, el badge mostró **1202**
+(no leídos reales), la barra pasó por 71 % → 96 % y desapareció al terminar, y el scroll agregó
+filas (50 → 150). El fixture acepta volumen: `node scripts/fake-imap.mjs 1143 1025 1200`.
+
 ## Comandos
 
 ```bash
@@ -467,6 +485,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | OAuth2 (PKCE + loopback) con XOAUTH2 en IMAP y SMTP | ✅ |
 | Bienvenida guiada: proveedor → conexión → bandeja | ✅ |
 | Ojo para ver la contraseña y detalle del rechazo del servidor | ✅ |
+| Sync completa en segundo plano con progreso, badge de no leídos y scroll | ✅ |
 | Icono, metadatos y paquete linux-unpacked (12.6 MB de asar) | ✅ |
 | CSP activa en la app empaquetada | ✅ |
 

@@ -16,6 +16,7 @@ import {
   type PickedAttachment,
   type Draft,
   type SearchHit,
+  type SyncProgress,
   type SendMailPayload
 } from '@shared/ipc'
 
@@ -59,6 +60,12 @@ const api: MailApi = {
   retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
   search: (query: string, limit = 60): Promise<SearchHit[]> => ipcRenderer.invoke(IPC.searchQuery, query, limit),
+  syncProgress: (): Promise<SyncProgress | null> => ipcRenderer.invoke(IPC.syncProgress),
+  onSyncProgress: (listener: (progress: SyncProgress | null) => void): (() => void) => {
+    const handler = (_event: unknown, progress: SyncProgress | null): void => listener(progress)
+    ipcRenderer.on(IPC.syncProgress, handler)
+    return () => ipcRenderer.removeListener(IPC.syncProgress, handler)
+  },
   onOutboxChanged: (listener: () => void): (() => void) => {
     const handler = (): void => listener()
     ipcRenderer.on(IPC.outboxChanged, handler)

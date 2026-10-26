@@ -108,11 +108,13 @@ const SPECIAL_USE_ICON: Record<string, string> = {
 }
 
 export function mailboxToFolder(mailbox: MailboxInfo): FolderView {
+  // El contador de la carpeta es de NO LEÍDOS (como en cualquier cliente):
+  // el total de mensajes no dice nada accionable.
   return {
     id: mailbox.path,
     icon: (mailbox.specialUse && SPECIAL_USE_ICON[mailbox.specialUse]) ?? 'folder',
     label: mailbox.name,
-    count: mailbox.messages,
+    count: mailbox.unseen > 0 ? mailbox.unseen : undefined,
     accent: mailbox.specialUse === '\\Inbox' || mailbox.path.toUpperCase() === 'INBOX'
   }
 }

@@ -86,6 +86,7 @@ export const en: Dictionary = {
   'list.unread': 'Unread',
   'list.read': 'Read',
   'list.all': 'All',
+  'sync.progress': 'Syncing {cached}/{total}',
   'list.emptyUnread': 'No unread messages.',
   'list.emptyRead': 'No read messages in this folder.',
   'list.liveQueue': 'Latest {count} messages',

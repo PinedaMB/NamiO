@@ -19,6 +19,9 @@ interface ThreadListProps {
   showVip?: boolean
   /** Cuenta real: las pestañas dicen "sin leer / leídos" en vez de prioridad. */
   live?: boolean
+  /** Quedan mensajes en la caché por mostrar. */
+  hasMore?: boolean
+  onLoadMore?: () => void
   onFilter: (filter: FilterId) => void
   onSelect: (id: string) => void
 }
@@ -58,6 +61,8 @@ export function ThreadList({
   emptyLabel,
   showVip = true,
   live = false,
+  hasMore = false,
+  onLoadMore,
   onFilter,
   onSelect
 }: ThreadListProps): React.JSX.Element {
@@ -142,7 +147,15 @@ export function ThreadList({
         </div>
       </div>
 
-      <div className="thread-list">
+      <div
+        className="thread-list"
+        onScroll={(event) => {
+          if (!hasMore || !onLoadMore) return
+          const element = event.currentTarget
+          // A 300 px del final se pide la siguiente tanda (ya está en la caché).
+          if (element.scrollTop + element.clientHeight >= element.scrollHeight - 300) onLoadMore()
+        }}
+      >
         {loading && threads.length === 0 && (
           <div className="list-loading">
             <Icon name="progress_activity" size={18} className="spin" />

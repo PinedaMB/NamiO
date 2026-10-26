@@ -13,7 +13,8 @@ import type {
   MessageAttachment,
   MessageDetail,
   SearchHit,
-  SyncMeta
+  SyncMeta,
+  SyncProgress
 } from '@shared/ipc'
 import {
   clearMailbox,
@@ -22,6 +23,7 @@ import {
   deleteMessageRow,
   getMailboxMeta,
   getMeta,
+  lowestUid,
   readBody,
   readEnvelope,
   readEnvelopes,
@@ -319,10 +321,15 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       uidValidity,
       uidNext,
       messages: exists,
-      unseen: countUnread(path)
+      // Con la carpeta entera cacheada se cuenta local; si no, manda el STATUS
+      // del servidor (la ventana cacheada no representa al total).
+      unseen: exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path))
     })
     setMeta('lastSync', String(Date.now()))
     offline = false
+
+    // Si el servidor tiene más de lo cacheado, se sigue bajando en segundo plano.
+    ensureFullSync(path)
 
     // Los flags cambian desde otros clientes: se refresca el tramo visible.
     if (exists > 0) {
@@ -351,12 +358,83 @@ async function syncMessages(path: string, limit: number): Promise<void> {
         uidValidity,
         uidNext,
         messages: exists,
-        unseen: countUnread(path)
+        unseen: exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path))
       })
     }
   } finally {
     lock.release()
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Sincronización completa en segundo plano
+   ------------------------------------------------------------------------- */
+
+let progress: SyncProgress | null = null
+let fullSyncRunning = false
+let progressListener: ((progress: SyncProgress | null) => void) | null = null
+
+export function setSyncProgressListener(listener: (progress: SyncProgress | null) => void): void {
+  progressListener = listener
+}
+
+export function getSyncProgress(): SyncProgress | null {
+  return progress
+}
+
+function publishProgress(next: SyncProgress | null): void {
+  progress = next
+  progressListener?.(next)
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Baja el buzón completo por tramos, del más viejo al más nuevo, para que la
+ * caché (y la búsqueda) cubran todo sin bloquear la lectura. Un tramo a la vez.
+ */
+async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
+  fullSyncRunning = true
+  try {
+    const total = getMailboxMeta(path)?.messages ?? 0
+    let lowest = lowestUid(path)
+
+    while (lowest !== null && lowest > 1) {
+      const from = Math.max(1, lowest - chunk)
+      const to = lowest - 1
+
+      publishProgress({ mailbox: path, cached: countMessages(path), total, running: true })
+
+      await serial(async () => {
+        const client = await ensureClient()
+        const lock = await client.getMailboxLock(path)
+        try {
+          upsertEnvelopes(path, await fetchRange(client, `${from}:${to}`, true))
+        } finally {
+          lock.release()
+        }
+      })
+
+      const next = lowestUid(path)
+      if (next === null || next >= lowest) break
+      lowest = next
+      await sleep(120)
+    }
+  } catch {
+    // Sin red: lo ya cacheado queda y se retoma en el próximo arranque.
+  } finally {
+    fullSyncRunning = false
+    publishProgress(null)
+    notify(path)
+  }
+}
+
+/** Arranca (si hace falta) la descarga completa del buzón en segundo plano. */
+function ensureFullSync(path: string): void {
+  if (fullSyncRunning) return
+  const meta = getMailboxMeta(path)
+  if (!meta || meta.messages <= countMessages(path)) return
+  void fullSyncMailbox(path, 100)
 }
 
 /* ---------------------------------------------------------------------------

@@ -10,6 +10,8 @@ const hoodiecrow = require('hoodiecrow-imap')
 
 const port = Number(process.argv[2] ?? 1143)
 const smtpPort = Number(process.argv[3] ?? 1025)
+/** Mensajes extra para probar la sync completa (opcional): node fake-imap.mjs 1143 1025 300 */
+const bulk = Number(process.argv[4] ?? 0)
 
 const message = (headers, body) => `${headers}\r\n\r\n${body}\r\n`
 
@@ -154,7 +156,27 @@ const server = hoodiecrow({
         Archive: { messages: [] }
       }
     },
-    INBOX: { messages: INBOX }
+    INBOX: {
+      messages: [
+        ...INBOX,
+        // Volumen opcional para probar la sync completa y el progreso.
+        ...Array.from({ length: bulk }, (_, index) => ({
+          flags: [],
+          raw: message(
+            [
+              `From: Boletin <boletin+${index + 1}@rutamayatravel.com>`,
+              'To: testuser@namio.dev',
+              `Subject: Boletin de prueba #${index + 1}`,
+              `Date: ${new Date(Date.now() - (index + 1) * 3_600_000).toUTCString()}`,
+              `Message-ID: <bulk-${index + 1}@rutamayatravel.com>`,
+              'MIME-Version: 1.0',
+              'Content-Type: text/plain; charset=utf-8'
+            ].join('\r\n'),
+            `Cuerpo del boletin ${index + 1}.`
+          )
+        }))
+      ]
+    }
   }
 })
 

@@ -32,7 +32,8 @@ export const IPC = {
   outboxRetry: 'outbox:retry',
   outboxCancel: 'outbox:cancel',
   outboxChanged: 'outbox:changed',
-  searchQuery: 'search:query'
+  searchQuery: 'search:query',
+  syncProgress: 'sync:progress'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -210,8 +211,15 @@ export interface PickedAttachment {
   size: number
 }
 
-export interface SearchHit {
+/** Progreso de la sincronización completa de un buzón (segundo plano). */
+export interface SyncProgress {
   mailbox: string
+  cached: number
+  total: number
+  running: boolean
+}
+
+export interface SearchHit {  mailbox: string
   mailboxName: string
   uid: number
   subject: string
@@ -269,6 +277,9 @@ export interface MailApi {
   onOutboxChanged(listener: () => void): () => void
   /** Búsqueda de texto completo sobre la caché local. */
   search(query: string, limit?: number): Promise<SearchHit[]>
+  /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
+  syncProgress(): Promise<SyncProgress | null>
+  onSyncProgress(listener: (progress: SyncProgress | null) => void): () => void
 
   /** Abre un enlace en el navegador del sistema. Solo http(s) y mailto. */
   openExternal(url: string): Promise<boolean>

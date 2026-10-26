@@ -6,7 +6,8 @@ import type {
   ImapErrorCode,
   MailboxInfo,
   OutboxItem,
-  SearchHit
+  SearchHit,
+  SyncProgress
 } from '@shared/ipc'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
@@ -108,6 +109,9 @@ export function App(): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
+  /** Cuántos mensajes se piden a la caché (crece al llegar al final de la lista). */
+  const [listLimit, setListLimit] = useState(PAGE_SIZE)
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null)
   /** Solo se marca leído lo que el usuario abrió; la selección automática no cuenta. */
   const userNavigated = useRef(false)
 
@@ -153,6 +157,7 @@ export function App(): React.JSX.Element {
     async (path: string, focusUid?: number): Promise<void> => {
       setLoadingFolder(true)
       setFolder(path)
+      setListLimit(PAGE_SIZE)
       if (focusUid === undefined) setSelectedId(null)
       const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
       setLoadingFolder(false)
@@ -235,14 +240,40 @@ export function App(): React.JSX.Element {
     const boxes = await window.api.listMailboxes(false).catch(() => null)
     if (boxes?.ok) setMailboxes(boxes.data)
 
-    const list = await window.api.listEnvelopes(folder, PAGE_SIZE, false).catch(() => null)
+    const list = await window.api.listEnvelopes(folder, listLimit, false).catch(() => null)
     if (!list?.ok) return
 
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = list.data.map((envelope) => envelopeToThread(envelope, locale))
     setThreads(mapped)
     setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
-  }, [folder, locale])
+  }, [folder, locale, listLimit])
+
+  /** Trae otra tanda de la caché (la descarga completa ya está en disco). */
+  const loadMore = useCallback(async (): Promise<void> => {
+    if (!live || loadingFolder) return
+    const next = Math.min(listLimit + 100, 2000)
+    if (next === listLimit) return
+
+    setListLimit(next)
+    const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
+    if (!result?.ok) return
+
+    const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
+    setThreads(mapped)
+    setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
+  }, [live, loadingFolder, listLimit, folder, locale])
+
+  /** Progreso de la descarga completa del buzón. */
+  useEffect(() => {
+    void window.api
+      .syncProgress()
+      .then((value) => setSyncProgress(value))
+      .catch(() => undefined)
+
+    const unsubscribe = window.api?.onSyncProgress?.((value) => setSyncProgress(value))
+    return () => unsubscribe?.()
+  }, [])
 
   const loadMailboxes = useCallback(
     async (state: AccountState): Promise<void> => {
@@ -749,6 +780,8 @@ export function App(): React.JSX.Element {
                 onSelect={select}
                 showVip={!live}
                 live={live}
+                hasMore={live && threads.length >= listLimit}
+                onLoadMore={loadMore}
               />
               )}
 
@@ -811,7 +844,12 @@ export function App(): React.JSX.Element {
           )}
         </div>
 
-        <StatusBar appVersion={appVersion} bindings={bindings} pending={outbox.length} />
+        <StatusBar
+          appVersion={appVersion}
+          bindings={bindings}
+          pending={outbox.length}
+          progress={syncProgress}
+        />
       </div>
 
       <CommandPalette
