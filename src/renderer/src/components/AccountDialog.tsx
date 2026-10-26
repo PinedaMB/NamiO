@@ -8,27 +8,18 @@ import type {
   OAuthProvider,
   SmtpConfig
 } from '@shared/ipc'
-import { useI18n, type TranslationKey } from '../i18n'
+import { useI18n } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { configFromAccount } from '../data/live'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
+import { ERROR_KEYS } from './errorKeys'
 
-export const ERROR_KEYS: Record<ImapErrorCode, TranslationKey> = {
-  auth: 'account.error.auth',
-  dns: 'account.error.dns',
-  refused: 'account.error.refused',
-  timeout: 'account.error.timeout',
-  tls: 'account.error.tls',
-  network: 'account.error.network',
-  unknown: 'account.error.unknown'
-}
+export { ERROR_KEYS }
 
 interface AccountDialogProps {
   open: boolean
   account: AccountState | null
-  /** Preselección desde la bienvenida: proveedor y método de acceso. */
-  initial?: { preset: 'gmail' | 'outlook' | 'local' | 'custom'; auth?: AuthMethod } | null
   onClose: () => void
   onConnected: (state: AccountState) => void
 }
@@ -61,7 +52,7 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
   }
 ]
 
-export function AccountDialog({ open, account, initial = null, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
+export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 160)
 
@@ -108,27 +99,7 @@ export function AccountDialog({ open, account, initial = null, onClose, onConnec
     setPassword('')
     setBusy(false)
     setError(null)
-
-    // La bienvenida preselecciona el proveedor y el método: el usuario solo
-    // completa credenciales.
-    if (initial) {
-      const preset = PRESETS.find((item) => item.id === initial.preset)
-      if (preset) {
-        setHost(preset.imap.host)
-        setPort(String(preset.imap.port))
-        setSecure(preset.imap.secure)
-        setSmtpHost(preset.smtp.host)
-        setSmtpPort(String(preset.smtp.port))
-        setSmtpSecure(preset.smtp.secure)
-      }
-      if (initial.preset === 'gmail' || initial.preset === 'outlook') {
-        setAuth('oauth2')
-        setProvider(initial.preset === 'gmail' ? 'google' : 'microsoft')
-      } else {
-        setAuth(initial.auth ?? 'password')
-      }
-    }
-  }, [open, initial])
+  }, [open])
 
   if (!mounted) return null
 

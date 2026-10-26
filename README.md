@@ -342,18 +342,23 @@ bandeja de demo y un instante después la bienvenida encima; medido con CDP: el 
 
 1. **Elegir proveedor** — Gmail y Outlook / Microsoft 365 (OAuth2), otro correo IMAP (Fastmail,
    iCloud, Proton, tu servidor) o servidor local para pruebas.
-2. **Conectar** — el diálogo se abre **ya preseleccionado**: hosts, puerto, TLS y método de acceso
-   según el proveedor. Solo quedan las credenciales.
+2. **Conectar** — la bienvenida tiene su **propio formulario**, adaptado al proveedor: Gmail/Outlook
+   piden correo + Client ID (OAuth2, hosts fijos); otro IMAP pide correo, contraseña y servidor de
+   salida; local viene precargado con `127.0.0.1`.
 3. **Usar el correo** — al conectar se cargan buzones y bandeja; la bienvenida no vuelve a aparecer.
 
-![Paso de Gmail, preseleccionado](docs/onboarding-gmail.png)
+![Paso de Gmail: formulario propio](docs/onboarding-gmail.png)
+
+El diálogo de cuenta del rail queda para **después**: ajustar hosts, puertos, endpoints OAuth o
+cambiar de método. El alta no pasa por ahí.
 
 "Explorar la demo" sigue a un click y la decisión se guarda en `settings.json` (`onboarded`), así que
 no vuelve a preguntar. Quien ya tiene cuenta configurada nunca ve la bienvenida.
 
-Verificado: Gmail abre `imap.gmail.com:993` en OAuth2 con proveedor Google; "Servidor local" abre
-`127.0.0.1:1143` en modo contraseña; conectar la cuenta de pruebas carga `Archive/INBOX/Sent` y el
-reinicio ya no muestra la bienvenida.
+Verificado: Gmail muestra el formulario OAuth2 en la propia bienvenida (sin abrir el diálogo); "Cambiar"
+vuelve a la grilla de proveedores; "Servidor local" precarga `127.0.0.1:1143` y conecta con la cuenta
+de pruebas, que carga `Archive/INBOX/Sent`; y sin servidor, el error aparece **inline**
+("El servidor rechazó la conexión") en vez de un banner global.
 
 ## Comandos
 

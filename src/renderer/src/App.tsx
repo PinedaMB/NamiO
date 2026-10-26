@@ -22,7 +22,7 @@ import { ComposeOverlay } from './components/ComposeOverlay'
 import { Settings } from './components/Settings'
 import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
 import { BootSplash } from './components/BootSplash'
-import { Onboarding, type OnboardingChoice } from './components/Onboarding'
+import { Onboarding } from './components/Onboarding'
 import { Icon } from './components/Icon'
 import { useI18n } from './i18n'
 import { useShortcuts } from './settings/ShortcutsProvider'
@@ -94,9 +94,6 @@ export function App(): React.JSX.Element {
 
   const [account, setAccount] = useState<AccountState | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
-  const [initialAccount, setInitialAccount] = useState<{
-    preset: 'gmail' | 'outlook' | 'local' | 'custom'
-  } | null>(null)
   const [settings, setSettings] = useState<Partial<AppSettings>>({})
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
@@ -320,11 +317,6 @@ export function App(): React.JSX.Element {
   // Sin `settingsLoaded` la bienvenida parpadearía un frame si la cuenta llega antes.
   const onboarding =
     settingsLoaded && account !== null && !account.configured && settings.onboarded !== true
-
-  const pickProvider = (choice: OnboardingChoice): void => {
-    setInitialAccount({ preset: choice })
-    setAccountOpen(true)
-  }
 
   const refreshOutbox = useCallback(async (): Promise<void> => {
     const items = await window.api.listOutbox().catch(() => null)
@@ -565,7 +557,6 @@ export function App(): React.JSX.Element {
   const onConnected = (state: AccountState): void => {
     setAccount(state)
     setAccountOpen(false)
-    setInitialAccount(null)
     markOnboarded()
     void loadMailboxes(state)
   }
@@ -854,18 +845,16 @@ export function App(): React.JSX.Element {
       <AccountDialog
         open={accountOpen}
         account={account}
-        initial={initialAccount}
         onClose={() => {
           setAccountOpen(false)
-          setInitialAccount(null)
           void refreshAccount()
         }}
         onConnected={onConnected}
       />
 
-      {onboarding && !accountOpen && (
+      {onboarding && (
         <Onboarding
-          onPick={pickProvider}
+          onConnected={onConnected}
           onDemo={() => {
             markOnboarded()
             setToast(t('onboarding.demoStarted'))

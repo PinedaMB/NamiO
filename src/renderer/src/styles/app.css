@@ -3424,6 +3424,88 @@
   color: var(--outline);
 }
 
+/* Alta (segundo paso): formulario propio, sin salir de la bienvenida. */
+
+.onboarding__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.onboarding__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -6px;
+  padding: 4px 8px 4px 6px;
+  border-radius: var(--r-md);
+  color: var(--outline);
+  font-size: 12px;
+  transition:
+    color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.onboarding__back:hover {
+  color: var(--on-surface);
+  background: var(--surface-container);
+}
+
+.onboarding__title--sm {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.onboarding__subtitle--sm {
+  font-size: 13px;
+  max-width: 62ch;
+}
+
+.onboarding__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--surface-container-highest) 55%, transparent);
+  border-radius: var(--r-xl);
+  background: var(--surface-container-low);
+}
+
+.onboarding__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--error-container) 32%, transparent);
+  color: var(--on-error-container);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.onboarding__error strong {
+  display: block;
+  font-weight: 600;
+}
+
+.onboarding__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.onboarding__actions-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--outline);
+}
+
 @media (max-width: 720px) {
   .onboarding__grid {
     grid-template-columns: 1fr;
