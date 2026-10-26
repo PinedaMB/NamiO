@@ -14,6 +14,7 @@ import { configFromAccount } from '../data/live'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 import { ERROR_KEYS } from './errorKeys'
+import { PasswordField } from './PasswordField'
 
 export { ERROR_KEYS }
 
@@ -388,11 +389,10 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
           {auth === 'password' && (
             <label className="account-field">
               <span>{t('account.password')}</span>
-              <input
-                type="password"
+              <PasswordField
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
+                onChange={setPassword}
+                ariaLabel={t('account.password')}
                 autoComplete="new-password"
               />
             </label>
@@ -462,6 +462,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               <div>
                 <strong>{t(ERROR_KEYS[error.code])}</strong>
                 <span>{error.detail}</span>
+                {error.code === 'auth' && <span className="account-error__hint">{t('account.authHint')}</span>}
               </div>
             </div>
           )}

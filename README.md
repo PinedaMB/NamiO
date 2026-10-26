@@ -466,6 +466,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Adjuntos al enviar (multipart) y borrador persistido | ✅ |
 | OAuth2 (PKCE + loopback) con XOAUTH2 en IMAP y SMTP | ✅ |
 | Bienvenida guiada: proveedor → conexión → bandeja | ✅ |
+| Ojo para ver la contraseña y detalle del rechazo del servidor | ✅ |
 | Icono, metadatos y paquete linux-unpacked (12.6 MB de asar) | ✅ |
 | CSP activa en la app empaquetada | ✅ |
 

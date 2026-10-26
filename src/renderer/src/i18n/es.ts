@@ -334,6 +334,10 @@ export const es = {
   'account.tokenUrl': 'URL de token',
   'account.scope': 'Scope',
   'account.connectBrowser': 'Conectar con el navegador',
+  'account.showPassword': 'Mostrar contraseña',
+  'account.hidePassword': 'Ocultar contraseña',
+  'account.authHint':
+    'Si el servidor rechaza el usuario, probá con el correo completo (incluye @) y confirmá que IMAP esté habilitado. Gmail y Outlook necesitan OAuth2.',
   'account.oauthHint':
     'Necesitás un cliente OAuth de escritorio del proveedor. La app abre el navegador y guarda el refresh token cifrado por el sistema.',
   'account.tlsOn': 'SSL/TLS',

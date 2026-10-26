@@ -2993,6 +2993,38 @@
   border-color: var(--primary);
 }
 
+/* Contraseña con ojo: el input deja lugar al botón. */
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 34px;
+}
+
+.password-field__toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-md);
+  color: var(--outline);
+  transition:
+    color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.password-field__toggle:hover {
+  color: var(--on-surface);
+  background: var(--surface-container-high);
+}
+
 .account-row {
   display: grid;
   grid-template-columns: 110px 1fr;
@@ -3062,6 +3094,15 @@
   font-family: var(--font-mono);
   font-size: 11px;
   overflow-wrap: anywhere;
+}
+
+/* Pista accionable solo cuando el rechazo es de credenciales. */
+.account-error .account-error__hint {
+  margin-top: 2px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--on-error-container) 88%, transparent);
 }
 
 .account-modal__foot {
@@ -3490,6 +3531,13 @@
 .onboarding__error strong {
   display: block;
   font-weight: 600;
+}
+
+.onboarding__error-hint {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  color: color-mix(in srgb, var(--on-error-container) 88%, transparent);
 }
 
 .onboarding__actions {

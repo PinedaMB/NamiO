@@ -5,6 +5,7 @@ import { useI18n, type TranslationKey } from '../i18n'
 import { cx } from '../lib/cx'
 import { Icon } from './Icon'
 import { ERROR_KEYS } from './errorKeys'
+import { PasswordField } from './PasswordField'
 
 export type OnboardingChoice = 'gmail' | 'outlook' | 'custom' | 'local'
 
@@ -282,11 +283,10 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 <>
                   <label className="account-field">
                     <span>{t('account.password')}</span>
-                    <input
-                      type="password"
+                    <PasswordField
                       value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="••••••••"
+                      onChange={setPassword}
+                      ariaLabel={t('account.password')}
                       autoComplete="current-password"
                     />
                   </label>
@@ -393,6 +393,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                   <span>
                     <strong>{t(ERROR_KEYS[error.code])}</strong>
                     {error.detail}
+                    {error.code === 'auth' && <em className="onboarding__error-hint">{t('account.authHint')}</em>}
                   </span>
                 </p>
               )}

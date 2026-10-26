@@ -183,8 +183,13 @@ function classify(error: unknown): ImapErrorCode {
 }
 
 function describe(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return String(error)
+  const value = error as { message?: string; responseText?: string } | null
+  const base = error instanceof Error ? error.message : String(error)
+  // El servidor explica el rechazo (p. ej. "[AUTHENTICATIONFAILED] Invalid credentials");
+  // sin esto el usuario solo ve "Command failed".
+  const detail = typeof value?.responseText === 'string' ? value.responseText.trim() : ''
+  if (detail !== '' && !base.includes(detail)) return `${base} — ${detail}`
+  return base
 }
 
 function toDate(value: string | Date | undefined): Date {

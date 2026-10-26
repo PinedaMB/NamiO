@@ -331,6 +331,10 @@ export const en: Dictionary = {
   'account.tokenUrl': 'Token URL',
   'account.scope': 'Scope',
   'account.connectBrowser': 'Connect with the browser',
+  'account.showPassword': 'Show password',
+  'account.hidePassword': 'Hide password',
+  'account.authHint':
+    'If the server rejects the user, try the full email (including @) and confirm IMAP is enabled. Gmail and Outlook need OAuth2.',
   'account.oauthHint':
     'You need a desktop OAuth client from the provider. The app opens the browser and stores the refresh token encrypted by the OS.',
   'account.tlsOn': 'SSL/TLS',
