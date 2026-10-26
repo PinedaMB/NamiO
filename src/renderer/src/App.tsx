@@ -21,6 +21,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { ComposeOverlay } from './components/ComposeOverlay'
 import { Settings } from './components/Settings'
 import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
+import { BootSplash } from './components/BootSplash'
 import { Onboarding, type OnboardingChoice } from './components/Onboarding'
 import { Icon } from './components/Icon'
 import { useI18n } from './i18n'
@@ -662,6 +663,11 @@ export function App(): React.JSX.Element {
         : t('sidebar.syncing')
 
   const outboxFailed = outbox.find((item) => item.status === 'failed') ?? null
+
+  // Mientras no sepamos si hay cuenta ni si ya pasó por la bienvenida, no se
+  // pinta la bandeja: sin este corte, la demo aparece y el onboarding encima.
+  const booting = account === null || !settingsLoaded
+  if (booting) return <BootSplash />
 
   return (
     <div className="app">

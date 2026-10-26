@@ -25,6 +25,7 @@ export const en: Dictionary = {
   'sidebar.outbox': 'Outbox & Offline',
   'sidebar.archive': 'Archive',
   'sidebar.trash': 'Trash',
+  'boot.loading': 'Opening your mail…',
   'onboarding.title': 'Your mail, on your machine',
   'onboarding.subtitle':
     'Connect an account and your messages land in a local cache: instant search, offline reading and no cloud in between.',

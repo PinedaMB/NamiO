@@ -28,6 +28,7 @@ export const es = {
   'sidebar.outbox': 'Salida y sin conexión',
   'sidebar.archive': 'Archivo',
   'sidebar.trash': 'Papelera',
+  'boot.loading': 'Abriendo tu correo…',
   'onboarding.title': 'Tu correo, en tu equipo',
   'onboarding.subtitle':
     'Conectá una cuenta y tus mensajes quedan en una caché local: búsqueda instantánea, lectura sin conexión y nada de nube de por medio.',

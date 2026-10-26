@@ -335,6 +335,11 @@ funciona sin navegador al reiniciar y el envío SMTP sale autenticado con el mis
 
 Un perfil vacío ya no cae directo en la demo: abre una bienvenida con el camino corto.
 
+Al abrir, la app pasa por una **pantalla de carga** (logo, barra fina y "Abriendo tu correo…") hasta
+que sabe si hay cuenta configurada y si ya pasaste por la bienvenida. Sin ese corte se veía la
+bandeja de demo y un instante después la bienvenida encima; medido con CDP: el loader aparece a
+~100 ms y en ese momento no hay ni bandeja ni onboarding pintados.
+
 1. **Elegir proveedor** — Gmail y Outlook / Microsoft 365 (OAuth2), otro correo IMAP (Fastmail,
    iCloud, Proton, tu servidor) o servidor local para pruebas.
 2. **Conectar** — el diálogo se abre **ya preseleccionado**: hosts, puerto, TLS y método de acceso
