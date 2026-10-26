@@ -24,6 +24,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
+    "css:audit": "node scripts/css-audit.mjs",
     "build": "pnpm run typecheck && electron-vite build",
     "build:linux": "pnpm run build && electron-builder --linux",
     "build:win": "pnpm run build && electron-builder --win"

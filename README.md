@@ -279,6 +279,28 @@ Antes de empaquetar se cerraron los huecos que hacían ruido al usar la app de v
 Limitaciones conocidas: hay **un solo borrador** (el último compositor, sin lista de borradores) y el
 envió no permite aún elegir remitente alternativo.
 
+## Integridad del CSS
+
+`pnpm run css:audit` cruza el CSS con el JSX y verifica cuatro cosas: que toda variable usada esté
+definida, que toda clase usada en un componente tenga al menos una regla, que los `url()` locales
+resuelvan y que el bundle construido conserve sus assets (fuentes incluidas).
+
+Estado actual: **337 clases definidas / 322 usadas · 54 variables (46 usadas) · 0 problemas**.
+
+Lo que encontró y se corrigió en esta pasada:
+
+- `--tertiary-container` se usaba en dos lugares y **nunca se definía**, así que `.avatar--tertiary`
+  se quedaba sin fondo (la declaración entera era inválida). Ahora está en `tokens.css`.
+- `.mono` se usaba en Ajustes para versiones y rutas, **sin regla**: los valores salían en la fuente
+  de interfaz. Se agregó la utilidad.
+- `.list-empty` (estado vacío de búsqueda), `.attachment__icon` y `.statusbar__version` se usaban sin
+  estilo propio; se agregaron sus reglas.
+- `var(--text-dim, …)` apuntaba a una variable inexistente; se dejó el fallback directo.
+
+Deuda anotada, sin efecto en runtime: 8 variables y 15 clases que vienen de los mockups y ya no se
+usan (`t-headline-*`, `kbd--*` extra, `btn--surface/quiet/ghost`, etc.). Se pueden podar cuando
+convenga; el auditor las lista con `--verbose`.
+
 ## Comandos
 
 ```bash

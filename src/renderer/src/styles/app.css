@@ -1027,6 +1027,11 @@
   background: var(--surface-container-highest);
 }
 
+.attachment__icon {
+  color: var(--tertiary);
+  flex-shrink: 0;
+}
+
 .attachment__meta {
   display: flex;
   flex-direction: column;
@@ -1441,6 +1446,21 @@
   border-top: 1px solid color-mix(in srgb, var(--surface-container-highest) 40%, transparent);
   flex-shrink: 0;
   user-select: none;
+}
+
+.statusbar__version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--outline);
+}
+
+/* Valores técnicos (versiones, rutas, correos) en monoespaciada. */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: var(--on-surface-variant);
 }
 
 .legend {
@@ -2338,7 +2358,7 @@
 
 .settings__subtitle {
   margin: 0;
-  color: var(--text-dim, var(--on-surface-variant));
+  color: var(--on-surface-variant);
   font-size: 14px;
 }
 
@@ -3281,6 +3301,14 @@
   padding: 28px 12px;
   color: var(--outline);
   font-size: 13px;
+}
+
+.list-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--outline);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* Error de conexión: banner flotante arriba, sin mover el layout. */

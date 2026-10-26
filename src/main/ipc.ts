@@ -52,7 +52,7 @@ export function registerIpcHandlers(): void {
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
-      stage: 'M3',
+      stage: 'M5',
       accountCount: 0
     }
   })
