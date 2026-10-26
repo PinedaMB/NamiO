@@ -75,10 +75,31 @@ contexto.
 
 Dos decisiones a tener presentes:
 
-- **La copia de la UI está en inglés** porque es el idioma del diseño. Los strings viven en cada
-  componente; se extraen a i18n cuando empecemos M1.
+- **La UI es bilingüe (es/en)**: toda la copia sale de `src/renderer/src/i18n/`. El contenido de los
+  correos no se traduce, se lee en el idioma en que llegó (ver [Idioma](#idioma)).
 - **`src/renderer/src/data/demo.ts` es demostración**, no datos reales. Cuando llegue el motor de
   sync esto se reemplaza por la caché SQLite sin tocar los componentes.
+
+## Idioma
+
+La interfaz está en español e inglés, con un conmutador `ES / EN` en la barra superior.
+
+| Español | English |
+| --- | --- |
+| ![Interfaz en español](docs/inbox-es.png) | ![Interfaz en inglés](docs/inbox.png) |
+
+- Diccionarios tipados en [`src/renderer/src/i18n/`](src/renderer/src/i18n): `es.ts` es la fuente y
+  define `Dictionary`; `en.ts` está declarado como `Dictionary`, así que **una clave faltante no
+  compila**.
+- Idioma inicial: preferencia guardada → idioma del sistema → español.
+- La preferencia se persiste en `settings.json` dentro del perfil de la app, por IPC
+  (`settings:get` / `settings:set`). El renderer nunca escribe archivos.
+- **Se traduce** toda la copia de la interfaz: carpetas, filtros, barra de lectura, paleta de comandos,
+  compositor, avisos y etiquetas.
+- **No se traduce** el contenido de los correos ni lo derivado de ellos (asuntos, cuerpos, resumen del
+  copiloto, acciones detectadas): un correo se lee en el idioma en que llegó.
+
+Sumar un idioma es crear `pt.ts` tipado como `Dictionary` y agregarlo a `LOCALES` y `DICTIONARIES`.
 
 ## Comandos
 

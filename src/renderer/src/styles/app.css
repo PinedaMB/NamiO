@@ -317,8 +317,14 @@
   min-width: 0;
 }
 
+.topbar__left {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
 .topbar__right {
   gap: var(--sp-sm);
+  flex-shrink: 0;
 }
 
 .zero-pill {
@@ -350,13 +356,15 @@
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 9px;
   border-radius: var(--r-lg);
   background: var(--surface-container-low);
   color: var(--on-surface-variant);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     background var(--fast) var(--ease),
     color var(--fast) var(--ease);
@@ -378,6 +386,8 @@
   justify-content: space-between;
   gap: var(--sp-md);
   width: min(420px, 34vw);
+  flex: 0 1 auto;
+  min-width: 180px;
   height: 32px;
   padding: 0 var(--sp-md);
   border-radius: var(--r-lg);
@@ -385,6 +395,12 @@
   color: var(--outline);
   font-size: 13px;
   transition: background var(--fast) var(--ease);
+}
+
+.search > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .search:hover {
@@ -405,6 +421,46 @@
 .topbar .avatar {
   width: 32px;
   height: 32px;
+}
+
+/* Conmutador de idioma: deliberadamente discreto, mono y de 10px. */
+.lang-switch {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--surface-container-low);
+}
+
+.lang-switch__btn {
+  min-width: 26px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 3px;
+  color: var(--outline);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.lang-switch__btn:hover {
+  background: var(--surface-container);
+  color: var(--on-surface);
+}
+
+.lang-switch__btn--active {
+  background: var(--surface-container-high);
+  color: var(--primary);
+}
+
+.lang-switch__btn--active:hover {
+  background: var(--surface-container-high);
+  color: var(--primary);
 }
 
 /* ==========================================================================
@@ -2172,6 +2228,14 @@
   }
   .legend__secondary {
     display: none;
+  }
+  /* En español los chips son más largos: el resumen del Inbox Zero es lo
+     primero que se puede perder sin quitar funcionalidad. */
+  .zero-pill {
+    display: none;
+  }
+  .search {
+    width: 260px;
   }
 }
 

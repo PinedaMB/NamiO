@@ -1,6 +1,6 @@
 import type { Attachment, Message, Thread } from '../data/demo'
+import { useI18n } from '../i18n'
 import { Icon } from './Icon'
-import { cx } from '../lib/cx'
 
 interface ThreadPaneProps {
   thread: Thread
@@ -80,46 +80,45 @@ export function ThreadPane({
   onPrev,
   onNext
 }: ThreadPaneProps): React.JSX.Element {
+  const { t } = useI18n()
   const message = thread.messages[0]
   const from = message?.from
   const recipients = (message?.to ?? []).map((person) => person.email)
   const toLine = [`me <${recipients[0] ?? ''}>`, ...recipients.slice(1)].join(', ')
 
   return (
-    <main className="reading" aria-label="Conversation">
+    <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
-          <button className="tool-btn" type="button" onClick={onArchive} title="Archive (E)">
+          <button className="tool-btn" type="button" onClick={onArchive} title={`${t('common.archive')} (E)`}>
             <Icon name="archive" size={15} />
-            Archive
+            {t('common.archive')}
             <kbd className="kbd">E</kbd>
           </button>
-          <button className="tool-btn" type="button" onClick={onSnooze} title="Snooze (S)">
+          <button className="tool-btn" type="button" onClick={onSnooze} title={`${t('common.snooze')} (S)`}>
             <Icon name="schedule" size={15} />
-            Snooze
+            {t('common.snooze')}
             <kbd className="kbd">S</kbd>
           </button>
-          <button className="tool-btn" type="button" title="Move (M)">
+          <button className="tool-btn" type="button" title={`${t('common.move')} (M)`}>
             <Icon name="drive_file_move" size={15} />
-            Move
+            {t('common.move')}
             <kbd className="kbd">M</kbd>
           </button>
-          <button className="tool-btn tool-btn--icon btn--danger" type="button" title="Mark as spam">
+          <button className="tool-btn tool-btn--icon btn--danger" type="button" title={t('common.spam')}>
             <Icon name="report" size={15} />
           </button>
-          <button className="tool-btn tool-btn--icon btn--danger" type="button" onClick={onDelete} title="Delete">
+          <button className="tool-btn tool-btn--icon btn--danger" type="button" onClick={onDelete} title={t('common.delete')}>
             <Icon name="delete" size={15} />
           </button>
         </div>
 
         <div className="toolbar-group">
-          <span className="reading__count">
-            Thread {position} of {total}
-          </span>
-          <button className="tool-btn tool-btn--icon" type="button" onClick={onPrev} title="Previous (K)">
+          <span className="reading__count">{t('thread.threadOf', { n: position, total })}</span>
+          <button className="tool-btn tool-btn--icon" type="button" onClick={onPrev} title={t('thread.previous')}>
             <Icon name="chevron_left" size={16} />
           </button>
-          <button className="tool-btn tool-btn--icon" type="button" onClick={onNext} title="Next (J)">
+          <button className="tool-btn tool-btn--icon" type="button" onClick={onNext} title={t('thread.next')}>
             <Icon name="chevron_right" size={16} />
           </button>
         </div>
@@ -133,14 +132,14 @@ export function ThreadPane({
               {thread.vip && (
                 <span className="badge-secure">
                   <Icon name="verified" size={12} fill />
-                  {from?.org ?? 'VIP'} Direct
+                  {from?.org ?? 'VIP'}
                 </span>
               )}
               <button
                 className="icon-btn"
                 type="button"
                 onClick={onStar}
-                title={thread.starred ? 'Unstar (S)' : 'Star (S)'}
+                title={thread.starred ? t('thread.unstar') : t('thread.star')}
                 aria-pressed={thread.starred}
               >
                 <Icon name="star" size={16} fill={thread.starred} />
@@ -158,7 +157,7 @@ export function ThreadPane({
                     <span className="participants__addr">&lt;{from?.email}&gt;</span>
                   </div>
                   <div className="participants__to">
-                    <span>to</span>
+                    <span>{t('thread.to')}</span>
                     <span style={{ color: 'var(--on-surface)', fontWeight: 500 }}>{toLine}</span>
                   </div>
                 </div>
@@ -168,17 +167,23 @@ export function ThreadPane({
                 <span>{message?.sentAt}</span>
                 <span className="participants__tls">
                   <span className="dot" />
-                  Encrypted TLS 1.3
+                  {t('thread.encrypted')}
                 </span>
               </div>
             </div>
 
             {message?.attachments && message.attachments.length > 0 && (
-              <div className="attachments">
+              <div className="attachments" aria-label={t('thread.attachments')}>
                 {message.attachments.map((attachment) => {
                   const meta = ATTACHMENT_ICON[attachment.kind]
                   return (
-                    <a key={attachment.name} className="attachment" href="#archivo" onClick={(event) => event.preventDefault()}>
+                    <a
+                      key={attachment.name}
+                      className="attachment"
+                      href="#archivo"
+                      title={t('thread.download')}
+                      onClick={(event) => event.preventDefault()}
+                    >
                       <Icon name={meta.icon} size={18} className="attachment__icon" />
                       <span className="attachment__meta">
                         <span className="attachment__name">{attachment.name}</span>
@@ -202,17 +207,17 @@ export function ThreadPane({
                 <Icon name="reply" size={16} />
               </span>
               <span>
-                Hit <kbd className="kbd kbd--quiet">R</kbd> to reply,{' '}
-                <kbd className="kbd kbd--quiet">A</kbd> to reply all, or run AI synthesis…
+                {t('thread.hintPrefix')} <kbd className="kbd kbd--quiet">R</kbd> {t('thread.hintMid')}{' '}
+                <kbd className="kbd kbd--quiet">A</kbd> {t('thread.hintSuffix')}
               </span>
             </div>
             <div className="quick-reply__actions">
               <button className="tool-btn" type="button" onClick={onQuickDraft}>
                 <Icon name="bolt" size={14} />
-                AI Quick Draft
+                {t('thread.quickDraft')}
               </button>
               <button className="btn btn--primary" type="button" onClick={onReply}>
-                Reply
+                {t('common.reply')}
               </button>
             </div>
           </div>
@@ -223,13 +228,12 @@ export function ThreadPane({
 }
 
 export function ThreadPaneEmpty(): React.JSX.Element {
+  const { t } = useI18n()
   return (
-    <main className="reading" aria-label="Conversation">
+    <main className="reading" aria-label={t('thread.select')}>
       <div className="reading__scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p className="muted">Select a conversation</p>
+        <p className="muted">{t('thread.select')}</p>
       </div>
     </main>
   )
 }
-
-export { cx }

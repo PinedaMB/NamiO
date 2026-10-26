@@ -1,5 +1,6 @@
 import type { Tag, Thread } from '../data/demo'
 import type { FilterId } from './Topbar'
+import { useI18n, type TranslationKey } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -14,12 +15,12 @@ interface ThreadListProps {
   onSelect: (id: string) => void
 }
 
-const QUEUE_LABEL: Record<FilterId, string> = {
-  focused: 'High Priority',
-  other: 'Everything Else',
-  vip: 'VIP Only',
-  files: 'With Attachments',
-  'needs-reply': 'Needs Reply'
+const QUEUE_LABEL: Record<FilterId, TranslationKey> = {
+  focused: 'list.highPriority',
+  other: 'list.everythingElse',
+  vip: 'list.vipOnly',
+  files: 'list.withAttachments',
+  'needs-reply': 'list.needsReply'
 }
 
 function tagClass(tag: Tag): string {
@@ -46,8 +47,10 @@ export function ThreadList({
   onFilter,
   onSelect
 }: ThreadListProps): React.JSX.Element {
+  const { t } = useI18n()
+
   return (
-    <section className="list" aria-label="Cola de conversaciones">
+    <section className="list" aria-label={t('list.queue', { name: t(QUEUE_LABEL[filter]) })}>
       <div className="list__filters">
         <div className="list__filters-row">
           <div className="seg" role="tablist">
@@ -58,7 +61,7 @@ export function ThreadList({
               className={cx('seg__btn', filter === 'focused' && 'seg__btn--active')}
               onClick={() => onFilter('focused')}
             >
-              Focused <span className="seg__count">{unreadCount}</span>
+              {t('list.focused')} <span className="seg__count">{unreadCount}</span>
             </button>
             <button
               type="button"
@@ -67,7 +70,7 @@ export function ThreadList({
               className={cx('seg__btn', filter === 'other' && 'seg__btn--active')}
               onClick={() => onFilter('other')}
             >
-              Other <span className="seg__count">{otherCount}</span>
+              {t('list.other')} <span className="seg__count">{otherCount}</span>
             </button>
             <button
               type="button"
@@ -77,23 +80,23 @@ export function ThreadList({
               onClick={() => onFilter('vip')}
             >
               <Icon name="star" size={13} className="seg__star" />
-              VIP <span className="seg__count">{vipCount}</span>
+              {t('list.vip')} <span className="seg__count">{vipCount}</span>
             </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button className="icon-btn" type="button" title="Ordenar" aria-label="Ordenar">
+            <button className="icon-btn" type="button" title={t('list.sort')} aria-label={t('list.sort')}>
               <Icon name="swap_vert" size={15} />
             </button>
-            <button className="icon-btn" type="button" title="Filtrar" aria-label="Filtrar">
+            <button className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')}>
               <Icon name="filter_list" size={15} />
             </button>
           </div>
         </div>
 
         <div className="list__queue">
-          <span>QUEUE: {QUEUE_LABEL[filter].toUpperCase()}</span>
-          <strong>Triaged 8m ago</strong>
+          <span>{t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}</span>
+          <strong>{t('list.triaged')}</strong>
         </div>
       </div>
 
@@ -126,7 +129,7 @@ export function ThreadList({
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="thread__name">{sender?.name ?? 'Desconocido'}</span>
+                      <span className="thread__name">{sender?.name ?? ''}</span>
                       {sender?.org && <span className="thread__org">{sender.org}</span>}
                     </div>
                   </div>
@@ -146,9 +149,9 @@ export function ThreadList({
 
               <div className="thread__tags">
                 {thread.tags.map((tag) => (
-                  <span key={tag.label} className={tagClass(tag)}>
+                  <span key={tag.labelKey} className={tagClass(tag)}>
                     {tag.icon && <Icon name={tag.icon} size={11} />}
-                    {tag.label}
+                    {t(tag.labelKey, tag.count !== undefined ? { count: tag.count } : undefined)}
                   </span>
                 ))}
               </div>
@@ -158,7 +161,7 @@ export function ThreadList({
 
         {threads.length === 0 && (
           <p className="muted" style={{ padding: '24px 12px', textAlign: 'center' }}>
-            Nothing in this view. Try another filter.
+            {t('list.empty')}
           </p>
         )}
       </div>

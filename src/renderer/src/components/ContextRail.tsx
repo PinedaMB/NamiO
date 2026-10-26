@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ActionItem, BriefPoint, Slot } from '../data/demo'
 import { DOSSIER } from '../data/demo'
+import { useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -12,6 +13,7 @@ interface ContextRailProps {
 }
 
 export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRailProps): React.JSX.Element {
+  const { t } = useI18n()
   const [done, setDone] = useState<ReadonlySet<string>>(new Set())
 
   const toggle = (id: string): void => {
@@ -24,14 +26,14 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
   }
 
   return (
-    <aside className="context" aria-label="Thread context">
+    <aside className="context" aria-label={t('context.brief')}>
       <div className="card">
         <div className="card__head">
           <span className="card__title">
             <Icon name="psychology" size={16} />
-            AI Executive Brief
+            {t('context.brief')}
           </span>
-          <span className="chip chip--accent">Live</span>
+          <span className="chip chip--accent">{t('context.live')}</span>
         </div>
 
         <div className="brief">
@@ -46,14 +48,10 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
         </div>
 
         <div className="actions">
-          <span className="card__label">Detected Actions</span>
+          <span className="card__label">{t('context.actions')}</span>
           {actions.map((action) => (
             <label key={action.id} className="action">
-              <input
-                type="checkbox"
-                checked={done.has(action.id)}
-                onChange={() => toggle(action.id)}
-              />
+              <input type="checkbox" checked={done.has(action.id)} onChange={() => toggle(action.id)} />
               <span className="action__text">
                 <span
                   className="action__title"
@@ -70,8 +68,8 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
 
       <div className="card">
         <div className="card__head">
-          <span className="card__label">Sender Dossier</span>
-          <button className="icon-btn" type="button" title="Abrir ficha" aria-label="Abrir ficha">
+          <span className="card__label">{t('context.dossier')}</span>
+          <button className="icon-btn" type="button" title={t('context.dossier')} aria-label={t('context.dossier')}>
             <Icon name="open_in_new" size={16} />
           </button>
         </div>
@@ -80,7 +78,7 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
           <span className="avatar avatar--xl avatar--accent">{DOSSIER.person.initials}</span>
           <div style={{ minWidth: 0 }}>
             <div className="dossier__name">{DOSSIER.person.name}</div>
-            <div className="dossier__role">Partner @ Sequoia Capital</div>
+            <div className="dossier__role">{DOSSIER.person.org}</div>
             <div className="dossier__loc">{DOSSIER.location}</div>
           </div>
         </div>
@@ -88,21 +86,21 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
         <div className="stats">
           <div className="stat">
             <span className="stat__value">{DOSSIER.threadsInCommon}</span>
-            <span className="stat__label">Threads In Common</span>
+            <span className="stat__label">{t('context.common')}</span>
           </div>
           <div className="stat">
             <span className="stat__value stat__value--tertiary">{DOSSIER.responseRate}</span>
-            <span className="stat__label">Response Rate</span>
+            <span className="stat__label">{t('context.rate')}</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <div className="fact-row">
-            <span>Portfolio boards</span>
+            <span>{t('context.boards')}</span>
             <span>{DOSSIER.boards}</span>
           </div>
           <div className="fact-row">
-            <span>Last Interaction</span>
+            <span>{t('context.last')}</span>
             <span>{DOSSIER.lastInteraction}</span>
           </div>
         </div>
@@ -112,7 +110,7 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
         <div className="card__head">
           <span className="card__title">
             <Icon name="calendar_today" size={16} />
-            Available Tomorrow
+            {t('context.available')}
           </span>
           <span className="t-kbd" style={{ color: 'var(--outline)' }}>
             GMT-7
@@ -127,10 +125,10 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
                 {slot.start} – {slot.end}
               </span>
               {slot.status === 'requested' ? (
-                <span className="chip chip--accent">Requested</span>
+                <span className="chip chip--accent">{t('context.requested')}</span>
               ) : (
                 <span className="t-kbd" style={{ color: 'var(--outline)' }}>
-                  Free
+                  {t('context.free')}
                 </span>
               )}
             </div>
@@ -139,7 +137,7 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
 
         <button className="tool-btn" type="button" onClick={() => onInsertSlot('10:30 AM – 10:45 AM')}>
           <Icon name="event_available" size={15} />
-          Insert 10:30 AM into Reply
+          {t('context.insert')}
         </button>
       </div>
     </aside>

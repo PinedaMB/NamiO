@@ -8,29 +8,34 @@ import { join } from 'node:path'
 const [expression = 'document.title', url = 'http://127.0.0.1:4173/'] = process.argv.slice(2)
 const EDGE = process.env.EDGE_BIN ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = Number(process.env.CDP_PORT ?? 9566)
+const ATTACH = process.env.CDP_ENDPOINT ?? null
+const ENDPOINT = ATTACH ?? `http://127.0.0.1:${PORT}`
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const profile = await mkdtemp(join(tmpdir(), 'probe-'))
-const browser = spawn(
-  EDGE,
-  [
-    '--headless=new',
-    '--disable-gpu',
-    '--hide-scrollbars',
-    '--no-first-run',
-    '--no-default-browser-check',
-    `--remote-debugging-port=${PORT}`,
-    `--user-data-dir=${profile}`,
-    'about:blank'
-  ],
-  { stdio: 'ignore' }
-)
+let browser = null
+if (!ATTACH) {
+  const profile = await mkdtemp(join(tmpdir(), 'probe-'))
+  browser = spawn(
+    EDGE,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--hide-scrollbars',
+      '--no-first-run',
+      '--no-default-browser-check',
+      `--remote-debugging-port=${PORT}`,
+      `--user-data-dir=${profile}`,
+      'about:blank'
+    ],
+    { stdio: 'ignore' }
+  )
+}
 
 try {
   for (let i = 0; i < 80; i++) {
     try {
-      const res = await fetch(`http://127.0.0.1:${PORT}/json/version`)
+      const res = await fetch(`${ENDPOINT}/json/version`)
       if (res.ok) break
     } catch {
       /* arrancando */
@@ -38,9 +43,13 @@ try {
     await sleep(120)
   }
 
-  const target = await (
-    await fetch(`http://127.0.0.1:${PORT}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT' })
-  ).json()
+  const target = ATTACH
+    ? (await (await fetch(`${ENDPOINT}/json`)).json()).find((t) => t.type === 'page' && t.webSocketDebuggerUrl)
+    : await (
+        await fetch(`${ENDPOINT}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT' })
+      ).json()
+
+  if (!target) throw new Error('No hay ninguna página para inspeccionar')
 
   const socket = new WebSocket(target.webSocketDebuggerUrl)
   await new Promise((resolve, reject) => {
@@ -86,6 +95,8 @@ try {
 
   socket.close()
 } finally {
-  browser.kill()
-  await sleep(200)
+  if (browser) {
+    browser.kill()
+    await sleep(200)
+  }
 }

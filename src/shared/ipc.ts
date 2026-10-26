@@ -6,7 +6,9 @@
  */
 
 export const IPC = {
-  coreStatus: 'core:status'
+  coreStatus: 'core:status',
+  settingsGet: 'settings:get',
+  settingsSet: 'settings:set'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -24,6 +26,15 @@ export interface CoreStatus {
   accountCount: number
 }
 
+export type Language = 'es' | 'en'
+
+export interface AppSettings {
+  language: Language
+}
+
 export interface MailApi {
   getCoreStatus(): Promise<CoreStatus>
+  /** Devuelve solo lo que el usuario ya configuró (puede venir vacío). */
+  getSettings(): Promise<Partial<AppSettings>>
+  setSettings(settings: Partial<AppSettings>): Promise<void>
 }

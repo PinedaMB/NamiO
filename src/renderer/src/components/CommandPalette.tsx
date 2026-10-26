@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../data/demo'
+import { useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -41,6 +42,7 @@ export function CommandPalette({
   onSnooze,
   onSelectFolder
 }: CommandPaletteProps): React.JSX.Element | null {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,7 +62,7 @@ export function CommandPalette({
 
     return [
       {
-        title: 'Threads',
+        title: t('palette.threads'),
         icon: 'inbox',
         items: threads.map((thread) => ({
           id: `thread-${thread.id}`,
@@ -71,81 +73,57 @@ export function CommandPalette({
         }))
       },
       {
-        title: 'Recent searches',
+        title: t('palette.recent'),
         icon: 'history',
         items: [
           {
             id: 'search-elena',
             label: 'from:elena "term sheet"',
-            hint: 'query',
+            hint: t('palette.query'),
             icon: 'saved_search',
-            badge: '3 results',
+            badge: t('palette.results', { count: 3 }),
             run: onClose
           },
           {
             id: 'search-legal',
             label: 'has:attachment label:legal',
-            hint: 'filter',
+            hint: t('palette.filter'),
             icon: 'search',
-            badge: '12 results',
+            badge: t('palette.results', { count: 12 }),
             run: onClose
           },
           {
             id: 'search-unread',
             label: 'unread before:friday',
-            hint: 'time',
+            hint: t('palette.time'),
             icon: 'filter_alt',
-            badge: '7 results',
+            badge: t('palette.results', { count: 7 }),
             run: onClose
           }
         ]
       },
       {
-        title: 'Quick actions',
+        title: t('palette.quick'),
         icon: 'bolt',
         items: [
-          {
-            id: 'compose',
-            label: 'New email (Compose)',
-            icon: 'edit_square',
-            keys: ['C'],
-            run: run(onCompose)
-          },
-          {
-            id: 'archive',
-            label: 'Archive current thread',
-            icon: 'done_all',
-            keys: ['E'],
-            run: run(onArchive)
-          },
-          {
-            id: 'snooze',
-            label: 'Snooze until tomorrow morning',
-            icon: 'schedule',
-            keys: ['S'],
-            run: run(onSnooze)
-          },
-          {
-            id: 'block',
-            label: 'Block sender and report domain',
-            icon: 'block',
-            keys: ['B', 'D'],
-            run: onClose
-          }
+          { id: 'compose', label: t('palette.compose'), icon: 'edit_square', keys: ['C'], run: run(onCompose) },
+          { id: 'archive', label: t('palette.archiveCurrent'), icon: 'done_all', keys: ['E'], run: run(onArchive) },
+          { id: 'snooze', label: t('palette.snoozeUntil'), icon: 'schedule', keys: ['S'], run: run(onSnooze) },
+          { id: 'block', label: t('palette.block'), icon: 'block', keys: ['B', 'D'], run: onClose }
         ]
       },
       {
-        title: 'Navigation',
+        title: t('palette.nav'),
         icon: 'explore',
         items: [
-          { id: 'nav-inbox', label: 'Go to Inbox', icon: 'inbox', keys: ['G', 'I'], run: run(() => onSelectFolder('inbox')) },
-          { id: 'nav-starred', label: 'Go to Starred', icon: 'star', keys: ['G', 'S'], run: run(() => onSelectFolder('starred')) },
-          { id: 'nav-drafts', label: 'Go to Drafts', icon: 'draft', keys: ['G', 'D'], run: run(() => onSelectFolder('drafts')) },
-          { id: 'nav-settings', label: 'Go to Settings', icon: 'settings', keys: ['G', ','], run: onClose }
+          { id: 'nav-inbox', label: t('palette.goInbox'), icon: 'inbox', keys: ['G', 'I'], run: run(() => onSelectFolder('inbox')) },
+          { id: 'nav-starred', label: t('palette.goStarred'), icon: 'star', keys: ['G', 'S'], run: run(() => onSelectFolder('starred')) },
+          { id: 'nav-drafts', label: t('palette.goDrafts'), icon: 'draft', keys: ['G', 'D'], run: run(() => onSelectFolder('drafts')) },
+          { id: 'nav-settings', label: t('palette.goSettings'), icon: 'settings', keys: ['G', ','], run: onClose }
         ]
       }
     ]
-  }, [threads, onClose, onCompose, onArchive, onSnooze, onOpenThread, onSelectFolder])
+  }, [threads, onClose, onCompose, onArchive, onSnooze, onOpenThread, onSelectFolder, t])
 
   const filtered = useMemo<Group[]>(() => {
     const needle = query.trim().toLowerCase()
@@ -200,28 +178,28 @@ export function CommandPalette({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="palette" role="dialog" aria-modal="true" aria-label="Paleta de comandos">
+      <div className="palette" role="dialog" aria-modal="true" aria-label={t('palette.placeholder')}>
         <div className="palette__input-row">
           <Icon name="terminal" size={22} className="palette__prompt" />
           <input
             ref={inputRef}
             className="palette__input"
-            placeholder="Type a command or search emails…"
+            placeholder={t('palette.placeholder')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            aria-label="Comando o búsqueda"
+            aria-label={t('palette.placeholder')}
           />
           <button className="tool-btn" type="button" onClick={onClose}>
-            Close <kbd className="kbd">ESC</kbd>
+            {t('common.close')} <kbd className="kbd">ESC</kbd>
           </button>
         </div>
 
         <div className="palette__meta">
           <span>
             <span className="dot pulse" />
-            Command Mode · All scopes indexed
+            {t('palette.mode')}
           </span>
-          <span>Indexed 48,291 messages</span>
+          <span>{t('palette.indexed')}</span>
         </div>
 
         <div className="palette__list">
@@ -263,7 +241,7 @@ export function CommandPalette({
 
           {filtered.length === 0 && (
             <p className="muted" style={{ padding: '20px 8px' }}>
-              No results for “{query}”.
+              {t('palette.noResults', { q: query })}
             </p>
           )}
         </div>
@@ -271,18 +249,18 @@ export function CommandPalette({
         <div className="palette__foot">
           <span>
             <kbd className="kbd">↑</kbd>
-            <kbd className="kbd">↓</kbd> Select
+            <kbd className="kbd">↓</kbd> {t('palette.select')}
           </span>
           <span>
-            <kbd className="kbd">↵</kbd> Run
+            <kbd className="kbd">↵</kbd> {t('palette.run')}
           </span>
           <span>
-            <kbd className="kbd">Tab</kbd> Auto-complete
+            <kbd className="kbd">Tab</kbd> {t('palette.autocomplete')}
           </span>
           <span>
-            <kbd className="kbd">⌘↵</kbd> Secondary action
+            <kbd className="kbd">⌘↵</kbd> {t('palette.secondary')}
           </span>
-          <span style={{ marginLeft: 'auto' }}>Veloce Engine v2.12</span>
+          <span style={{ marginLeft: 'auto' }}>{t('palette.engine')}</span>
         </div>
       </div>
     </div>

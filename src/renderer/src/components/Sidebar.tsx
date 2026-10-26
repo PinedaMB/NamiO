@@ -1,4 +1,5 @@
 import { ACCOUNT, FOLDERS, TAGS } from '../data/demo'
+import { useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -9,6 +10,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProps): React.JSX.Element {
+  const { t } = useI18n()
+
   return (
     <aside className="rail">
       <div>
@@ -17,7 +20,7 @@ export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProp
             <div className="rail__logo">V</div>
             <span className="rail__wordmark">Veloce</span>
           </div>
-          <button className="icon-btn" type="button" title="Collapse rail" aria-label="Collapse rail">
+          <button className="icon-btn" type="button" title={t('sidebar.collapse')} aria-label={t('sidebar.collapse')}>
             <Icon name="dock_to_left" size={16} />
           </button>
         </div>
@@ -36,13 +39,13 @@ export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProp
           <button className="compose-btn" type="button" onClick={onCompose}>
             <span className="compose-btn__label">
               <Icon name="edit_square" size={16} />
-              Compose
+              {t('sidebar.compose')}
             </span>
             <kbd className="kbd">C</kbd>
           </button>
         </div>
 
-        <nav className="rail__nav" aria-label="Folders">
+        <nav className="rail__nav" aria-label={t('sidebar.inbox')}>
           {FOLDERS.map((folder) => (
             <button
               key={folder.id}
@@ -53,12 +56,10 @@ export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProp
             >
               <span className="nav-item__label">
                 <Icon name={folder.icon} size={18} />
-                {folder.label}
+                {t(folder.labelKey)}
               </span>
               {folder.count !== undefined && (
-                <span
-                  className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}
-                >
+                <span className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}>
                   {folder.count}
                 </span>
               )}
@@ -68,16 +69,16 @@ export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProp
 
         <div className="rail__tags">
           <div className="rail__section-head">
-            <span>Tags</span>
-            <button className="icon-btn" type="button" title="New tag" aria-label="New tag">
+            <span>{t('common.tags')}</span>
+            <button className="icon-btn" type="button" title={t('sidebar.newTag')} aria-label={t('sidebar.newTag')}>
               <Icon name="add" size={14} />
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
             {TAGS.map((tag) => (
-              <button key={tag.label} type="button" className="tag-item">
+              <button key={tag.labelKey} type="button" className="tag-item">
                 <span className={`dot dot--${tag.tone === 'error' ? 'error' : tag.tone === 'secondary' ? 'tertiary' : ''}`} />
-                {tag.label}
+                {t(tag.labelKey)}
               </button>
             ))}
           </div>
@@ -88,9 +89,9 @@ export function Sidebar({ activeFolder, onSelectFolder, onCompose }: SidebarProp
         <div className="sync-pill">
           <span className="sync-pill__state">
             <span className="dot dot--tertiary pulse" />
-            Synced 12s ago
+            {t('sidebar.synced')}
           </span>
-          <button className="icon-btn" type="button" title="Settings" aria-label="Settings">
+          <button className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')}>
             <Icon name="settings" size={16} />
           </button>
         </div>

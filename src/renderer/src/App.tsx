@@ -9,6 +9,7 @@ import {
   type Thread
 } from './data/demo'
 import { Sidebar } from './components/Sidebar'
+import { useI18n } from './i18n'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ThreadList } from './components/ThreadList'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
@@ -50,6 +51,7 @@ function matchesFolder(thread: Thread, folder: string): boolean {
 }
 
 export function App(): React.JSX.Element {
+  const { t } = useI18n()
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
   const [filter, setFilter] = useState<FilterId>('focused')
@@ -117,7 +119,7 @@ export function App(): React.JSX.Element {
     const next = visible[index + 1] ?? visible[index - 1] ?? null
     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
     setSelectedId(next?.id ?? null)
-    setToast('Thread archived')
+    setToast(t('toast.archived'))
   }
 
   const toggleStar = (): void => {
@@ -125,7 +127,7 @@ export function App(): React.JSX.Element {
     setThreads((current) =>
       current.map((thread) => (thread.id === selected.id ? { ...thread, starred: !thread.starred } : thread))
     )
-    setToast(selected.starred ? 'Removed from starred' : 'Starred')
+    setToast(selected.starred ? t('toast.unstarred') : t('toast.starred'))
   }
 
   const openReply = (body = ''): void => {
@@ -224,10 +226,10 @@ export function App(): React.JSX.Element {
               position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
               total={visible.length}
               onArchive={archive}
-              onSnooze={() => setToast('Snoozed until tomorrow 9:00 AM')}
+              onSnooze={() => setToast(t('toast.snoozed'))}
               onDelete={() => {
                 setThreads((current) => current.filter((thread) => thread.id !== selected.id))
-                setToast('Moved to trash')
+                setToast(t('toast.trashed'))
               }}
               onStar={toggleStar}
               onReply={() => openReply()}
@@ -257,7 +259,7 @@ export function App(): React.JSX.Element {
         onOpenThread={select}
         onCompose={openCompose}
         onArchive={archive}
-        onSnooze={() => setToast('Snoozed until tomorrow 9:00 AM')}
+        onSnooze={() => setToast(t('toast.snoozed'))}
         onSelectFolder={setFolder}
       />
 
@@ -269,7 +271,7 @@ export function App(): React.JSX.Element {
         onClose={() => setCompose(null)}
         onSend={({ to, subject }) => {
           setCompose(null)
-          setToast(`Sent to ${to || 'recipient'} · "${subject || 'no subject'}" (demo)`)
+          setToast(t('toast.sent', { to: to || '—', subject: subject || '—' }))
         }}
       />
 

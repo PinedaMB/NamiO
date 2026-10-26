@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { COPILOT_DRAFT } from '../data/demo'
+import { useI18n, type TranslationKey } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -12,7 +13,15 @@ interface ComposeOverlayProps {
   onSend: (payload: { to: string; subject: string; body: string }) => void
 }
 
-const TONES = ['Direct & Concise', 'Warm Professional', 'Executive Brief', 'Legal Precise'] as const
+const TONES: ReadonlyArray<{ id: TranslationKey }> = [
+  { id: 'compose.toneDirect' },
+  { id: 'compose.toneWarm' },
+  { id: 'compose.toneExecutive' },
+  { id: 'compose.toneLegal' }
+]
+
+const DEFAULT_PROMPT =
+  'Draft reply accepting meeting for 2 PM PST, confirm outside legal review of Section 4.2 is complete, and attach the signed addendum.'
 
 export function ComposeOverlay({
   open,
@@ -22,15 +31,14 @@ export function ComposeOverlay({
   onClose,
   onSend
 }: ComposeOverlayProps): React.JSX.Element | null {
+  const { t } = useI18n()
   const [recipients, setRecipients] = useState<readonly string[]>(to ? [to] : [])
   const [draftRecipient, setDraftRecipient] = useState('')
   const [subjectValue, setSubjectValue] = useState(subject)
   const [bodyValue, setBodyValue] = useState(body)
   const [ccOpen, setCcOpen] = useState(false)
-  const [tone, setTone] = useState<(typeof TONES)[number]>('Direct & Concise')
-  const [prompt, setPrompt] = useState(
-    'Draft reply accepting meeting for 2 PM PST, confirm outside legal review of Section 4.2 is complete, and attach the signed addendum.'
-  )
+  const [tone, setTone] = useState<TranslationKey>('compose.toneDirect')
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
   const [generating, setGenerating] = useState(false)
   const [applied, setApplied] = useState(false)
   const [attachments, setAttachments] = useState<ReadonlyArray<{ name: string; detail: string; icon: string }>>([
@@ -76,21 +84,21 @@ export function ComposeOverlay({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="composer" role="dialog" aria-modal="true" aria-label="Redactar mensaje">
+      <div className="composer" role="dialog" aria-modal="true" aria-label={t('compose.newMessage')}>
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
-            <span>{subjectValue || 'New message'}</span>
-            {subjectValue.startsWith('Re:') && <span className="chip">Thread ID: #SQ-984</span>}
+            <span>{subjectValue || t('compose.newMessage')}</span>
+            {subjectValue.startsWith('Re:') && <span className="chip">{t('compose.threadId')}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button className="icon-btn" type="button" title="Minimize">
+            <button className="icon-btn" type="button" title={t('compose.minimize')}>
               <Icon name="remove" size={16} />
             </button>
-            <button className="icon-btn" type="button" title="Expand">
+            <button className="icon-btn" type="button" title={t('compose.expand')}>
               <Icon name="open_in_full" size={16} />
             </button>
-            <button className="icon-btn" type="button" onClick={onClose} title="Close (Esc)">
+            <button className="icon-btn" type="button" onClick={onClose} title={t('common.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -98,7 +106,7 @@ export function ComposeOverlay({
 
         <div className="composer__fields">
           <div className="field-row">
-            <span className="field-label">To</span>
+            <span className="field-label">{t('compose.to')}</span>
             <div className="field-values">
               {recipients.map((address) => (
                 <span key={address} className="recipient">
@@ -108,7 +116,7 @@ export function ComposeOverlay({
                   <strong>{address}</strong>
                   <button
                     type="button"
-                    title="Remove recipient"
+                    title={t('compose.removeRecipient')}
                     onClick={() => setRecipients((current) => current.filter((item) => item !== address))}
                   >
                     <Icon name="close" size={12} />
@@ -126,40 +134,40 @@ export function ComposeOverlay({
                   }
                 }}
                 onBlur={addRecipient}
-                placeholder={recipients.length === 0 ? 'Add recipients…' : 'Add another…'}
-                aria-label="Recipients"
+                placeholder={recipients.length === 0 ? t('compose.addRecipient') : t('compose.addAnother')}
+                aria-label={t('compose.to')}
               />
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
-                Cc
+                {t('compose.cc')}
               </button>
               <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
-                Bcc
+                {t('compose.bcc')}
               </button>
             </div>
           </div>
 
           {ccOpen && (
             <div className="field-row">
-              <span className="field-label">Cc</span>
+              <span className="field-label">{t('compose.cc')}</span>
               <div className="field-values">
                 <span className="recipient">
                   <strong>David Sterling</strong>
                   <span>&lt;dsterling@gunderson.com&gt;</span>
                 </span>
-                <input className="input-bare" placeholder="Add CC…" aria-label="CC" />
+                <input className="input-bare" placeholder={t('compose.addRecipient')} aria-label={t('compose.cc')} />
               </div>
             </div>
           )}
 
           <div className="field-row">
-            <span className="field-label">Subject</span>
+            <span className="field-label">{t('compose.subject')}</span>
             <input
               className="subject-input"
               value={subjectValue}
               onChange={(event) => setSubjectValue(event.target.value)}
-              aria-label="Subject"
+              aria-label={t('compose.subject')}
             />
           </div>
         </div>
@@ -193,12 +201,12 @@ export function ComposeOverlay({
                 <span className="formatbar__sep" />
                 <button className="snippet-btn" type="button">
                   <Icon name="auto_stories" size={14} />
-                  ;snippets
+                  {t('compose.snippets')}
                 </button>
               </div>
               <span className="t-kbd" style={{ color: 'var(--outline)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Icon name="cloud_done" size={14} style={{ color: 'var(--tertiary)' }} />
-                Draft autosaved
+                {t('compose.autosaved')}
               </span>
             </div>
 
@@ -207,14 +215,14 @@ export function ComposeOverlay({
                 className="editor__area"
                 value={bodyValue}
                 onChange={(event) => setBodyValue(event.target.value)}
-                placeholder="Write your message…"
+                placeholder={t('compose.placeholder')}
                 spellCheck
-                aria-label="Message body"
+                aria-label={t('compose.placeholder')}
               />
 
               <div className="composer__sign">
                 <strong>Alex Rivera</strong>
-                <span>Founder &amp; CEO, Veloce Labs</span>
+                <span>{t('compose.signatureRole')}</span>
               </div>
 
               <div className="attach-row">
@@ -227,7 +235,7 @@ export function ComposeOverlay({
                     </span>
                     <button
                       type="button"
-                      title="Remove attachment"
+                      title={t('compose.removeAttachment')}
                       onClick={() => setAttachments((list) => list.filter((item) => item.name !== attachment.name))}
                     >
                       <Icon name="close" size={14} />
@@ -245,23 +253,23 @@ export function ComposeOverlay({
                   <span className="copilot__mark">
                     <Icon name="auto_awesome" size={16} />
                   </span>
-                  Veloce AI Copilot
+                  {t('compose.copilot')}
                 </span>
                 <span className="chip chip--primary">Fast Lane 4.5</span>
               </div>
 
               <div className="copilot__section">
-                <span className="card__label">Strategic Voice &amp; Tone</span>
+                <span className="card__label">{t('compose.voice')}</span>
                 <div className="tone-grid">
                   {TONES.map((option) => (
                     <button
-                      key={option}
+                      key={option.id}
                       type="button"
-                      className={cx('tone', tone === option && 'tone--active')}
-                      onClick={() => setTone(option)}
-                      aria-pressed={tone === option}
+                      className={cx('tone', tone === option.id && 'tone--active')}
+                      onClick={() => setTone(option.id)}
+                      aria-pressed={tone === option.id}
                     >
-                      <span>{option}</span>
+                      <span>{t(option.id)}</span>
                       <span className="dot" />
                     </button>
                   ))}
@@ -269,22 +277,22 @@ export function ComposeOverlay({
               </div>
 
               <div className="copilot__section">
-                <span className="card__label">Instruction Prompt</span>
+                <span className="card__label">{t('compose.prompt')}</span>
                 <div className="prompt-box">
                   <textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                     rows={3}
-                    aria-label="Copilot instruction"
+                    aria-label={t('compose.prompt')}
                   />
                   <div className="prompt-box__foot">
                     <span className="prompt-box__ctx">
                       <Icon name="psychology" size={14} />
-                      Context-aware
+                      {t('compose.contextAware')}
                     </span>
                     <button className="btn btn--primary" type="button" onClick={handleGenerate} disabled={generating}>
                       {generating ? <Icon name="progress_activity" size={14} className="spin" /> : null}
-                      {generating ? 'Generating…' : 'Generate'}
+                      {generating ? t('compose.generating') : t('compose.generate')}
                       <kbd className="kbd">↵</kbd>
                     </button>
                   </div>
@@ -293,15 +301,15 @@ export function ComposeOverlay({
 
               <div className="copilot__section">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span className="card__label">Proposed Synthesis</span>
+                  <span className="card__label">{t('compose.synthesis')}</span>
                   <span className="t-kbd" style={{ color: 'var(--tertiary)' }}>
-                    {applied ? '100% applied' : '98.4% alignment'}
+                    {applied ? t('compose.applied', { pct: 100 }) : t('compose.alignment', { pct: '98.4' })}
                   </span>
                 </div>
                 <div className="synthesis">
                   <span className="synthesis__tag">
                     <Icon name="tune" size={13} />
-                    {tone} + Legal safeguards applied
+                    {t('compose.synthesisTag', { tone: t(tone) })}
                   </span>
                   <div className="diff">
                     <del>We are currently waiting on lawyer feedback.</del>{' '}
@@ -314,19 +322,23 @@ export function ComposeOverlay({
               </div>
 
               <div className="copilot__section">
-                <span className="card__label">Quick Manipulations</span>
+                <span className="card__label">{t('compose.manipulations')}</span>
                 <div className="micro-actions">
                   <button className="micro-btn" type="button" onClick={() => setBodyValue(bodyValue.trim())}>
                     <Icon name="compress" size={14} />
-                    Make shorter
+                    {t('compose.shorter')}
                   </button>
-                  <button className="micro-btn" type="button" onClick={() => setBodyValue(`${bodyValue}\n\nTomorrow at 10:30 AM – 10:45 AM also works.`)}>
+                  <button
+                    className="micro-btn"
+                    type="button"
+                    onClick={() => setBodyValue(`${bodyValue}\n\nTomorrow at 10:30 AM – 10:45 AM also works.`)}
+                  >
                     <Icon name="calendar_add_on" size={14} />
-                    Insert free slots
+                    {t('compose.insertSlots')}
                   </button>
                   <button className="micro-btn" type="button">
                     <Icon name="verified_user" size={14} />
-                    Ensure SLA precision
+                    {t('compose.sla')}
                   </button>
                 </div>
               </div>
@@ -334,11 +346,11 @@ export function ComposeOverlay({
 
             <div className="copilot__foot">
               <span>
-                Press <kbd className="kbd">Tab</kbd> to insert draft
+                {t('compose.pressTab')}
               </span>
               <button className="btn btn--primary" type="button" onClick={() => setBodyValue(COPILOT_DRAFT)}>
                 <Icon name="input" size={16} />
-                Apply to Editor
+                {t('compose.apply')}
               </button>
             </div>
           </div>
@@ -353,28 +365,28 @@ export function ComposeOverlay({
                 onClick={() => onSend({ to: recipients.join(', '), subject: subjectValue, body: bodyValue })}
               >
                 <Icon name="send" size={16} />
-                Send Now
+                {t('compose.sendNow')}
                 <kbd className="kbd">⌘↵</kbd>
               </button>
-              <button className="send-caret" type="button" title="Sending options">
+              <button className="send-caret" type="button" title={t('compose.sendingOptions')}>
                 <Icon name="arrow_drop_down" size={16} />
               </button>
             </div>
             <button className="tool-btn" type="button">
               <Icon name="schedule_send" size={16} />
-              Send Tomorrow 8:00 AM
+              {t('compose.sendTomorrow')}
             </button>
           </div>
 
           <div className="composer__foot-right">
             <span>
               <Icon name="security" size={16} />
-              Zero-Knowledge Retention Active
+              {t('compose.zeroKnowledge')}
             </span>
             <span className="vsep" />
             <button className="tool-btn btn--danger" type="button" onClick={onClose}>
               <Icon name="delete" size={16} />
-              Discard
+              {t('common.discard')}
               <kbd className="kbd">Esc</kbd>
             </button>
           </div>

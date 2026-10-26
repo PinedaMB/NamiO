@@ -8,10 +8,14 @@
 
 export type TagTone = 'primary' | 'secondary' | 'tertiary' | 'error' | 'muted'
 
+import type { TranslationKey } from '../i18n/es'
+
 export interface Tag {
-  label: string
+  /** Se traduce en la UI; los correos en sí no se traducen. */
+  labelKey: TranslationKey
   tone?: TagTone
   icon?: string
+  count?: number
 }
 
 export interface Attachment {
@@ -56,7 +60,7 @@ export interface Thread {
 export interface Folder {
   id: string
   icon: string
-  label: string
+  labelKey: TranslationKey
   count?: number
   accent?: boolean
 }
@@ -87,20 +91,20 @@ export const ACCOUNT = {
 } as const
 
 export const FOLDERS: readonly Folder[] = [
-  { id: 'inbox', icon: 'inbox', label: 'Inbox', count: 14 },
-  { id: 'vip', icon: 'verified', label: 'VIP', count: 3 },
-  { id: 'starred', icon: 'star', label: 'Starred', count: 7 },
-  { id: 'drafts', icon: 'draft', label: 'Drafts', count: 2 },
-  { id: 'sent', icon: 'send', label: 'Sent' },
-  { id: 'outbox', icon: 'cloud_sync', label: 'Outbox & Offline', count: 3, accent: true },
-  { id: 'archive', icon: 'archive', label: 'Archive' },
-  { id: 'trash', icon: 'delete', label: 'Trash' }
+  { id: 'inbox', icon: 'inbox', labelKey: 'sidebar.inbox', count: 14 },
+  { id: 'vip', icon: 'verified', labelKey: 'sidebar.vip', count: 3 },
+  { id: 'starred', icon: 'star', labelKey: 'sidebar.starred', count: 7 },
+  { id: 'drafts', icon: 'draft', labelKey: 'sidebar.drafts', count: 2 },
+  { id: 'sent', icon: 'send', labelKey: 'sidebar.sent' },
+  { id: 'outbox', icon: 'cloud_sync', labelKey: 'sidebar.outbox', count: 3, accent: true },
+  { id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' },
+  { id: 'trash', icon: 'delete', labelKey: 'sidebar.trash' }
 ]
 
-export const TAGS: readonly { label: string; tone: TagTone }[] = [
-  { label: 'Core Infra', tone: 'primary' },
-  { label: 'Board & Pitch', tone: 'secondary' },
-  { label: 'Urgent SLA', tone: 'error' }
+export const TAGS: readonly { labelKey: TranslationKey; tone: TagTone }[] = [
+  { labelKey: 'tag.coreInfra', tone: 'primary' },
+  { labelKey: 'tag.urgent', tone: 'error' },
+  { labelKey: 'tag.legal', tone: 'secondary' }
 ]
 
 const ELENA: Person = {
@@ -124,9 +128,9 @@ export const THREADS: readonly Thread[] = [
     vip: true,
     messageCount: 3,
     tags: [
-      { label: 'VIP', tone: 'secondary', icon: 'verified' },
-      { label: 'Urgent SLA', tone: 'error' },
-      { label: '2 files', tone: 'muted', icon: 'attachment' }
+      { labelKey: 'tag.vip', tone: 'secondary', icon: 'verified' },
+      { labelKey: 'tag.urgent', tone: 'error' },
+      { labelKey: 'tag.files', tone: 'muted', icon: 'attachment', count: 2 }
     ],
     participants: [ELENA, ALEX],
     messages: [
@@ -168,8 +172,8 @@ export const THREADS: readonly Thread[] = [
     vip: false,
     messageCount: 2,
     tags: [
-      { label: 'Core Infra', tone: 'tertiary' },
-      { label: 'p99 < 5ms', tone: 'muted' }
+      { labelKey: 'tag.coreInfra', tone: 'tertiary' },
+      { labelKey: 'tag.p99', tone: 'muted' }
     ],
     participants: [
       { name: 'Marcus Brody', email: 'marcus@stripe-edge.io', initials: 'MB', org: 'Stripe Edge' },
@@ -200,8 +204,8 @@ export const THREADS: readonly Thread[] = [
     vip: false,
     messageCount: 3,
     tags: [
-      { label: 'Tokens', tone: 'muted' },
-      { label: 'Linear #429', tone: 'tertiary' }
+      { labelKey: 'tag.tokens', tone: 'muted' },
+      { labelKey: 'tag.linear', tone: 'tertiary' }
     ],
     participants: [
       { name: 'Sarah Lin', email: 'sarah@linear.design', initials: 'SL', org: 'Linear Design' },
@@ -231,7 +235,7 @@ export const THREADS: readonly Thread[] = [
     starred: false,
     vip: false,
     messageCount: 1,
-    tags: [{ label: 'infra/client', tone: 'secondary' }],
+    tags: [{ labelKey: 'tag.infra', tone: 'secondary' }],
     participants: [{ name: 'GitHub Automation', email: 'notifications@github.com', initials: 'GH' }, ALEX],
     messages: [
       {
@@ -257,8 +261,8 @@ export const THREADS: readonly Thread[] = [
     vip: false,
     messageCount: 1,
     tags: [
-      { label: 'Legal', tone: 'muted' },
-      { label: 'Contract', tone: 'muted' }
+      { labelKey: 'tag.legal', tone: 'muted' },
+      { labelKey: 'tag.contract', tone: 'muted' }
     ],
     participants: [
       { name: 'Kavita Lamba', email: 'k.lamba@lw.com', initials: 'KL', org: 'Latham & Watkins' },

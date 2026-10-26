@@ -9,12 +9,15 @@ import 'material-symbols/outlined.css'
 import './styles/tokens.css'
 import './styles/app.css'
 import App from './App'
+import { I18nProvider } from './i18n'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Falta el nodo #root en index.html')
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </StrictMode>
 )

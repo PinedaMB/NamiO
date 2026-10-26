@@ -1,4 +1,5 @@
 import { ACCOUNT } from '../data/demo'
+import { LOCALES, useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -11,21 +12,23 @@ interface TopbarProps {
   onOpenPalette: () => void
 }
 
-const FILTERS: ReadonlyArray<{ id: FilterId; label: string; icon?: string }> = [
-  { id: 'focused', label: 'Unread', icon: 'mark_email_unread' },
-  { id: 'needs-reply', label: 'Needs Reply' },
-  { id: 'vip', label: 'VIPs' },
-  { id: 'files', label: 'Files', icon: 'attachment' }
+const FILTERS: ReadonlyArray<{ id: FilterId; labelKey: 'topbar.unread' | 'topbar.needsReply' | 'topbar.vips' | 'topbar.files'; icon?: string }> = [
+  { id: 'focused', labelKey: 'topbar.unread', icon: 'mark_email_unread' },
+  { id: 'needs-reply', labelKey: 'topbar.needsReply' },
+  { id: 'vip', labelKey: 'topbar.vips' },
+  { id: 'files', labelKey: 'topbar.files', icon: 'attachment' }
 ]
 
 export function Topbar({ unreadCount, filter, onFilter, onOpenPalette }: TopbarProps): React.JSX.Element {
+  const { t, locale, setLocale } = useI18n()
+
   return (
     <header className="topbar">
       <div className="topbar__left">
         <div className="zero-pill">
           <span className="dot" />
-          <strong>Inbox Zero in sight</strong>
-          <span>· {unreadCount} remaining</span>
+          <strong>{t('topbar.zero')}</strong>
+          <span>· {t('topbar.remaining', { count: unreadCount })}</span>
         </div>
 
         <div className="vsep" />
@@ -39,7 +42,7 @@ export function Topbar({ unreadCount, filter, onFilter, onOpenPalette }: TopbarP
               onClick={() => onFilter(item.id)}
             >
               {item.icon && <Icon name={item.icon} size={14} />}
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </div>
@@ -48,7 +51,7 @@ export function Topbar({ unreadCount, filter, onFilter, onOpenPalette }: TopbarP
       <button className="search" type="button" onClick={onOpenPalette}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="search" size={16} />
-          Search messages, people, or commands…
+          {t('topbar.search')}
         </span>
         <span className="search__hint">
           <kbd className="kbd">⌘</kbd>
@@ -57,10 +60,24 @@ export function Topbar({ unreadCount, filter, onFilter, onOpenPalette }: TopbarP
       </button>
 
       <div className="topbar__right">
-        <button className="icon-btn" type="button" title="Sync" aria-label="Sync">
+        <div className="lang-switch" role="group" aria-label={t('topbar.language')}>
+          {LOCALES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={cx('lang-switch__btn', locale === item.id && 'lang-switch__btn--active')}
+              onClick={() => setLocale(item.id)}
+              aria-pressed={locale === item.id}
+              title={t('topbar.language')}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <button className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')}>
           <Icon name="sync" size={18} />
         </button>
-        <button className="icon-btn" type="button" title="Preferences" aria-label="Preferences">
+        <button className="icon-btn" type="button" title={t('topbar.preferences')} aria-label={t('topbar.preferences')}>
           <Icon name="tune" size={18} />
         </button>
         <div className="vsep" />
