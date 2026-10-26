@@ -89,6 +89,15 @@ export function initCache(): void {
       value TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS drafts (
+      id TEXT PRIMARY KEY,
+      to_field TEXT NOT NULL DEFAULT '',
+      cc TEXT NOT NULL DEFAULT '',
+      subject TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS outbox (
       id TEXT PRIMARY KEY,
       kind TEXT NOT NULL,
@@ -329,6 +338,45 @@ export function pruneExcept(mailbox: string, uids: readonly number[]): void {
   database
     .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid NOT IN (${placeholders})`)
     .run(mailbox, ...uids)
+}
+
+/* ---------------------------------------------------------------------------
+   Borrador del compositor
+   ------------------------------------------------------------------------- */
+
+export interface DraftRow {
+  to: string
+  cc: string
+  subject: string
+  body: string
+  updatedAt: number
+}
+
+export function saveDraft(draft: DraftRow): void {
+  handle()
+    .prepare(
+      `INSERT INTO drafts (id, to_field, cc, subject, body, updated_at)
+       VALUES ('current', ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         to_field = excluded.to_field, cc = excluded.cc, subject = excluded.subject,
+         body = excluded.body, updated_at = excluded.updated_at`
+    )
+    .run(draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt)
+}
+
+export function readDraft(): DraftRow | null {
+  const row = handle()
+    .prepare('SELECT to_field, cc, subject, body, updated_at FROM drafts WHERE id = ?')
+    .get('current') as unknown as
+    | { to_field: string; cc: string; subject: string; body: string; updated_at: number }
+    | undefined
+
+  if (!row) return null
+  return { to: row.to_field, cc: row.cc, subject: row.subject, body: row.body, updatedAt: row.updated_at }
+}
+
+export function clearDraft(): void {
+  handle().prepare('DELETE FROM drafts WHERE id = ?').run('current')
 }
 
 /* ---------------------------------------------------------------------------

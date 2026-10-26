@@ -271,9 +271,13 @@ Antes de empaquetar se cerraron los huecos que hacían ruido al usar la app de v
   demo y ya no aparece con una cuenta conectada.
 - **Compositor limpio**: con cuenta real no aparece el copiloto de demo, ni los adjuntos de ejemplo,
   ni las etiquetas de "guardado automático" y "retención cero" que no eran ciertas.
+- **Adjuntos al enviar**: el clip abre el diálogo del sistema y el mensaje sale como `multipart/mixed`
+  (compilado con nodemailer); la copia en Enviados es exactamente el mismo crudo que se envió.
+- **Borrador**: cerrar el compositor con texto lo guarda en la caché; al abrir uno nuevo se retoma con
+  el aviso "Borrador restaurado", y enviar lo limpia.
 
-Limitaciones conocidas: no se pueden **adjuntar** archivos al enviar y cerrar el compositor descarta
-lo escrito (no hay borradores persistidos).
+Limitaciones conocidas: hay **un solo borrador** (el último compositor, sin lista de borradores) y el
+envió no permite aún elegir remitente alternativo.
 
 ## Comandos
 
@@ -318,6 +322,7 @@ Los artefactos quedan en `release/`.
 | Archivar y eliminar aplicados en el servidor | ✅ |
 | M5: búsqueda FTS5 sobre la caché con fragmentos | ✅ |
 | Leído/no leído, responder con cita y adjuntos descargables | ✅ |
+| Adjuntos al enviar (multipart) y borrador persistido | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 

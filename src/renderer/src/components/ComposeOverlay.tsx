@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { PickedAttachment } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
@@ -12,8 +13,10 @@ interface ComposeOverlayProps {
   body: string
   /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
   copilot?: boolean
-  onClose: () => void
-  onSend: (payload: { to: string; subject: string; body: string }) => void
+  onClose: (values?: { to: string; subject: string; body: string }) => void
+  onSend: (payload: { to: string; subject: string; body: string; attachments: PickedAttachment[] }) => void
+  /** Abre el diálogo del sistema; solo existe con cuenta real. */
+  onPickAttachments?: () => Promise<PickedAttachment[]>
 }
 
 const TONES: ReadonlyArray<{ id: TranslationKey }> = [
@@ -33,7 +36,8 @@ export function ComposeOverlay({
   body,
   copilot = true,
   onClose,
-  onSend
+  onSend,
+  onPickAttachments
 }: ComposeOverlayProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
@@ -46,6 +50,7 @@ export function ComposeOverlay({
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
   const [generating, setGenerating] = useState(false)
   const [applied, setApplied] = useState(false)
+  const [picked, setPicked] = useState<PickedAttachment[]>([])
   const [attachments, setAttachments] = useState<ReadonlyArray<{ name: string; detail: string; icon: string }>>(
     copilot
       ? [
@@ -63,6 +68,7 @@ export function ComposeOverlay({
     setBodyValue(body)
     setApplied(false)
     setGenerating(false)
+    setPicked([])
     // Los adjuntos de ejemplo solo existen en la demo.
     setAttachments(
       copilot
@@ -84,6 +90,19 @@ export function ComposeOverlay({
     setDraftRecipient('')
   }
 
+  // Escape cierra guardando el borrador; en captura para adelantarse al atajo global.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      event.preventDefault()
+      onClose({ to: recipients.join(', '), subject: subjectValue, body: bodyValue })
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, recipients, subjectValue, bodyValue, onClose])
+
   if (!mounted) return null
 
   const handleGenerate = (): void => {
@@ -95,11 +114,15 @@ export function ComposeOverlay({
     }, 650)
   }
 
+  const closeWithDraft = (): void => {
+    onClose({ to: recipients.join(', '), subject: subjectValue, body: bodyValue })
+  }
+
   return (
     <div
       className={cx('overlay overlay--center', closing && 'overlay--closing')}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) closeWithDraft()
       }}
     >
       <div className="composer" role="dialog" aria-modal="true" aria-label={t('compose.newMessage')}>
@@ -118,7 +141,7 @@ export function ComposeOverlay({
             <button className="icon-btn" type="button" title={t('compose.expand')}>
               <Icon name="open_in_full" size={16} />
             </button>
-            <button className="icon-btn" type="button" onClick={onClose} title={t('common.close')}>
+            <button className="icon-btn" type="button" onClick={closeWithDraft} title={t('common.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -215,7 +238,18 @@ export function ComposeOverlay({
                 <button className="icon-btn" type="button" title="Numbered list">
                   <Icon name="format_list_numbered" size={16} />
                 </button>
-                <button className="icon-btn" type="button" title="Attach files">
+                <button
+                  className="icon-btn"
+                  type="button"
+                  title={t('compose.attach')}
+                  onClick={() => {
+                    if (!onPickAttachments) return
+                    void onPickAttachments().then((files) => {
+                      if (files.length > 0) setPicked((current) => [...current, ...files])
+                    })
+                  }}
+                  disabled={!onPickAttachments}
+                >
                   <Icon name="attach_file" size={16} />
                 </button>
                 <span className="formatbar__sep" />
@@ -252,6 +286,24 @@ export function ComposeOverlay({
               )}
 
               <div className="attach-row">
+                {picked.map((file) => (
+                  <span key={file.id} className="attach-pill">
+                    <Icon name="attach_file" size={18} className="attach-pill__icon" />
+                    <span style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span className="attach-pill__name">{file.name}</span>
+                      <span className="attach-pill__detail">
+                        {Math.max(1, Math.round(file.size / 1024))} KB
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      title={t('compose.removeAttachment')}
+                      onClick={() => setPicked((list) => list.filter((item) => item.id !== file.id))}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </span>
+                ))}
                 {attachments.map((attachment) => (
                   <span key={attachment.name} className="attach-pill">
                     <Icon name={attachment.icon} size={18} className="attach-pill__icon" />
@@ -388,7 +440,14 @@ export function ComposeOverlay({
               <button
                 className="send-btn"
                 type="button"
-                onClick={() => onSend({ to: recipients.join(', '), subject: subjectValue, body: bodyValue })}
+                onClick={() =>
+                  onSend({
+                    to: recipients.join(', '),
+                    subject: subjectValue,
+                    body: bodyValue,
+                    attachments: picked
+                  })
+                }
               >
                 <Icon name="send" size={16} />
                 {t('compose.sendNow')}
@@ -416,7 +475,7 @@ export function ComposeOverlay({
                 <span className="vsep" />
               </>
             )}
-            <button className="tool-btn btn--danger" type="button" onClick={onClose}>
+            <button className="tool-btn btn--danger" type="button" onClick={closeWithDraft}>
               <Icon name="delete" size={16} />
               {t('common.discard')}
               <kbd className="kbd">Esc</kbd>

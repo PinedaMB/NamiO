@@ -509,6 +509,18 @@ export function App(): React.JSX.Element {
 
   const openCompose = (): void => {
     setCompose({ to: '', subject: '', body: '' })
+
+    // Si quedó un borrador guardado, se retoma en vez de empezar en blanco.
+    void window.api
+      .getDraft()
+      .then((draft) => {
+        if (!draft) return
+        const empty = draft.to === '' && draft.subject === '' && draft.body === ''
+        if (empty) return
+        setCompose({ to: draft.to, subject: draft.subject, body: draft.body })
+        setToast(t('draft.restored'))
+      })
+      .catch(() => undefined)
   }
 
   const onConnected = (state: AccountState): void => {
@@ -530,7 +542,7 @@ export function App(): React.JSX.Element {
           return
         }
         if (compose) {
-          setCompose(null)
+          // El compositor escucha Escape en fase de captura y guarda el borrador.
           return
         }
         if (accountOpen) {
@@ -765,14 +777,28 @@ export function App(): React.JSX.Element {
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
         copilot={!live}
-        onClose={() => setCompose(null)}
-        onSend={({ to, subject, body }) => {
+        onClose={(values) => {
+          setCompose(null)
+          if (!live || !values) return
+          const hasContent = values.to.trim() !== '' || values.subject.trim() !== '' || values.body.trim() !== ''
+          if (!hasContent) return
+          void window.api
+            .saveDraft({ ...values, cc: '', updatedAt: Date.now() })
+            .then(() => setToast(t('toast.draftSaved')))
+            .catch(() => undefined)
+        }}
+        onPickAttachments={live ? () => window.api.pickAttachments() : undefined}
+        onSend={({ to, subject, body, attachments }) => {
           setCompose(null)
           void window.api
-            .sendMail({ to, cc: '', subject, text: body })
+            .sendMail({ to, cc: '', subject, text: body, attachments: attachments.map((file) => file.id) })
             .then((result) => {
-              if (result.ok) setToast(result.queued ? t('toast.queued') : t('toast.sent'))
-              else setToast(t('toast.sendFailed', { error: result.error ?? '' }))
+              if (result.ok) {
+                void window.api.clearDraft().catch(() => undefined)
+                setToast(result.queued ? t('toast.queued') : t('toast.sent'))
+              } else {
+                setToast(t('toast.sendFailed', { error: result.error ?? '' }))
+              }
               void refreshOutbox()
             })
             .catch(() => setToast(t('toast.sendFailed', { error: 'IPC' })))

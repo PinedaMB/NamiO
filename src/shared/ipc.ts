@@ -23,6 +23,10 @@ export const IPC = {
   shellOpen: 'shell:open',
   cacheChanged: 'cache:changed',
   mailSend: 'mail:send',
+  attachmentPick: 'attachment:pick',
+  draftGet: 'draft:get',
+  draftSave: 'draft:save',
+  draftClear: 'draft:clear',
   outboxList: 'outbox:list',
   outboxRetry: 'outbox:retry',
   outboxCancel: 'outbox:cancel',
@@ -166,6 +170,23 @@ export interface SendMailPayload {
   cc: string
   subject: string
   text: string
+  /** Ids devueltos por `pickAttachments`; los archivos los lee el proceso principal. */
+  attachments?: string[]
+}
+
+export interface Draft {
+  to: string
+  cc: string
+  subject: string
+  body: string
+  updatedAt: number
+}
+
+/** Archivo elegido para adjuntar (el contenido no viaja al renderer). */
+export interface PickedAttachment {
+  id: string
+  name: string
+  size: number
 }
 
 export interface SearchHit {
@@ -213,6 +234,12 @@ export interface MailApi {
   saveAttachment(path: string, uid: number, index: number): Promise<string | null>
 
   sendMail(payload: SendMailPayload): Promise<MailAction>
+  /** Abre el diálogo del sistema y devuelve los archivos a adjuntar. */
+  pickAttachments(): Promise<PickedAttachment[]>
+  /** Borrador único del compositor, persistido en la caché. */
+  getDraft(): Promise<Draft | null>
+  saveDraft(draft: Draft): Promise<void>
+  clearDraft(): Promise<void>
   listOutbox(): Promise<OutboxItem[]>
   retryOutbox(id: string): Promise<void>
   cancelOutbox(id: string): Promise<void>

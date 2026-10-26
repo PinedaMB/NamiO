@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import { stat } from 'node:fs/promises'
+import { basename } from 'node:path'
+import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { createTransport } from 'nodemailer'
-import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, SendMailPayload } from '@shared/ipc'
+import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
 import { deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
 import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, syncInbox } from './imap'
 
@@ -68,27 +71,38 @@ function registerFailure(row: OutboxRow, error: unknown): void {
   })
 }
 
-/** Compone el mensaje crudo (RFC 5322) para enviarlo y copiarlo a Enviados. */
-function buildRawMessage(input: { from: string; to: string; cc: string; subject: string; text: string }): Buffer {
-  const encodeWord = (value: string): string =>
-    /^[\x20-\x7e]*$/.test(value) ? value : `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
+/** Archivos elegidos para el próximo envío: el renderer solo ve id y nombre. */
+interface PendingAttachment {
+  id: string
+  path: string
+  name: string
+  size: number
+}
 
-  const wrap = (value: string): string => Buffer.from(value, 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n')
+const pendingAttachments = new Map<string, PendingAttachment>()
 
-  const domain = input.from.split('@')[1] ?? 'localhost'
-  const headers = [
-    `From: ${input.from}`,
-    `To: ${input.to}`,
-    ...(input.cc ? [`Cc: ${input.cc}`] : []),
-    `Subject: ${encodeWord(input.subject)}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: <${randomUUID()}@${domain}>`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: base64'
-  ]
+export async function registerAttachments(window: BrowserWindow | null): Promise<PickedAttachment[]> {
+  const options: OpenDialogOptions = {
+    properties: ['openFile', 'multiSelections'],
+    title: 'Adjuntar archivos'
+  }
+  const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
+  if (result.canceled) return []
 
-  return Buffer.from(`${headers.join('\r\n')}\r\n\r\n${wrap(input.text)}\r\n`, 'utf8')
+  const picked: PickedAttachment[] = []
+  for (const filePath of result.filePaths) {
+    const info = await stat(filePath)
+    const entry: PendingAttachment = {
+      id: randomUUID(),
+      path: filePath,
+      name: basename(filePath),
+      size: info.size
+    }
+    pendingAttachments.set(entry.id, entry)
+    picked.push({ id: entry.id, name: entry.name, size: entry.size })
+  }
+
+  return picked
 }
 
 async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
@@ -100,13 +114,25 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
   // remitente sea una dirección válida (los servidores rechazan "user" a secas).
   const sender = account.user.includes('@') ? account.user : `${account.user}@${account.host || 'localhost'}`
 
-  const raw = buildRawMessage({
+  const files = (payload.attachments ?? [])
+    .map((id) => pendingAttachments.get(id))
+    .filter((entry): entry is PendingAttachment => entry !== undefined)
+
+  // Se compila con nodemailer (multipart si hay adjuntos) y se envía el crudo:
+  // así la copia en Enviados es byte a byte el mensaje que salió.
+  const compiler = createTransport({ streamTransport: true, buffer: true })
+  const compiled = await compiler.sendMail({
     from: sender,
     to: payload.to,
-    cc: payload.cc,
+    cc: payload.cc === '' ? undefined : payload.cc,
     subject: payload.subject,
-    text: payload.text
+    text: payload.text,
+    attachments: files.map((file) => ({ filename: file.name, path: file.path }))
   })
+
+  const raw = Buffer.isBuffer(compiled.message)
+    ? compiled.message
+    : Buffer.from(String(compiled.message), 'utf8')
 
   const transport = createTransport({
     host: account.smtp.host,
@@ -131,6 +157,8 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     await appendToSent(raw).catch((error: unknown) => {
       console.error('[sent-copy]', error)
     })
+
+    for (const file of files) pendingAttachments.delete(file.id)
 
     // Un servidor puede devolvernos la copia (o escribir a nosotros mismos):
     // se sondea la bandeja unas cuantas veces para que aparezca sin esperar al

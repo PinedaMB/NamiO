@@ -13,6 +13,8 @@ import {
   type MailApi,
   type MessageDetail,
   type OutboxItem,
+  type PickedAttachment,
+  type Draft,
   type SearchHit,
   type SendMailPayload
 } from '@shared/ipc'
@@ -47,6 +49,10 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.attachmentSave, path, uid, index),
 
   sendMail: (payload: SendMailPayload): Promise<MailAction> => ipcRenderer.invoke(IPC.mailSend, payload),
+  pickAttachments: (): Promise<PickedAttachment[]> => ipcRenderer.invoke(IPC.attachmentPick),
+  getDraft: (): Promise<Draft | null> => ipcRenderer.invoke(IPC.draftGet),
+  saveDraft: (draft: Draft): Promise<void> => ipcRenderer.invoke(IPC.draftSave, draft),
+  clearDraft: (): Promise<void> => ipcRenderer.invoke(IPC.draftClear),
   listOutbox: (): Promise<OutboxItem[]> => ipcRenderer.invoke(IPC.outboxList),
   retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),

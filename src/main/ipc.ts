@@ -6,6 +6,7 @@ import {
   type AccountConfig,
   type AppSettings,
   type CoreStatus,
+  type Draft,
   type ImapResult,
   type SendMailPayload
 } from '@shared/ipc'
@@ -21,7 +22,8 @@ import {
   setFlagged,
   setSeen
 } from './imap'
-import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, retryOutbox, sendMail } from './mail'
+import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
+import { clearDraft, readDraft, saveDraft } from './db'
 import { encryptSecret, readSettings, writeSettings } from './settings'
 
 function validConfig(config: AccountConfig): boolean {
@@ -129,6 +131,16 @@ export function registerIpcHandlers(): void {
     await writeFile(result.filePath, attachment.content)
     return result.filePath
   })
+
+  ipcMain.handle(IPC.attachmentPick, (event) =>
+    registerAttachments(BrowserWindow.fromWebContents(event.sender))
+  )
+
+  ipcMain.handle(IPC.draftGet, () => readDraft())
+  ipcMain.handle(IPC.draftSave, (_event, draft: Draft) => {
+    saveDraft({ ...draft, updatedAt: Date.now() })
+  })
+  ipcMain.handle(IPC.draftClear, () => clearDraft())
 
   ipcMain.handle(IPC.mailSend, (_event, payload: SendMailPayload) => sendMail(payload))
   ipcMain.handle(IPC.outboxList, () => outboxItems())
