@@ -77,8 +77,12 @@ try {
 
   await send('Page.enable')
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false })
-  await send('Page.navigate', { url })
-  await sleep(1200)
+  // En modo attach se evalúa la página TAL COMO ESTÁ: navegarla cambiaría la app
+  // que estamos inspeccionando (nos pasó: la ventana terminaba en el preview).
+  if (!ATTACH) {
+    await send('Page.navigate', { url })
+    await sleep(1200)
+  }
 
   const result = await send('Runtime.evaluate', {
     expression,

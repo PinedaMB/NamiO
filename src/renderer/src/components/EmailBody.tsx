@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../i18n'
+import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
 
 interface EmailBodyProps {
@@ -71,12 +72,20 @@ function buildDocument(body: string, allowImages: boolean): string {
 
 export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
+  const { remoteImages } = usePreferences()
   const frameRef = useRef<HTMLIFrameElement>(null)
-  const [showImages, setShowImages] = useState(false)
+  const [allowOverride, setAllowOverride] = useState<boolean | null>(null)
   const [height, setHeight] = useState(320)
 
-  const prepared = useMemo(() => prepare(sanitize(html), showImages), [html, showImages])
-  const documentHtml = useMemo(() => buildDocument(prepared.body, showImages), [prepared, showImages])
+  // La preferencia manda; el override es solo para este mensaje. Si el usuario
+  // cambia la preferencia mientras lee, se vuelve a ella.
+  useEffect(() => {
+    setAllowOverride(null)
+  }, [remoteImages, html])
+
+  const allowImages = allowOverride ?? remoteImages === 'allow'
+  const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
+  const documentHtml = useMemo(() => buildDocument(prepared.body, allowImages), [prepared, allowImages])
 
   const handleLoad = (): void => {
     const frame = frameRef.current
@@ -108,7 +117,7 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
         <div className="email-banner">
           <Icon name="image_not_supported" size={15} />
           <span>{t('mail.imagesBlocked', { count: prepared.blocked })}</span>
-          <button className="btn btn--primary" type="button" onClick={() => setShowImages(true)}>
+          <button className="btn btn--primary" type="button" onClick={() => setAllowOverride(true)}>
             {t('mail.showImages')}
           </button>
         </div>

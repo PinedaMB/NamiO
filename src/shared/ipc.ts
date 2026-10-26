@@ -42,7 +42,11 @@ export interface AppSettings {
   shortcuts?: Record<string, string>
   /** Panel de contexto (IA) visible en la bandeja. */
   contextPanel?: boolean
+  /** Imágenes remotas en el HTML de los correos: bloqueadas salvo que se permita. */
+  remoteImages?: RemoteImagePolicy
 }
+
+export type RemoteImagePolicy = 'block' | 'allow'
 
 /* ---------------------------------------------------------------------------
    IMAP

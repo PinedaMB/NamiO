@@ -179,7 +179,8 @@ En la app: Conectar cuenta → Local (pruebas) → Conectar.
   sin `allow-scripts`) con su propia CSP: `default-src 'none'`, imágenes solo `data:` por defecto, sin
   formularios y con `base-uri 'none'`. Aunque la sanitización fallara, no hay scripts posibles.
 - **Imágenes remotas bloqueadas por defecto**: se reemplazan por un GIF transparente antes de renderizar,
-  así el píxel de tracking nunca se pide. Un banner permite cargarlas solo para ese mensaje.
+  así el píxel de tracking nunca se pide. Un banner permite cargarlas solo para ese mensaje, y en
+  **Ajustes → General** se elige la política global (`Bloquear` o `Permitir`), que se guarda en el perfil.
 - **Links**: los clicks se interceptan y se abren con `shell.openExternal`, que solo acepta `http(s)` y
   `mailto:`. Nada de `javascript:`, `data:` ni `file:`.
 - El correo se dibuja sobre **papel claro** dentro del tema oscuro, como hacen la mayoría de los clientes:
@@ -190,8 +191,7 @@ En la app: Conectar cuenta → Local (pruebas) → Conectar.
 Verificado: 2 imágenes remotas pasan a `data:`, el click de un link no navega el iframe (queda en
 `about:srcdoc`, o sea que el `preventDefault` corre) y al mostrar imágenes vuelven las URLs reales.
 
-Limitaciones de M2: sin `cid:` (imágenes embebidas como adjunto), sin preferencia "siempre mostrar
-imágenes" y sin zoom de texto.
+Limitaciones de M2: sin `cid:` (imágenes embebidas como adjunto) y sin zoom de texto.
 
 ## Comandos
 

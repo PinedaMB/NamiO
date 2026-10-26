@@ -3,6 +3,7 @@ import type { CoreStatus } from '@shared/ipc'
 import { ACCOUNT } from '../data/demo'
 import { LOCALES, useI18n, type TranslationKey } from '../i18n'
 import { useShortcuts } from '../settings/ShortcutsProvider'
+import { usePreferences } from '../settings/PreferencesProvider'
 import {
   DEFAULT_BINDINGS,
   SHORTCUTS,
@@ -32,6 +33,7 @@ const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }
 export function Settings({ onBack }: SettingsProps): React.JSX.Element {
   const { t, locale, setLocale } = useI18n()
   const { bindings, save, reset } = useShortcuts()
+  const { remoteImages, setRemoteImages } = usePreferences()
   const [section, setSection] = useState<Section>('shortcuts')
   const [query, setQuery] = useState('')
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
@@ -201,6 +203,35 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
 
           <div className="settings-card">
             <div className="settings-card__head">
+              <div>
+                <h2 className="settings-card__title">{t('settings.images.title')}</h2>
+                <p className="settings-card__subtitle">{t('settings.images.hint')}</p>
+              </div>
+            </div>
+            <div className="seg" role="group" aria-label={t('settings.images.title')}>
+              <button
+                type="button"
+                className={cx('seg__btn', remoteImages === 'block' && 'seg__btn--active')}
+                onClick={() => setRemoteImages('block')}
+                aria-pressed={remoteImages === 'block'}
+              >
+                <Icon name="image_not_supported" size={14} />
+                {t('settings.images.block')}
+              </button>
+              <button
+                type="button"
+                className={cx('seg__btn', remoteImages === 'allow' && 'seg__btn--active')}
+                onClick={() => setRemoteImages('allow')}
+                aria-pressed={remoteImages === 'allow'}
+              >
+                <Icon name="image" size={14} />
+                {t('settings.images.allow')}
+              </button>
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <div className="settings-card__head">
               <h2 className="settings-card__title">{t('settings.general.diagnostics')}</h2>
             </div>
             <dl className="diag">
@@ -265,7 +296,7 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
         <div className="settings__hero-text">
           <span className="settings__eyebrow">
             <span className="dot" />
-            {t('settings.engine')}
+            {t('settings.engine', { stage: status?.stage ?? '—' })}
           </span>
           <h1 className="settings__title">{t('settings.title')}</h1>
           <p className="settings__subtitle">{t('settings.subtitle')}</p>
