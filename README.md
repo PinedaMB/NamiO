@@ -305,6 +305,30 @@ Deuda anotada, sin efecto en runtime: 8 variables y 15 clases que vienen de los 
 usan (`t-headline-*`, `kbd--*` extra, `btn--surface/quiet/ghost`, etc.). Se pueden podar cuando
 convenga; el auditor las lista con `--verbose`.
 
+## OAuth2 (Gmail y Outlook)
+
+![Cuenta configurada con OAuth2](docs/account-oauth.png)
+
+Gmail y Microsoft ya no aceptan usuario + contraseña para IMAP/SMTP. La app implementa el flujo de
+escritorio completo, sin backend:
+
+- **PKCE (S256)** y redirect a un **loopback efímero** (`http://127.0.0.1:<puerto libre>/callback`),
+  con `state` verificado; para Microsoft usa `localhost`, que es lo que exige su registro.
+- **El refresh token se guarda cifrado** con `safeStorage` (DPAPI, libsecret o Keychain); el access
+  token vive en memoria y se renueva solo. Al reabrir la app se reconecta sin tocar el navegador.
+- **IMAP por XOAUTH2** (`imapflow`) y **SMTP por XOAUTH2** (`nodemailer`) con el mismo token.
+- Necesitás **tu propio cliente OAuth de escritorio**; no se puede embeber uno en el binario:
+  - Google Cloud → *Credentials* → *OAuth client ID* → **Desktop app**.
+  - Microsoft Entra → *App registrations* → plataforma **Mobile and desktop** → redirect
+    `http://localhost`.
+- Presets incluidos: Google (`https://mail.google.com/`), Microsoft (`IMAP.AccessAsUser.All` +
+  `SMTP.Send`) y **Otro** para cualquier proveedor con endpoints propios.
+
+Verificado contra un proveedor falso (`scripts/fake-oauth.mjs`): el `code_challenge` viaja, el código
+se canjea con el `code_verifier`, el access token entra al IMAP de pruebas por XOAUTH2, el refresh
+funciona sin navegador al reiniciar y el envío SMTP sale autenticado con el mismo token.
+**Microsoft no se probó contra un tenant real.**
+
 ## Comandos
 
 ```bash
@@ -318,6 +342,8 @@ pnpm build          # typecheck + build de producción en out/
 pnpm build:linux    # AppImage + .deb (requiere Linux o CI)
 pnpm css:audit      # integridad del CSS contra el JSX
 pnpm preview        # sirve out/renderer en http://127.0.0.1:4173 (revisar UI sin Electron)
+node scripts/fake-imap.mjs   # IMAP 1143 + SMTP 1025, con XOAUTH2 (testuser/testpass | testtoken)
+node scripts/fake-oauth.mjs  # proveedor OAuth2 falso en 9000 (para probar el flujo)
 ```
 
 Herramientas de revisión visual (usan Edge o Chromium headless, no Electron):
@@ -407,6 +433,9 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | M5: búsqueda FTS5 sobre la caché con fragmentos | ✅ |
 | Leído/no leído, responder con cita y adjuntos descargables | ✅ |
 | Adjuntos al enviar (multipart) y borrador persistido | ✅ |
+| OAuth2 (PKCE + loopback) con XOAUTH2 en IMAP y SMTP | ✅ |
+| Icono, metadatos y paquete linux-unpacked (12.6 MB de asar) | ✅ |
+| CSP activa en la app empaquetada | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 

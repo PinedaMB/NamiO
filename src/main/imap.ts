@@ -37,7 +37,8 @@ import {
   upsertEnvelopes,
   upsertMailboxes
 } from './db'
-import { decryptSecret, readSettings } from './settings'
+import { authorize, getAccessToken } from './oauth'
+import { decryptSecret, encryptSecret, readSettings, writeSettings, type StoredAccount } from './settings'
 
 interface Session {
   client: ImapFlow
@@ -77,12 +78,15 @@ function isOfflineError(code: ImapErrorCode): boolean {
   return code === 'dns' || code === 'refused' || code === 'timeout' || code === 'network' || code === 'tls'
 }
 
-function createClient(config: ImapAccountConfig, password: string): ImapFlow {
+type ImapAuth = { password: string } | { accessToken: string }
+
+function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
   const client = new ImapFlow({
     host: config.host,
     port: config.port,
     secure: config.secure,
-    auth: { user: config.user, pass: password },
+    // XOAUTH2 cuando la cuenta es OAuth2; si no, SASL PLAIN con la contraseña.
+    auth: 'accessToken' in auth ? { user: config.user, accessToken: auth.accessToken } : { user: config.user, pass: auth.password },
     logger: false,
     tls: { rejectUnauthorized: config.secure }
   })
@@ -96,9 +100,9 @@ function createClient(config: ImapAccountConfig, password: string): ImapFlow {
   return client
 }
 
-async function openSession(config: ImapAccountConfig, password: string): Promise<void> {
+async function openSession(config: ImapAccountConfig, auth: ImapAuth): Promise<void> {
   await closeSession()
-  const client = createClient(config, password)
+  const client = createClient(config, auth)
   await client.connect()
   session = { client, config }
   offline = false
@@ -119,6 +123,27 @@ async function closeSession(): Promise<void> {
   }
 }
 
+/** Resuelve las credenciales de la cuenta: contraseña guardada o access token OAuth. */
+async function authFor(account: StoredAccount): Promise<ImapAuth> {
+  if (account.auth === 'oauth2') {
+    if (!account.oauth || !account.refreshToken) throw new Error('La cuenta OAuth no tiene refresh token')
+    const refreshToken = await decryptSecret(account.refreshToken)
+    if (!refreshToken) throw new Error('No se pudo descifrar el refresh token')
+
+    const token = await getAccessToken(account.oauth, refreshToken)
+    if (token.refreshToken) {
+      // Microsoft rota el refresh token: se persiste el nuevo.
+      const encrypted = await encryptSecret(token.refreshToken)
+      if (encrypted) await writeSettings({ account: { ...account, refreshToken: encrypted } })
+    }
+    return { accessToken: token.accessToken }
+  }
+
+  const password = account.secret ? await decryptSecret(account.secret) : null
+  if (!password) throw new Error('Stored password unavailable')
+  return { password }
+}
+
 /** Conecta con la cuenta guardada si hace falta. Lanza si no hay credenciales usables. */
 async function ensureClient(): Promise<ImapFlow> {
   if (session?.client.usable) return session.client
@@ -126,8 +151,7 @@ async function ensureClient(): Promise<ImapFlow> {
   const stored = await readSettings()
   if (!stored.account) throw new Error('No account configured')
 
-  const password = stored.account.secret ? await decryptSecret(stored.account.secret) : null
-  if (!password) throw new Error('Stored password unavailable')
+  const auth = await authFor(stored.account)
 
   await openSession(
     {
@@ -136,7 +160,7 @@ async function ensureClient(): Promise<ImapFlow> {
       secure: stored.account.secure,
       user: stored.account.user
     },
-    password
+    auth
   )
 
   if (!session) throw new Error('Connection failed')
@@ -665,30 +689,38 @@ export async function getAccountState(): Promise<AccountState> {
           port: account.port,
           secure: account.secure,
           user: account.user,
-          smtp: account.smtp
+          smtp: account.smtp,
+          auth: account.auth ?? 'password',
+          oauth: account.oauth
         }
       : null,
-    passwordStored: Boolean(account?.secret)
+    passwordStored: Boolean(account?.secret || account?.refreshToken)
   }
 }
 
 /** Credenciales descifradas para el motor de envío. */
-export async function getCredentials(): Promise<{ account: AccountConfig; password: string } | null> {
+/** Credenciales para el motor de envío (contraseña o access token OAuth). */
+export async function getCredentials(): Promise<
+  { account: AccountConfig; password: string | null; accessToken: string | null } | null
+> {
   const stored = await readSettings()
   if (!stored.account) return null
 
-  const password = stored.account.secret ? await decryptSecret(stored.account.secret) : null
-  if (!password) return null
+  const account: AccountConfig = {
+    host: stored.account.host,
+    port: stored.account.port,
+    secure: stored.account.secure,
+    user: stored.account.user,
+    smtp: stored.account.smtp,
+    auth: stored.account.auth ?? 'password',
+    oauth: stored.account.oauth
+  }
 
+  const auth = await authFor(stored.account)
   return {
-    account: {
-      host: stored.account.host,
-      port: stored.account.port,
-      secure: stored.account.secure,
-      user: stored.account.user,
-      smtp: stored.account.smtp
-    },
-    password
+    account,
+    password: 'password' in auth ? auth.password : null,
+    accessToken: 'accessToken' in auth ? auth.accessToken : null
   }
 }
 
@@ -700,9 +732,51 @@ export async function connectAccount(
     await serial(() =>
       openSession(
         { host: config.host, port: config.port, secure: config.secure, user: config.user },
-        password
+        { password }
       )
     )
+    return { ok: true, data: await getAccountState() }
+  } catch (error) {
+    return { ok: false, code: classify(error), detail: describe(error) }
+  }
+}
+
+/**
+ * OAuth2: corre el flujo en el navegador, valida el token contra IMAP y guarda
+ * el refresh token cifrado. El `user` es el correo de la cuenta.
+ */
+export async function connectAccountOAuth(config: AccountConfig): Promise<ImapResult<AccountState>> {
+  if (!config.oauth) return { ok: false, code: 'unknown', detail: 'Falta la configuración OAuth' }
+
+  try {
+    const tokens = await authorize(config.oauth)
+    const user = config.user.trim() !== '' ? config.user.trim() : (tokens.email ?? '')
+    if (user === '') {
+      return { ok: false, code: 'unknown', detail: 'El proveedor no devolvió el correo de la cuenta' }
+    }
+
+    await serial(() =>
+      openSession(
+        { host: config.host, port: config.port, secure: config.secure, user },
+        { accessToken: tokens.accessToken }
+      )
+    )
+
+    // El refresh token es lo único que permite reconectar sin volver al navegador.
+    const encrypted = tokens.refreshToken ? await encryptSecret(tokens.refreshToken) : null
+    await writeSettings({
+      account: {
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        user,
+        smtp: config.smtp,
+        auth: 'oauth2',
+        oauth: config.oauth,
+        ...(encrypted ? { refreshToken: encrypted } : {})
+      }
+    })
+
     return { ok: true, data: await getAccountState() }
   } catch (error) {
     return { ok: false, code: classify(error), detail: describe(error) }

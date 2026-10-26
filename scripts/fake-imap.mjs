@@ -135,6 +135,7 @@ const server = hoodiecrow({
     'ID',
     'AUTH-PLAIN',
     'SASL-IR',
+    'XOAUTH2',
     'NAMESPACE',
     'IDLE',
     'ENABLE',
@@ -143,7 +144,7 @@ const server = hoodiecrow({
     'SPECIAL-USE',
     'LITERAL+'
   ],
-  users: { testuser: { password: 'testpass' } },
+  users: { testuser: { password: 'testpass', xoauth2: { accessToken: 'testtoken' } } },
   storage: {
     '': {
       separator: '/',
@@ -160,10 +161,47 @@ const server = hoodiecrow({
 server.listen(port, () => {
   console.log(`fake-imap escuchando en 127.0.0.1:${port} (testuser/testpass)`)
 
-  // SMTP de entrada: todo lo que se envía aparece en INBOX, así se puede probar
-  // el ciclo completo "me escribo y me llega" sin servidores externos.
-  const { startSMTPServer } = require('hoodiecrow-imap/lib/hoodiecrowSMTPServer')
-  startSMTPServer(smtpPort, server, () => {
-    console.log(`fake-smtp escuchando en 127.0.0.1:${smtpPort}`)
+  // SMTP de entrada propio (no el helper de hoodiecrow) para poder exigir
+  // XOAUTH2: así se prueba el envío con token, no solo con contraseña.
+  const smtpRequire = createRequire(require.resolve('hoodiecrow-imap'))
+  const { SMTPServer } = smtpRequire('smtp-server')
+  const credentials = server.getCredentials()
+
+  const smtp = new SMTPServer({
+    banner: 'NamiO test SMTP',
+    authMethods: ['PLAIN', 'LOGIN', 'XOAUTH2'],
+    key: credentials.key,
+    cert: credentials.cert,
+    logger: false,
+    onAuth(auth, session, done) {
+      if (auth.method === 'XOAUTH2') {
+        if (auth.username === 'testuser' && auth.accessToken === 'testtoken') {
+          done(null, { user: 'testuser' })
+          return
+        }
+        done(new Error('token XOAUTH2 inválido'))
+        return
+      }
+
+      if (auth.username === 'testuser' && auth.password === 'testpass') {
+        done(null, { user: 'testuser' })
+        return
+      }
+      done(new Error('credenciales inválidas'))
+    },
+    onData(stream, session, done) {
+      const chunks = []
+      stream.on('data', (chunk) => chunks.push(chunk))
+      stream.on('error', done)
+      stream.on('end', () => {
+        server.appendMessage('INBOX', [], false, Buffer.concat(chunks).toString('binary'))
+        done()
+      })
+    }
+  })
+
+  smtp.on('error', () => undefined)
+  smtp.listen(smtpPort, () => {
+    console.log(`fake-smtp escuchando en 127.0.0.1:${smtpPort} (XOAUTH2: testtoken)`)
   })
 })

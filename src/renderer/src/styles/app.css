@@ -2910,6 +2910,9 @@
   flex-direction: column;
   gap: var(--sp-md);
   width: min(560px, 100%);
+  /* Con OAuth2 el formulario crece: el modal scrollea, no se sale de la ventana. */
+  max-height: min(calc(100vh - 56px), 900px);
+  overflow-y: auto;
   padding: 20px;
   border-radius: var(--r-xl);
   background: var(--surface-container);

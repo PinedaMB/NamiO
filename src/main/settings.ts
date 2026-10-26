@@ -1,15 +1,20 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
-import type { AppSettings, SmtpConfig } from '@shared/ipc'
+import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/ipc'
 
-/** Cuenta guardada: la contraseña solo se persiste cifrada por el SO. */
+/** Cuenta guardada: las credenciales solo se persisten cifradas por el SO. */
 export interface StoredAccount {
   host: string
   port: number
   secure: boolean
   user: string
   smtp: SmtpConfig
+  /** `password` por defecto; `oauth2` usa XOAUTH2 con refresh token. */
+  auth?: AuthMethod
+  oauth?: OAuthConfig
+  /** base64 de `safeStorage.encryptString` del refresh token (OAuth2). */
+  refreshToken?: string
   /** base64 de `safeStorage.encryptString`; ausente si el SO no ofrece cifrado. */
   secret?: string
 }

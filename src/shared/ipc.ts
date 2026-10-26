@@ -11,6 +11,7 @@ export const IPC = {
   settingsSet: 'settings:set',
   accountStatus: 'account:status',
   accountConnect: 'account:connect',
+  accountConnectOAuth: 'account:connect-oauth',
   accountDisconnect: 'account:disconnect',
   mailboxesList: 'mailboxes:list',
   messagesList: 'messages:list',
@@ -83,6 +84,24 @@ export interface SmtpConfig {
 /** Cuenta completa: recepción (IMAP) y envío (SMTP). */
 export interface AccountConfig extends ImapAccountConfig {
   smtp: SmtpConfig
+  /** `password` (usuario + contraseña) u `oauth2` (XOAUTH2 con token). */
+  auth?: AuthMethod
+  oauth?: OAuthConfig
+}
+
+export type AuthMethod = 'password' | 'oauth2'
+
+export type OAuthProvider = 'google' | 'microsoft' | 'custom'
+
+export interface OAuthConfig {
+  provider: OAuthProvider
+  clientId: string
+  /** Los clientes de escritorio de Google lo llaman "secret" pero no lo es. */
+  clientSecret: string
+  /** Obligatorios solo con `provider: 'custom'`. */
+  authUrl?: string
+  tokenUrl?: string
+  scope?: string
 }
 
 export type ImapErrorCode = 'auth' | 'dns' | 'refused' | 'timeout' | 'tls' | 'network' | 'unknown'
@@ -217,6 +236,8 @@ export interface MailApi {
 
   accountStatus(): Promise<AccountState>
   accountConnect(config: AccountConfig, password: string): Promise<ImapResult<AccountState>>
+  /** OAuth2: abre el navegador, espera el redirect y guarda el refresh token. */
+  accountConnectOAuth(config: AccountConfig): Promise<ImapResult<AccountState>>
   accountDisconnect(): Promise<void>
 
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */

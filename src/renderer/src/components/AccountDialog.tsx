@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react'
-import type { AccountState, ImapAccountConfig, ImapErrorCode, SmtpConfig } from '@shared/ipc'
+import { useEffect, useRef, useState } from 'react'
+import type {
+  AccountConfig,
+  AccountState,
+  AuthMethod,
+  ImapAccountConfig,
+  ImapErrorCode,
+  OAuthProvider,
+  SmtpConfig
+} from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { configFromAccount } from '../data/live'
@@ -63,12 +71,24 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const [smtpHost, setSmtpHost] = useState('')
   const [smtpPort, setSmtpPort] = useState('465')
   const [smtpSecure, setSmtpSecure] = useState(true)
+  const [auth, setAuth] = useState<AuthMethod>('password')
+  const [provider, setProvider] = useState<OAuthProvider>('google')
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [authUrl, setAuthUrl] = useState('')
+  const [tokenUrl, setTokenUrl] = useState('')
+  const [scope, setScope] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
 
+  // El formulario se inicializa al ABRIR, no cada vez que App refresca la cuenta:
+  // si dependiera del objeto `account`, un refresco en vuelo borraría lo tipeado.
+  const accountRef = useRef(account)
+  accountRef.current = account
+
   useEffect(() => {
     if (!open) return
-    const current = configFromAccount(account?.account ?? null)
+    const current = configFromAccount(accountRef.current?.account ?? null)
     setHost(current.host)
     setPort(String(current.port))
     setSecure(current.secure)
@@ -76,26 +96,35 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setSmtpHost(current.smtp.host)
     setSmtpPort(String(current.smtp.port))
     setSmtpSecure(current.smtp.secure)
+    setAuth(current.auth ?? 'password')
+    setProvider(current.oauth?.provider ?? 'google')
+    setClientId(current.oauth?.clientId ?? '')
+    setClientSecret(current.oauth?.clientSecret ?? '')
+    setAuthUrl(current.oauth?.authUrl ?? '')
+    setTokenUrl(current.oauth?.tokenUrl ?? '')
+    setScope(current.oauth?.scope ?? '')
     setPassword('')
     setBusy(false)
     setError(null)
-  }, [open, account])
+  }, [open])
 
   if (!mounted) return null
 
   const portNumber = Number(port)
   const smtpPortNumber = Number(smtpPort)
+  const endpointsOk =
+    provider !== 'custom' || (authUrl.trim() !== '' && tokenUrl.trim() !== '' && scope.trim() !== '')
   const valid =
     host.trim() !== '' &&
     Number.isInteger(portNumber) &&
     portNumber > 0 &&
     portNumber < 65536 &&
     user.trim() !== '' &&
-    password !== '' &&
     smtpHost.trim() !== '' &&
     Number.isInteger(smtpPortNumber) &&
     smtpPortNumber > 0 &&
-    smtpPortNumber < 65536
+    smtpPortNumber < 65536 &&
+    (auth === 'oauth2' ? clientId.trim() !== '' && endpointsOk : password !== '')
 
   const applyPreset = (preset: (typeof PRESETS)[number]): void => {
     if (preset.id === 'custom') return
@@ -111,18 +140,34 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     if (!valid || busy) return
     setBusy(true)
     setError(null)
-    const result = await window.api
-      .accountConnect(
-        {
-          host: host.trim(),
-          port: portNumber,
-          secure,
-          user: user.trim(),
-          smtp: { host: smtpHost.trim(), port: smtpPortNumber, secure: smtpSecure }
-        },
-        password
-      )
-      .catch(() => ({ ok: false as const, code: 'unknown' as const, detail: 'IPC error' }))
+
+    const config: AccountConfig = {
+      host: host.trim(),
+      port: portNumber,
+      secure,
+      user: user.trim(),
+      smtp: { host: smtpHost.trim(), port: smtpPortNumber, secure: smtpSecure },
+      auth
+    }
+
+    const result =
+      auth === 'oauth2'
+        ? await window.api
+            .accountConnectOAuth({
+              ...config,
+              oauth: {
+                provider,
+                clientId: clientId.trim(),
+                clientSecret,
+                ...(provider === 'custom'
+                  ? { authUrl: authUrl.trim(), tokenUrl: tokenUrl.trim(), scope: scope.trim() }
+                  : {})
+              }
+            })
+            .catch(() => ({ ok: false as const, code: 'unknown' as const, detail: 'IPC error' }))
+        : await window.api
+            .accountConnect(config, password)
+            .catch(() => ({ ok: false as const, code: 'unknown' as const, detail: 'IPC error' }))
 
     setBusy(false)
     if (!result.ok) {
@@ -235,15 +280,130 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
           </label>
 
           <label className="account-field">
-            <span>{t('account.password')}</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
+            <span>{t('account.auth')}</span>
+            <div className="seg" role="group" aria-label={t('account.auth')}>
+              <button
+                type="button"
+                className={cx('seg__btn', auth === 'password' && 'seg__btn--active')}
+                onClick={() => setAuth('password')}
+                aria-pressed={auth === 'password'}
+              >
+                {t('account.authPassword')}
+              </button>
+              <button
+                type="button"
+                className={cx('seg__btn', auth === 'oauth2' && 'seg__btn--active')}
+                onClick={() => {
+                  setAuth('oauth2')
+                  const preset = PRESETS.find((item) => item.id === provider)
+                  if (preset) applyPreset(preset)
+                }}
+                aria-pressed={auth === 'oauth2'}
+              >
+                {t('account.authOAuth')}
+              </button>
+            </div>
           </label>
+
+          {auth === 'oauth2' && (
+            <>
+              <label className="account-field">
+                <span>{t('account.oauthProvider')}</span>
+                <div className="seg" role="group" aria-label={t('account.oauthProvider')}>
+                  {(['google', 'microsoft', 'custom'] as const).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={cx('seg__btn', provider === id && 'seg__btn--active')}
+                      onClick={() => {
+                        setProvider(id)
+                        const preset = PRESETS.find((item) => item.id === (id === 'custom' ? 'custom' : id))
+                        if (id !== 'custom' && preset) applyPreset(preset)
+                      }}
+                      aria-pressed={provider === id}
+                    >
+                      {id === 'google' ? 'Google' : id === 'microsoft' ? 'Microsoft' : t('account.oauthCustom')}
+                    </button>
+                  ))}
+                </div>
+              </label>
+
+              <label className="account-field">
+                <span>{t('account.clientId')}</span>
+                <input
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                  placeholder="1234-abc.apps.googleusercontent.com"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+
+              <label className="account-field">
+                <span>{t('account.clientSecret')}</span>
+                <input
+                  value={clientSecret}
+                  onChange={(event) => setClientSecret(event.target.value)}
+                  placeholder="GOCSPX-…"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+
+              {provider === 'custom' && (
+                <>
+                  <label className="account-field">
+                    <span>{t('account.authUrl')}</span>
+                    <input
+                      value={authUrl}
+                      onChange={(event) => setAuthUrl(event.target.value)}
+                      placeholder="https://proveedor/auth"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <label className="account-field">
+                    <span>{t('account.tokenUrl')}</span>
+                    <input
+                      value={tokenUrl}
+                      onChange={(event) => setTokenUrl(event.target.value)}
+                      placeholder="https://proveedor/token"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <label className="account-field">
+                    <span>{t('account.scope')}</span>
+                    <input
+                      value={scope}
+                      onChange={(event) => setScope(event.target.value)}
+                      placeholder="openid email https://mail.example.com/"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                </>
+              )}
+
+              <p className="account-hint">
+                <Icon name="info" size={14} />
+                {t('account.oauthHint')}
+              </p>
+            </>
+          )}
+
+          {auth === 'password' && (
+            <label className="account-field">
+              <span>{t('account.password')}</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+              />
+            </label>
+          )}
 
           <div className="account-section">
             <span className="account-section__title">{t('account.smtp')}</span>
@@ -329,7 +489,11 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               </button>
               <button className="btn btn--primary" type="submit" disabled={!valid || busy}>
                 {busy && <Icon name="progress_activity" size={15} className="spin" />}
-                {busy ? t('account.testing') : t('account.test')}
+                {busy
+                  ? t('account.testing')
+                  : auth === 'oauth2'
+                    ? t('account.connectBrowser')
+                    : t('account.test')}
               </button>
             </div>
           </div>

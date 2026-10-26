@@ -12,6 +12,7 @@ import {
 } from '@shared/ipc'
 import {
   connectAccount,
+  connectAccountOAuth,
   disconnectAccount,
   getAccountState,
   getMessage,
@@ -97,6 +98,39 @@ export function registerIpcHandlers(): void {
       void processOutbox()
 
       return { ok: true, data: await getAccountState() }
+    }
+  )
+
+  ipcMain.handle(
+    IPC.accountConnectOAuth,
+    async (_event, config: AccountConfig): Promise<ImapResult<unknown>> => {
+      if (!config?.oauth || config.oauth.clientId.trim() === '') {
+        return { ok: false, code: 'unknown', detail: 'Falta el client ID de OAuth' }
+      }
+      if (config.oauth.provider === 'custom' && (!config.oauth.authUrl || !config.oauth.tokenUrl)) {
+        return { ok: false, code: 'unknown', detail: 'Faltan los endpoints OAuth' }
+      }
+      if (!validConfig(config)) {
+        return { ok: false, code: 'unknown', detail: 'Configuración incompleta' }
+      }
+
+      const normalized: AccountConfig = {
+        host: config.host.trim(),
+        port: config.port,
+        secure: config.secure,
+        user: config.user.trim(),
+        auth: 'oauth2',
+        oauth: { ...config.oauth, clientId: config.oauth.clientId.trim() },
+        smtp: {
+          host: config.smtp.host.trim(),
+          port: config.smtp.port,
+          secure: config.smtp.secure
+        }
+      }
+
+      const result = await connectAccountOAuth(normalized)
+      if (result.ok) void processOutbox()
+      return result
     }
   )
 

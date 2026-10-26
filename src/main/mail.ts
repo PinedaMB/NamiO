@@ -109,7 +109,7 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
   const credentials = await getCredentials()
   if (!credentials) throw new Error('La cuenta no tiene credenciales guardadas')
 
-  const { account, password } = credentials
+  const { account, password, accessToken } = credentials
   // Cuentas locales de prueba no traen dominio: se lo damos para que el
   // remitente sea una dirección válida (los servidores rechazan "user" a secas).
   const sender = account.user.includes('@') ? account.user : `${account.user}@${account.host || 'localhost'}`
@@ -138,7 +138,10 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     host: account.smtp.host,
     port: account.smtp.port,
     secure: account.smtp.secure,
-    auth: { user: account.user, pass: password },
+    // XOAUTH2 para cuentas OAuth2; contraseña para el resto.
+    auth: accessToken
+      ? { type: 'OAuth2' as const, user: account.user, accessToken }
+      : { user: account.user, pass: password ?? '' },
     tls: { rejectUnauthorized: account.smtp.secure }
   })
 
