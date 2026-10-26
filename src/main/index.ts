@@ -1,8 +1,18 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { registerIpcHandlers } from './ipc'
 
 const isDev = !app.isPackaged
+
+/**
+ * Perfil de Chromium alternativo. Necesario en entornos donde %APPDATA% no es
+ * escribible (contenedores, jobs de CI, terminales embebidas): Chromium no
+ * falla con un error legible, directamente muere con ACCESS_VIOLATION.
+ */
+const userDataOverride = process.env['CORREO_USER_DATA_DIR']
+if (userDataOverride) {
+  app.setPath('userData', resolve(userDataOverride))
+}
 
 /** Una sola instancia: dos procesos peleando por la misma caché SQLite es un bug garantizado. */
 if (!app.requestSingleInstanceLock()) {

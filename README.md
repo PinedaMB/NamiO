@@ -84,11 +84,13 @@ Dos decisiones a tener presentes:
 
 ```bash
 pnpm install
-pnpm dev          # app en modo desarrollo con HMR
-pnpm typecheck    # tsc para main/preload y para el renderer
-pnpm build        # typecheck + build de producción en out/
-pnpm build:linux  # AppImage + .deb (requiere Linux o CI)
-pnpm preview      # sirve out/renderer en http://127.0.0.1:4173 (revisar UI sin Electron)
+pnpm dev            # app en modo desarrollo con HMR
+pnpm dev:web        # solo el renderer (Vite + HMR), sin Electron
+pnpm dev:restricted # desarrollo en entornos sin sandbox de Chromium (ver más abajo)
+pnpm typecheck      # tsc para main/preload y para el renderer
+pnpm build          # typecheck + build de producción en out/
+pnpm build:linux    # AppImage + .deb (requiere Linux o CI)
+pnpm preview        # sirve out/renderer en http://127.0.0.1:4173 (revisar UI sin Electron)
 ```
 
 Herramientas de revisión visual (usan Edge o Chromium headless, no Electron):
@@ -101,35 +103,44 @@ node scripts/probe.mjs "document.querySelector('.statusbar').getBoundingClientRe
 
 Los artefactos quedan en `release/`.
 
-## Estado de verificación (M0)
+## Estado de verificación
 
 | Comprobación | Estado |
 | --- | --- |
 | `pnpm install` reproducible (pnpm 12, builds autorizados) | ✅ |
 | `pnpm typecheck` (main/preload y renderer) | ✅ |
 | `pnpm build` → `out/main`, `out/preload`, `out/renderer` | ✅ |
-| UI renderizada y capturada en Chromium headless (bandeja, compositor, paleta) | ✅ |
-| Ventana abierta con IPC respondiendo | ⚠️ pendiente de probar en una sesión gráfica propia |
+| App Electron real: ventana, IPC y smoke test 7/7 | ✅ |
+| UI capturada en Chromium headless (bandeja, compositor, paleta) | ✅ |
 
-El arranque de la ventana **no se pudo verificar desde el entorno del agente**: ahí `electron.exe`
-termina con `STATUS_BREAKPOINT` (0x80000003) antes de ejecutar una sola línea de JS, y le pasa igual
-a la app por defecto que trae Electron, así que no es el código del proyecto. Dos causas probables:
-política de aplicación sobre un binario sin firma Authenticode, o restricción de estación de ventanas
-del proceso que lanza los comandos. Para descartarlo en tu terminal:
+### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
+
+No es el proyecto: es Chromium inicializando en un entorno restringido. Hay dos causas
+independientes, y conviene distinguirlas porque los códigos se parecen:
+
+1. **Sandbox de Chromium.** Dentro de un Job Object restrictivo (contenedores, CI, terminales
+   embebidas) Chromium no puede crear su sandbox y llama a `__debugbreak()`: el proceso muere con
+   `STATUS_BREAKPOINT` (`0x80000003`, que Node reporta como `-2147483645`) antes de ejecutar una sola
+   línea de JavaScript.
+2. **Perfil no escribible.** Si `%APPDATA%` está bloqueado por un sandbox de archivos, Chromium muere
+   con `ACCESS_VIOLATION` (`0xc0000005`) mientras inicializa su perfil, sin ningún mensaje de error.
+
+| Situación | Comando |
+| --- | --- |
+| Terminal normal de Windows/Linux | `pnpm dev` |
+| Entorno restringido (contenedor, CI, terminal embebida) | `pnpm dev:restricted` |
+| Solo la UI, con HMR y sin Electron | `pnpm dev:web` → http://localhost:5173 |
+
+`pnpm dev:restricted` desactiva el sandbox de Chromium **solo en desarrollo** y mueve el perfil a
+`.cache/userdata`. Si querés conservar el sandbox y solo cambiar el perfil:
 
 ```bash
-pnpm dev
+CORREO_USER_DATA_DIR=.cache/userdata pnpm dev
 ```
 
-Si elegís "sí" y la ventana no aparece, revisá esto antes de tocar código:
+Nunca se desactiva el sandbox en los builds de producción: eso queda solo en el script de desarrollo.
 
-- `ELECTRON_RUN_AS_NODE` debe estar **vacío**. Si vale `1`, Electron corre como Node puro y la app
-  muere con `TypeError: Cannot read properties of undefined (reading 'isPackaged')`. En este equipo
-  estaba en `1`; se limpia con `Remove-Item Env:ELECTRON_RUN_AS_NODE`.
-- Reinstalá el binario si sospechás de la descarga: `Remove-Item node_modules\electron -Recurse` y
-  `pnpm install`.
-
-Smoke test automático (necesita una sesión gráfica con `--remote-debugging-port=9333` abierto):
+Smoke test automático (necesita la app con `--remote-debugging-port=9333`):
 
 ```bash
 node scripts/smoke.mjs
