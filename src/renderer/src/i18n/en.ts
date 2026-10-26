@@ -332,6 +332,9 @@ export const en: Dictionary = {
   'account.scope': 'Scope',
   'account.connectBrowser': 'Connect with the browser',
   'account.showPassword': 'Show password',
+  'account.authUser': 'This is the user that was sent:',
+  'account.emailWarning': 'No “@”. If your server only uses the user name that is fine; otherwise check the address.',
+  'account.emailInvalid': 'The email cannot contain spaces or commas.',
   'account.hidePassword': 'Hide password',
   'account.authHint':
     'If the server rejects the user, try the full email (including @) and confirm IMAP is enabled. Gmail and Outlook need OAuth2.',

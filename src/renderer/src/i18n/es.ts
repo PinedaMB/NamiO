@@ -335,6 +335,9 @@ export const es = {
   'account.scope': 'Scope',
   'account.connectBrowser': 'Conectar con el navegador',
   'account.showPassword': 'Mostrar contraseña',
+  'account.authUser': 'Este es el usuario que se envió:',
+  'account.emailWarning': 'No tiene «@». Si tu servidor usa solo el usuario está bien; si no, revisá el correo.',
+  'account.emailInvalid': 'El correo no puede tener espacios ni comas.',
   'account.hidePassword': 'Ocultar contraseña',
   'account.authHint':
     'Si el servidor rechaza el usuario, probá con el correo completo (incluye @) y confirmá que IMAP esté habilitado. Gmail y Outlook necesitan OAuth2.',

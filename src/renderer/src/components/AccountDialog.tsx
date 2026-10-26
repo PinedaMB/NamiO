@@ -108,12 +108,16 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const smtpPortNumber = Number(smtpPort)
   const endpointsOk =
     provider !== 'custom' || (authUrl.trim() !== '' && tokenUrl.trim() !== '' && scope.trim() !== '')
+  // Espacios o comas en el usuario son error de tipeo; falta de @ solo avisa.
+  const userHasSpaces = /[\s,]/.test(user)
+  const userMissingAt = user.trim() !== '' && !user.includes('@')
   const valid =
     host.trim() !== '' &&
     Number.isInteger(portNumber) &&
     portNumber > 0 &&
     portNumber < 65536 &&
     user.trim() !== '' &&
+    !userHasSpaces &&
     smtpHost.trim() !== '' &&
     Number.isInteger(smtpPortNumber) &&
     smtpPortNumber > 0 &&
@@ -270,7 +274,12 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               placeholder="vos@ejemplo.com"
               autoComplete="off"
               spellCheck={false}
+              aria-invalid={userHasSpaces || undefined}
             />
+            {userHasSpaces && <em className="account-field__hint">{t('account.emailInvalid')}</em>}
+            {!userHasSpaces && userMissingAt && (
+              <em className="account-field__hint">{t('account.emailWarning')}</em>
+            )}
           </label>
 
           <label className="account-field">
@@ -462,7 +471,13 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               <div>
                 <strong>{t(ERROR_KEYS[error.code])}</strong>
                 <span>{error.detail}</span>
-                {error.code === 'auth' && <span className="account-error__hint">{t('account.authHint')}</span>}
+                {error.code === 'auth' && (
+                  <span className="account-error__hint">
+                    {t('account.authUser')} <b className="mono">{user}</b>
+                    <br />
+                    {t('account.authHint')}
+                  </span>
+                )}
               </div>
             </div>
           )}

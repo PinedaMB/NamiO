@@ -120,9 +120,13 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
 
   const portNumber = Number(port)
   const smtpPortNumber = Number(smtpPort)
+  // Un espacio o coma en el correo es error de tipeo seguro; la falta de @ solo avisa.
+  const userHasSpaces = /[\s,]/.test(user)
+  const userMissingAt = user.trim() !== '' && !user.includes('@')
   const valid =
     preset !== null &&
     user.trim() !== '' &&
+    !userHasSpaces &&
     Number.isInteger(portNumber) &&
     portNumber > 0 &&
     portNumber < 65536 &&
@@ -253,8 +257,13 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                   placeholder="vos@ejemplo.com"
                   autoComplete="username"
                   spellCheck={false}
+                  aria-invalid={userHasSpaces || undefined}
                 />
               </label>
+              {userHasSpaces && <p className="onboarding__field-hint">{t('account.emailInvalid')}</p>}
+              {!userHasSpaces && userMissingAt && (
+                <p className="onboarding__field-hint">{t('account.emailWarning')}</p>
+              )}
 
               {preset?.oauth ? (
                 <>
@@ -393,7 +402,13 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                   <span>
                     <strong>{t(ERROR_KEYS[error.code])}</strong>
                     {error.detail}
-                    {error.code === 'auth' && <em className="onboarding__error-hint">{t('account.authHint')}</em>}
+                    {error.code === 'auth' && (
+                      <em className="onboarding__error-hint">
+                        {t('account.authUser')} <b className="mono">{user}</b>
+                        <br />
+                        {t('account.authHint')}
+                      </em>
+                    )}
                   </span>
                 </p>
               )}
