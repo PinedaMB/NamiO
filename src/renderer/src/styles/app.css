@@ -2966,6 +2966,54 @@
   padding: 0 10px;
 }
 
+/* Modo offline: franja en el flujo, no overlay (no debe tapar la toolbar). */
+.offline-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px var(--sp-md);
+  background: color-mix(in srgb, var(--tertiary) 8%, var(--surface-container-low));
+  border-bottom: 1px solid color-mix(in srgb, var(--tertiary) 22%, transparent);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+
+.offline-strip > .icon {
+  color: var(--tertiary);
+  flex-shrink: 0;
+}
+
+.offline-strip strong {
+  color: var(--on-surface);
+  font-weight: 600;
+}
+
+.offline-strip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.offline-strip__retry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px 8px;
+  border-radius: var(--r-md);
+  background: var(--surface-container-high);
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.offline-strip__retry:hover {
+  background: var(--surface-container-highest);
+}
+
 /* ==========================================================================
    Utilidades puntuales
    ========================================================================== */

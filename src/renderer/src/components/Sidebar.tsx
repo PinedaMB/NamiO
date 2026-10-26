@@ -10,6 +10,8 @@ interface SidebarProps {
   accountLabel: string
   accountConnected: boolean
   showTags: boolean
+  syncLabel: string
+  offline: boolean
   onSelectFolder: (id: string) => void
   onCompose: () => void
   onOpenSettings: () => void
@@ -22,6 +24,8 @@ export function Sidebar({
   accountLabel,
   accountConnected,
   showTags,
+  syncLabel,
+  offline,
   onSelectFolder,
   onCompose,
   onOpenSettings,
@@ -107,8 +111,10 @@ export function Sidebar({
       <div className="rail__foot">
         <div className="sync-pill">
           <span className="sync-pill__state">
-            <span className={cx('dot dot--tertiary', accountConnected && 'pulse')} />
-            {t('sidebar.synced')}
+            <span
+              className={cx('dot', offline ? 'dot--error' : 'dot--tertiary', accountConnected && !offline && 'pulse')}
+            />
+            {syncLabel}
           </span>
           <button className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
             <Icon name="settings" size={16} />

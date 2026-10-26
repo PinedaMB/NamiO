@@ -193,6 +193,24 @@ Verificado: 2 imágenes remotas pasan a `data:`, el click de un link no navega e
 
 Limitaciones de M2: sin `cid:` (imágenes embebidas como adjunto) y sin zoom de texto.
 
+## M3: caché local y modo offline
+
+![Modo offline sobre la caché](docs/offline.png)
+
+- **SQLite embebido** (`node:sqlite`, sin módulos nativos que recompilar) en `cache.db` dentro del
+  perfil. Tablas `mailboxes`, `messages` y `meta`.
+- **La UI lee siempre de la caché**; la red solo la actualiza. Al abrir una carpeta con caché se
+  responde al instante y se sincroniza en segundo plano; el motor avisa por IPC y la lista se refresca.
+- **Sync incremental**: se guardan `UIDVALIDITY` y `UIDNEXT` por buzón. Si cambia la validez de UIDs se
+  reinicia ese buzón; si no, se piden solo los mensajes nuevos.
+- **Offline real**: si la red falla, la app sigue mostrando la copia local, con una franja
+  "Sin conexión", botón de reintento y el estado real en el rail.
+- **Caché de cuerpos**: texto, HTML, destinatarios y adjuntos se guardan al leer el mensaje. Si se abre
+  uno sin conexión cuyo cuerpo no estaba cacheado, lo dice en vez de inventar.
+
+Limitaciones de M3: sin búsqueda FTS (M5), sin poda de mensajes borrados en el servidor, y archivar /
+eliminar siguen deshabilitados porque necesitan la cola de salida de M4.
+
 ## Comandos
 
 ```bash
@@ -230,6 +248,8 @@ Los artefactos quedan en `release/`.
 | M1: cuenta IMAP, buzones, bandeja, cuerpo y adjuntos (contra servidor de prueba) | ✅ |
 | Destacar (`\Flagged`) escrito en el servidor | ✅ |
 | M2: HTML sanitizado en iframe, imágenes bloqueadas y links externos | ✅ |
+| M3: caché SQLite, sync incremental y modo offline | ✅ |
+| Reapertura con el servidor caído mostrando la caché | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
@@ -279,7 +299,7 @@ núcleo responde `stage: "M0"`.
 | ✅ Shell | Identidad visual de NamiO sobre datos de demostración | Bandeja, compositor y paleta navegables |
 | ✅ M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
 | ✅ M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
-| M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
+| ✅ M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
 | M4 | Redactar/enviar SMTP + borradores | Llega un mail enviado a uno mismo |
 | M5 | Multi-cuenta, búsqueda FTS5, hilos por `References` | Buscar devuelve resultados correctos |
 | M6 | OAuth2 (Gmail/Outlook) + empaquetado | Instalable en Linux vía `.deb` |

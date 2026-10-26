@@ -33,6 +33,16 @@ const ATTACHMENT_ICON: Record<Attachment['kind'], { icon: string; tone: string }
 }
 
 function Body({ message }: { message: Message }): React.JSX.Element {
+  const { t } = useI18n()
+
+  if (message.partial) {
+    return (
+      <div className="body">
+        <p style={{ color: 'var(--outline)' }}>{t('offline.bodyUnavailable')}</p>
+      </div>
+    )
+  }
+
   const before = message.body.slice(0, 2)
   const after = message.body.slice(2)
 

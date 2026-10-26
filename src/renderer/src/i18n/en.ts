@@ -23,7 +23,11 @@ export const en: Dictionary = {
   'sidebar.outbox': 'Outbox & Offline',
   'sidebar.archive': 'Archive',
   'sidebar.trash': 'Trash',
-  'sidebar.synced': 'Synced 12s ago',
+  'sidebar.synced': 'Synced',
+  'sidebar.syncedAgo': 'Synced {time} ago',
+  'sidebar.syncing': 'Syncing…',
+  'sidebar.offline': 'Offline · cache',
+  'sidebar.demo': 'No account connected',
   'sidebar.collapse': 'Collapse rail',
   'sidebar.newTag': 'New tag',
   'sidebar.settings': 'Settings',
@@ -180,7 +184,7 @@ export const en: Dictionary = {
   'toast.snoozed': 'Snoozed until tomorrow 9:00 AM',
   'toast.trashed': 'Moved to trash',
   'toast.sent': 'Sent to {to} · “{subject}” (demo)',
-  'toast.readOnly': 'Archive and delete land with the local cache (M3)',
+  'toast.readOnly': 'Archive and delete land with the outbox (M4)',
 
   'status.star': 'Star',
 
@@ -283,5 +287,9 @@ export const en: Dictionary = {
   'account.error.tls': 'The server certificate is not valid.',
   'account.error.network': 'The connection to the server dropped.',
   'account.error.unknown': 'Could not connect.',
-  'account.liveEmpty': 'No messages in this folder.'
+  'account.liveEmpty': 'No messages in this folder.',
+  'offline.title': 'Offline',
+  'offline.detail': 'Showing the last copy stored on this machine.',
+  'offline.retry': 'Retry',
+  'offline.bodyUnavailable': 'That body is not cached; it will download once the connection returns.',
 }

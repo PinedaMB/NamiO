@@ -1,6 +1,9 @@
 import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
+import { closeCache, initCache } from './db'
+import { setCacheListener } from './imap'
 import { registerIpcHandlers } from './ipc'
+import { IPC } from '@shared/ipc'
 
 const isDev = !app.isPackaged
 
@@ -110,12 +113,25 @@ app.on('second-instance', () => {
 
 void app.whenReady().then(() => {
   hardenSession()
+  initCache()
   registerIpcHandlers()
+
+  // El motor avisa cuando terminó de sincronizar; la UI recarga desde la caché.
+  setCacheListener((mailbox) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(IPC.cacheChanged, mailbox)
+    }
+  })
+
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('will-quit', () => {
+  closeCache()
 })
 
 app.on('window-all-closed', () => {

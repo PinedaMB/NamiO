@@ -26,7 +26,11 @@ export const es = {
   'sidebar.outbox': 'Salida y sin conexión',
   'sidebar.archive': 'Archivo',
   'sidebar.trash': 'Papelera',
-  'sidebar.synced': 'Sincronizado 12s',
+  'sidebar.synced': 'Sincronizado',
+  'sidebar.syncedAgo': 'Sincronizado hace {time}',
+  'sidebar.syncing': 'Sincronizando…',
+  'sidebar.offline': 'Sin conexión · caché',
+  'sidebar.demo': 'Sin cuenta conectada',
   'sidebar.collapse': 'Colapsar barra',
   'sidebar.newTag': 'Nueva etiqueta',
   'sidebar.settings': 'Ajustes',
@@ -183,7 +187,7 @@ export const es = {
   'toast.snoozed': 'Pospuesto hasta mañana 9:00',
   'toast.trashed': 'Movido a la papelera',
   'toast.sent': 'Enviado a {to} · «{subject}» (demo)',
-  'toast.readOnly': 'Archivar y eliminar llegan con la caché local (M3)',
+  'toast.readOnly': 'Archivar y eliminar llegan con la cola de salida (M4)',
 
   'status.star': 'Destacar',
 
@@ -286,7 +290,11 @@ export const es = {
   'account.error.tls': 'El certificado del servidor no es válido.',
   'account.error.network': 'Se cortó la conexión con el servidor.',
   'account.error.unknown': 'No se pudo conectar.',
-  'account.liveEmpty': 'No hay mensajes en esta carpeta.'
+  'account.liveEmpty': 'No hay mensajes en esta carpeta.',
+  'offline.title': 'Sin conexión',
+  'offline.detail': 'Mostrando la última copia guardada en este equipo.',
+  'offline.retry': 'Reintentar',
+  'offline.bodyUnavailable': 'Ese cuerpo no está en la caché; se descargará al volver la conexión.',
 } as const
 
 export type TranslationKey = keyof typeof es

@@ -2,6 +2,7 @@ import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import type {
   AccountState,
+  CachedResult,
   Envelope,
   EnvelopeAddress,
   ImapAccountConfig,
@@ -9,8 +10,25 @@ import type {
   ImapResult,
   MailboxInfo,
   MessageAttachment,
-  MessageDetail
+  MessageDetail,
+  SyncMeta
 } from '@shared/ipc'
+import {
+  clearMailbox,
+  countUnread,
+  getMailboxMeta,
+  getMeta,
+  readBody,
+  readEnvelope,
+  readEnvelopes,
+  readMailboxes,
+  saveBody,
+  saveMailboxSync,
+  setFlagged as cacheFlagged,
+  setMeta,
+  upsertEnvelopes,
+  upsertMailboxes
+} from './db'
 import { decryptSecret, readSettings } from './settings'
 
 interface Session {
@@ -19,6 +37,8 @@ interface Session {
 }
 
 let session: Session | null = null
+let offline = false
+let cacheListener: ((mailbox: string) => void) | null = null
 
 /**
  * IMAP es un protocolo con estado y un solo buzón seleccionado por conexión:
@@ -32,6 +52,23 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   return run
 }
 
+export function setCacheListener(listener: (mailbox: string) => void): void {
+  cacheListener = listener
+}
+
+function notify(mailbox: string): void {
+  cacheListener?.(mailbox)
+}
+
+function syncMeta(): SyncMeta {
+  const last = getMeta('lastSync')
+  return { offline, syncedAt: last ? Number(last) : null }
+}
+
+function isOfflineError(code: ImapErrorCode): boolean {
+  return code === 'dns' || code === 'refused' || code === 'timeout' || code === 'network' || code === 'tls'
+}
+
 function createClient(config: ImapAccountConfig, password: string): ImapFlow {
   const client = new ImapFlow({
     host: config.host,
@@ -39,7 +76,6 @@ function createClient(config: ImapAccountConfig, password: string): ImapFlow {
     secure: config.secure,
     auth: { user: config.user, pass: password },
     logger: false,
-    // En claro no se intenta STARTTLS: en M1 el cifrado se elige con el switch.
     tls: { rejectUnauthorized: config.secure }
   })
 
@@ -57,6 +93,7 @@ async function openSession(config: ImapAccountConfig, password: string): Promise
   const client = createClient(config, password)
   await client.connect()
   session = { client, config }
+  offline = false
 }
 
 async function closeSession(): Promise<void> {
@@ -118,15 +155,6 @@ function describe(error: unknown): string {
   return String(error)
 }
 
-async function attempt<T>(fn: (client: ImapFlow) => Promise<T>): Promise<ImapResult<T>> {
-  try {
-    const data = await serial(async () => fn(await ensureClient()))
-    return { ok: true, data }
-  } catch (error) {
-    return { ok: false, code: classify(error), detail: describe(error) }
-  }
-}
-
 function toDate(value: string | Date | undefined): Date {
   if (value instanceof Date) return value
   if (typeof value === 'string') {
@@ -140,6 +168,297 @@ function toAddress(entry: { name?: string; address?: string } | undefined): Enve
   if (!entry?.address) return null
   return { name: entry.name ?? '', address: entry.address }
 }
+
+/* ---------------------------------------------------------------------------
+   Sincronización
+   ------------------------------------------------------------------------- */
+
+async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Promise<Envelope[]> {
+  const envelopes: Envelope[] = []
+  const options = byUid ? { uid: true } : undefined
+
+  for await (const message of client.fetch(
+    range,
+    { envelope: true, flags: true, uid: true, size: true, internalDate: true },
+    options
+  )) {
+    envelopes.push({
+      uid: message.uid,
+      subject: message.envelope?.subject ?? '',
+      from: toAddress(message.envelope?.from?.[0]),
+      date: toDate(message.internalDate).toISOString(),
+      unread: !message.flags?.has('\\Seen'),
+      flagged: message.flags?.has('\\Flagged') ?? false,
+      size: message.size ?? 0
+    })
+  }
+
+  return envelopes
+}
+
+async function syncMailboxes(): Promise<MailboxInfo[]> {
+  const client = await ensureClient()
+  const boxes = await client.list()
+  const result: MailboxInfo[] = []
+
+  for (const box of boxes) {
+    let messages = 0
+    let unseen = 0
+    try {
+      const status = await client.status(box.path, { messages: true, unseen: true })
+      if (status) {
+        messages = status.messages ?? 0
+        unseen = status.unseen ?? 0
+      }
+    } catch {
+      // buzones \Noselect o servidores que niegan STATUS fuera de SELECT
+    }
+
+    result.push({
+      path: box.path,
+      name: box.name || box.path,
+      specialUse: box.specialUse ?? null,
+      messages,
+      unseen
+    })
+  }
+
+  upsertMailboxes(result)
+  setMeta('lastSync', String(Date.now()))
+  offline = false
+  return result
+}
+
+async function syncMessages(path: string, limit: number): Promise<void> {
+  const client = await ensureClient()
+  const lock = await client.getMailboxLock(path)
+
+  try {
+    const box = client.mailbox
+    if (!box) return
+
+    // imapflow tipa UIDVALIDITY/UIDNEXT como bigint: la caché los guarda como number.
+    const uidValidity = box.uidValidity != null ? Number(box.uidValidity) : null
+    const uidNext = box.uidNext != null ? Number(box.uidNext) : null
+    const cached = getMailboxMeta(path)
+    const sameUidValidity = cached?.uidValidity != null && cached.uidValidity === uidValidity
+
+    if (!sameUidValidity) {
+      // UIDVALIDITY cambió (o es la primera sync): el servidor renumeró todo.
+      clearMailbox(path)
+      const start = Math.max(1, box.exists - limit + 1)
+      upsertEnvelopes(path, await fetchRange(client, `${start}:*`, false))
+    } else {
+      const fromUid = cached?.uidNext ?? 1
+      if (uidNext != null && uidNext > fromUid) {
+        upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true))
+      }
+    }
+
+    saveMailboxSync(path, {
+      uidValidity,
+      uidNext,
+      messages: box.exists,
+      unseen: countUnread(path)
+    })
+    setMeta('lastSync', String(Date.now()))
+    offline = false
+  } finally {
+    lock.release()
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   API de lectura: caché primero, red después
+   ------------------------------------------------------------------------- */
+
+export async function listMailboxes(sync = true): Promise<CachedResult<MailboxInfo[]>> {
+  const cached = readMailboxes()
+
+  if (sync) {
+    if (cached.length === 0) {
+      try {
+        return { ok: true, data: await serial(syncMailboxes), meta: syncMeta() }
+      } catch (error) {
+        const code = classify(error)
+        if (!isOfflineError(code)) return { ok: false, code, detail: describe(error) }
+        offline = true
+        return { ok: true, data: [], meta: syncMeta() }
+      }
+    }
+
+    // Con caché, se responde ya y se actualiza en segundo plano.
+    void serial(syncMailboxes)
+      .then(() => notify('*'))
+      .catch(() => {
+        offline = true
+        // Sin este aviso la UI no se entera de que pasó a modo offline.
+        notify('*')
+      })
+  }
+
+  return { ok: true, data: cached, meta: syncMeta() }
+}
+
+export async function listEnvelopes(
+  path: string,
+  limit: number,
+  sync = true
+): Promise<CachedResult<Envelope[]>> {
+  const cached = readEnvelopes(path, limit)
+
+  if (!sync) return { ok: true, data: cached, meta: syncMeta() }
+
+  if (cached.length === 0) {
+    try {
+      await serial(() => syncMessages(path, limit))
+      return { ok: true, data: readEnvelopes(path, limit), meta: syncMeta() }
+    } catch (error) {
+      const code = classify(error)
+      if (!isOfflineError(code)) return { ok: false, code, detail: describe(error) }
+      offline = true
+      return { ok: true, data: [], meta: syncMeta() }
+    }
+  }
+
+  void serial(() => syncMessages(path, limit))
+    .then(() => notify(path))
+    .catch(() => {
+      offline = true
+      notify(path)
+    })
+
+  return { ok: true, data: cached, meta: syncMeta() }
+}
+
+async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
+  const client = await ensureClient()
+  const lock = await client.getMailboxLock(path)
+
+  try {
+    const download = await client.download(String(uid), undefined, { uid: true })
+    if (!download.content) throw new Error('Message body unavailable')
+
+    const chunks: Buffer[] = []
+    for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
+    const raw = Buffer.concat(chunks)
+
+    const parsed = await simpleParser(raw)
+
+    const to = (parsed.to ? (Array.isArray(parsed.to) ? parsed.to : [parsed.to]) : []).flatMap((entry) =>
+      entry.value.flatMap((value) => {
+        const address = toAddress(value)
+        return address ? [address] : []
+      })
+    )
+
+    const cc = (parsed.cc ? (Array.isArray(parsed.cc) ? parsed.cc : [parsed.cc]) : []).flatMap((entry) =>
+      entry.value.flatMap((value) => {
+        const address = toAddress(value)
+        return address ? [address] : []
+      })
+    )
+
+    const attachments: MessageAttachment[] = parsed.attachments.map((attachment) => ({
+      name: attachment.filename ?? 'adjunto',
+      size: attachment.size ?? 0,
+      type: attachment.contentType ?? 'application/octet-stream'
+    }))
+
+    const envelope = readEnvelope(path, uid)
+
+    return {
+      uid,
+      subject: parsed.subject ?? envelope?.subject ?? '',
+      from: parsed.from ? toAddress(parsed.from.value[0]) : (envelope?.from ?? null),
+      to,
+      cc,
+      date: (parsed.date ?? toDate(envelope?.date)).toISOString(),
+      unread: envelope?.unread ?? false,
+      flagged: envelope?.flagged ?? false,
+      size: raw.length,
+      text: parsed.text ?? '',
+      html: typeof parsed.html === 'string' ? parsed.html : null,
+      attachments
+    }
+  } finally {
+    lock.release()
+  }
+}
+
+function cachedDetail(path: string, uid: number): MessageDetail | null {
+  const envelope = readEnvelope(path, uid)
+  if (!envelope) return null
+
+  const body = readBody(path, uid)
+  const attachments: MessageAttachment[] = body.attachments.map((attachment) => ({
+    name: attachment.name,
+    size: attachment.size,
+    type: attachment.type
+  }))
+
+  return {
+    ...envelope,
+    to: body.to,
+    cc: body.cc,
+    text: body.text ?? '',
+    html: body.html,
+    attachments
+  }
+}
+
+export async function getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>> {
+  const body = readBody(path, uid)
+  if (body.fetched) {
+    const detail = cachedDetail(path, uid)
+    if (detail) return { ok: true, data: detail, meta: syncMeta() }
+  }
+
+  try {
+    const detail = await serial(() => fetchMessage(path, uid))
+    saveBody(path, uid, {
+      text: detail.text,
+      html: detail.html,
+      to: detail.to,
+      cc: detail.cc,
+      attachments: detail.attachments
+    })
+    offline = false
+    return { ok: true, data: detail, meta: syncMeta() }
+  } catch (error) {
+    const code = classify(error)
+    const fallback = cachedDetail(path, uid)
+    if (fallback && isOfflineError(code)) {
+      offline = true
+      return { ok: true, data: fallback, meta: { ...syncMeta(), partial: true } }
+    }
+    return { ok: false, code, detail: describe(error) }
+  }
+}
+
+export function setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>> {
+  return serial(async () => {
+    try {
+      const client = await ensureClient()
+      const lock = await client.getMailboxLock(path)
+      try {
+        if (flagged) await client.messageFlagsAdd(String(uid), ['\\Flagged'], { uid: true })
+        else await client.messageFlagsRemove(String(uid), ['\\Flagged'], { uid: true })
+      } finally {
+        lock.release()
+      }
+      cacheFlagged(path, uid, flagged)
+      offline = false
+      return { ok: true as const, data: flagged }
+    } catch (error) {
+      return { ok: false as const, code: classify(error), detail: describe(error) }
+    }
+  })
+}
+
+/* ---------------------------------------------------------------------------
+   Cuenta
+   ------------------------------------------------------------------------- */
 
 export async function getAccountState(): Promise<AccountState> {
   const stored = await readSettings()
@@ -168,137 +487,4 @@ export async function connectAccount(
 
 export async function disconnectAccount(): Promise<void> {
   await serial(closeSession)
-}
-
-export function listMailboxes(): Promise<ImapResult<MailboxInfo[]>> {
-  return attempt(async (client) => {
-    const boxes = await client.list()
-    const result: MailboxInfo[] = []
-
-    for (const box of boxes) {
-      // STATUS por buzón es un round-trip cada uno: se acota para no demorar la
-      // primera pantalla. M3 lo resuelve con la caché local.
-      let messages = 0
-      let unseen = 0
-      if (result.length < 30) {
-        try {
-          const status = await client.status(box.path, { messages: true, unseen: true })
-          if (status) {
-            messages = status.messages ?? 0
-            unseen = status.unseen ?? 0
-          }
-        } catch {
-          // buzones \Noselect o servidores que niegan STATUS fuera de SELECT
-        }
-      }
-
-      result.push({
-        path: box.path,
-        name: box.name || box.path,
-        specialUse: box.specialUse ?? null,
-        messages,
-        unseen
-      })
-    }
-
-    return result
-  })
-}
-
-export function listEnvelopes(path: string, limit: number): Promise<ImapResult<Envelope[]>> {
-  return attempt(async (client) => {
-    const lock = await client.getMailboxLock(path)
-    try {
-      const mailbox = client.mailbox
-      if (!mailbox || mailbox.exists === 0) return []
-
-      const start = Math.max(1, mailbox.exists - limit + 1)
-      const envelopes: Envelope[] = []
-
-      for await (const message of client.fetch(`${start}:*`, {
-        envelope: true,
-        flags: true,
-        uid: true,
-        size: true,
-        internalDate: true
-      })) {
-        envelopes.push({
-          uid: message.uid,
-          subject: message.envelope?.subject ?? '',
-          from: toAddress(message.envelope?.from?.[0]),
-          date: toDate(message.internalDate).toISOString(),
-          unread: !message.flags?.has('\\Seen'),
-          flagged: message.flags?.has('\\Flagged') ?? false,
-          size: message.size ?? 0
-        })
-      }
-
-      return envelopes.reverse()
-    } finally {
-      lock.release()
-    }
-  })
-}
-
-export function getMessage(path: string, uid: number): Promise<ImapResult<MessageDetail>> {
-  return attempt(async (client) => {
-    const lock = await client.getMailboxLock(path)
-    try {
-      const download = await client.download(String(uid), undefined, { uid: true })
-      if (!download.content) throw new Error('Message body unavailable')
-      const chunks: Buffer[] = []
-      for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
-
-      // M1 muestra el cuerpo de texto; el HTML sanitizado es M2.
-      const parsed = await simpleParser(Buffer.concat(chunks))
-
-      const to = (parsed.to
-        ? Array.isArray(parsed.to)
-          ? parsed.to
-          : [parsed.to]
-        : []
-      ).flatMap((entry) =>
-        entry.value.flatMap((value) => {
-          const address = toAddress(value)
-          return address ? [address] : []
-        })
-      )
-
-      const attachments: MessageAttachment[] = parsed.attachments.map((attachment) => ({
-        name: attachment.filename ?? 'adjunto',
-        size: attachment.size ?? 0,
-        type: attachment.contentType ?? 'application/octet-stream'
-      }))
-
-      return {
-        uid,
-        subject: parsed.subject ?? '',
-        from: parsed.from ? toAddress(parsed.from.value[0]) : null,
-        to,
-        cc: [],
-        date: (parsed.date ?? new Date()).toISOString(),
-        unread: false,
-        flagged: false,
-        size: Buffer.concat(chunks).length,
-        text: parsed.text ?? '',
-        html: typeof parsed.html === 'string' ? parsed.html : null,
-        attachments
-      }
-    } finally {
-      lock.release()
-    }
-  })
-}
-
-export function setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>> {
-  return attempt(async (client) => {
-    const lock = await client.getMailboxLock(path)
-    try {
-      if (flagged) await client.messageFlagsAdd(String(uid), ['\\Flagged'], { uid: true })
-      else await client.messageFlagsRemove(String(uid), ['\\Flagged'], { uid: true })
-      return flagged
-    } finally {
-      lock.release()
-    }
-  })
 }

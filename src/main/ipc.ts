@@ -5,8 +5,7 @@ import {
   type AppSettings,
   type CoreStatus,
   type ImapAccountConfig,
-  type ImapResult,
-  type MessageDetail
+  type ImapResult
 } from '@shared/ipc'
 import {
   connectAccount,
@@ -38,7 +37,7 @@ export function registerIpcHandlers(): void {
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
-      stage: 'M2',
+      stage: 'M3',
       accountCount: 0
     }
   })
@@ -87,13 +86,11 @@ export function registerIpcHandlers(): void {
     await writeSettings({ account: undefined })
   })
 
-  ipcMain.handle(IPC.mailboxesList, () => listMailboxes())
-  ipcMain.handle(IPC.messagesList, (_event, path: string, limit: number) =>
-    listEnvelopes(path, Math.min(Math.max(limit, 1), 200))
+  ipcMain.handle(IPC.mailboxesList, (_event, sync: boolean = true) => listMailboxes(sync))
+  ipcMain.handle(IPC.messagesList, (_event, path: string, limit: number, sync: boolean = true) =>
+    listEnvelopes(path, Math.min(Math.max(limit, 1), 500), sync)
   )
-  ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number): Promise<ImapResult<MessageDetail>> =>
-    getMessage(path, uid)
-  )
+  ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number) => getMessage(path, uid))
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)
   )

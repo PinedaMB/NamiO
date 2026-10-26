@@ -58,6 +58,14 @@ function uidOf(threadId: string): number | null {
   return Number.isInteger(uid) ? uid : null
 }
 
+function formatAgo(milliseconds: number): string {
+  const seconds = Math.max(0, Math.round(milliseconds / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  return `${Math.round(minutes / 60)}h`
+}
+
 export function App(): React.JSX.Element {
   const { t, locale } = useI18n()
   const { bindings } = useShortcuts()
@@ -78,8 +86,15 @@ export function App(): React.JSX.Element {
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
   const [liveError, setLiveError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
   const [loadingFolder, setLoadingFolder] = useState(false)
+  const [sync, setSync] = useState<{ offline: boolean; syncedAt: number | null }>({
+    offline: false,
+    syncedAt: null
+  })
+  const [now, setNow] = useState(() => Date.now())
 
-  const live = account?.connected === true
+  // "live" = hay cuenta configurada. La conexión puede faltar: en ese caso se
+  // sirve la caché local (modo offline), no los datos de demostración.
+  const live = account?.configured === true
 
   const visible = useMemo(() => {
     if (live) {
@@ -115,7 +130,7 @@ export function App(): React.JSX.Element {
       setLoadingFolder(true)
       setFolder(path)
       setSelectedId(null)
-      const result = await window.api.listEnvelopes(path, PAGE_SIZE).catch(() => null)
+      const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
       setLoadingFolder(false)
 
       if (!result) return
@@ -124,6 +139,7 @@ export function App(): React.JSX.Element {
         return
       }
 
+      setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
       const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
       setThreads(mapped)
       setSelectedId(mapped[0]?.id ?? null)
@@ -132,15 +148,30 @@ export function App(): React.JSX.Element {
     [locale]
   )
 
+  /** Relee la caché sin tocar la red: lo usa el aviso de "buzón sincronizado". */
+  const refreshFromCache = useCallback(async (): Promise<void> => {
+    const boxes = await window.api.listMailboxes(false).catch(() => null)
+    if (boxes?.ok) setMailboxes(boxes.data)
+
+    const list = await window.api.listEnvelopes(folder, PAGE_SIZE, false).catch(() => null)
+    if (!list?.ok) return
+
+    setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
+    const mapped = list.data.map((envelope) => envelopeToThread(envelope, locale))
+    setThreads(mapped)
+    setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
+  }, [folder, locale])
+
   const loadMailboxes = useCallback(
     async (state: AccountState): Promise<void> => {
-      const result = await window.api.listMailboxes().catch(() => null)
+      const result = await window.api.listMailboxes(true).catch(() => null)
       if (!result) return
       if (!result.ok) {
         setLiveError({ code: result.code, detail: result.detail })
         return
       }
 
+      setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
       setMailboxes(result.data)
       const inbox =
         result.data.find((box) => box.specialUse === '\\Inbox' || box.path.toUpperCase() === 'INBOX') ?? result.data[0]
@@ -155,7 +186,7 @@ export function App(): React.JSX.Element {
     if (!state) return
     setAccount(state)
 
-    if (state.connected) {
+    if (state.configured) {
       await loadMailboxes(state)
       return
     }
@@ -187,6 +218,21 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     void refreshAccount()
   }, [refreshAccount])
+
+  /** Ticker para el "sincronizado hace…" del rail. */
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  /** El motor avisa cuando terminó de sincronizar un buzón: se relee la caché. */
+  useEffect(() => {
+    if (!live) return
+    const unsubscribe = window.api?.onCacheChanged?.((mailbox) => {
+      if (mailbox === '*' || mailbox === folder) void refreshFromCache()
+    })
+    return () => unsubscribe?.()
+  }, [live, folder, refreshFromCache])
 
   useEffect(() => {
     if (!toast) return
@@ -232,7 +278,8 @@ export function App(): React.JSX.Element {
           setLiveError({ code: result.code, detail: result.detail })
           return
         }
-        const message = detailToMessage(result.data, locale)
+        if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
+        const message = detailToMessage(result.data, locale, result.meta.partial === true)
         setThreads((current) =>
           current.map((thread) => (thread.id === selected.id ? { ...thread, messages: [message] } : thread))
         )
@@ -405,6 +452,14 @@ export function App(): React.JSX.Element {
       ? t('account.connect')
       : t('account.demo')
 
+  const syncLabel = !live
+    ? t('sidebar.demo')
+    : sync.offline
+      ? t('sidebar.offline')
+      : sync.syncedAt
+        ? t('sidebar.syncedAgo', { time: formatAgo(now - sync.syncedAt) })
+        : t('sidebar.syncing')
+
   return (
     <div className="app">
       <Sidebar
@@ -413,6 +468,8 @@ export function App(): React.JSX.Element {
         accountLabel={accountLabel}
         accountConnected={live}
         showTags={!live}
+        syncLabel={syncLabel}
+        offline={live && sync.offline}
         onSelectFolder={selectFolder}
         onCompose={openCompose}
         onOpenSettings={openSettings}
@@ -430,6 +487,18 @@ export function App(): React.JSX.Element {
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenSettings={openSettings}
         />
+
+        {live && sync.offline && (
+          <div className="offline-strip" role="status">
+            <Icon name="cloud_off" size={15} />
+            <strong>{t('offline.title')}</strong>
+            <span>{t('offline.detail')}</span>
+            <button className="offline-strip__retry" type="button" onClick={() => void refreshAccount()}>
+              <Icon name="refresh" size={13} />
+              {t('offline.retry')}
+            </button>
+          </div>
+        )}
 
         <div className="panes">
           {view === 'settings' ? (

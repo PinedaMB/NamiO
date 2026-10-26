@@ -66,7 +66,7 @@ export function envelopeToThread(envelope: Envelope, locale: string): Thread {
   }
 }
 
-export function detailToMessage(detail: MessageDetail, locale: string): Message {
+export function detailToMessage(detail: MessageDetail, locale: string, partial = false): Message {
   const body = detail.text
     .replace(/\r\n/g, '\n')
     .split(/\n{2,}/)
@@ -83,8 +83,9 @@ export function detailToMessage(detail: MessageDetail, locale: string): Message 
       hour: '2-digit',
       minute: '2-digit'
     }).format(new Date(detail.date)),
-    body: body.length > 0 ? body : ['(mensaje sin cuerpo de texto)'],
+    body: body.length > 0 ? body : [''],
     html: detail.html ?? undefined,
+    partial,
     attachments: detail.attachments.map((attachment) => ({
       name: attachment.name,
       size: formatBytes(attachment.size),

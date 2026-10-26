@@ -40,6 +40,8 @@ export interface Message {
   body: string[]
   /** HTML crudo del correo; se sanitiza y se pinta en un iframe aislado. */
   html?: string
+  /** Cuerpo no disponible (se leyó sin conexión y no estaba en la caché). */
+  partial?: boolean
   summary?: { title: string; bullets: string[] }
   attachments?: Attachment[]
   signature?: { name: string; role: string; place: string }

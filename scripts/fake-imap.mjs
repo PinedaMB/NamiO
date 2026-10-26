@@ -102,6 +102,29 @@ const INBOX = [
         '--lw-boundary--'
       ].join('\r\n')
     )
+  },
+  {
+    flags: [],
+    raw: message(
+      [
+        'From: Sequoia Events <events@sequoia.vc>',
+        'To: Alex Rivera <alex@namio.dev>',
+        'Subject: Press embargo reminder for the announcement',
+        'Date: Thu, 23 Oct 2026 08:05:00 -0700',
+        'Message-ID: <embargo-004@sequoia.vc>',
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=utf-8'
+      ].join('\r\n'),
+      [
+        'Hi Alex,',
+        '',
+        'Quick reminder: the press embargo lifts at 6:00 AM PT on Friday.',
+        '',
+        'Please keep the announcement under wraps until then.',
+        '',
+        'Sequoia Events'
+      ].join('\r\n')
+    )
   }
 ]
 

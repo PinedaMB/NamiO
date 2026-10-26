@@ -16,7 +16,8 @@ export const IPC = {
   messagesList: 'messages:list',
   messageGet: 'message:get',
   messageFlag: 'message:flag',
-  shellOpen: 'shell:open'
+  shellOpen: 'shell:open',
+  cacheChanged: 'cache:changed'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -109,6 +110,16 @@ export interface MessageDetail extends Envelope {
 
 export type ImapResult<T> = { ok: true; data: T } | { ok: false; code: ImapErrorCode; detail: string }
 
+/** Origen de los datos: caché local primero; `offline` indica que la red falló. */
+export interface SyncMeta {
+  offline: boolean
+  syncedAt: number | null
+  /** El mensaje está en caché pero sin cuerpo (se leyó sin conexión). */
+  partial?: boolean
+}
+
+export type CachedResult<T> = { ok: true; data: T; meta: SyncMeta } | { ok: false; code: ImapErrorCode; detail: string }
+
 export interface MailApi {
   getCoreStatus(): Promise<CoreStatus>
   /** Devuelve solo lo que el usuario ya configuró (puede venir vacío). */
@@ -119,11 +130,14 @@ export interface MailApi {
   accountConnect(config: ImapAccountConfig, password: string): Promise<ImapResult<AccountState>>
   accountDisconnect(): Promise<void>
 
-  listMailboxes(): Promise<ImapResult<MailboxInfo[]>>
-  listEnvelopes(path: string, limit: number): Promise<ImapResult<Envelope[]>>
-  getMessage(path: string, uid: number): Promise<ImapResult<MessageDetail>>
-  /** Marca/desmarca `\Flagged` (destacado) en el servidor. */
+  /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
+  listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
+  listEnvelopes(path: string, limit: number, sync?: boolean): Promise<CachedResult<Envelope[]>>
+  getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>>
+  /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>
   /** Abre un enlace en el navegador del sistema. Solo http(s) y mailto. */
   openExternal(url: string): Promise<boolean>
+  /** Avisa cuando el motor terminó de sincronizar un buzón. Devuelve el unsubscribe. */
+  onCacheChanged(listener: (mailbox: string) => void): () => void
 }
