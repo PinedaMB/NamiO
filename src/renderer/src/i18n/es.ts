@@ -186,8 +186,13 @@ export const es = {
   'toast.unstarred': 'Quitado de destacados',
   'toast.snoozed': 'Pospuesto hasta mañana 9:00',
   'toast.trashed': 'Movido a la papelera',
-  'toast.sent': 'Enviado a {to} · «{subject}» (demo)',
-  'toast.readOnly': 'Archivar y eliminar llegan con la cola de salida (M4)',
+  'toast.sent': 'Enviado',
+  'toast.queued': 'En cola: se enviará cuando vuelva la conexión',
+  'toast.sendFailed': 'No se pudo enviar: {error}',
+  'toast.actionFailed': 'No se pudo completar: {error}',
+  'outbox.pending': '{count} en cola',
+  'outbox.failed': 'No se pudo completar «{label}»',
+  'toast.readOnly': 'Posponer todavía no está implementado',
 
   'status.star': 'Destacar',
 
@@ -271,6 +276,7 @@ export const es = {
   'account.host': 'Servidor',
   'account.port': 'Puerto',
   'account.tls': 'Cifrado',
+  'account.smtp': 'Envío (SMTP)',
   'account.tlsOn': 'SSL/TLS',
   'account.tlsOff': 'Sin cifrar',
   'account.user': 'Usuario',

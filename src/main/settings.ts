@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
-import type { AppSettings } from '@shared/ipc'
+import type { AppSettings, SmtpConfig } from '@shared/ipc'
 
 /** Cuenta guardada: la contraseña solo se persiste cifrada por el SO. */
 export interface StoredAccount {
@@ -9,6 +9,7 @@ export interface StoredAccount {
   port: number
   secure: boolean
   user: string
+  smtp: SmtpConfig
   /** base64 de `safeStorage.encryptString`; ausente si el SO no ofrece cifrado. */
   secret?: string
 }

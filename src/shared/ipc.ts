@@ -16,8 +16,15 @@ export const IPC = {
   messagesList: 'messages:list',
   messageGet: 'message:get',
   messageFlag: 'message:flag',
+  messageArchive: 'message:archive',
+  messageDelete: 'message:delete',
   shellOpen: 'shell:open',
-  cacheChanged: 'cache:changed'
+  cacheChanged: 'cache:changed',
+  mailSend: 'mail:send',
+  outboxList: 'outbox:list',
+  outboxRetry: 'outbox:retry',
+  outboxCancel: 'outbox:cancel',
+  outboxChanged: 'outbox:changed'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -60,12 +67,23 @@ export interface ImapAccountConfig {
   user: string
 }
 
+export interface SmtpConfig {
+  host: string
+  port: number
+  secure: boolean
+}
+
+/** Cuenta completa: recepción (IMAP) y envío (SMTP). */
+export interface AccountConfig extends ImapAccountConfig {
+  smtp: SmtpConfig
+}
+
 export type ImapErrorCode = 'auth' | 'dns' | 'refused' | 'timeout' | 'tls' | 'network' | 'unknown'
 
 export interface AccountState {
   configured: boolean
   connected: boolean
-  account: ImapAccountConfig | null
+  account: AccountConfig | null
   /** `false` cuando el SO no ofrece cifrado y la contraseña no se persiste. */
   passwordStored: boolean
 }
@@ -120,6 +138,38 @@ export interface SyncMeta {
 
 export type CachedResult<T> = { ok: true; data: T; meta: SyncMeta } | { ok: false; code: ImapErrorCode; detail: string }
 
+/* ---------------------------------------------------------------------------
+   Cola de salida
+   ------------------------------------------------------------------------- */
+
+export type OutboxKind = 'send' | 'archive' | 'delete'
+export type OutboxStatus = 'queued' | 'failed'
+
+export interface OutboxItem {
+  id: string
+  kind: OutboxKind
+  status: OutboxStatus
+  attempts: number
+  lastError: string | null
+  createdAt: number
+  /** Asunto o descripción corta para mostrar. */
+  label: string
+}
+
+export interface SendMailPayload {
+  to: string
+  cc: string
+  subject: string
+  text: string
+}
+
+export interface MailAction {
+  ok: boolean
+  /** `true` si quedó en la cola en vez de aplicarse en el acto. */
+  queued: boolean
+  error?: string
+}
+
 export interface MailApi {
   getCoreStatus(): Promise<CoreStatus>
   /** Devuelve solo lo que el usuario ya configuró (puede venir vacío). */
@@ -127,7 +177,7 @@ export interface MailApi {
   setSettings(settings: Partial<AppSettings>): Promise<void>
 
   accountStatus(): Promise<AccountState>
-  accountConnect(config: ImapAccountConfig, password: string): Promise<ImapResult<AccountState>>
+  accountConnect(config: AccountConfig, password: string): Promise<ImapResult<AccountState>>
   accountDisconnect(): Promise<void>
 
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
@@ -136,6 +186,16 @@ export interface MailApi {
   getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>
+  /** Archivar y eliminar pasan por la cola de salida (idempotente, con reintentos). */
+  archiveMessage(path: string, uid: number): Promise<MailAction>
+  deleteMessage(path: string, uid: number): Promise<MailAction>
+
+  sendMail(payload: SendMailPayload): Promise<MailAction>
+  listOutbox(): Promise<OutboxItem[]>
+  retryOutbox(id: string): Promise<void>
+  cancelOutbox(id: string): Promise<void>
+  onOutboxChanged(listener: () => void): () => void
+
   /** Abre un enlace en el navegador del sistema. Solo http(s) y mailto. */
   openExternal(url: string): Promise<boolean>
   /** Avisa cuando el motor terminó de sincronizar un buzón. Devuelve el unsubscribe. */

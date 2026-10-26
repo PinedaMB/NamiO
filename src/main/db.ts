@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { app } from 'electron'
@@ -86,6 +87,18 @@ export function initCache(): void {
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS outbox (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      mailbox TEXT,
+      uid INTEGER,
+      payload TEXT,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at INTEGER NOT NULL
     );
   `)
 
@@ -263,9 +276,130 @@ export function setFlagged(mailbox: string, uid: number, flagged: boolean): void
     .run(flagged ? 1 : 0, mailbox, uid)
 }
 
+export function deleteMessageRow(mailbox: string, uid: number): void {
+  handle().prepare('DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+}
+
+/** Borra de la caché lo que ya no existe en el servidor (solo si la lista es completa). */
+export function pruneExcept(mailbox: string, uids: readonly number[]): void {
+  const database = handle()
+  if (uids.length === 0) {
+    database.prepare('DELETE FROM messages WHERE mailbox = ?').run(mailbox)
+    return
+  }
+  const placeholders = uids.map(() => '?').join(', ')
+  database
+    .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid NOT IN (${placeholders})`)
+    .run(mailbox, ...uids)
+}
+
+/* ---------------------------------------------------------------------------
+   Cola de salida
+   ------------------------------------------------------------------------- */
+
+export interface OutboxRow {
+  id: string
+  kind: string
+  mailbox: string | null
+  uid: number | null
+  payload: string | null
+  status: string
+  attempts: number
+  lastError: string | null
+  createdAt: number
+}
+
+interface OutboxDbRow {
+  id: string
+  kind: string
+  mailbox: string | null
+  uid: number | null
+  payload: string | null
+  status: string
+  attempts: number
+  last_error: string | null
+  created_at: number
+}
+
+function toOutboxRow(row: OutboxDbRow): OutboxRow {
+  return {
+    id: row.id,
+    kind: row.kind,
+    mailbox: row.mailbox,
+    uid: row.uid,
+    payload: row.payload,
+    status: row.status,
+    attempts: row.attempts,
+    lastError: row.last_error,
+    createdAt: row.created_at
+  }
+}
+
+export function enqueueOutbox(input: {
+  kind: string
+  payload?: unknown
+  mailbox?: string | null
+  uid?: number | null
+}): string {
+  const id = randomUUID()
+  handle()
+    .prepare(
+      `INSERT INTO outbox (id, kind, mailbox, uid, payload, status, attempts, created_at)
+       VALUES (?, ?, ?, ?, ?, 'queued', 0, ?)`
+    )
+    .run(
+      id,
+      input.kind,
+      input.mailbox ?? null,
+      input.uid ?? null,
+      input.payload === undefined ? null : JSON.stringify(input.payload),
+      Date.now()
+    )
+  return id
+}
+
+export function listOutbox(): OutboxRow[] {
+  const rows = handle()
+    .prepare('SELECT * FROM outbox ORDER BY created_at ASC')
+    .all() as unknown as OutboxDbRow[]
+  return rows.map(toOutboxRow)
+}
+
+export function getOutbox(id: string): OutboxRow | null {
+  const row = handle().prepare('SELECT * FROM outbox WHERE id = ?').get(id) as unknown as OutboxDbRow | undefined
+  return row ? toOutboxRow(row) : null
+}
+
+export function updateOutbox(
+  id: string,
+  patch: { status?: string; attempts?: number; lastError?: string | null }
+): void {
+  const current = getOutbox(id)
+  if (!current) return
+  handle()
+    .prepare('UPDATE outbox SET status = ?, attempts = ?, last_error = ? WHERE id = ?')
+    .run(
+      patch.status ?? current.status,
+      patch.attempts ?? current.attempts,
+      patch.lastError === undefined ? current.lastError : patch.lastError,
+      id
+    )
+}
+
+export function deleteOutbox(id: string): void {
+  handle().prepare('DELETE FROM outbox WHERE id = ?').run(id)
+}
+
 export function countUnread(mailbox: string): number {
   const row = handle()
     .prepare('SELECT COUNT(*) AS total FROM messages WHERE mailbox = ? AND unread = 1')
+    .get(mailbox) as unknown as { total: number }
+  return row.total
+}
+
+export function countMessages(mailbox: string): number {
+  const row = handle()
+    .prepare('SELECT COUNT(*) AS total FROM messages WHERE mailbox = ?')
     .get(mailbox) as unknown as { total: number }
   return row.total
 }

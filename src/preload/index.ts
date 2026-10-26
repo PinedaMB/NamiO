@@ -1,16 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
+  type AccountConfig,
   type AccountState,
   type AppSettings,
   type CachedResult,
   type CoreStatus,
   type Envelope,
-  type ImapAccountConfig,
   type ImapResult,
+  type MailAction,
   type MailboxInfo,
   type MailApi,
-  type MessageDetail
+  type MessageDetail,
+  type OutboxItem,
+  type SendMailPayload
 } from '@shared/ipc'
 
 /**
@@ -23,7 +26,7 @@ const api: MailApi = {
   setSettings: (settings: Partial<AppSettings>): Promise<void> => ipcRenderer.invoke(IPC.settingsSet, settings),
 
   accountStatus: (): Promise<AccountState> => ipcRenderer.invoke(IPC.accountStatus),
-  accountConnect: (config: ImapAccountConfig, password: string): Promise<ImapResult<AccountState>> =>
+  accountConnect: (config: AccountConfig, password: string): Promise<ImapResult<AccountState>> =>
     ipcRenderer.invoke(IPC.accountConnect, config, password),
   accountDisconnect: (): Promise<void> => ipcRenderer.invoke(IPC.accountDisconnect),
 
@@ -34,6 +37,20 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.messageGet, path, uid),
   setFlagged: (path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>> =>
     ipcRenderer.invoke(IPC.messageFlag, path, uid, flagged),
+  archiveMessage: (path: string, uid: number): Promise<MailAction> =>
+    ipcRenderer.invoke(IPC.messageArchive, path, uid),
+  deleteMessage: (path: string, uid: number): Promise<MailAction> => ipcRenderer.invoke(IPC.messageDelete, path, uid),
+
+  sendMail: (payload: SendMailPayload): Promise<MailAction> => ipcRenderer.invoke(IPC.mailSend, payload),
+  listOutbox: (): Promise<OutboxItem[]> => ipcRenderer.invoke(IPC.outboxList),
+  retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
+  cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
+  onOutboxChanged: (listener: () => void): (() => void) => {
+    const handler = (): void => listener()
+    ipcRenderer.on(IPC.outboxChanged, handler)
+    return () => ipcRenderer.removeListener(IPC.outboxChanged, handler)
+  },
+
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC.shellOpen, url),
   onCacheChanged: (listener: (mailbox: string) => void): (() => void) => {
     const handler = (_event: unknown, mailbox: string): void => listener(mailbox)

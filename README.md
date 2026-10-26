@@ -211,6 +211,28 @@ Limitaciones de M2: sin `cid:` (imágenes embebidas como adjunto) y sin zoom de 
 Limitaciones de M3: sin búsqueda FTS (M5), sin poda de mensajes borrados en el servidor, y archivar /
 eliminar siguen deshabilitados porque necesitan la cola de salida de M4.
 
+## M4: envío y cola de salida
+
+![Cola de salida con un envío pendiente](docs/outbox.png)
+
+- **SMTP real** con las credenciales de la cuenta (nodemailer), compartiendo usuario y contraseña con
+  IMAP; los presets ya cargan también el servidor de envío.
+- El mensaje se compone en crudo (RFC 5322, asunto UTF-8) y **lo mismo que sale se copia a Enviados**
+  por `APPEND`, así el original queda idéntico.
+- **Cola de salida** en SQLite: enviar, archivar y eliminar se encolan primero y se aplican en orden.
+  Sin red quedan pendientes (contador en la barra de estado); si el servidor rechaza, se reintenta
+  hasta 5 veces y queda `failed` con aviso y botón de reintento.
+- **Archivar y eliminar** ya modifican el servidor de verdad y actualizan la caché.
+- Después de enviar se sondea la bandeja: si el servidor devuelve la copia (o te escribís a vos mismo),
+  aparece sola.
+
+Verificado con el servidor de pruebas: varios envíos llegaron a INBOX y quedaron en Sent, un mensaje
+archivado terminó en Archive, otro borrado desapareció del servidor, y un envío encolado sin red salió
+al reconectar.
+
+Limitaciones de M4: sin borradores persistidos, sin adjuntos ni HTML en el envío, y sin IDLE (la
+bandeja se sondea cada 60 s).
+
 ## Comandos
 
 ```bash
@@ -250,6 +272,8 @@ Los artefactos quedan en `release/`.
 | M2: HTML sanitizado en iframe, imágenes bloqueadas y links externos | ✅ |
 | M3: caché SQLite, sync incremental y modo offline | ✅ |
 | Reapertura con el servidor caído mostrando la caché | ✅ |
+| M4: envío SMTP, copia en Enviados, cola con reintentos | ✅ |
+| Archivar y eliminar aplicados en el servidor | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
@@ -300,7 +324,8 @@ núcleo responde `stage: "M0"`.
 | ✅ M1 | **Rebanada vertical**: conectar 1 cuenta IMAP, listar carpetas, abrir INBOX | Se ven correos reales en pantalla |
 | ✅ M2 | Visor de mensaje: MIME, HTML sanitizado, adjuntos | Se abre un correo con imágenes y links |
 | ✅ M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
-| M4 | Redactar/enviar SMTP + borradores | Llega un mail enviado a uno mismo |
+| ✅ M4 | Envío SMTP + cola de salida + archivar/eliminar | Me envío un correo y me llega |
+| M5 | Búsqueda FTS + reglas/filtros | Buscar dentro de todos los cuerpos |
 | M5 | Multi-cuenta, búsqueda FTS5, hilos por `References` | Buscar devuelve resultados correctos |
 | M6 | OAuth2 (Gmail/Outlook) + empaquetado | Instalable en Linux vía `.deb` |
 

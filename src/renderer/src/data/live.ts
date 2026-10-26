@@ -1,4 +1,4 @@
-import type { Envelope, EnvelopeAddress, ImapAccountConfig, MailboxInfo, MessageDetail } from '@shared/ipc'
+import type { AccountConfig, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
 import type { Attachment, Message, Person, Thread } from './demo'
 
 /** Cuenta que la UI usa para pintar el rail izquierdo. */
@@ -11,8 +11,9 @@ export interface FolderView {
 }
 
 function initialsOf(name: string, address: string): string {
-  const source = (name.trim() || address).split(/[\s.@_-]+/).filter(Boolean)
-  const first = source[0]?.[0] ?? '?'
+  // Solo partes con letras: "testuser@127.0.0.1" no debe dar "T1".
+  const source = (name.trim() || address).split(/[\s.@_-]+/).filter((part) => /[a-z]/i.test(part))
+  const first = source[0]?.[0] ?? address[0] ?? '?'
   const second = source[1]?.[0] ?? ''
   return `${first}${second}`.toUpperCase()
 }
@@ -116,6 +117,14 @@ export function mailboxToFolder(mailbox: MailboxInfo): FolderView {
   }
 }
 
-export function configFromAccount(account: ImapAccountConfig | null): ImapAccountConfig {
-  return account ?? { host: '', port: 993, secure: true, user: '' }
+export function configFromAccount(account: AccountConfig | null): AccountConfig {
+  return (
+    account ?? {
+      host: '',
+      port: 993,
+      secure: true,
+      user: '',
+      smtp: { host: '', port: 465, secure: true }
+    }
+  )
 }

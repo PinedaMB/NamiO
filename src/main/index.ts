@@ -1,9 +1,10 @@
 import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
-import { closeCache, initCache } from './db'
-import { setCacheListener } from './imap'
-import { registerIpcHandlers } from './ipc'
 import { IPC } from '@shared/ipc'
+import { closeCache, initCache } from './db'
+import { setCacheListener, syncInbox } from './imap'
+import { registerIpcHandlers } from './ipc'
+import { outboxItems, processOutbox, setOutboxListener } from './mail'
 
 const isDev = !app.isPackaged
 
@@ -122,6 +123,27 @@ void app.whenReady().then(() => {
       if (!window.isDestroyed()) window.webContents.send(IPC.cacheChanged, mailbox)
     }
   })
+
+  // La cola de salida también avisa a la UI cuando cambia.
+  let lastOutboxSignature = ''
+  setOutboxListener(() => {
+    const signature = JSON.stringify(outboxItems().map((item) => `${item.id}:${item.status}:${item.attempts}`))
+    if (signature === lastOutboxSignature) return
+    lastOutboxSignature = signature
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(IPC.outboxChanged)
+    }
+  })
+
+  // Reintento periódico: si quedó algo encolado sin red, se drena solo.
+  setInterval(() => {
+    void processOutbox()
+  }, 60_000)
+
+  // Sondeo de la bandeja: sin IDLE, esto mantiene la vista al día sin recargar.
+  setInterval(() => {
+    void syncInbox()
+  }, 60_000)
 
   createWindow()
 

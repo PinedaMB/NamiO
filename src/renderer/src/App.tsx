@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo } from '@shared/ipc'
+import type { AccountState, CoreStatus, ImapErrorCode, MailboxInfo, OutboxItem } from '@shared/ipc'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
@@ -91,6 +91,7 @@ export function App(): React.JSX.Element {
     syncedAt: null
   })
   const [now, setNow] = useState(() => Date.now())
+  const [outbox, setOutbox] = useState<readonly OutboxItem[]>([])
 
   // "live" = hay cuenta configurada. La conexión puede faltar: en ese caso se
   // sirve la caché local (modo offline), no los datos de demostración.
@@ -219,6 +220,17 @@ export function App(): React.JSX.Element {
     void refreshAccount()
   }, [refreshAccount])
 
+  const refreshOutbox = useCallback(async (): Promise<void> => {
+    const items = await window.api.listOutbox().catch(() => null)
+    if (items) setOutbox(items)
+  }, [])
+
+  useEffect(() => {
+    void refreshOutbox()
+    const unsubscribe = window.api?.onOutboxChanged?.(() => void refreshOutbox())
+    return () => unsubscribe?.()
+  }, [refreshOutbox])
+
   /** Ticker para el "sincronizado hace…" del rail. */
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
@@ -318,12 +330,22 @@ export function App(): React.JSX.Element {
 
   const archive = (): void => {
     if (!selected) return
-    if (live) {
-      setToast(t('toast.readOnly'))
-      return
-    }
     const index = visible.findIndex((thread) => thread.id === selected.id)
     const next = visible[index + 1] ?? visible[index - 1] ?? null
+
+    if (live) {
+      const uid = uidOf(selected.id)
+      if (uid === null) return
+      // Optimista: la cola se encarga; si falla, el próximo sync lo restituye.
+      setThreads((current) => current.filter((thread) => thread.id !== selected.id))
+      setSelectedId(next?.id ?? null)
+      void window.api.archiveMessage(folder, uid).then((result) => {
+        if (!result.ok) setToast(t('toast.actionFailed', { error: result.error ?? '' }))
+        void refreshOutbox()
+      })
+      return
+    }
+
     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
     setSelectedId(next?.id ?? null)
     setToast(t('toast.archived'))
@@ -460,6 +482,8 @@ export function App(): React.JSX.Element {
         ? t('sidebar.syncedAgo', { time: formatAgo(now - sync.syncedAt) })
         : t('sidebar.syncing')
 
+  const outboxFailed = outbox.find((item) => item.status === 'failed') ?? null
+
   return (
     <div className="app">
       <Sidebar
@@ -526,13 +550,21 @@ export function App(): React.JSX.Element {
                   bindings={bindings}
                   contextOpen={contextOpen}
                   canToggleContext={!live}
-                  canMutate={!live}
+                  canMutate={true}
                   onToggleContext={toggleContext}
                   onArchive={archive}
                   onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
                   onDelete={() => {
+                    if (!selected) return
                     if (live) {
-                      setToast(t('toast.readOnly'))
+                      const uid = uidOf(selected.id)
+                      if (uid === null) return
+                      setThreads((current) => current.filter((thread) => thread.id !== selected.id))
+                      setToast(t('toast.trashed'))
+                      void window.api.deleteMessage(folder, uid).then((result) => {
+                        if (!result.ok) setToast(t('toast.actionFailed', { error: result.error ?? '' }))
+                        void refreshOutbox()
+                      })
                       return
                     }
                     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
@@ -566,7 +598,7 @@ export function App(): React.JSX.Element {
           )}
         </div>
 
-        <StatusBar appVersion={appVersion} bindings={bindings} />
+        <StatusBar appVersion={appVersion} bindings={bindings} pending={outbox.length} />
       </div>
 
       <CommandPalette
@@ -587,9 +619,16 @@ export function App(): React.JSX.Element {
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
         onClose={() => setCompose(null)}
-        onSend={({ to, subject }) => {
+        onSend={({ to, subject, body }) => {
           setCompose(null)
-          setToast(t('toast.sent', { to: to || '—', subject: subject || '—' }))
+          void window.api
+            .sendMail({ to, cc: '', subject, text: body })
+            .then((result) => {
+              if (result.ok) setToast(result.queued ? t('toast.queued') : t('toast.sent'))
+              else setToast(t('toast.sendFailed', { error: result.error ?? '' }))
+              void refreshOutbox()
+            })
+            .catch(() => setToast(t('toast.sendFailed', { error: 'IPC' })))
         }}
       />
 
@@ -611,6 +650,27 @@ export function App(): React.JSX.Element {
             <span>{liveError.detail}</span>
           </div>
           <button className="icon-btn" type="button" onClick={() => setLiveError(null)} title={t('common.close')}>
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      )}
+
+      {outboxFailed && (
+        <div className="live-banner" role="alert">
+          <Icon name="outbox" size={16} />
+          <div>
+            <strong>{t('outbox.failed', { label: outboxFailed.label })}</strong>
+            <span>{outboxFailed.lastError ?? ''}</span>
+          </div>
+          <button className="btn btn--primary" type="button" onClick={() => void window.api.retryOutbox(outboxFailed.id)}>
+            {t('offline.retry')}
+          </button>
+          <button
+            className="icon-btn"
+            type="button"
+            onClick={() => void window.api.cancelOutbox(outboxFailed.id)}
+            title={t('common.close')}
+          >
             <Icon name="close" size={14} />
           </button>
         </div>

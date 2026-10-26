@@ -136,11 +136,11 @@ export function ThreadPane({
             {t('common.snooze')}
             <kbd className="kbd">{formatCombo(bindings.snooze)}</kbd>
           </button>
-          <button className="tool-btn" type="button" disabled={!canMutate} title={t('common.move')}>
+          <button className="tool-btn" type="button" disabled title={t('common.move')}>
             <Icon name="drive_file_move" size={15} />
             {t('common.move')}
           </button>
-          <button className="tool-btn tool-btn--icon btn--danger" type="button" disabled={!canMutate} title={t('common.spam')}>
+          <button className="tool-btn tool-btn--icon btn--danger" type="button" disabled title={t('common.spam')}>
             <Icon name="report" size={15} />
           </button>
           <button

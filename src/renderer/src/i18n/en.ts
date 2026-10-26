@@ -183,8 +183,13 @@ export const en: Dictionary = {
   'toast.unstarred': 'Removed from starred',
   'toast.snoozed': 'Snoozed until tomorrow 9:00 AM',
   'toast.trashed': 'Moved to trash',
-  'toast.sent': 'Sent to {to} · “{subject}” (demo)',
-  'toast.readOnly': 'Archive and delete land with the outbox (M4)',
+  'toast.sent': 'Sent',
+  'toast.queued': 'Queued: it will be sent when the connection returns',
+  'toast.sendFailed': 'Could not send: {error}',
+  'toast.actionFailed': 'Could not complete: {error}',
+  'outbox.pending': '{count} queued',
+  'outbox.failed': 'Could not complete “{label}”',
+  'toast.readOnly': 'Snooze is not implemented yet',
 
   'status.star': 'Star',
 
@@ -268,6 +273,7 @@ export const en: Dictionary = {
   'account.host': 'Server',
   'account.port': 'Port',
   'account.tls': 'Encryption',
+  'account.smtp': 'Sending (SMTP)',
   'account.tlsOn': 'SSL/TLS',
   'account.tlsOff': 'Unencrypted',
   'account.user': 'Username',

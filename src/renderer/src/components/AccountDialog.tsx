@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AccountState, ImapErrorCode } from '@shared/ipc'
+import type { AccountState, ImapAccountConfig, ImapErrorCode, SmtpConfig } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { configFromAccount } from '../data/live'
@@ -23,12 +23,32 @@ interface AccountDialogProps {
   onConnected: (state: AccountState) => void
 }
 
-const PRESETS: ReadonlyArray<{ id: string; host: string; port: number; secure: boolean }> = [
-  { id: 'gmail', host: 'imap.gmail.com', port: 993, secure: true },
-  { id: 'outlook', host: 'outlook.office365.com', port: 993, secure: true },
-  { id: 'yahoo', host: 'imap.mail.yahoo.com', port: 993, secure: true },
-  { id: 'local', host: '127.0.0.1', port: 1143, secure: false },
-  { id: 'custom', host: '', port: 993, secure: true }
+const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpConfig }> = [
+  {
+    id: 'gmail',
+    imap: { host: 'imap.gmail.com', port: 993, secure: true, user: '' },
+    smtp: { host: 'smtp.gmail.com', port: 465, secure: true }
+  },
+  {
+    id: 'outlook',
+    imap: { host: 'outlook.office365.com', port: 993, secure: true, user: '' },
+    smtp: { host: 'smtp.office365.com', port: 587, secure: false }
+  },
+  {
+    id: 'yahoo',
+    imap: { host: 'imap.mail.yahoo.com', port: 993, secure: true, user: '' },
+    smtp: { host: 'smtp.mail.yahoo.com', port: 465, secure: true }
+  },
+  {
+    id: 'local',
+    imap: { host: '127.0.0.1', port: 1143, secure: false, user: '' },
+    smtp: { host: '127.0.0.1', port: 1025, secure: false }
+  },
+  {
+    id: 'custom',
+    imap: { host: '', port: 993, secure: true, user: '' },
+    smtp: { host: '', port: 465, secure: true }
+  }
 ]
 
 export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
@@ -40,6 +60,9 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const [secure, setSecure] = useState(true)
   const [user, setUser] = useState('')
   const [password, setPassword] = useState('')
+  const [smtpHost, setSmtpHost] = useState('')
+  const [smtpPort, setSmtpPort] = useState('465')
+  const [smtpSecure, setSmtpSecure] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
 
@@ -50,6 +73,9 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setPort(String(current.port))
     setSecure(current.secure)
     setUser(current.user)
+    setSmtpHost(current.smtp.host)
+    setSmtpPort(String(current.smtp.port))
+    setSmtpSecure(current.smtp.secure)
     setPassword('')
     setBusy(false)
     setError(null)
@@ -58,14 +84,27 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   if (!mounted) return null
 
   const portNumber = Number(port)
+  const smtpPortNumber = Number(smtpPort)
   const valid =
-    host.trim() !== '' && Number.isInteger(portNumber) && portNumber > 0 && portNumber < 65536 && user.trim() !== '' && password !== ''
+    host.trim() !== '' &&
+    Number.isInteger(portNumber) &&
+    portNumber > 0 &&
+    portNumber < 65536 &&
+    user.trim() !== '' &&
+    password !== '' &&
+    smtpHost.trim() !== '' &&
+    Number.isInteger(smtpPortNumber) &&
+    smtpPortNumber > 0 &&
+    smtpPortNumber < 65536
 
   const applyPreset = (preset: (typeof PRESETS)[number]): void => {
-    if (preset.host === '' && preset.id === 'custom') return
-    setHost(preset.host)
-    setPort(String(preset.port))
-    setSecure(preset.secure)
+    if (preset.id === 'custom') return
+    setHost(preset.imap.host)
+    setPort(String(preset.imap.port))
+    setSecure(preset.imap.secure)
+    setSmtpHost(preset.smtp.host)
+    setSmtpPort(String(preset.smtp.port))
+    setSmtpSecure(preset.smtp.secure)
   }
 
   const submit = async (): Promise<void> => {
@@ -73,7 +112,16 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setBusy(true)
     setError(null)
     const result = await window.api
-      .accountConnect({ host: host.trim(), port: portNumber, secure, user: user.trim() }, password)
+      .accountConnect(
+        {
+          host: host.trim(),
+          port: portNumber,
+          secure,
+          user: user.trim(),
+          smtp: { host: smtpHost.trim(), port: smtpPortNumber, secure: smtpSecure }
+        },
+        password
+      )
       .catch(() => ({ ok: false as const, code: 'unknown' as const, detail: 'IPC error' }))
 
     setBusy(false)
@@ -115,7 +163,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             <button
               key={preset.id}
               type="button"
-              className={cx('chip', 'account-preset', host === preset.host && 'chip--primary')}
+              className={cx('chip', 'account-preset', host === preset.imap.host && 'chip--primary')}
               onClick={() => applyPreset(preset)}
             >
               {preset.id === 'custom' ? t('account.custom') : preset.id === 'local' ? t('account.local') : preset.id === 'gmail' ? 'Gmail' : preset.id === 'outlook' ? 'Outlook' : 'Yahoo'}
@@ -196,6 +244,52 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               autoComplete="new-password"
             />
           </label>
+
+          <div className="account-section">
+            <span className="account-section__title">{t('account.smtp')}</span>
+            <div className="account-row account-row--host">
+              <label className="account-field">
+                <span>{t('account.host')}</span>
+                <input
+                  value={smtpHost}
+                  onChange={(event) => setSmtpHost(event.target.value)}
+                  placeholder="smtp.example.com"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+              <label className="account-field account-field--port">
+                <span>{t('account.port')}</span>
+                <input
+                  value={smtpPort}
+                  onChange={(event) => setSmtpPort(event.target.value.replace(/[^\d]/g, ''))}
+                  inputMode="numeric"
+                  placeholder="465"
+                />
+              </label>
+              <div className="account-field">
+                <span>{t('account.tls')}</span>
+                <div className="seg" role="group" aria-label={t('account.tls')}>
+                  <button
+                    type="button"
+                    className={cx('seg__btn', smtpSecure && 'seg__btn--active')}
+                    onClick={() => setSmtpSecure(true)}
+                    aria-pressed={smtpSecure}
+                  >
+                    {t('account.tlsOn')}
+                  </button>
+                  <button
+                    type="button"
+                    className={cx('seg__btn', !smtpSecure && 'seg__btn--active')}
+                    onClick={() => setSmtpSecure(false)}
+                    aria-pressed={!smtpSecure}
+                  >
+                    {t('account.tlsOff')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <p className="account-hint">
             <Icon name="info" size={14} />

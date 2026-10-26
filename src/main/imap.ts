@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import type {
+  AccountConfig,
   AccountState,
   CachedResult,
   Envelope,
@@ -15,13 +16,16 @@ import type {
 } from '@shared/ipc'
 import {
   clearMailbox,
+  countMessages,
   countUnread,
+  deleteMessageRow,
   getMailboxMeta,
   getMeta,
   readBody,
   readEnvelope,
   readEnvelopes,
   readMailboxes,
+  pruneExcept,
   saveBody,
   saveMailboxSync,
   setFlagged as cacheFlagged,
@@ -231,25 +235,48 @@ async function syncMailboxes(): Promise<MailboxInfo[]> {
 
 async function syncMessages(path: string, limit: number): Promise<void> {
   const client = await ensureClient()
+
+  // STATUS fresco: si el buzón ya estaba seleccionado, `client.mailbox` puede
+  // tener EXISTS/UIDNEXT viejos y el sync se quedaría dormido.
+  let exists = 0
+  let uidNext: number | null = null
+  let uidValidity: number | null = null
+  try {
+    const status = await client.status(path, { messages: true, uidNext: true, uidValidity: true })
+    if (status) {
+      exists = status.messages ?? 0
+      uidNext = status.uidNext != null ? Number(status.uidNext) : null
+      uidValidity = status.uidValidity != null ? Number(status.uidValidity) : null
+    }
+  } catch {
+    const box = client.mailbox
+    if (box) {
+      exists = box.exists ?? 0
+      uidNext = box.uidNext != null ? Number(box.uidNext) : null
+      uidValidity = box.uidValidity != null ? Number(box.uidValidity) : null
+    }
+  }
+
   const lock = await client.getMailboxLock(path)
 
   try {
-    const box = client.mailbox
-    if (!box) return
-
-    // imapflow tipa UIDVALIDITY/UIDNEXT como bigint: la caché los guarda como number.
-    const uidValidity = box.uidValidity != null ? Number(box.uidValidity) : null
-    const uidNext = box.uidNext != null ? Number(box.uidNext) : null
     const cached = getMailboxMeta(path)
-    const sameUidValidity = cached?.uidValidity != null && cached.uidValidity === uidValidity
+    // Resync completo si cambió UIDVALIDITY, o si el servidor "encogió" (pocos
+    // servidores reinician sin cambiarla, pero la caché no debe quedar mintiendo).
+    const shrunk =
+      cached !== null &&
+      ((uidNext !== null && cached.uidNext !== null && uidNext < cached.uidNext) ||
+        exists < countMessages(path))
+    const fullSync = cached?.uidValidity == null || cached.uidValidity !== uidValidity || shrunk
 
-    if (!sameUidValidity) {
-      // UIDVALIDITY cambió (o es la primera sync): el servidor renumeró todo.
+    if (fullSync) {
       clearMailbox(path)
-      const start = Math.max(1, box.exists - limit + 1)
-      upsertEnvelopes(path, await fetchRange(client, `${start}:*`, false))
+      const start = Math.max(1, exists - limit + 1)
+      const envelopes = await fetchRange(client, `${start}:*`, false)
+      upsertEnvelopes(path, envelopes)
+      if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
     } else {
-      const fromUid = cached?.uidNext ?? 1
+      const fromUid = cached.uidNext ?? 1
       if (uidNext != null && uidNext > fromUid) {
         upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true))
       }
@@ -258,11 +285,28 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     saveMailboxSync(path, {
       uidValidity,
       uidNext,
-      messages: box.exists,
+      messages: exists,
       unseen: countUnread(path)
     })
     setMeta('lastSync', String(Date.now()))
     offline = false
+
+    // Reconciliación: si el servidor cuenta más mensajes de los que tenemos, el
+    // UIDNEXT pudo quedar desfasado (entrega a mitad de camino). Se re-lee el
+    // tramo final por secuencia, que es idempotente.
+    if (countMessages(path) < exists) {
+      const start = Math.max(1, exists - limit + 1)
+      const envelopes = await fetchRange(client, `${start}:*`, false)
+      upsertEnvelopes(path, envelopes)
+      // Si el tramo cubre todo el buzón, también se poda lo que ya no existe.
+      if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
+      saveMailboxSync(path, {
+        uidValidity,
+        uidNext,
+        messages: exists,
+        unseen: countUnread(path)
+      })
+    }
   } finally {
     lock.release()
   }
@@ -456,6 +500,62 @@ export function setFlagged(path: string, uid: number, flagged: boolean): Promise
   })
 }
 
+/** Sincroniza la bandeja de entrada y avisa a la UI. Silencioso ante errores. */
+export async function syncInbox(limit = 50): Promise<void> {
+  const inbox = readMailboxes().find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path
+  if (!inbox) return
+
+  try {
+    await serial(() => syncMessages(inbox, limit))
+    notify(inbox)
+    notify('*')
+  } catch {
+    // sin red o sin sesión: la UI sigue con la caché
+  }
+}
+
+/** Ruta del buzón de archivo, si el servidor la expone. */
+export function archivePath(): string | null {
+  const boxes = readMailboxes()
+  return (boxes.find((box) => box.specialUse === '\\Archive') ?? boxes.find((box) => /^archive$/i.test(box.path)))?.path ?? null
+}
+
+/** Copia el mensaje en Enviados después de un envío correcto (best effort). */
+export function appendToSent(raw: Buffer): Promise<void> {
+  return serial(async () => {
+    const client = await ensureClient()
+    const sent = readMailboxes().find((box) => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
+    if (!sent) return
+    await client.append(sent, raw, ['\\Seen'])
+  })
+}
+
+export function moveMessage(path: string, uid: number, target: string): Promise<void> {
+  return serial(async () => {
+    const client = await ensureClient()
+    const lock = await client.getMailboxLock(path)
+    try {
+      await client.messageMove(String(uid), target, { uid: true })
+    } finally {
+      lock.release()
+    }
+    deleteMessageRow(path, uid)
+  })
+}
+
+export function deleteMessage(path: string, uid: number): Promise<void> {
+  return serial(async () => {
+    const client = await ensureClient()
+    const lock = await client.getMailboxLock(path)
+    try {
+      await client.messageDelete(String(uid), { uid: true })
+    } finally {
+      lock.release()
+    }
+    deleteMessageRow(path, uid)
+  })
+}
+
 /* ---------------------------------------------------------------------------
    Cuenta
    ------------------------------------------------------------------------- */
@@ -467,18 +567,49 @@ export async function getAccountState(): Promise<AccountState> {
     configured: account !== null,
     connected: session !== null && session.client.usable,
     account: account
-      ? { host: account.host, port: account.port, secure: account.secure, user: account.user }
+      ? {
+          host: account.host,
+          port: account.port,
+          secure: account.secure,
+          user: account.user,
+          smtp: account.smtp
+        }
       : null,
     passwordStored: Boolean(account?.secret)
   }
 }
 
+/** Credenciales descifradas para el motor de envío. */
+export async function getCredentials(): Promise<{ account: AccountConfig; password: string } | null> {
+  const stored = await readSettings()
+  if (!stored.account) return null
+
+  const password = stored.account.secret ? await decryptSecret(stored.account.secret) : null
+  if (!password) return null
+
+  return {
+    account: {
+      host: stored.account.host,
+      port: stored.account.port,
+      secure: stored.account.secure,
+      user: stored.account.user,
+      smtp: stored.account.smtp
+    },
+    password
+  }
+}
+
 export async function connectAccount(
-  config: ImapAccountConfig,
+  config: AccountConfig,
   password: string
 ): Promise<ImapResult<AccountState>> {
   try {
-    await serial(() => openSession(config, password))
+    await serial(() =>
+      openSession(
+        { host: config.host, port: config.port, secure: config.secure, user: config.user },
+        password
+      )
+    )
     return { ok: true, data: await getAccountState() }
   } catch (error) {
     return { ok: false, code: classify(error), detail: describe(error) }

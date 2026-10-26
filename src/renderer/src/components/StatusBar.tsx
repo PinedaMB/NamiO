@@ -6,6 +6,8 @@ import { Icon } from './Icon'
 interface StatusBarProps {
   appVersion: string | null
   bindings: Bindings
+  /** Elementos esperando en la cola de salida. */
+  pending: number
 }
 
 interface LegendEntry {
@@ -27,7 +29,7 @@ function LegendItem({ entry }: { entry: LegendEntry }): React.JSX.Element {
   )
 }
 
-export function StatusBar({ appVersion, bindings }: StatusBarProps): React.JSX.Element {
+export function StatusBar({ appVersion, bindings, pending }: StatusBarProps): React.JSX.Element {
   const { t } = useI18n()
 
   // La leyenda sale de los atajos activos: si remapeás, el pie lo refleja.
@@ -64,6 +66,12 @@ export function StatusBar({ appVersion, bindings }: StatusBarProps): React.JSX.E
       </div>
 
       <div className="statusbar__right">
+        {pending > 0 && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--tertiary)' }}>
+            <Icon name="outbox" size={12} />
+            {t('outbox.pending', { count: pending })}
+          </span>
+        )}
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="dot dot--tertiary" />
           {t('status.offline')}

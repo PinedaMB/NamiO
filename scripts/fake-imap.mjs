@@ -1,13 +1,15 @@
 // Servidor IMAP en memoria para pruebas de integración (no se empaqueta).
-// Uso: node scripts/fake-imap.mjs [puerto]
+// Uso: node scripts/fake-imap.mjs [puertoImap] [puertoSmtp]
 //
 // Credenciales: testuser / testpass. Buzones: INBOX, Sent, Archive.
+// El SMTP de entrada deposita todo en INBOX (ciclo de envío completo).
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const hoodiecrow = require('hoodiecrow-imap')
 
 const port = Number(process.argv[2] ?? 1143)
+const smtpPort = Number(process.argv[3] ?? 1025)
 
 const message = (headers, body) => `${headers}\r\n\r\n${body}\r\n`
 
@@ -157,4 +159,11 @@ const server = hoodiecrow({
 
 server.listen(port, () => {
   console.log(`fake-imap escuchando en 127.0.0.1:${port} (testuser/testpass)`)
+
+  // SMTP de entrada: todo lo que se envía aparece en INBOX, así se puede probar
+  // el ciclo completo "me escribo y me llega" sin servidores externos.
+  const { startSMTPServer } = require('hoodiecrow-imap/lib/hoodiecrowSMTPServer')
+  startSMTPServer(smtpPort, server, () => {
+    console.log(`fake-smtp escuchando en 127.0.0.1:${smtpPort}`)
+  })
 })

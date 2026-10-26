@@ -2870,6 +2870,26 @@
   align-items: end;
 }
 
+.account-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--surface-container-highest);
+}
+
+.account-section__title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tertiary);
+}
+
+.account-row--host {
+  grid-template-columns: minmax(0, 1fr) 84px auto;
+}
+
 .account-field--port input {
   text-align: left;
 }

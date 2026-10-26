@@ -2,10 +2,11 @@ import { ipcMain, shell } from 'electron'
 import { app } from 'electron'
 import {
   IPC,
+  type AccountConfig,
   type AppSettings,
   type CoreStatus,
-  type ImapAccountConfig,
-  type ImapResult
+  type ImapResult,
+  type SendMailPayload
 } from '@shared/ipc'
 import {
   connectAccount,
@@ -16,9 +17,11 @@ import {
   listMailboxes,
   setFlagged
 } from './imap'
+import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, retryOutbox, sendMail } from './mail'
 import { encryptSecret, readSettings, writeSettings } from './settings'
 
-function validConfig(config: ImapAccountConfig): boolean {
+function validConfig(config: AccountConfig): boolean {
+  const smtp = config.smtp
   return (
     typeof config.host === 'string' &&
     config.host.trim() !== '' &&
@@ -26,7 +29,13 @@ function validConfig(config: ImapAccountConfig): boolean {
     config.port > 0 &&
     config.port < 65536 &&
     typeof config.user === 'string' &&
-    config.user.trim() !== ''
+    config.user.trim() !== '' &&
+    Boolean(smtp) &&
+    typeof smtp.host === 'string' &&
+    smtp.host.trim() !== '' &&
+    Number.isInteger(smtp.port) &&
+    smtp.port > 0 &&
+    smtp.port < 65536
   )
 }
 
@@ -52,28 +61,34 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     IPC.accountConnect,
-    async (_event, config: ImapAccountConfig, password: string): Promise<ImapResult<unknown>> => {
+    async (_event, config: AccountConfig, password: string): Promise<ImapResult<unknown>> => {
       if (!validConfig(config) || typeof password !== 'string' || password === '') {
         return { ok: false, code: 'unknown', detail: 'Configuración incompleta' }
       }
 
-      const result = await connectAccount(
-        { host: config.host.trim(), port: config.port, secure: config.secure, user: config.user.trim() },
-        password
-      )
+      const normalized: AccountConfig = {
+        host: config.host.trim(),
+        port: config.port,
+        secure: config.secure,
+        user: config.user.trim(),
+        smtp: {
+          host: config.smtp.host.trim(),
+          port: config.smtp.port,
+          secure: config.smtp.secure
+        }
+      }
+
+      const result = await connectAccount(normalized, password)
       if (!result.ok) return result
 
       // La contraseña solo se persiste si el SO ofrece cifrado (DPAPI, libsecret, Keychain).
       const secret = await encryptSecret(password)
       await writeSettings({
-        account: {
-          host: config.host.trim(),
-          port: config.port,
-          secure: config.secure,
-          user: config.user.trim(),
-          ...(secret ? { secret } : {})
-        }
+        account: { ...normalized, ...(secret ? { secret } : {}) }
       })
+
+      // Al recuperar la cuenta, se drena lo que haya quedado en la cola.
+      void processOutbox()
 
       return { ok: true, data: await getAccountState() }
     }
@@ -94,6 +109,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)
   )
+  ipcMain.handle(IPC.messageArchive, (_event, path: string, uid: number) => archiveMessage(path, uid))
+  ipcMain.handle(IPC.messageDelete, (_event, path: string, uid: number) => deleteMessageAction(path, uid))
+
+  ipcMain.handle(IPC.mailSend, (_event, payload: SendMailPayload) => sendMail(payload))
+  ipcMain.handle(IPC.outboxList, () => outboxItems())
+  ipcMain.handle(IPC.outboxRetry, (_event, id: string) => retryOutbox(id))
+  ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
 
   ipcMain.handle(IPC.shellOpen, async (_event, url: string): Promise<boolean> => {
     // Solo se abre lo que el usuario puede esperar: sin file://, sin protocolos raros.
