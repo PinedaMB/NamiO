@@ -322,7 +322,9 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
           </div>
         </aside>
 
-        <main className="settings__main">{renderSection()}</main>
+        <main className="settings__main" key={section}>
+          {renderSection()}
+        </main>
       </div>
 
       {remap && (

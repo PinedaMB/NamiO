@@ -71,9 +71,14 @@ los atajos salen del toolbar de lectura (siguen en el pie) y debajo de 1280px se
 contexto.
 
 El panel de contexto (IA) se colapsa con el botón del extremo derecho del toolbar: la lectura gana
-todo el ancho y la preferencia se recuerda en `settings.json`.
+todo el ancho y la preferencia se recuerda en `settings.json`. El colapso anima el ancho (260 ms) con
+el contenido a ancho fijo, así se recorta en vez de reflowear.
 
 ![Panel de contexto colapsado](docs/inbox-collapsed.png)
+
+El resto del movimiento es deliberadamente corto: 220 ms al cambiar de pantalla, 160–190 ms al
+cambiar de sección o de hilo, y 140 ms de salida en paleta y compositor. Todo respeta
+`prefers-reduced-motion`.
 
 | Compositor | Paleta de comandos |
 | --- | --- |

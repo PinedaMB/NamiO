@@ -1075,6 +1075,25 @@
    Columna 3 — contexto
    ========================================================================== */
 
+/* Envoltorio animable: el ancho se transiciona acá y el panel conserva su
+   ancho interno fijo, así el contenido se recorta en vez de reflowear. */
+.context-shell {
+  display: flex;
+  width: var(--context-w);
+  flex-shrink: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    width 260ms var(--ease),
+    opacity 200ms var(--ease);
+}
+
+.context-shell--closed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .context {
   display: flex;
   flex-direction: column;
@@ -2670,6 +2689,95 @@
 }
 
 /* ==========================================================================
+   Movimiento
+   Las animaciones de entrada/salida duran 140–220ms: suficiente para leerse,
+   corto como para no estorbar en una app que se usa con teclado.
+   ========================================================================== */
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Cambio de pantalla (bandeja ↔ ajustes). */
+.panes > .list,
+.panes > .reading,
+.panes > .context-shell,
+.settings {
+  animation: view-in 220ms var(--ease) both;
+}
+
+/* Cambio de sección dentro de Ajustes. */
+.settings__main {
+  animation: content-in 160ms var(--ease) both;
+}
+
+/* Al cambiar de hilo el contenedor se remonta (key por id): entra suave y
+   vuelve al tope del scroll. */
+.reading__scroll {
+  animation: content-in 180ms var(--ease) both;
+}
+
+/* Diálogos: paleta, compositor y modal de remapeo. */
+.palette,
+.composer,
+.remap {
+  animation: dialog-in 190ms var(--ease) both;
+}
+
+.overlay--closing {
+  animation: fade-out 140ms var(--ease) forwards;
+  pointer-events: none;
+}
+
+.overlay--closing .palette,
+.overlay--closing .composer,
+.overlay--closing .remap {
+  animation: dialog-out 140ms var(--ease) forwards;
+}
+
+/* ==========================================================================
    Utilidades puntuales
    ========================================================================== */
 
@@ -2762,7 +2870,7 @@
 }
 
 @media (max-width: 1280px) {
-  .context {
+  .context-shell {
     display: none;
   }
   .ctx-toggle {

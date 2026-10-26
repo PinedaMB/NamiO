@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../data/demo'
 import { useI18n } from '../i18n'
+import { usePresence } from '../lib/usePresence'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -45,6 +46,7 @@ export function CommandPalette({
   onOpenSettings
 }: CommandPaletteProps): React.JSX.Element | null {
   const { t } = useI18n()
+  const { mounted, closing } = usePresence(open, 140)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -171,11 +173,11 @@ export function CommandPalette({
 
   const activeId = flat[active]?.id
 
-  if (!open) return null
+  if (!mounted) return null
 
   return (
     <div
-      className="overlay"
+      className={cx('overlay', closing && 'overlay--closing')}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}

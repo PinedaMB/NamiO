@@ -304,14 +304,18 @@ export function App(): React.JSX.Element {
                 <ThreadPaneEmpty />
               )}
 
-              {contextOpen && (
+              <div
+                className={contextOpen ? 'context-shell' : 'context-shell context-shell--closed'}
+                aria-hidden={!contextOpen}
+                inert={!contextOpen}
+              >
                 <ContextRail
                   brief={BRIEF}
                   actions={ACTION_ITEMS}
                   slots={SLOTS}
                   onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
                 />
-              )}
+              </div>
             </>
           )}
         </div>

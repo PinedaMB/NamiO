@@ -142,7 +142,7 @@ export function ThreadPane({
         </div>
       </div>
 
-      <div className="reading__scroll">
+      <div className="reading__scroll" key={thread.id}>
         <article className="letter">
           <div className="letter__head">
             <h1 className="letter__subject">{thread.subject}</h1>

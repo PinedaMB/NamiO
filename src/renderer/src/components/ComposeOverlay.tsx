@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
+import { usePresence } from '../lib/usePresence'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -32,6 +33,7 @@ export function ComposeOverlay({
   onSend
 }: ComposeOverlayProps): React.JSX.Element | null {
   const { t } = useI18n()
+  const { mounted, closing } = usePresence(open, 140)
   const [recipients, setRecipients] = useState<readonly string[]>(to ? [to] : [])
   const [draftRecipient, setDraftRecipient] = useState('')
   const [subjectValue, setSubjectValue] = useState(subject)
@@ -66,7 +68,7 @@ export function ComposeOverlay({
     setDraftRecipient('')
   }
 
-  if (!open) return null
+  if (!mounted) return null
 
   const handleGenerate = (): void => {
     setGenerating(true)
@@ -79,7 +81,7 @@ export function ComposeOverlay({
 
   return (
     <div
-      className="overlay overlay--center"
+      className={cx('overlay overlay--center', closing && 'overlay--closing')}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
