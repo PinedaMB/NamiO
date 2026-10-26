@@ -21,7 +21,28 @@ referencia: si un valor no está acá ni en los tokens, no debería existir.
 
 ---
 
-## 2. Paleta
+## 2. Marca
+
+El logo es un **mapache** índigo: la mascota da nombre y carácter a la app (NamiO → *nami* +
+raccoon), y funciona mejor que una letra porque se reconoce a 30 px y a 512 px por igual.
+
+| Pieza | Archivo | Uso |
+| --- | --- | --- |
+| Master | `build/logo-source.png` (1354², alfa) | fuente de todos los tamaños |
+| Icono de app | `build/icon.png` (512²) · `build/icon-1024.png` | `electron-builder` (Linux y Windows) |
+| Marca en la UI | `src/renderer/src/assets/logo.png` (256²) | rail, junto al wordmark "NamiO" |
+
+Reglas de uso:
+
+- Se usa **tal cual**: sin recolorear, sin rotar, sin contorno ni sombra dura. El único efecto
+  admitido es un `drop-shadow` índigo muy tenue para separarlo de un fondo oscuro.
+- Fondo **transparente**; nunca dentro de un recuadro de color (el pelaje ya es oscuro).
+- Tamaños: 30 px en el rail, 512/1024 en el sistema. No hay versión monocroma: el contraste lo dan
+  las franjas claras del hocico y las cejas.
+- Los tamaños se regeneran con `python scripts/make-icons.py` (requiere Pillow); el script recorta
+  el alfa del master y deja 4 % de respiro.
+
+## 3. Paleta
 
 Cinco familias. El valor entre paréntesis es el contraste medido contra `--surface` (`#0f131c`),
 calculado con la fórmula WCAG.
@@ -81,7 +102,7 @@ Todo el texto de la app pasa AA (≥ 4.5 : 1). El texto de `--outline` sobre
 
 ---
 
-## 3. Tipografía
+## 4. Tipografía
 
 Familias empaquetadas (`@fontsource-variable`), sin CDN:
 
@@ -110,7 +131,7 @@ Reglas:
 
 ---
 
-## 4. Espaciado, radios y sombras
+## 5. Espaciado, radios y sombras
 
 ```
 espaciado:  --sp-xs 4 · --sp-sm 6 · --sp-md 12 · --sp-lg 20 · --sp-xl 28
@@ -126,7 +147,7 @@ sombras:    --shadow-sm/md/lg (solo capas flotantes)
 
 ---
 
-## 5. Layout
+## 6. Layout
 
 Rejilla de una sola fila y tres columnas dentro del `shell`:
 
@@ -162,7 +183,7 @@ Regla: **el texto nunca se corta antes que un atajo o un adorno**; primero desap
 
 ---
 
-## 6. Componentes
+## 7. Componentes
 
 ### Botones (`.btn`)
 
@@ -235,7 +256,7 @@ atenúa con un velo negro al 40 %, nunca con blur (cuesta GPU en equipos modesto
 
 ---
 
-## 7. Iconografía
+## 8. Iconografía
 
 - **Material Symbols Outlined** por ligadura: `<Icon name="inbox" />` → `<span class="icon">inbox</span>`.
 - Tamaños: 14/15/16/18/20/22 px (`font-size`), trazo 400. `fill` solo para estados activos
@@ -246,7 +267,7 @@ atenúa con un velo negro al 40 %, nunca con blur (cuesta GPU en equipos modesto
 
 ---
 
-## 8. Movimiento
+## 9. Movimiento
 
 ```
 --fast 120ms · --normal 180ms · --ease cubic-bezier(0.2, 0, 0.2, 1)
@@ -270,7 +291,7 @@ Reglas:
 
 ---
 
-## 9. El correo es papel
+## 10. El correo es papel
 
 El HTML ajeno se dibuja en un iframe **sobre blanco** (`#ffffff`), con radio 12 px y borde de 1 px
 negro al 14 %, dentro de la UI oscura.
@@ -282,7 +303,7 @@ negro al 14 %, dentro de la UI oscura.
 
 ---
 
-## 10. Accesibilidad
+## 11. Accesibilidad
 
 - **Contraste**: pares de texto validados (ver tabla). Ningún texto por debajo de 4.5 : 1.
 - **Foco**: visible en campos y controles (`:focus-within`/`:focus-visible`); la navegación por
@@ -294,7 +315,7 @@ negro al 14 %, dentro de la UI oscura.
 
 ---
 
-## 11. Voz y microcopy
+## 12. Voz y microcopy
 
 - **Español rioplatense (voseo)**: "Presioná", "Elegí", "Podés". Inglés neutro en la variante `en`.
 - Frases cortas, en presente, sin signos de exclamación.
@@ -305,7 +326,7 @@ negro al 14 %, dentro de la UI oscura.
 
 ---
 
-## 12. Implementación
+## 13. Implementación
 
 - **Tokens primero**: un color, radio o duración nueva se agrega en `tokens.css`; los componentes no
   inventan valores.

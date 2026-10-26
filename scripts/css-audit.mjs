@@ -138,6 +138,25 @@ function usedClasses(source) {
    ------------------------------------------------------------------------- */
 
 const cssFiles = await readCssFiles()
+
+/* 0. Llaves balanceadas: un `}` de más rompe la regla siguiente en silencio. */
+for (const file of cssFiles) {
+  const clean = stripComments(file.css)
+  let depth = 0
+  let firstExtra = null
+  let line = 1
+  for (const char of clean) {
+    if (char === '\n') line += 1
+    if (char === '{') depth += 1
+    if (char === '}') {
+      depth -= 1
+      if (depth < 0 && firstExtra === null) firstExtra = line
+    }
+  }
+  if (firstExtra !== null) problems.push(`${file.path.split(/[\\/]/).pop()}: llave de cierre de más en la línea ${firstExtra}`)
+  else if (depth !== 0) problems.push(`${file.path.split(/[\\/]/).pop()}: ${depth} llave(s) sin cerrar`)
+}
+
 const definedClasses = new Map()
 const definedVars = new Map()
 const usedVars = new Map()

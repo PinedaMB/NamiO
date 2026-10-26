@@ -51,16 +51,15 @@
 }
 
 .rail__logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--r-lg);
-  background: var(--primary-container);
-  color: var(--on-primary-container);
-  font-size: 13px;
-  font-weight: 700;
+  display: block;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
+  /* El pelaje es oscuro: un halo muy tenue lo separa del rail sin dibujar un tile. */
+  filter: drop-shadow(0 0 6px rgba(192, 193, 255, 0.22));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .rail__wordmark {

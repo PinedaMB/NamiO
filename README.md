@@ -63,6 +63,7 @@ accesibilidad y reglas de implementación) está en **[DESIGN.md](DESIGN.md)**.
 
 | Pieza | Decisión |
 | --- | --- |
+| Marca | Mapache índigo (logo) en el rail a 30 px; icono de app 512/1024 desde el mismo master |
 | Paleta | `#0f131c` superficie · `#c0c1ff` primario · `#bdc2ff` secundario · `#b8c4ff` terciario · `#ffb4ab` error |
 | Tipografía | Inter Variable (contenido) + JetBrains Mono Variable (metadatos, `kbd`, direcciones) |
 | Iconos | Material Symbols Outlined, **empaquetado**: 4 MB de woff2, cero pedidos a CDN |
@@ -371,7 +372,11 @@ artefactos (se dispara con un tag `v*` o a mano).
 
 ### Marca y asociación de ventana
 
-- `build/icon.png` (512×512): la "N" sobre el degradado índigo del rail (`#8083ff → #b8c4ff`).
+- `build/icon.png` (512×512) y `build/icon-1024.png`: el **mapache índigo** de la app, con fondo
+  transparente y 4 % de respiro. Se regeneran desde `build/logo-source.png` con
+  `python scripts/make-icons.py` (recorta el alfa del master y exporta 1024/512/256).
+- `src/renderer/src/assets/logo.png` (256²) es la marca dentro de la interfaz: el rail la muestra a
+  30 px junto al wordmark.
 - `desktopName: namio.desktop` en `package.json` + `linux.syncDesktopName` en `electron-builder.yml`
   para que GNOME/KDE asocien la ventana con el lanzador.
 - **Antes de publicar**: reemplazar `homepage` (hoy `https://example.com/namio`) y `maintainer`.

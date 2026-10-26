@@ -1,3 +1,4 @@
+import logo from '../assets/logo.png'
 import { TAGS } from '../data/demo'
 import type { FolderView } from '../data/live'
 import { useI18n } from '../i18n'
@@ -38,7 +39,7 @@ export function Sidebar({
       <div>
         <div className="rail__brand">
           <div className="rail__brand-left">
-            <div className="rail__logo">N</div>
+            <img className="rail__logo" src={logo} alt="" aria-hidden="true" />
             <span className="rail__wordmark">NamiO</span>
           </div>
           <button className="icon-btn" type="button" title={t('sidebar.collapse')} aria-label={t('sidebar.collapse')}>
