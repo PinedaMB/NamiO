@@ -367,7 +367,8 @@ de pruebas, que carga `Archive/INBOX/Sent`; y sin servidor, el error aparece **i
 - **El contador de cada carpeta es de no leídos** (como en cualquier cliente): INBOX mostraba el
   total (2088) y ahora muestra los que esperan respuesta.
 - **La lista tiene barra de scroll visible** (el resto de la app la oculta a propósito) y **crece de
-  a 100** al llegar al final, hasta 2000: como la caché ya tiene todo, es instantáneo.
+  a 100** al llegar al final, hasta 2000: como la caché ya tiene todo, es instantáneo. Al pedir otra
+  tanda se conserva el cuerpo del mensaje abierto, así el lector no parpadea.
 - **Sync completa en segundo plano**: el primer sync baja los últimos 50 y, si el servidor tiene más,
   sigue tramo a tramo de 100 (con una pausa corta entre tramos para no trabar la lectura) hasta
   cubrir el buzón. El progreso va en el pie: `Sincronizando 550/1204` con barra.

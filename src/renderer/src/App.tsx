@@ -64,6 +64,20 @@ function matchesFolder(thread: Thread, folder: string): boolean {
   return true
 }
 
+/**
+ * Al pedir otra tanda se reconstruyen los hilos desde los sobres (sin cuerpo).
+ * Hay que conservar el cuerpo ya cargado del mensaje abierto, o vuelve el estado
+ * de carga y el lector parpadea.
+ */
+function mergeLoaded(previous: readonly Thread[], next: readonly Thread[]): Thread[] {
+  const known = new Map(previous.map((thread) => [thread.id, thread]))
+  return next.map((thread) => {
+    const old = known.get(thread.id)
+    if (!old || old.messages.length === 0) return thread
+    return { ...thread, messages: old.messages }
+  })
+}
+
 function uidOf(threadId: string): number | null {
   if (!threadId.startsWith('live:')) return null
   const uid = Number(threadId.slice(5))
@@ -111,6 +125,7 @@ export function App(): React.JSX.Element {
   const [searching, setSearching] = useState(false)
   /** Cuántos mensajes se piden a la caché (crece al llegar al final de la lista). */
   const [listLimit, setListLimit] = useState(PAGE_SIZE)
+  const loadingMoreRef = useRef(false)
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null)
   /** Solo se marca leído lo que el usuario abrió; la selección automática no cuenta. */
   const userNavigated = useRef(false)
@@ -245,23 +260,30 @@ export function App(): React.JSX.Element {
 
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = list.data.map((envelope) => envelopeToThread(envelope, locale))
-    setThreads(mapped)
+    setThreads((previous) => mergeLoaded(previous, mapped))
     setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
   }, [folder, locale, listLimit])
 
   /** Trae otra tanda de la caché (la descarga completa ya está en disco). */
   const loadMore = useCallback(async (): Promise<void> => {
-    if (!live || loadingFolder) return
+    if (!live || loadingFolder || loadingMoreRef.current) return
     const next = Math.min(listLimit + 100, 2000)
     if (next === listLimit) return
 
+    loadingMoreRef.current = true
     setListLimit(next)
-    const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
-    if (!result?.ok) return
+    try {
+      const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
+      if (!result?.ok) return
 
-    const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
-    setThreads(mapped)
-    setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
+      const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
+      setThreads((previous) => mergeLoaded(previous, mapped))
+      setSelectedId((current) =>
+        mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)
+      )
+    } finally {
+      loadingMoreRef.current = false
+    }
   }, [live, loadingFolder, listLimit, folder, locale])
 
   /** Progreso de la descarga completa del buzón. */
