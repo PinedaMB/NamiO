@@ -12,6 +12,7 @@ import type {
   SearchHit,
   SyncProgress
 } from '@shared/ipc'
+import { sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
@@ -107,6 +108,7 @@ export function App(): React.JSX.Element {
   const [filter, setFilter] = useState<FilterId>('focused')
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [composeSession, setComposeSession] = useState(0)
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
@@ -274,7 +276,7 @@ export function App(): React.JSX.Element {
   const vipCount = threads.filter((thread) => thread.vip).length
 
   const folderViews = useMemo<readonly FolderView[]>(() => {
-    if (live) return mailboxes.map(mailboxToFolder)
+    if (live) return sidebarMailboxes(mailboxes).map(mailboxToFolder)
     return FOLDERS.map((item) => ({
       id: item.id,
       icon: item.icon,
@@ -315,6 +317,13 @@ export function App(): React.JSX.Element {
     },
     [locale]
   )
+
+  useEffect(() => {
+    if (!live || !mailboxes.some(mailbox => mailbox.path === folder)) return
+    if (sidebarMailboxes(mailboxes).some(mailbox => mailbox.path === folder)) return
+    const junk = mailboxes.find(mailbox => mailbox.specialUse === '\\Junk')
+    if (junk) void loadFolder(junk.path)
+  }, [live, mailboxes, folder, loadFolder])
 
   /** Marca leído un hilo concreto (estado local + `\Seen` en el servidor). */
   const markRead = useCallback(
@@ -766,6 +775,7 @@ export function App(): React.JSX.Element {
     const attribution = message ? `${message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
     const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
 
+    setComposeSession(session => session + 1)
     setCompose({
       to: sender?.email ?? '',
       subject: prefix,
@@ -775,13 +785,19 @@ export function App(): React.JSX.Element {
     })
   }
 
-  const openCompose = async (): Promise<void> => {
+  const openCompose = (): void => {
+    setComposeSession(session => session + 1)
+    setCompose({ to: '', subject: '', body: '' })
+  }
+
+  const restoreDraft = async (): Promise<void> => {
     const generation = accountGeneration.current
-    const draft = live ? await window.api.getDraft().catch(() => null) : null
+    const draft = await window.api.getDraft()
     if (generation !== accountGeneration.current) return
-    const hasDraft = draft && (draft.to || draft.cc || draft.bcc || draft.subject || draft.body || draft.attachments?.length)
-    setCompose(hasDraft ? draft : { to: '', subject: '', body: '' })
-    if (hasDraft) setToast(t('draft.restored'))
+    if (!draft) { setToast(t('draft.empty')); return }
+    setComposeSession(session => session + 1)
+    setCompose(draft)
+    setToast(t('draft.restored'))
   }
 
   const onConnected = (state: AccountState): void => {
@@ -1133,29 +1149,32 @@ export function App(): React.JSX.Element {
       />
 
       <ComposeOverlay
-        key={accountIdentity.current ?? 'demo'}
+        key={`${accountIdentity.current ?? 'demo'}:${composeSession}`}
         open={compose !== null}
         to={compose?.to ?? ''}
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
+        html={compose?.html}
         cc={compose?.cc ?? ''}
         bcc={compose?.bcc ?? ''}
         initialAttachments={compose?.attachments}
         copilot={!live}
+        onRestoreDraft={live ? restoreDraft : undefined}
         onClose={async values => {
-          if (live) await window.api.saveDraft({ ...values, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
+          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.attachments?.length
+          if (live && hasContent) await window.api.saveDraft({ ...values, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
           setCompose(null)
-          if (live) setToast(t('toast.draftSaved'))
+          if (live && hasContent) setToast(t('toast.draftSaved'))
         }}
         onDiscard={async () => {
           if (live) await window.api.clearDraft()
           setCompose(null)
         }}
         onPickAttachments={live ? () => window.api.pickAttachments() : undefined}
-        onSend={async ({ to, cc, bcc, subject, body, attachments }) => {
+        onSend={async ({ to, cc, bcc, subject, body, html, attachments }) => {
           if (!live) { setCompose(null); setToast(t('toast.sent')); return }
           const generation = accountGeneration.current
-          const result = await window.api.sendMail({ to, cc, bcc, subject, text: body, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
+          const result = await window.api.sendMail({ to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
           if (!result.ok) throw new Error(result.error ?? 'SMTP')
           if (generation !== accountGeneration.current) return
           setCompose(null)

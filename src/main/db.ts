@@ -463,7 +463,7 @@ export function saveDraft(draft: DraftRow): void {
          to_field = excluded.to_field, cc = excluded.cc, subject = excluded.subject,
          body = excluded.body, updated_at = excluded.updated_at, metadata_json = excluded.metadata_json`
     )
-    .run(draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt, JSON.stringify({ bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo, references: draft.references }))
+    .run(draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt, JSON.stringify({ html: draft.html, bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo, references: draft.references }))
   prunePickedAttachments()
 }
 

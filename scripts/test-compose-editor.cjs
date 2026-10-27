@@ -11,6 +11,8 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if(id==='../lib/usePresence')return{usePresence:()=>({mounted:true,closing:false})}
  if(id==='../lib/cx')return{cx:(...v)=>v.filter(Boolean).join(' ')}
  if(id==='../data/demo')return{COPILOT_DRAFT:''}
+ if(id==='../lib/composeHtml')return{composeEmailHtml:html=>html}
+ if(id==='./RichTextEditor')return{RichTextEditor:()=>null}
  if(id==='./RecipientInput')return{RecipientInput:()=>null}
  if(id==='./Icon')return{Icon:()=>null}
  if(id==='./Tooltip')return{TooltipButton:()=>null}
@@ -35,7 +37,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  failSend=true;tree=render();find(tree,n=>n.props.className==='send-btn').props.onClick();await flush()
  assert.equal(closed.length,1)
  assert.equal(find(render(),n=>n.props.role==='alert').props.children,'Send failed')
- assert.equal(find(render(),n=>n.props.className==='editor__area').props.value,'Text')
+ assert.equal(find(render(),n=>typeof n.props.onChange==='function' && n.props.text==='Text').props.text,'Text')
  failSend=false;tree=render();const sendButton=find(tree,n=>n.props.className==='send-btn');sendButton.props.onClick();sendButton.props.onClick();await flush()
  assert.equal(sent.length,1,'repeated clicks do not duplicate mail')
  assert.equal(sent[0].bcc,'hidden@example.com')
@@ -44,3 +46,9 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
 
  console.log('Compose editor: pending addresses, validation, CC/BCC, Escape draft, failed sends, duplicate clicks and discard passed')
 })().catch(error=>{console.error(error);process.exitCode=1})
+
+const htmlHelpers = {}
+vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/lib/composeHtml.ts','utf8')), { exports:htmlHelpers, URL, require:()=>({default:{sanitize:html=>html}}) })
+for (const url of ['javascript:alert(1)','file:///tmp/file','data:text/html,test','https:///','https://','relative/path']) assert.equal(htmlHelpers.isComposeLink(url),false)
+for (const url of ['https://example.com/path','http://localhost/test','mailto:person@example.com']) assert.equal(htmlHelpers.isComposeLink(url),true)
+console.log('Rich editor links: URL parsing and safe protocol validation passed')

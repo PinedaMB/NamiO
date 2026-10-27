@@ -17,9 +17,10 @@ async function main() {
   db.openAccountCache('one')
   try {
     db.storePickedAttachment('file1','report.txt',Buffer.from('Attachment contents'))
-    const draft = {to:'to@example.com',cc:'copy@example.com',bcc:'hidden@example.com',subject:'Test',body:'Hello',attachments:[{id:'file1',name:'report.txt',size:19}],inReplyTo:'<parent@example.com>',references:['<root@example.com>','<parent@example.com>'],updatedAt:1}
+    const draft = {to:'to@example.com',cc:'copy@example.com',bcc:'hidden@example.com',subject:'Test',body:'Hello',html:'<p><strong>Hello</strong> <u>team</u></p>',attachments:[{id:'file1',name:'report.txt',size:19}],inReplyTo:'<parent@example.com>',references:['<root@example.com>','<parent@example.com>'],updatedAt:1}
     db.saveDraft(draft)
     db.closeCache(); db.openAccountCache('one')
+    assert.equal(db.readDraft().html, draft.html)
     assert.equal(db.readDraft().bcc, 'hidden@example.com')
     assert.equal(db.readDraft().attachments[0].id,'file1')
     assert.equal(db.readPickedAttachment('file1').name,'report.txt')
@@ -34,7 +35,7 @@ async function main() {
       if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>copies.push(raw)}
       return require(id)
     }})
-    const payload = {to:draft.to,cc:draft.cc,bcc:draft.bcc,subject:draft.subject,text:draft.body,attachments:['file1'],inReplyTo:draft.inReplyTo,references:draft.references}
+    const payload = {to:draft.to,cc:draft.cc,bcc:draft.bcc,subject:draft.subject,text:draft.body,html:draft.html,attachments:['file1'],inReplyTo:draft.inReplyTo,references:draft.references}
     assert.equal((await mail.sendMail({...payload,to:'bad'})).ok,false)
     assert.equal((await mail.sendMail({...payload,attachments:['missing']})).ok,false)
     assert.equal(db.listOutbox().length,0)
@@ -42,6 +43,8 @@ async function main() {
     assert.deepEqual(Array.from(sent[0].envelope.to),['to@example.com','copy@example.com','hidden@example.com'])
     const parsed = await simpleParser(sent[0].raw)
     assert.equal(parsed.bcc,undefined)
+    assert.ok(parsed.html.includes('<strong>Hello</strong>'))
+    assert.ok(parsed.text.includes('Hello'))
     assert.equal(parsed.cc.value[0].address,'copy@example.com')
     assert.equal(parsed.inReplyTo,draft.inReplyTo)
     assert.equal(parsed.references[0],'<root@example.com>')

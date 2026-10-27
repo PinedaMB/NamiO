@@ -240,6 +240,7 @@ export interface OutboxItem {
 }
 
 export interface SendMailPayload {
+  html?: string
   bcc?: string
   inReplyTo?: string
   references?: string[]
@@ -252,6 +253,7 @@ export interface SendMailPayload {
 }
 
 export interface Draft {
+  html?: string
   bcc?: string
   attachments?: PickedAttachment[]
   inReplyTo?: string

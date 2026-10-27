@@ -1,23 +1,28 @@
 import { TooltipButton } from './Tooltip'
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { validRecipients } from '@shared/mailAddresses'
 import type { Draft, PickedAttachment } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
+import { composeEmailHtml } from '../lib/composeHtml'
 import { RecipientInput } from './RecipientInput'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
+
+const RichTextEditor = lazy(() => import('./RichTextEditor').then(module => ({ default: module.RichTextEditor })))
 
 interface ComposeOverlayProps {
   open: boolean
   to: string
   subject: string
   body: string
+  html?: string
   cc?: string
   bcc?: string
   initialAttachments?: PickedAttachment[]
   onDiscard: () => Promise<void>
+  onRestoreDraft?: () => Promise<void>
   /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
   copilot?: boolean
   onClose: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
@@ -41,10 +46,12 @@ export function ComposeOverlay({
   to,
   subject,
   body,
+  html,
   cc = '',
   bcc = '',
   initialAttachments,
   onDiscard,
+  onRestoreDraft,
   copilot = true,
   onClose,
   onSend,
@@ -55,6 +62,7 @@ export function ComposeOverlay({
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
   const [bodyValue, setBodyValue] = useState(body)
+  const [htmlValue, setHtmlValue] = useState(html)
   const [ccValue, setCcValue] = useState(cc)
   const [bccValue, setBccValue] = useState(bcc)
   const [bccOpen, setBccOpen] = useState(Boolean(bcc))
@@ -82,6 +90,7 @@ export function ComposeOverlay({
     setToValue(to)
     setSubjectValue(subject)
     setBodyValue(body)
+    setHtmlValue(html)
     setApplied(false)
     setGenerating(false)
     setPicked(initialAttachments ?? [])
@@ -99,11 +108,11 @@ export function ComposeOverlay({
           ]
         : []
     )
-  }, [open, to, subject, body, copilot, cc, bcc, initialAttachments])
+  }, [open, to, subject, body, html, copilot, cc, bcc, initialAttachments])
 
   const values = (): Omit<Draft, 'updatedAt'> => ({
     to: toValue, cc: ccValue, bcc: bccValue,
-    subject: subjectValue, body: bodyValue, attachments: picked
+    subject: subjectValue, body: bodyValue, html: htmlValue, attachments: picked
   })
 
   const closeWithDraft = async (): Promise<void> => {
@@ -119,7 +128,7 @@ export function ComposeOverlay({
     sendingRef.current = true
     setSending(true)
     setError(null)
-    try { await onSend(payload) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    try { await onSend({ ...payload, html: payload.html ? composeEmailHtml(payload.html) : undefined }) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { sendingRef.current = false; setSending(false) }
   }
 
@@ -134,22 +143,27 @@ export function ComposeOverlay({
     const onKey = (event: KeyboardEvent): void => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void send(); return }
       if (event.key !== 'Escape') return
-      if ((event.target as HTMLElement | null)?.closest?.('[data-recipient-popup="true"]')) return
+      if ((event.target as HTMLElement | null)?.closest?.('[data-recipient-popup="true"], [data-editor-popup]')) return
       event.stopPropagation()
       event.preventDefault()
       void closeWithDraft()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, toValue, ccValue, bccValue, subjectValue, bodyValue, picked, sending, onClose])
+  }, [open, toValue, ccValue, bccValue, subjectValue, bodyValue, htmlValue, picked, sending, onClose])
 
   if (!mounted) return null
+
+  const replaceBody = (text: string): void => {
+    setBodyValue(text)
+    setHtmlValue(undefined)
+  }
 
   const handleGenerate = (): void => {
     setGenerating(true)
     window.setTimeout(() => {
       setGenerating(false)
-      setBodyValue(COPILOT_DRAFT)
+      replaceBody(COPILOT_DRAFT)
       setApplied(true)
     }, 650)
   }
@@ -172,9 +186,17 @@ export function ComposeOverlay({
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
-            <TooltipButton className="icon-btn" type="button" title={t('compose.minimize')} disabled>
-              <Icon name="remove" size={16} />
-            </TooltipButton>
+            {onRestoreDraft && !toValue && !ccValue && !bccValue && !subjectValue && !bodyValue && !picked.length && (
+              <button className="tool-btn" type="button" onClick={() => {
+                if (sendingRef.current) return
+                sendingRef.current = true
+                setSending(true)
+                void onRestoreDraft().catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))
+                  .finally(() => { sendingRef.current = false; setSending(false) })
+              }} disabled={sending}>
+                <Icon name="history" size={16} />{t('draft.restore')}
+              </button>
+            )}
             <TooltipButton className="icon-btn" type="button" title={t('compose.expand')} onClick={() => setExpanded(value => !value)} disabled={sending}>
               <Icon name="open_in_full" size={16} />
             </TooltipButton>
@@ -220,67 +242,14 @@ export function ComposeOverlay({
 
         <div className={cx('composer__split', !copilot && 'composer__split--solo')} inert={sending}>
           <div className="editor">
-            <div className="formatbar">
-              <div className="formatbar__tools">
-                <TooltipButton className="icon-btn" type="button" title="Bold (⌘B)" disabled>
-                  <Icon name="format_bold" size={16} />
-                </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Italic (⌘I)" disabled>
-                  <Icon name="format_italic" size={16} />
-                </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Insert link (⌘K)" disabled>
-                  <Icon name="link" size={16} />
-                </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Code block" disabled>
-                  <Icon name="code" size={16} />
-                </TooltipButton>
-                <span className="formatbar__sep" />
-                <TooltipButton className="icon-btn" type="button" title="Bullet list" disabled>
-                  <Icon name="format_list_bulleted" size={16} />
-                </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Numbered list" disabled>
-                  <Icon name="format_list_numbered" size={16} />
-                </TooltipButton>
-                <TooltipButton
-                  className="icon-btn"
-                  type="button"
-                  title={t('compose.attach')}
-                  onClick={() => {
-                    if (!onPickAttachments) return
-                    void onPickAttachments().then((files) => {
-                      if (files.length > 0) setPicked((current) => [...current, ...files])
-                    }).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))
-                  }}
-                  disabled={!onPickAttachments}
-                >
-                  <Icon name="attach_file" size={16} />
-                </TooltipButton>
-                <span className="formatbar__sep" />
-                <button className="snippet-btn" type="button" disabled>
-                  <Icon name="auto_stories" size={14} />
-                  {t('compose.snippets')}
-                </button>
-              </div>
-              <span className="t-kbd" style={{ color: 'var(--outline)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                {copilot && (
-                  <>
-                    <Icon name="cloud_done" size={14} style={{ color: 'var(--tertiary)' }} />
-                    {t('compose.autosaved')}
-                  </>
-                )}
-              </span>
-            </div>
-
-            <div className="composer__body">
-              <textarea
-                className="editor__area"
-                value={bodyValue}
-                onChange={(event) => setBodyValue(event.target.value)}
-                placeholder={t('compose.placeholder')}
-                spellCheck
-                aria-label={t('compose.placeholder')}
-              />
-
+            <Suspense fallback={<div className="letter-loading" role="status">{t('compose.loadingEditor')}</div>}>
+            <RichTextEditor text={bodyValue} html={htmlValue} disabled={sending}
+              onChange={(text, markup) => { setBodyValue(text); setHtmlValue(markup) }}
+              onAttach={onPickAttachments ? () => {
+                void onPickAttachments().then(files => {
+                  if (files.length) setPicked(current => [...current, ...files])
+                }).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))
+              } : undefined}>
               {copilot && (
                 <div className="composer__sign">
                   <strong>Alex Rivera</strong>
@@ -324,7 +293,8 @@ export function ComposeOverlay({
                   </span>
                 ))}
               </div>
-            </div>
+            </RichTextEditor>
+            </Suspense>
           </div>
 
           <div className="copilot">
@@ -405,14 +375,14 @@ export function ComposeOverlay({
               <div className="copilot__section">
                 <span className="card__label">{t('compose.manipulations')}</span>
                 <div className="micro-actions">
-                  <button className="micro-btn" type="button" onClick={() => setBodyValue(bodyValue.trim())}>
+                  <button className="micro-btn" type="button" onClick={() => replaceBody(bodyValue.trim())}>
                     <Icon name="compress" size={14} />
                     {t('compose.shorter')}
                   </button>
                   <button
                     className="micro-btn"
                     type="button"
-                    onClick={() => setBodyValue(`${bodyValue}\n\nTomorrow at 10:30 AM – 10:45 AM also works.`)}
+                    onClick={() => replaceBody(`${bodyValue}\n\nTomorrow at 10:30 AM – 10:45 AM also works.`)}
                   >
                     <Icon name="calendar_add_on" size={14} />
                     {t('compose.insertSlots')}
@@ -429,7 +399,7 @@ export function ComposeOverlay({
               <span>
                 {t('compose.pressTab')}
               </span>
-              <button className="btn btn--primary" type="button" onClick={() => setBodyValue(COPILOT_DRAFT)}>
+              <button className="btn btn--primary" type="button" onClick={() => replaceBody(COPILOT_DRAFT)}>
                 <Icon name="input" size={16} />
                 {t('compose.apply')}
               </button>
