@@ -296,6 +296,8 @@ export const en: Dictionary = {
   'settings.cache.unassigned': 'Other saved caches',
   'settings.cache.unavailable': 'Could not measure cache storage.',
   'settings.cache.hint': 'Includes mail databases and their auxiliary files. Measured when opening Settings.',
+  'settings.about.dedicationTitle': 'For Naomi Aké 💚',
+  'settings.about.dedicationMessage': 'Who inspires me to give my best, always. 🌻✨',
   'settings.about.description': 'A cross-platform desktop email client, with your messages and preferences on your device.',
   'settings.about.features': 'Connect IMAP and SMTP accounts, read saved messages offline, and organize your mail with search and local rules.',
   'settings.about.author': 'Developed by',

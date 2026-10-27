@@ -1,6 +1,7 @@
 import logo from '../assets/logo.png'
+import naomi from '../assets/naomi.png'
 import { TooltipButton } from './Tooltip'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AccountSummary, CoreStatus } from '@shared/ipc'
 import { LOCALES, useI18n, type TranslationKey } from '../i18n'
 import { useShortcuts } from '../settings/ShortcutsProvider'
@@ -51,6 +52,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     ? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / 1024)} KiB`
     : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MiB`
   const [section, setSection] = useState<Section>('general')
+  const dedication = useRef<HTMLDialogElement>(null)
   const [query, setQuery] = useState('')
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
     null
@@ -66,6 +68,31 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
       .then(setStatus)
       .catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    if (section !== 'about') return
+    let sequence = ''
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (dedication.current?.open) {
+        event.stopPropagation()
+        return
+      }
+      if (event.repeat || event.isComposing) return
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        sequence = ''
+        return
+      }
+      sequence = (sequence + event.key).slice(-6)
+      if (sequence === '100825') {
+        sequence = ''
+        event.preventDefault()
+        event.stopPropagation()
+        dedication.current?.showModal()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [section])
 
   /**
    * Captura en fase de captura (true) para que la tecla no llegue a los atajos
@@ -502,6 +529,16 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
           {renderSection()}
         </main>
       </div>
+
+      <dialog ref={dedication} className="dedication" aria-labelledby="dedication-title" aria-describedby="dedication-message">
+        <img className="dedication__portrait" src={naomi} alt="" />
+        <h2 id="dedication-title">{t('settings.about.dedicationTitle')}</h2>
+        <p id="dedication-message">{t('settings.about.dedicationMessage')}</p>
+        <button className="tool-btn" type="button" autoFocus onClick={() => dedication.current?.close()}>
+          {t('common.close')}
+          <kbd className="kbd">Esc</kbd>
+        </button>
+      </dialog>
 
       {remap && (
         <div className="overlay overlay--center" onMouseDown={(event) => event.target === event.currentTarget && setRemap(null)}>

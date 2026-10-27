@@ -299,6 +299,8 @@ export const es = {
   'settings.cache.unassigned': 'Otras cachés guardadas',
   'settings.cache.unavailable': 'No se pudo consultar el espacio de la caché.',
   'settings.cache.hint': 'Incluye las bases de datos de correo y sus archivos auxiliares. Medido al abrir Configuración.',
+  'settings.about.dedicationTitle': 'Para Naomi Aké 💚',
+  'settings.about.dedicationMessage': 'Quien me inspira a dar lo mejor de mí, siempre. 🌻✨',
   'settings.about.description': 'Un cliente de correo de escritorio multiplataforma, con tus mensajes y preferencias en tu equipo.',
   'settings.about.features': 'Conecta cuentas IMAP y SMTP, consulta mensajes guardados sin conexión y organiza tu correo con búsqueda y reglas locales.',
   'settings.about.author': 'Desarrollado por',
