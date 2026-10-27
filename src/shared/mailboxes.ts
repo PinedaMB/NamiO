@@ -19,3 +19,7 @@ export function sidebarMailboxes(mailboxes: readonly MailboxInfo[]): readonly Ma
       (child.path.startsWith(`${mailbox.path}/`) || child.path.startsWith(`${mailbox.path}\\`)))
   )
 }
+
+export function isDraftMailbox(mailbox: { path: string; name?: string; specialUse?: string | null }): boolean {
+  return mailbox.specialUse === '\\Drafts' || /^(drafts?|borradores)$/i.test(mailbox.name ?? mailbox.path.split('/').at(-1) ?? '')
+}

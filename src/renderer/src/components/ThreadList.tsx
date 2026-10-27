@@ -231,7 +231,7 @@ export function ThreadList({
             >
               <label className="thread__select">
                 <input className="thread__check" type="checkbox" checked={checkedIds.includes(thread.id)}
-                  onChange={() => onCheck(thread.id)} disabled={bulkBusy}
+                  onChange={() => onCheck(thread.id)} disabled={bulkBusy || thread.id.startsWith('draft:')}
                   aria-label={t('list.selectMessage', { subject: thread.subject })} />
               </label>
               <div className="thread__content"

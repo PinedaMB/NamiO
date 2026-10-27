@@ -38,7 +38,7 @@ async function main() {
   const context = {
     folder: 'inbox', folderRequest: { current: 0 }, activeFolderRef: { current: 'inbox' }, locale: 'es', listLimit: 50, useCallback: fn => fn, accountIdentity: { current: 'previous' }, accountGeneration: { current: 0 }
   }
-  for (const name of ['Threads', 'SelectedId', 'IndividualMessageId', 'Mailboxes', 'Query', 'Hits', 'Searching', 'LoadingFolder', 'Folder', 'LiveError', 'Sync', 'SyncProgress', 'Outbox', 'Account']) {
+  for (const name of ['Threads', 'SelectedId', 'IndividualMessageId', 'LocalDrafts', 'Mailboxes', 'Query', 'Hits', 'Searching', 'LoadingFolder', 'Folder', 'LiveError', 'Sync', 'SyncProgress', 'Outbox', 'Account']) {
     context[`set${name}`] = value => { state[name[0].toLowerCase() + name.slice(1)] = value }
   }
   const applyAccount = load('src/renderer/src/App.tsx', 'applyAccount', context)

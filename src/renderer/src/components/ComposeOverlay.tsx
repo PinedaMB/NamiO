@@ -61,6 +61,7 @@ export function ComposeOverlay({
   const { mounted, closing } = usePresence(open, 140)
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
+  const bodyRef = useRef({ body, html })
   const [bodyValue, setBodyValue] = useState(body)
   const [htmlValue, setHtmlValue] = useState(html)
   const [ccValue, setCcValue] = useState(cc)
@@ -89,6 +90,7 @@ export function ComposeOverlay({
     if (!open) return
     setToValue(to)
     setSubjectValue(subject)
+    bodyRef.current = { body, html }
     setBodyValue(body)
     setHtmlValue(html)
     setApplied(false)
@@ -112,13 +114,15 @@ export function ComposeOverlay({
 
   const values = (): Omit<Draft, 'updatedAt'> => ({
     to: toValue, cc: ccValue, bcc: bccValue,
-    subject: subjectValue, body: bodyValue, html: htmlValue, attachments: picked
+    subject: subjectValue, body: bodyRef.current.body, html: bodyRef.current.html, attachments: picked
   })
 
   const closeWithDraft = async (): Promise<void> => {
     if (sendingRef.current) return
+    sendingRef.current = true
     setError(null)
     try { await onClose(values()) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { sendingRef.current = false }
   }
 
   const send = async (): Promise<void> => {
@@ -155,6 +159,7 @@ export function ComposeOverlay({
   if (!mounted) return null
 
   const replaceBody = (text: string): void => {
+    bodyRef.current = { body: text, html: undefined }
     setBodyValue(text)
     setHtmlValue(undefined)
   }
@@ -244,7 +249,7 @@ export function ComposeOverlay({
           <div className="editor">
             <Suspense fallback={<div className="letter-loading" role="status">{t('compose.loadingEditor')}</div>}>
             <RichTextEditor text={bodyValue} html={htmlValue} disabled={sending}
-              onChange={(text, markup) => { setBodyValue(text); setHtmlValue(markup) }}
+              onChange={(text, markup) => { bodyRef.current = { body: text, html: markup }; setBodyValue(text); setHtmlValue(markup) }}
               onAttach={onPickAttachments ? () => {
                 void onPickAttachments().then(files => {
                   if (files.length) setPicked(current => [...current, ...files])

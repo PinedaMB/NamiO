@@ -50,6 +50,8 @@ export interface MailboxMeta {
 }
 
 let db: DatabaseSync | null = null
+let openedAccountId = ''
+export function cacheAccountId(): string { return openedAccountId }
 
 export function initCache(accountId: string = 'default'): void {
   if (db) return
@@ -67,6 +69,7 @@ export function openAccountCache(accountId: string): void {
   const file = accountCacheFile(accountId)
 
   db = new DatabaseSync(join(app.getPath('userData'), file))
+  openedAccountId = accountId
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA synchronous = NORMAL')
   db.exec(`
@@ -455,31 +458,33 @@ export function pruneExcept(mailbox: string, uids: readonly number[]): void {
 export type DraftRow = Draft
 
 export function saveDraft(draft: DraftRow): void {
-  handle()
-    .prepare(
-      `INSERT INTO drafts (id, to_field, cc, subject, body, updated_at, metadata_json)
-       VALUES ('current', ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         to_field = excluded.to_field, cc = excluded.cc, subject = excluded.subject,
-         body = excluded.body, updated_at = excluded.updated_at, metadata_json = excluded.metadata_json`
-    )
-    .run(draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt, JSON.stringify({ html: draft.html, bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo, references: draft.references }))
+  const id = draft.id ?? 'current'
+  handle().prepare(`INSERT INTO drafts (id, to_field, cc, subject, body, updated_at, metadata_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET to_field=excluded.to_field, cc=excluded.cc,
+    subject=excluded.subject, body=excluded.body, updated_at=excluded.updated_at, metadata_json=excluded.metadata_json`)
+    .run(id, draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt,
+      JSON.stringify({ html: draft.html, bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo,
+        references: draft.references, server: draft.server, previousServer: draft.previousServer, syncedAt: draft.syncedAt }))
   prunePickedAttachments()
 }
 
-export function readDraft(): DraftRow | null {
-  const row = handle()
-    .prepare('SELECT to_field, cc, subject, body, updated_at, metadata_json FROM drafts WHERE id = ?')
-    .get('current') as unknown as
-    | { to_field: string; cc: string; subject: string; body: string; updated_at: number; metadata_json: string | null }
-    | undefined
-
-  if (!row) return null
-  return { ...(row.metadata_json ? JSON.parse(row.metadata_json) : {}), to: row.to_field, cc: row.cc, subject: row.subject, body: row.body, updatedAt: row.updated_at }
+export function listDrafts(): DraftRow[] {
+  const rows = handle().prepare('SELECT * FROM drafts ORDER BY updated_at DESC').all() as unknown as {
+    id: string; to_field: string; cc: string; subject: string; body: string; updated_at: number; metadata_json: string | null
+  }[]
+  return rows.map(row => ({ ...(row.metadata_json ? JSON.parse(row.metadata_json) : {}), id: row.id,
+    to: row.to_field, cc: row.cc, subject: row.subject, body: row.body, updatedAt: row.updated_at }))
 }
 
-export function clearDraft(): void {
-  handle().prepare('DELETE FROM drafts WHERE id = ?').run('current')
+export function readDraft(id?: string): DraftRow | null {
+  const drafts = listDrafts()
+  return (id ? drafts.find(draft => draft.id === id) : drafts[0]) ?? null
+}
+
+export function clearDraft(id?: string): void {
+  const draft = readDraft(id)
+  if (draft) handle().prepare('DELETE FROM drafts WHERE id = ?').run(draft.id!)
   prunePickedAttachments()
 }
 

@@ -44,6 +44,11 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  tree=render();find(tree,n=>n.props.className==='tool-btn btn--danger').props.onClick();await flush()
  assert.equal(discarded.length,1);assert.equal(closed.length,1,'discard does not save the draft')
 
+ tree=render()
+ find(tree,n=>n.props.text==='Text'&&typeof n.props.onChange==='function').props.onChange('Latest edit','<p><strong>Latest edit</strong></p>')
+ find(tree,n=>n.props.title==='common.close').props.onClick();await flush()
+ assert.equal(closed.at(-1).body,'Latest edit','closing in the same turn must save the latest rich editor transaction')
+ assert.ok(closed.at(-1).html.includes('<strong>'))
  console.log('Compose editor: pending addresses, validation, CC/BCC, Escape draft, failed sends, duplicate clicks and discard passed')
 })().catch(error=>{console.error(error);process.exitCode=1})
 

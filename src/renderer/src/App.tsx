@@ -12,9 +12,9 @@ import type {
   SearchHit,
   SyncProgress
 } from '@shared/ipc'
-import { sidebarMailboxes } from '@shared/mailboxes'
+import { isDraftMailbox, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
-import { detailToMessage, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
+import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ThreadList } from './components/ThreadList'
@@ -108,6 +108,7 @@ export function App(): React.JSX.Element {
   const [filter, setFilter] = useState<FilterId>('focused')
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [localDrafts, setLocalDrafts] = useState<Draft[]>([])
   const [composeSession, setComposeSession] = useState(0)
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -187,6 +188,7 @@ export function App(): React.JSX.Element {
       setThreads([])
       setSelectedId(null)
       setIndividualMessageId(null)
+      setLocalDrafts([])
       setMailboxes([])
       setQuery('')
       setHits([])
@@ -203,18 +205,23 @@ export function App(): React.JSX.Element {
     setAccount(state)
   }, [])
 
+  const draftsFolder = live && mailboxes.some(box => box.path === folder && isDraftMailbox(box))
+  const listedThreads = useMemo(() => draftsFolder
+    ? pendingDraftThreads(threads, localDrafts, folder, locale, t('draft.local')) : threads,
+  [draftsFolder, threads, localDrafts, folder, locale, t])
+
   const visible = useMemo(() => {
     if (live) {
       // El hilo abierto sigue visible aunque se marque leído: si desapareciera
       // del filtro, la selección saltaría al siguiente y lo marcaría leído
       // también (cascada de mensajes "leídos" sin abrir).
-      if (filter === 'focused') return threads.filter((thread) => thread.unread || thread.id === selectedId)
-      if (filter === 'other') return threads.filter((thread) => !thread.unread || thread.id === selectedId)
-      if (filter === 'all') return threads
-      return threads
+      if (filter === 'focused') return listedThreads.filter((thread) => thread.unread || thread.id === selectedId)
+      if (filter === 'other') return listedThreads.filter((thread) => !thread.unread || thread.id === selectedId)
+      if (filter === 'all') return listedThreads
+      return listedThreads
     }
-    return threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
-  }, [live, threads, filter, folder, selectedId])
+    return listedThreads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
+  }, [live, listedThreads, filter, folder, selectedId])
 
   useEffect(() => {
     setCheckedIds([])
@@ -266,13 +273,13 @@ export function App(): React.JSX.Element {
   }
 
   const selected = useMemo(
-    () => threads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
-    [threads, selectedId, visible]
+    () => listedThreads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
+    [listedThreads, selectedId, visible]
   )
 
-  const unreadCount = threads.filter((thread) => thread.unread).length
-  const otherCount = threads.filter((thread) => !thread.unread).length
-  const allCount = threads.length
+  const unreadCount = listedThreads.filter((thread) => thread.unread).length
+  const otherCount = listedThreads.filter((thread) => !thread.unread).length
+  const allCount = listedThreads.length
   const vipCount = threads.filter((thread) => thread.vip).length
 
   const folderViews = useMemo<readonly FolderView[]>(() => {
@@ -300,6 +307,9 @@ export function App(): React.JSX.Element {
       if (focusUid === undefined) setSelectedId(null)
       const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
       if (generation !== accountGeneration.current || request !== folderRequest.current) return
+      const drafts = await window.api.listDrafts().catch(() => [])
+      if (generation !== accountGeneration.current || request !== folderRequest.current) return
+      setLocalDrafts(drafts)
       setLoadingFolder(false)
 
       if (!result) return
@@ -395,6 +405,9 @@ export function App(): React.JSX.Element {
     const list = await window.api.listEnvelopes(folder, listLimit, false).catch(() => null)
     if (generation !== accountGeneration.current || request !== folderRequest.current || !list?.ok) return
 
+    const drafts = await window.api.listDrafts().catch(() => [])
+    if (generation !== accountGeneration.current || request !== folderRequest.current) return
+    setLocalDrafts(drafts)
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = envelopesToThreads(list.data, locale)
     setThreads((previous) => mergeLoaded(previous, mapped))
@@ -561,6 +574,8 @@ export function App(): React.JSX.Element {
     const items = await window.api.listOutbox().catch(() => null)
     if (generation !== accountGeneration.current) return
     if (items) setOutbox(items)
+    const drafts = await window.api.listDrafts().catch(() => [])
+    if (generation === accountGeneration.current) setLocalDrafts(drafts)
   }, [])
 
   useEffect(() => {
@@ -646,12 +661,24 @@ export function App(): React.JSX.Element {
     userNavigated.current = true
     setSelectedId(id)
 
+    if (live && draftsFolder) {
+      const generation = accountGeneration.current
+      const request = folderRequest.current
+      const draft = id.startsWith('draft:') ? window.api.getDraft(id.slice(6)) : window.api.openDraft(folder, uidOf(id) ?? 0)
+      void draft.then(value => {
+        if (!value || generation !== accountGeneration.current || request !== folderRequest.current) return
+        setComposeSession(session => session + 1)
+        setCompose(value)
+      }).catch(error => setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })))
+      return
+    }
     const thread = threads.find((item) => item.id === id)
     const uid = uidOf(id)
     if (thread?.unread && uid !== null) markRead(folder, uid, id)
   }
 
   const selectFolder = (id: string): void => {
+    if (mailboxes.some(box => box.path === id && isDraftMailbox(box))) setFilter('all')
     setView('mailbox')
     if (live) {
       void loadFolder(id)
@@ -1022,7 +1049,7 @@ export function App(): React.JSX.Element {
               ) : (
                 <ThreadList
                 threads={visible}
-                allThreads={threads}
+                allThreads={listedThreads}
                 mailbox={folder}
                 spam={folderViews.some((item) => item.id === folder && item.spam)}
                 checkedIds={checkedIds}
@@ -1067,7 +1094,7 @@ export function App(): React.JSX.Element {
                   bindings={bindings}
                   contextOpen={contextOpen}
                   canToggleContext={!live}
-                  canMutate={true}
+                  canMutate={!selected.id.startsWith('draft:')}
                   unread={selected.unread}
                   onToggleContext={toggleContext}
                   onArchive={archive}
@@ -1162,23 +1189,23 @@ export function App(): React.JSX.Element {
         onRestoreDraft={live ? restoreDraft : undefined}
         onClose={async values => {
           const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.attachments?.length
-          if (live && hasContent) await window.api.saveDraft({ ...values, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
+          let queued = false
+          if (live && hasContent) ({ queued } = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() }))
           setCompose(null)
-          if (live && hasContent) setToast(t('toast.draftSaved'))
+          if (live && hasContent) setToast(t(queued ? 'draft.pendingSync' : 'toast.draftSaved'))
         }}
         onDiscard={async () => {
-          if (live) await window.api.clearDraft()
+          if (live) await window.api.clearDraft(compose?.id)
           setCompose(null)
         }}
         onPickAttachments={live ? () => window.api.pickAttachments() : undefined}
         onSend={async ({ to, cc, bcc, subject, body, html, attachments }) => {
           if (!live) { setCompose(null); setToast(t('toast.sent')); return }
           const generation = accountGeneration.current
-          const result = await window.api.sendMail({ to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
+          const result = await window.api.sendMail({ draftId: compose?.id, to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
           if (!result.ok) throw new Error(result.error ?? 'SMTP')
           if (generation !== accountGeneration.current) return
           setCompose(null)
-          await window.api.clearDraft().catch(() => undefined)
           setToast(result.queued ? t('toast.queued') : t('toast.sent'))
           void refreshOutbox()
         }}
@@ -1221,7 +1248,7 @@ export function App(): React.JSX.Element {
         <div className="live-banner" role="alert">
           <Icon name="outbox" size={16} />
           <div>
-            <strong>{t('outbox.failed', { label: outboxFailed.label })}</strong>
+            <strong>{t('outbox.failed', { label: outboxFailed.kind === 'draft-save' ? t('draft.syncAction') : outboxFailed.kind === 'draft-delete' ? t('draft.removeAction') : outboxFailed.label })}</strong>
             <span>{outboxFailed.lastError ?? ''}</span>
           </div>
           <button className="btn btn--primary" type="button" onClick={() => void window.api.retryOutbox(outboxFailed.id)}>

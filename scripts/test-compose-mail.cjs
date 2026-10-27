@@ -29,6 +29,7 @@ async function main() {
     vm.runInNewContext(compile(await fs.readFile('src/main/mail.ts','utf8')), { exports:mail, Buffer, setTimeout:()=>0, console, require:id=>{
       if(id==='@shared/mailAddresses')return addresses
       if(id==='./db')return db
+      if(id==='./drafts')return {queueDraftDelete:id=>db.clearDraft(id),syncDraft:async()=>{}}
       if(id==='./settings')return {readActiveAccount:async()=>({id:'one'})}
       if(id==='electron')return {dialog:{},BrowserWindow:{}}
       if(id==='nodemailer')return {createTransport:options=>options.streamTransport ? nodemailer.createTransport(options) : {sendMail:async message=>{if(failSmtp)throw new Error('Offline');sent.push(message)},close(){}}}

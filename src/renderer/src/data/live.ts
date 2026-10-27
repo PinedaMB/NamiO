@@ -1,6 +1,6 @@
-import { isSpamMailbox } from '@shared/mailboxes'
+import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 export { isSpamMailbox } from '@shared/mailboxes'
-import type { AccountConfig, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
+import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
 import type { Attachment, Message, Person, Thread } from './demo'
 
 /** Cuenta que la UI usa para pintar el rail izquierdo. */
@@ -149,7 +149,7 @@ export function mailboxToFolder(mailbox: MailboxInfo): FolderView {
   const trash = mailbox.specialUse === '\\Trash' ||
     /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(mailbox.name) ||
     /(^|\/)(trash|deleted items|papelera)$/i.test(mailbox.path)
-  const count = trash ? mailbox.messages : mailbox.unseen
+  const count = trash || isDraftMailbox(mailbox) ? mailbox.messages : mailbox.unseen
   return {
     id: mailbox.path,
     spam,
@@ -170,4 +170,17 @@ export function configFromAccount(account: AccountConfig | null): AccountConfig 
       smtp: { host: '', port: 465, secure: true }
     }
   )
+}
+
+export function pendingDraftThreads(threads: readonly Thread[], drafts: readonly Draft[], path: string, locale: string, label: string): Thread[] {
+  const pending = drafts.filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer)
+  const replaced = new Set(pending.flatMap(draft => [draft.server, draft.previousServer]
+    .filter(reference => reference?.path === path).map(reference => `live:${reference!.uid}`)))
+  return [...pending.map(draft => ({
+    id: `draft:${draft.id}`, subject: draft.subject || label, preview: draft.body.slice(0, 120),
+    receivedAt: formatTime(new Date(draft.updatedAt).toISOString(), locale),
+    unread: false, starred: false, vip: false, messageCount: 1, tags: [],
+    participants: [personFrom(null, draft.to || label)],
+    messages: [{ id: `draft:${draft.id}`, from: personFrom(null, label), to: [], sentAt: formatTime(new Date(draft.updatedAt).toISOString(), locale), body: [draft.body], html: draft.html }], hasAttachments: Boolean(draft.attachments?.length)
+  })), ...threads.filter(thread => !replaced.has(thread.id)).map(thread => ({ ...thread, messageIds: undefined, messageCount: 1 }))]
 }

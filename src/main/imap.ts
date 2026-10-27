@@ -1,7 +1,10 @@
+import { isDraftMailbox } from '@shared/mailboxes'
 import { createHash } from 'node:crypto'
 import { ImapFlow, type MessageStructureObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import type {
+  Draft,
+  DraftServerRef,
   AccountConfig,
   AccountState,
   AccountActivity,
@@ -37,6 +40,9 @@ import {
   readMailboxes,
   replaceMailboxes,
   pruneExcept,
+  readDraft as readLocalDraft,
+  enqueueOutbox,
+  saveDraft as storeDraft,
   saveBody,
   saveMailboxSync,
   searchMessages,
@@ -406,7 +412,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
 
     // Las reglas actúan sobre lo que acaba de llegar. Las acciones se encolan
     // y el listener las aplica en el servidor.
-    if (nuevos.length > 0) {
+    if (nuevos.length > 0 && !readMailboxes().some(box => box.path === path && isDraftMailbox(box))) {
       const matched = applyRulesToNew(path, nuevos)
       if (matched > 0) rulesListener?.()
     }
@@ -1103,4 +1109,90 @@ export async function disconnectAccount(): Promise<void> {
 
 export function clearCachedMail(accountId: string): Promise<void> {
   return serial(() => clearAccountCache(accountId))
+}
+
+export function notifyDraftsChanged(): void { notify('*') }
+
+export function downloadDraft(path: string, uid: number): Promise<{ raw: Buffer; server: DraftServerRef }> {
+  const generation = syncGeneration
+  return serial(async () => {
+    if (!readMailboxes().some(box => box.path === path && isDraftMailbox(box))) throw new Error('La carpeta no es de borradores')
+    const client = await ensureClient()
+    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+    const lock = await client.getMailboxLock(path)
+    try {
+      const result = await client.download(String(uid), undefined, { uid: true })
+      if (!result.content || !client.mailbox) throw new Error('No se pudo abrir el borrador')
+      const chunks: Buffer[] = []
+      for await (const chunk of result.content) chunks.push(Buffer.from(chunk))
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      return { raw: Buffer.concat(chunks), server: { path, uid, uidValidity: String(client.mailbox.uidValidity) } }
+    } finally { lock.release() }
+  })
+}
+
+async function removeDraftWithClient(client: ImapFlow, reference: DraftServerRef): Promise<void> {
+  if (!readMailboxes().some(box => box.path === reference.path && isDraftMailbox(box))) throw new Error('La carpeta no es de borradores')
+  const lock = await client.getMailboxLock(reference.path)
+  try {
+    if (!client.mailbox || String(client.mailbox.uidValidity) !== reference.uidValidity) throw new Error('La identidad de la carpeta de borradores cambió')
+    if (!client.capabilities.has('UIDPLUS')) throw new Error('El servidor no permite eliminar solo este borrador de forma segura')
+    const exists = await client.fetchOne(String(reference.uid), { uid: true }, { uid: true })
+    if (exists && !await client.messageDelete(String(reference.uid), { uid: true })) throw new Error('No se pudo quitar el borrador anterior')
+    deleteMessageRow(reference.path, reference.uid)
+  } finally { lock.release() }
+}
+
+export function removeServerDraft(reference: DraftServerRef): Promise<void> {
+  const generation = syncGeneration
+  return serial(async () => {
+    const client = await ensureClient()
+    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+    await removeDraftWithClient(client, reference)
+    await syncMessages(reference.path, 50)
+    notify(reference.path)
+  })
+}
+
+export function uploadDraft(draft: Draft, raw: Buffer, messageId: string): Promise<void> {
+  const generation = syncGeneration
+  return serial(async () => {
+    const client = await ensureClient()
+    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+    if (!readMailboxes().some(isDraftMailbox)) await syncMailboxes()
+    const folder = readMailboxes().find(box => box.path === draft.server?.path && isDraftMailbox(box)) ?? readMailboxes().find(box => box.specialUse === '\\Drafts') ?? readMailboxes().find(isDraftMailbox)
+    if (!folder) throw new Error('No se encontró la carpeta de borradores del servidor')
+    if (draft.previousServer) await removeDraftWithClient(client, draft.previousServer)
+    let saved: Draft = draft
+    if (draft.syncedAt !== draft.updatedAt) {
+      const lock = await client.getMailboxLock(folder.path)
+      try {
+        if (!client.capabilities.has('UIDPLUS') || !client.mailbox) throw new Error('El servidor no permite actualizar borradores de forma segura')
+        const found = await client.search({ header: { 'Message-ID': messageId } }, { uid: true })
+        let uid = found ? found[0] : undefined
+        if (!uid) {
+          const result = await client.append(folder.path, raw, ['\\Draft', '\\Seen'])
+          uid = result ? result.uid : undefined
+        }
+        if (!uid) throw new Error('El servidor no confirmó la identidad del borrador guardado')
+        if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+        const reference = { path: folder.path, uid, uidValidity: String(client.mailbox.uidValidity) }
+        const current = readLocalDraft(draft.id)
+        if (!current) {
+          enqueueOutbox({ kind: 'draft-delete', payload: { server: reference } })
+          notify(folder.path)
+          return
+        }
+        // Una edición hecha durante APPEND conserva su contenido y queda pendiente de otra revisión.
+        saved = { ...current, previousServer: draft.server, server: reference, syncedAt: draft.updatedAt }
+        storeDraft(saved)
+      } finally { lock.release() }
+    }
+    if (saved.previousServer && (saved.previousServer.uid !== saved.server?.uid || saved.previousServer.path !== saved.server?.path)) await removeDraftWithClient(client, saved.previousServer)
+    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+    const current = readLocalDraft(draft.id)
+    if (current) storeDraft({ ...current, server: saved.server, syncedAt: draft.updatedAt, previousServer: undefined })
+    await syncMessages(folder.path, 50)
+    notify(folder.path)
+  })
 }

@@ -1,3 +1,4 @@
+import { queueDraftDelete, syncDraft } from './drafts'
 import { splitRecipients, validRecipients } from '@shared/mailAddresses'
 import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
@@ -5,9 +6,9 @@ import { basename } from 'node:path'
 import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { createTransport } from 'nodemailer'
 import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
-import { rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
+import { readDraft, cacheAccountId, rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
 import { readActiveAccount } from './settings'
-import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, setSeen, syncInbox } from './imap'
+import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, removeServerDraft, setSeen, syncInbox } from './imap'
 
 /**
  * Cola de salida: todo lo que modifica el servidor (enviar, archivar, eliminar)
@@ -183,8 +184,22 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
 }
 
 async function runOne(row: OutboxRow): Promise<void> {
-  if (row.kind === 'send') {
+  const owner = cacheAccountId()
+  if (row.kind === 'draft-save') {
+    const id = payloadOf(row).draftId
+    if (typeof id !== 'string') throw new Error('Borrador inválido')
+    await syncDraft(id)
+    const current = owner === cacheAccountId() ? readDraft(id) : null
+    if (current && current.syncedAt !== current.updatedAt && !listOutbox().some(item => item.id !== row.id && item.kind === 'draft-save' && payloadOf(item).draftId === id)) {
+      enqueueOutbox({ kind: 'draft-save', payload: { draftId: id } })
+    }
+  } else if (row.kind === 'draft-delete') {
+    const reference = payloadOf(row).server as import('@shared/ipc').DraftServerRef
+    if (!reference || typeof reference.path !== 'string' || !Number.isInteger(reference.uid) || typeof reference.uidValidity !== 'string') throw new Error('Borrador inválido')
+    await removeServerDraft(reference)
+  } else if (row.kind === 'send') {
     await sendWithSmtp(payloadOf(row) as unknown as SendMailPayload)
+    if (owner === cacheAccountId() && typeof payloadOf(row).draftId === 'string' && readDraft(payloadOf(row).draftId as string)?.updatedAt === payloadOf(row).draftUpdatedAt) queueDraftDelete(payloadOf(row).draftId as string)
   } else if (row.kind === 'archive') {
     const target = archivePath()
     if (!target) throw new Error('El servidor no expone un buzón de archivo')
@@ -199,6 +214,7 @@ async function runOne(row: OutboxRow): Promise<void> {
     await setSeen(row.mailbox ?? 'INBOX', row.uid ?? 0, true)
   }
 
+  if (owner !== cacheAccountId()) return
   deleteOutbox(row.id)
   prunePickedAttachments()
 }
@@ -207,13 +223,19 @@ async function runOne(row: OutboxRow): Promise<void> {
 export async function processOutbox(): Promise<void> {
   if (processing) return
   processing = true
+  const owner = cacheAccountId()
 
   try {
-    for (const row of listOutbox()) {
-      if (row.status === 'failed') continue
+    const attempted = new Set<string>()
+    while (true) {
+      const row = listOutbox().find(item => item.status !== 'failed' && !attempted.has(item.id))
+      if (!row) break
+      attempted.add(row.id)
+      if (owner !== cacheAccountId()) return
       try {
         await runOne(row)
       } catch (error) {
+        if (owner !== cacheAccountId()) return
         registerFailure(row, error)
       }
     }
@@ -237,7 +259,7 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
   if ((payload.inReplyTo !== undefined && (typeof payload.inReplyTo !== 'string' || /[\r\n]/.test(payload.inReplyTo))) || (payload.references !== undefined && (!Array.isArray(payload.references) || payload.references.some(id => typeof id !== 'string' || /[\r\n]/.test(id))))) {
     return { ok: false, queued: false, error: 'Cabeceras de respuesta inválidas' }
   }
-  payload = { ...payload, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
+  payload = { ...payload, draftUpdatedAt: payload.draftId ? readDraft(payload.draftId)?.updatedAt : undefined, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
   const id = enqueueOutbox({ kind: 'send', payload })
   try {
     rememberRecipients([payload.to, payload.cc, payload.bcc ?? ''].flatMap(splitRecipients))

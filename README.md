@@ -282,11 +282,17 @@ Antes de empaquetar se cerraron los huecos que hacían ruido al usar la app de v
   ni las etiquetas de "guardado automático" y "retención cero" que no eran ciertas.
 - **Adjuntos al enviar**: el clip abre el diálogo del sistema y el mensaje sale como `multipart/mixed`
   (compilado con nodemailer); la copia en Enviados es exactamente el mismo crudo que se envió.
-- **Borrador**: cerrar el compositor con texto lo guarda en la caché; al abrir uno nuevo se retoma con
-  el aviso "Borrador restaurado", y enviar lo limpia.
+- **Borradores IMAP**: cerrar el compositor guarda un borrador independiente por cuenta y encola su
+  sincronización con la carpeta `\Drafts`. Se editan desde la lista de esa carpeta, incluidos los
+  pendientes locales. Conservan formato, CC/CCO y adjuntos; guardar otra revisión reemplaza solo su
+  copia anterior. Los reintentos buscan el Message-ID antes de volver a subirla.
+- **Enviar o descartar**: elimina la copia del servidor mediante la cola; un envío pendiente conserva
+  su borrador hasta que SMTP confirme el mensaje. Enviar una versión antigua no borra ediciones nuevas.
+- **Mensaje nuevo**: siempre comienza vacío. «Recuperar borrador» abre explícitamente el último local.
 
-Limitaciones conocidas: hay **un solo borrador** (el último compositor, sin lista de borradores) y el
-envió no permite aún elegir remitente alternativo.
+Limitaciones conocidas: la sincronización requiere que esa cuenta esté activa y una carpeta de
+borradores del servidor. Las actualizaciones y eliminaciones usan `UIDPLUS` y comprueban `UIDVALIDITY`
+para no borrar otros mensajes. El envío no permite aún elegir remitente alternativo.
 
 ## Reglas locales (M7)
 

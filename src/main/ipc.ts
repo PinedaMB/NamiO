@@ -1,3 +1,4 @@
+import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
 import { senderLogo } from './senderLogo'
 import { writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
@@ -35,7 +36,7 @@ import {
   setSeen
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
-import { suggestRecipients, cacheUsage, clearDraft, readDraft, saveDraft } from './db'
+import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
 
@@ -254,11 +255,19 @@ export function registerIpcHandlers(): void {
     registerAttachments(BrowserWindow.fromWebContents(event.sender))
   )
 
-  ipcMain.handle(IPC.draftGet, () => readDraft())
-  ipcMain.handle(IPC.draftSave, (_event, draft: Draft) => {
-    saveDraft({ ...draft, updatedAt: Date.now() })
+  ipcMain.handle(IPC.draftGet, (_event, id?: string) => readDraft(id))
+  ipcMain.handle(IPC.draftsList, () => listDrafts())
+  ipcMain.handle(IPC.draftOpen, (_event, path: string, uid: number) => openServerDraft(path, uid))
+  ipcMain.handle(IPC.draftSave, async (_event, input: Draft) => {
+    queueDraftSave(input)
+    void processOutbox()
+    return { queued: true }
   })
-  ipcMain.handle(IPC.draftClear, () => clearDraft())
+  ipcMain.handle(IPC.draftClear, async (_event, id?: string) => {
+    if (id) queueDraftDelete(id)
+    else prunePickedAttachments()
+    void processOutbox()
+  })
 
   ipcMain.handle(IPC.mailSend, (_event, payload: SendMailPayload) => sendMail(payload))
   ipcMain.handle(IPC.outboxList, () => outboxItems())

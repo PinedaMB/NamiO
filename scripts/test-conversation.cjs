@@ -137,7 +137,7 @@ findSelect(appAst)
 let individual, selected
 const selectMessage = vm.runInNewContext(ts.transpile(`(${selectSource})`, { target: ts.ScriptTarget.ES2022 }), {
   setIndividualMessageId: value => { individual = value }, setSelectedId: value => { selected = value },
-  userNavigated: { current: false }, threads, uidOf: id => Number(id.slice(5)), markRead() {}, folder: 'INBOX'
+  userNavigated: { current: false }, live: true, draftsFolder: false, folderRequest: { current: 0 }, threads, uidOf: id => Number(id.slice(5)), markRead() {}, folder: 'INBOX'
 })
 selectMessage('live:2', 'live:2')
 assert.equal(selected, 'live:2')

@@ -33,6 +33,8 @@ export const IPC = {
   mailSend: 'mail:send',
   attachmentPick: 'attachment:pick',
   draftGet: 'draft:get',
+  draftsList: 'drafts:list',
+  draftOpen: 'draft:open',
   draftSave: 'draft:save',
   draftClear: 'draft:clear',
   outboxList: 'outbox:list',
@@ -225,7 +227,7 @@ export type CachedResult<T> = { ok: true; data: T; meta: SyncMeta } | { ok: fals
    Cola de salida
    ------------------------------------------------------------------------- */
 
-export type OutboxKind = 'send' | 'archive' | 'delete' | 'move' | 'seen'
+export type OutboxKind = 'send' | 'archive' | 'delete' | 'move' | 'seen' | 'draft-save' | 'draft-delete'
 export type OutboxStatus = 'queued' | 'failed'
 
 export interface OutboxItem {
@@ -240,6 +242,8 @@ export interface OutboxItem {
 }
 
 export interface SendMailPayload {
+  draftId?: string
+  draftUpdatedAt?: number
   html?: string
   bcc?: string
   inReplyTo?: string
@@ -252,7 +256,17 @@ export interface SendMailPayload {
   attachments?: string[]
 }
 
+export interface DraftServerRef {
+  path: string
+  uid: number
+  uidValidity: string
+}
+
 export interface Draft {
+  id?: string
+  server?: DraftServerRef
+  previousServer?: DraftServerRef
+  syncedAt?: number
   html?: string
   bcc?: string
   attachments?: PickedAttachment[]
@@ -378,9 +392,11 @@ export interface MailApi {
   /** Abre el diálogo del sistema y devuelve los archivos a adjuntar. */
   pickAttachments(): Promise<PickedAttachment[]>
   /** Borrador único del compositor, persistido en la caché. */
-  getDraft(): Promise<Draft | null>
-  saveDraft(draft: Draft): Promise<void>
-  clearDraft(): Promise<void>
+  getDraft(id?: string): Promise<Draft | null>
+  listDrafts(): Promise<Draft[]>
+  openDraft(path: string, uid: number): Promise<Draft>
+  saveDraft(draft: Draft): Promise<{ queued: boolean }>
+  clearDraft(id?: string): Promise<void>
   listOutbox(): Promise<OutboxItem[]>
   retryOutbox(id: string): Promise<void>
   cancelOutbox(id: string): Promise<void>
