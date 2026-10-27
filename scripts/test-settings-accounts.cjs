@@ -5,11 +5,12 @@ const ts = require('typescript')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const source = fs.readFileSync('src/renderer/src/components/Settings.tsx', 'utf8')
-function settings(accounts, events) {
+function settings(accounts, events, section = 'accounts') {
   let stateIndex = 0
   const exports = {}
   const requireMock = id => {
-    if (id === 'react') return { ...React, useEffect: () => {}, useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? 'accounts' : initial, () => {}] }
+    if (id === '../assets/logo.png') return { default: '/logo.png' }
+    if (id === 'react') return { ...React, useEffect: () => {}, useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }) }
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({}) }
@@ -20,7 +21,7 @@ function settings(accounts, events) {
     if (id === './RulesSection') return { RulesSection: () => null }
     return require(id)
   }
-  vm.runInNewContext(ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }), { exports, require: requireMock })
+  vm.runInNewContext(ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }), { exports, require: requireMock, window: { api: { openExternal: url => events.push(url) } } })
   return exports.Settings({ accounts, onBack() {}, onAddAccount: () => events.push('add'), onManageAccount: () => events.push('manage'), onSelectAccount: id => events.push(id) })
 }
 const accounts = [
@@ -50,3 +51,18 @@ assert.ok(empty.includes('settings.accounts.empty'))
 assert.ok(empty.includes('account.add'))
 assert.ok(!empty.includes('Alex Rivera'))
 console.log('Settings accounts: saved accounts, active profile, empty state and actions passed')
+
+const aboutEvents = []
+const about = settings(accounts, aboutEvents, 'about')
+const aboutHtml = renderToStaticMarkup(about)
+assert.ok(aboutHtml.includes('NamiO'))
+assert.ok(aboutHtml.includes('PinedaMB'))
+assert.ok(aboutHtml.includes('MIT'))
+function inspectAbout(node) {
+  if (!React.isValidElement(node)) return
+  if (node.type === 'button' && React.Children.toArray(node.props.children).some(child => child === 'settings.about.repository' || child === 'settings.about.report')) node.props.onClick()
+  React.Children.forEach(node.props.children, inspectAbout)
+}
+inspectAbout(about)
+assert.deepEqual(aboutEvents, ['https://github.com/PinedaMB/NamiO', 'https://github.com/PinedaMB/NamiO/issues'])
+console.log('About: project identity, license and external project/support actions passed')

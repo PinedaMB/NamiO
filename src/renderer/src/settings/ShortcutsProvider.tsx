@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { DEFAULT_BINDINGS, normalizeBindings, type Bindings } from './shortcuts'
 
 interface ShortcutsValue {
+  saveError: string | null
   bindings: Bindings
   save: (next: Bindings) => void
   reset: () => void
@@ -16,6 +17,7 @@ const ShortcutsContext = createContext<ShortcutsValue | null>(null)
  * Persistencia: settings.json (mismo canal que el idioma). La UI nunca escribe archivos.
  */
 export function ShortcutsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [bindings, setBindings] = useState<Bindings>(DEFAULT_BINDINGS)
 
   useEffect(() => {
@@ -28,17 +30,20 @@ export function ShortcutsProvider({ children }: { children: React.ReactNode }): 
       .catch(() => undefined)
   }, [])
 
-  const save = useCallback((next: Bindings) => {
-    setBindings(next)
-    window.api?.setSettings?.({ shortcuts: next }).catch(() => undefined)
+  const save = useCallback(async (next: Bindings) => {
+    setSaveError(null)
+    try {
+      await window.api?.setSettings?.({ shortcuts: next })
+      setBindings(next)
+      setSaveError(null)
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [])
 
-  const reset = useCallback(() => {
-    setBindings(DEFAULT_BINDINGS)
-    window.api?.setSettings?.({ shortcuts: DEFAULT_BINDINGS }).catch(() => undefined)
-  }, [])
+  const reset = useCallback(() => { void save(DEFAULT_BINDINGS) }, [save])
 
-  const value = useMemo<ShortcutsValue>(() => ({ bindings, save, reset }), [bindings, save, reset])
+  const value = useMemo<ShortcutsValue>(() => ({ saveError, bindings, save, reset }), [saveError, bindings, save, reset])
 
   return <ShortcutsContext.Provider value={value}>{children}</ShortcutsContext.Provider>
 }

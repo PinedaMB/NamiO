@@ -16,6 +16,7 @@ import {
   accountIdFor,
   activateAccount,
   checkAccountsActivity,
+  clearCachedMail,
   connectAccount,
   connectAccountOAuth,
   disconnectAccount,
@@ -34,9 +35,9 @@ import {
   setSeen
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
-import { clearDraft, readDraft, saveDraft } from './db'
+import { cacheUsage, clearDraft, readDraft, saveDraft } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
-import { encryptSecret, readActiveAccount, updateAccount, readSettings, writeSettings } from './settings'
+import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
 
 function validConfig(config: AccountConfig): boolean {
   const smtp = config.smtp
@@ -59,15 +60,41 @@ function validConfig(config: AccountConfig): boolean {
 }
 
 export function registerIpcHandlers(): void {
-  ipcMain.handle(IPC.coreStatus, (): CoreStatus => {
+  ipcMain.handle(IPC.coreStatus, async (): Promise<CoreStatus> => {
+    const { accounts } = await readAccounts()
     return {
+      cacheUsage: await cacheUsage(accounts).catch(() => null),
       appVersion: app.getVersion(),
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
       stage: 'M8',
-      accountCount: 0
+      accountCount: accounts.length
     }
+  })
+
+  ipcMain.handle(IPC.cacheClear, async (event, accountId: string) => {
+    const { accounts } = await readAccounts()
+    const account = accounts.find(item => item.id === accountId)
+    if (typeof accountId !== 'string' || !account) throw new Error('Cuenta inválida')
+    const english = (await readSettings()).language === 'en'
+    const options = {
+      type: 'question' as const,
+      buttons: english ? ['Cancel', 'Clear cache'] : ['Cancelar', 'Vaciar caché'],
+      defaultId: 0,
+      cancelId: 0,
+      title: english ? 'Clear mail cache' : 'Vaciar caché de correo',
+      message: account.label || account.user,
+      detail: english
+        ? 'Downloaded message bodies will be removed from this device and downloaded again when opened. Server mail, drafts, rules and pending operations are kept.'
+        : 'Se quitarán los cuerpos descargados de este equipo y se descargarán al abrirlos de nuevo. Se conservan los correos del servidor, borradores, reglas y operaciones pendientes.'
+    }
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    const result = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options)
+    if (result.response !== 1) return { canceled: true }
+    if (!(await readAccounts()).accounts.some(item => item.id === accountId)) throw new Error('Cuenta inválida')
+    await clearCachedMail(accountId)
+    return { canceled: false }
   })
 
   ipcMain.handle(IPC.settingsGet, (): Promise<Partial<AppSettings>> => readSettings())

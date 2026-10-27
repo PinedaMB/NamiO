@@ -58,10 +58,15 @@ export function RulesSection(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async (): Promise<void> => {
-    const list = await window.api?.rules?.().catch(() => null)
-    if (list) setRules(list)
-    const boxes = await window.api?.listMailboxes?.(false).catch(() => null)
-    if (boxes?.ok) setMailboxes(boxes.data)
+    try {
+      const list = await window.api?.rules?.()
+      if (list) setRules(list)
+      const boxes = await window.api?.listMailboxes?.(false)
+      if (boxes && !boxes.ok) throw new Error(boxes.detail)
+      if (boxes?.ok) setMailboxes(boxes.data)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [])
 
   useEffect(() => {
@@ -72,6 +77,7 @@ export function RulesSection(): React.JSX.Element {
     if (draft.value.trim() === '' || busy) return
     setBusy(true)
     setError(null)
+    setStatus(null)
     try {
       const next = await window.api.saveRule(draft)
       setRules(next)
@@ -86,16 +92,26 @@ export function RulesSection(): React.JSX.Element {
   }
 
   const remove = async (id: number): Promise<void> => {
+    if (busy) return
     setBusy(true)
+    setError(null)
+    setStatus(null)
     try {
       setRules(await window.api.deleteRule(id))
       setStatus(t('rules.deleted'))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
     }
   }
 
   const toggle = async (rule: Rule): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    setStatus(null)
+    try {
     const next = await window.api.saveRule({
       id: rule.id,
       name: rule.name,
@@ -107,16 +123,24 @@ export function RulesSection(): React.JSX.Element {
       target: rule.target
     })
     setRules(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
   }
 
   const applyToCache = async (): Promise<void> => {
     if (busy) return
     setBusy(true)
     setError(null)
+    setStatus(null)
     try {
       const result = await window.api.applyRules()
       setStatus(t('rules.applied', { count: result.matched }))
       await reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
     }
@@ -262,6 +286,7 @@ export function RulesSection(): React.JSX.Element {
                   aria-checked={rule.enabled}
                   aria-label={rule.enabled ? t('rules.disable') : t('rules.enable')}
                   onClick={() => void toggle(rule)}
+                  disabled={busy}
                   title={rule.enabled ? t('rules.disable') : t('rules.enable')}
                 >
                   <span className="rules__knob" />

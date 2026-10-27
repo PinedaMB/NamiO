@@ -1,7 +1,7 @@
-# NamiO — cliente de email para Linux
+# NamiO — cliente de correo multiplataforma
 
-NamiO es un cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y
-desarrollado en Windows. Estado actual: **M8 en curso** — cuenta (contraseña u OAuth2), HTML, caché
+NamiO es un cliente de correo de escritorio multiplataforma (IMAP/SMTP), con caché local.
+El proyecto está orientado a Linux, Windows y macOS. Estado actual: **M8 en curso** — cuenta (contraseña u OAuth2), HTML, caché
 offline, envío con cola, búsqueda local, sync completa, bienvenida guiada, reglas locales y **varias
 cuentas conmutables** (una activa a la vez, sin bandeja unificada). Los instalables se generan en CI.
 

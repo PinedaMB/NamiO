@@ -21,6 +21,7 @@ import type {
 } from '@shared/ipc'
 import {
   clearMailbox,
+  clearAccountCache,
   countMessages,
   countUnread,
   adjustMailboxUnseen,
@@ -1096,4 +1097,8 @@ export async function disconnectAccount(): Promise<void> {
   if (!next) await writeSettings({ onboarded: false })
   openAccountCache(next ?? 'default')
   notify('*')
+}
+
+export function clearCachedMail(accountId: string): Promise<void> {
+  return serial(() => clearAccountCache(accountId))
 }

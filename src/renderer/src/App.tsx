@@ -609,7 +609,7 @@ export function App(): React.JSX.Element {
 
   /** En modo real, abrir un hilo dispara una descarga de la fuente del mensaje. */
   useEffect(() => {
-    if (!live || !selected || selected.messages.length > 0 || folder !== activeFolderRef.current) return
+    if (view === 'settings' || !live || !selected || selected.messages.length > 0 || folder !== activeFolderRef.current) return
     const request = folderRequest.current
     const uid = uidOf(selected.id)
     if (uid === null) return
@@ -633,7 +633,7 @@ export function App(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [live, selected, folder, locale])
+  }, [live, selected, folder, locale, view])
 
   const select = (id: string, messageId?: string): void => {
     setIndividualMessageId(messageId ?? null)
@@ -988,6 +988,13 @@ export function App(): React.JSX.Element {
         <div className="panes">
           {view === 'settings' ? (
             <Settings
+              onCacheCleared={(id) => {
+                const cleared = accounts.find(item => item.id === id)
+                if (cleared && JSON.stringify([cleared.host, cleared.port, cleared.user]) === accountIdentity.current) {
+                  setThreads(current => current.map(thread => ({ ...thread, messages: [] })))
+                }
+              }}
+              accountKey={accountIdentity.current ?? 'demo'}
               onBack={() => setView('mailbox')}
               accounts={accounts}
               onAddAccount={() => { setAddingAccount(true); setAccountOpen(true) }}

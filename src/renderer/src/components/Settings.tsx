@@ -1,3 +1,4 @@
+import logo from '../assets/logo.png'
 import { TooltipButton } from './Tooltip'
 import { useEffect, useMemo, useState } from 'react'
 import type { AccountSummary, CoreStatus } from '@shared/ipc'
@@ -18,6 +19,8 @@ import { RulesSection } from './RulesSection'
 import { cx } from '../lib/cx'
 
 interface SettingsProps {
+  onCacheCleared: (accountId: string) => void
+  accountKey: string
   onBack: () => void
   accounts: readonly AccountSummary[]
   onAddAccount: () => void
@@ -25,26 +28,36 @@ interface SettingsProps {
   onSelectAccount: (id: string) => void
 }
 
-type Section = 'general' | 'shortcuts' | 'accounts' | 'copilot' | 'rules'
+const PLATFORM_NAMES: Record<string, string> = { linux: 'Linux', win32: 'Windows', darwin: 'macOS' }
+
+type Section = 'general' | 'shortcuts' | 'accounts' | 'copilot' | 'rules' | 'about'
 
 const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }> = [
   { id: 'general', icon: 'bolt', labelKey: 'settings.nav.general' },
   { id: 'shortcuts', icon: 'keyboard', labelKey: 'settings.nav.shortcuts' },
   { id: 'accounts', icon: 'alternate_email', labelKey: 'settings.nav.accounts' },
   { id: 'copilot', icon: 'neurology', labelKey: 'settings.nav.copilot' },
-  { id: 'rules', icon: 'filter_alt', labelKey: 'settings.nav.rules' }
+  { id: 'rules', icon: 'filter_alt', labelKey: 'settings.nav.rules' },
+  { id: 'about', icon: 'info', labelKey: 'settings.nav.about' }
 ]
 
-export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSelectAccount }: SettingsProps): React.JSX.Element {
-  const { t, locale, setLocale } = useI18n()
-  const { bindings, save, reset } = useShortcuts()
-  const { remoteImages, setRemoteImages, bodyTheme, setBodyTheme } = usePreferences()
+export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAccount, onManageAccount, onSelectAccount }: SettingsProps): React.JSX.Element {
+  const { t, locale, setLocale, saveError: localeError } = useI18n()
+  const { bindings, save, reset, saveError: shortcutsError } = useShortcuts()
+  const { remoteImages, setRemoteImages, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
+  const saveError = localeError || shortcutsError || preferencesError
   const activeAccount = accounts.find((account) => account.active)
-  const [section, setSection] = useState<Section>('shortcuts')
+  const formatSize = (bytes: number): string => bytes < 1024 * 1024
+    ? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / 1024)} KiB`
+    : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MiB`
+  const [section, setSection] = useState<Section>('general')
   const [query, setQuery] = useState('')
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
     null
   )
+  const [clearingCache, setClearingCache] = useState<string | null>(null)
+  const [cacheError, setCacheError] = useState<string | null>(null)
+  const [cacheCleared, setCacheCleared] = useState(false)
   const [status, setStatus] = useState<CoreStatus | null>(null)
 
   useEffect(() => {
@@ -105,8 +118,27 @@ export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSe
     setRemap(null)
   }
 
+  const clearCache = async (accountId: string): Promise<void> => {
+    if (clearingCache) return
+    setClearingCache(accountId)
+    setCacheError(null)
+    setCacheCleared(false)
+    try {
+      const result = await window.api.clearMailCache(accountId)
+      if (!result.canceled) {
+        onCacheCleared(accountId)
+        setCacheCleared(true)
+        setStatus(await window.api.getCoreStatus())
+      }
+    } catch (cause) {
+      setCacheError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setClearingCache(null)
+    }
+  }
+
   const renderSection = (): React.JSX.Element => {
-    if (section === 'rules') return <RulesSection />
+    if (section === 'rules') return <RulesSection key={accountKey} />
 
     if (section === 'shortcuts') {
       return (
@@ -178,6 +210,35 @@ export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSe
               </p>
             )}
           </div>
+        </div>
+      )
+    }
+
+    if (section === 'about') {
+      return (
+        <div className="settings-card settings-about">
+          <div className="settings-about__identity">
+            <img src={logo} alt="" width={64} height={64} />
+            <div>
+              <h2 className="settings-about__name">NamiO</h2>
+              <span className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</span>
+            </div>
+          </div>
+          <p className="settings-about__description">{t('settings.about.description')}</p>
+          <p className="settings-card__subtitle">{t('settings.about.features')}</p>
+          <dl className="diag">
+            <div className="diag__row"><dt>{t('settings.about.author')}</dt><dd>PinedaMB</dd></div>
+            <div className="diag__row"><dt>{t('settings.about.license')}</dt><dd>MIT</dd></div>
+          </dl>
+          <div className="settings-about__links">
+            <button className="btn btn--primary" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO')}>
+              <Icon name="code" size={16} />{t('settings.about.repository')}
+            </button>
+            <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO/issues')}>
+              <Icon name="bug_report" size={16} />{t('settings.about.report')}
+            </button>
+          </div>
+          <p className="settings-card__note"><Icon name="construction" size={16} />{t('settings.about.development')}</p>
         </div>
       )
     }
@@ -269,20 +330,23 @@ export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSe
 
           <div className="settings-card">
             <div className="settings-card__head">
-              <h2 className="settings-card__title">{t('settings.general.diagnostics')}</h2>
+              <div>
+                <h2 className="settings-card__title">{t('settings.general.diagnostics')}</h2>
+                <p className="settings-card__subtitle">{t('settings.general.diagnosticsHint')}</p>
+              </div>
             </div>
             <dl className="diag">
               <div className="diag__row">
                 <dt>{t('settings.general.app')}</dt>
-                <dd className="mono">v{status?.appVersion ?? '0.1.0'}</dd>
+                <dd className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</dd>
               </div>
               <div className="diag__row">
                 <dt>{t('settings.general.runtime')}</dt>
-                <dd className="mono">Electron {status?.electronVersion ?? '45.0.0'}</dd>
+                <dd className="mono">{status?.electronVersion ? `Electron ${status.electronVersion}` : '—'}</dd>
               </div>
               <div className="diag__row">
                 <dt>{t('settings.general.platform')}</dt>
-                <dd className="mono">{status?.platform ?? '—'}</dd>
+                <dd className="mono">{PLATFORM_NAMES[status?.platform ?? ''] ?? status?.platform ?? '—'}</dd>
               </div>
               <div className="diag__row">
                 <dt>{t('settings.general.profile')}</dt>
@@ -311,6 +375,19 @@ export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSe
               {t('account.add')}
             </button>
           </div>
+            <section className="settings-cache" aria-label={t('settings.cache.title')}>
+              <div className="settings-cache__total">
+                <span><Icon name="storage" size={16} />{t('settings.cache.title')}</span>
+                <strong className="mono">{status?.cacheUsage ? formatSize(status.cacheUsage.totalBytes) : '—'}</strong>
+              </div>
+              {status && !status.cacheUsage && <p className="settings-card__subtitle">{t('settings.cache.unavailable')}</p>}
+              {status?.cacheUsage && status.cacheUsage.unassignedBytes > 0 && <p className="settings-card__subtitle">
+                {t('settings.cache.unassigned')}: {formatSize(status.cacheUsage.unassignedBytes)}
+              </p>}
+              <p className="settings-card__subtitle">{t('settings.cache.clearHint')}</p>
+            </section>
+          {cacheError && <p className="account-error" role="alert">{t('toast.actionFailed', { error: cacheError })}</p>}
+          {cacheCleared && <p className="settings-card__subtitle" role="status">{t('settings.cache.cleared')}</p>}
           {accounts.length === 0 ? (
             <p className="muted">{t('settings.accounts.empty')}</p>
           ) : (
@@ -319,14 +396,21 @@ export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSe
                 <li className="settings-accounts__row" key={account.id}>
                   <div className="settings-accounts__identity">
                     <strong>{account.label || account.user}</strong>
-                    <span>{account.user}</span>
+                    {account.label && account.label !== account.user && <span>{account.user}</span>}
                     <span className="mono">{account.host}:{account.port} · {account.auth === 'oauth2' ? 'OAuth2' : t('account.authPassword')}</span>
                     {account.active && <span className="settings-accounts__active">{t('settings.accounts.active')}</span>}
                   </div>
-                  <button className="tool-btn" type="button" onClick={() => account.active ? onManageAccount() : onSelectAccount(account.id)}>
+                  <div className="settings-accounts__actions">
+                    <span className="settings-accounts__size mono">{status?.cacheUsage ? formatSize(status.cacheUsage.accounts.find(item => item.id === account.id)?.bytes ?? 0) : '—'}</span>
+                    <button className="tool-btn" type="button" disabled={clearingCache !== null || !status?.cacheUsage} onClick={() => void clearCache(account.id)}>
+                      <Icon name={clearingCache === account.id ? 'progress_activity' : 'cleaning_services'} size={15} className={clearingCache === account.id ? 'spin' : undefined} />
+                      {t(clearingCache === account.id ? 'settings.cache.clearing' : 'settings.cache.clear')}
+                    </button>
+                  <button className="tool-btn" type="button" disabled={clearingCache !== null} onClick={() => account.active ? onManageAccount() : onSelectAccount(account.id)}>
                     <Icon name={account.active ? 'tune' : 'swap_horiz'} size={15} />
                     {t(account.active ? 'account.manage' : 'settings.accounts.select')}
                   </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -384,31 +468,37 @@ export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSe
             ))}
           </nav>
 
-          <div className="settings-card settings-card--profile">
-            <span className="card__label">{t('settings.profile.title')}</span>
+          <section className="settings-card settings-card--profile" aria-label={t('settings.profile.title')}>
             <div className="profile-row">
-              <span className="avatar avatar--lg avatar--accent">{activeAccount ? activeAccount.user.slice(0, 2).toUpperCase() : 'N'}</span>
-              <div style={{ minWidth: 0 }}>
-                <div className="profile-row__name">{activeAccount?.label || activeAccount?.user || t('account.demo')}</div>
-                <div className="profile-row__mail">{activeAccount?.user ?? t('sidebar.demo')}</div>
+              <span className="avatar avatar--lg avatar--accent" aria-hidden="true">{activeAccount ? activeAccount.user.slice(0, 2).toUpperCase() : 'N'}</span>
+              <div className="profile-row__identity">
+                <h2 className="profile-row__name">{activeAccount?.label || activeAccount?.user || t('account.demo')}</h2>
+                <span className="profile-row__caption">{t(activeAccount ? 'settings.accounts.active' : 'settings.profile.title')}</span>
               </div>
             </div>
-            <div className="profile-fact">
-              <span>{t('settings.profile.language')}</span>
-              <span className="mono">{locale.toUpperCase()}</span>
-            </div>
-            <div className="profile-fact">
-              <span>{t('settings.profile.layout')}</span>
-              <span className="mono">{t('settings.profile.layoutValue')}</span>
-            </div>
-            <div className="profile-fact">
-              <span>{t('settings.general.app')}</span>
-              <span className="mono">v{status?.appVersion ?? '0.1.0'}</span>
-            </div>
-          </div>
+            <p className="profile-row__mail">{activeAccount?.user ?? t('sidebar.demo')}</p>
+            <dl className="profile-details">
+              <div className="profile-fact">
+                <dt>{t('settings.profile.language')}</dt>
+                <dd>{locale === 'es' ? 'Español' : 'English'}</dd>
+              </div>
+              <div className="profile-fact">
+                <dt>{t('settings.profile.layout')}</dt>
+                <dd>{t('settings.profile.layoutValue')}</dd>
+              </div>
+              <div className="profile-fact">
+                <dt>{t('settings.general.app')}</dt>
+                <dd className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</dd>
+              </div>
+            </dl>
+          </section>
         </aside>
 
         <main className="settings__main" key={section}>
+          {saveError && <div className="account-error" role="alert">
+            <Icon name="error" size={16} />
+            <span>{t('settings.saveFailed', { error: saveError })}</span>
+          </div>}
           {renderSection()}
         </main>
       </div>

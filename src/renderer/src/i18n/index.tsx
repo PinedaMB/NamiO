@@ -32,6 +32,7 @@ function detectLocale(): Locale {
 }
 
 interface I18nValue {
+  saveError: string | null
   locale: Locale
   setLocale: (locale: Locale) => void
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string
@@ -40,6 +41,7 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue | null>(null)
 
 export function I18nProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [locale, setLocaleState] = useState<Locale>(detectLocale)
 
   useEffect(() => {
@@ -53,14 +55,20 @@ export function I18nProvider({ children }: { children: React.ReactNode }): React
       .catch(() => undefined)
   }, [])
 
-  const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next)
+  const setLocale = useCallback(async (next: Locale) => {
+    setSaveError(null)
     try {
-      window.localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      // sin localStorage: la preferencia igual queda en settings.json
+      await window.api?.setSettings?.({ language: next })
+      setLocaleState(next)
+      setSaveError(null)
+      try {
+        window.localStorage.setItem(STORAGE_KEY, next)
+      } catch {
+        // El perfil ya se guardó; localStorage solo es una caché.
+      }
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
     }
-    window.api?.setSettings?.({ language: next }).catch(() => undefined)
   }, [])
 
   const t = useCallback(
@@ -74,7 +82,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }): React
     [locale]
   )
 
-  const value = useMemo<I18nValue>(() => ({ locale, setLocale, t }), [locale, setLocale, t])
+  const value = useMemo<I18nValue>(() => ({ saveError, locale, setLocale, t }), [saveError, locale, setLocale, t])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }

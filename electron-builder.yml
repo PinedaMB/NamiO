@@ -23,7 +23,7 @@ linux:
   icon: icon.png
   category: Network;Email
   synopsis: Cliente de correo de escritorio
-  description: Cliente de correo IMAP/SMTP con caché local, pensado para escritorio Linux.
+  description: Cliente de correo de escritorio multiplataforma IMAP/SMTP con caché local.
   # WM_CLASS / app_id: sin esto, GNOME y KDE no asocian la ventana con el .desktop
   # (el nombre va en package.json: "desktopName").
   syncDesktopName: true

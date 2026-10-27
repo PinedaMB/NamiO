@@ -1,8 +1,9 @@
+import { readdir, stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { app } from 'electron'
-import type { Envelope, MailboxInfo } from '@shared/ipc'
+import type { CacheUsage, Envelope, MailboxInfo } from '@shared/ipc'
 
 /**
  * Caché local. Es la fuente de verdad para la UI: la red solo la actualiza.
@@ -63,8 +64,7 @@ export function initCache(accountId: string = 'default'): void {
 export function openAccountCache(accountId: string): void {
   if (db) closeCache()
 
-  const safe = accountId.replace(/[^a-z0-9_-]/gi, '')
-  const file = accountId === 'default' || safe === '' ? 'cache.db' : `cache-${safe}.db`
+  const file = accountCacheFile(accountId)
 
   db = new DatabaseSync(join(app.getPath('userData'), file))
   db.exec('PRAGMA journal_mode = WAL')
@@ -966,4 +966,71 @@ export function missingEnvelopeMetadata(mailbox: string): number[] {
   const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND has_attachments IS NULL')
     .all(mailbox) as unknown as { uid: number }[]
   return rows.map(row => row.uid)
+}
+
+function accountCacheFile(accountId: string): string {
+  const safe = accountId.replace(/[^a-z0-9_-]/gi, '')
+  return accountId === 'default' || safe === '' ? 'cache.db' : `cache-${safe}.db`
+}
+
+export async function cacheUsage(accounts: readonly { id: string }[]): Promise<CacheUsage> {
+  const directory = app.getPath('userData')
+  const files = (await readdir(directory)).filter(name => /^cache(?:-[a-z0-9_-]+)?\.db(?:-wal|-shm|-journal)?$/i.test(name))
+  const sizes = await Promise.all(files.map(async name => {
+    try {
+      return { name, bytes: (await stat(join(directory, name))).size }
+    } catch (cause) {
+      // SQLite puede retirar un WAL mientras se mide.
+      if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return { name, bytes: 0 }
+      throw cause
+    }
+  }))
+  const used = new Set<string>()
+  const perAccount = accounts.map(account => {
+    const base = accountCacheFile(account.id)
+    let bytes = 0
+    for (const file of sizes) {
+      if (file.name === base || file.name.startsWith(`${base}-`)) {
+        bytes += file.bytes
+        used.add(file.name)
+      }
+    }
+    return { id: account.id, bytes }
+  })
+  return {
+    totalBytes: sizes.reduce((sum, file) => sum + file.bytes, 0),
+    accounts: perAccount,
+    unassignedBytes: sizes.filter(file => !used.has(file.name)).reduce((sum, file) => sum + file.bytes, 0)
+  }
+}
+
+/** Libera cuerpos descargados sin tocar sobres, borradores, reglas ni la cola. */
+export async function clearAccountCache(accountId: string): Promise<void> {
+  const file = join(app.getPath('userData'), accountCacheFile(accountId))
+  try {
+    await stat(file)
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw cause
+  }
+  const database = new DatabaseSync(file)
+  try {
+    database.exec('BEGIN IMMEDIATE')
+    try {
+      const columns = database.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
+      const attachments = columns.some(column => column.name === 'attachments_json') ? ', attachments_json = NULL' : ''
+      database.exec(`UPDATE messages SET body_text = NULL, body_html = NULL${attachments}`)
+      if (database.prepare("SELECT name FROM sqlite_master WHERE name = 'search'").get()) {
+        database.exec("UPDATE search SET body = ''; INSERT INTO search(search) VALUES('rebuild')")
+      }
+      database.exec('COMMIT')
+    } catch (cause) {
+      database.exec('ROLLBACK')
+      throw cause
+    }
+    database.exec('VACUUM')
+    database.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  } finally {
+    database.close()
+  }
 }

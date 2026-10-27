@@ -2,7 +2,7 @@
   "name": "namio",
   "version": "0.3.0",
   "productName": "NamiO",
-  "description": "NamiO — cliente de correo de escritorio para Linux",
+  "description": "NamiO — cliente de correo de escritorio multiplataforma",
   "main": "./out/main/index.js",
   "author": {
     "name": "PinedaMB",

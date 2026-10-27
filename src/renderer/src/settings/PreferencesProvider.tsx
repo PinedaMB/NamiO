@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { BodyTheme, RemoteImagePolicy } from '@shared/ipc'
 
 interface PreferencesValue {
+  saveError: string | null
   remoteImages: RemoteImagePolicy
   setRemoteImages: (policy: RemoteImagePolicy) => void
   bodyTheme: BodyTheme
@@ -15,6 +16,7 @@ const PreferencesContext = createContext<PreferencesValue | null>(null)
  * Persisten en settings.json por IPC, como el idioma y los atajos.
  */
 export function PreferencesProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [remoteImages, setRemoteImagesState] = useState<RemoteImagePolicy>('block')
   const [bodyTheme, setBodyThemeState] = useState<BodyTheme>('light')
 
@@ -32,19 +34,31 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       .catch(() => undefined)
   }, [])
 
-  const setRemoteImages = useCallback((policy: RemoteImagePolicy) => {
-    setRemoteImagesState(policy)
-    window.api?.setSettings?.({ remoteImages: policy }).catch(() => undefined)
+  const setRemoteImages = useCallback(async (policy: RemoteImagePolicy) => {
+    setSaveError(null)
+    try {
+      await window.api?.setSettings?.({ remoteImages: policy })
+      setRemoteImagesState(policy)
+      setSaveError(null)
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [])
 
-  const setBodyTheme = useCallback((theme: BodyTheme) => {
-    setBodyThemeState(theme)
-    window.api?.setSettings?.({ bodyTheme: theme }).catch(() => undefined)
+  const setBodyTheme = useCallback(async (theme: BodyTheme) => {
+    setSaveError(null)
+    try {
+      await window.api?.setSettings?.({ bodyTheme: theme })
+      setBodyThemeState(theme)
+      setSaveError(null)
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [])
 
   const value = useMemo<PreferencesValue>(
-    () => ({ remoteImages, setRemoteImages, bodyTheme, setBodyTheme }),
-    [remoteImages, setRemoteImages, bodyTheme, setBodyTheme]
+    () => ({ saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme }),
+    [saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme]
   )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

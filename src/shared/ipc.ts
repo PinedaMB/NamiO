@@ -7,6 +7,7 @@
 
 export const IPC = {
   coreStatus: 'core:status',
+  cacheClear: 'cache:clear',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   accountStatus: 'account:status',
@@ -52,7 +53,14 @@ export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 /** Etapa actual del desarrollo; el núcleo la reporta para que la UI no mienta. */
 export type Milestone = 'M0' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8'
 
+export interface CacheUsage {
+  totalBytes: number
+  accounts: { id: string; bytes: number }[]
+  unassignedBytes: number
+}
+
 export interface CoreStatus {
+  cacheUsage: CacheUsage | null
   appVersion: string
   platform: string
   electronVersion: string
@@ -317,6 +325,7 @@ export interface MailAction {
 
 export interface MailApi {
   getCoreStatus(): Promise<CoreStatus>
+  clearMailCache(accountId: string): Promise<{ canceled: boolean }>
   /** Devuelve solo lo que el usuario ya configuró (puede venir vacío). */
   getSettings(): Promise<Partial<AppSettings>>
   setSettings(settings: Partial<AppSettings>): Promise<void>
