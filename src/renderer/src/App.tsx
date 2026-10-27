@@ -109,6 +109,7 @@ export function App(): React.JSX.Element {
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [localDrafts, setLocalDrafts] = useState<Draft[]>([])
+  const [composeMinimized, setComposeMinimized] = useState(false)
   const [composeSession, setComposeSession] = useState(0)
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -662,6 +663,7 @@ export function App(): React.JSX.Element {
     setSelectedId(id)
 
     if (live && draftsFolder) {
+      if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
       const generation = accountGeneration.current
       const request = folderRequest.current
       const draft = id.startsWith('draft:') ? window.api.getDraft(id.slice(6)) : window.api.openDraft(folder, uidOf(id) ?? 0)
@@ -795,7 +797,9 @@ export function App(): React.JSX.Element {
   }
 
   const openReply = (body = ''): void => {
+    if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
     if (!selected) return
+    setComposeMinimized(false)
     const message = selected.messages.find(item => item.id === (individualMessageId ?? selected.id)) ?? selected.messages.at(-1)
     const sender = message?.from ?? selected.participants[0]
     const quoted = (message?.body ?? []).map((line) => `> ${line}`).join('\n')
@@ -813,6 +817,8 @@ export function App(): React.JSX.Element {
   }
 
   const openCompose = (): void => {
+    if (compose) { setComposeMinimized(false); return }
+    setComposeMinimized(false)
     setComposeSession(session => session + 1)
     setCompose({ to: '', subject: '', body: '' })
   }
@@ -823,6 +829,7 @@ export function App(): React.JSX.Element {
     if (generation !== accountGeneration.current) return
     if (!draft) { setToast(t('draft.empty')); return }
     setComposeSession(session => session + 1)
+    setComposeMinimized(false)
     setCompose(draft)
     setToast(t('draft.restored'))
   }
@@ -837,6 +844,7 @@ export function App(): React.JSX.Element {
 
   /** Cambia la cuenta activa: el núcleo reapunta la caché y acá se relee todo. */
   const handleSelectAccount = async (id: string): Promise<void> => {
+    if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
     if (busySwitch.current) return
     busySwitch.current = true
     try {
@@ -866,7 +874,7 @@ export function App(): React.JSX.Element {
           setPaletteOpen(false)
           return
         }
-        if (compose) {
+        if (compose && !composeMinimized) {
           // El compositor escucha Escape en fase de captura y guarda el borrador.
           return
         }
@@ -894,7 +902,7 @@ export function App(): React.JSX.Element {
         return
       }
 
-      if (typing || paletteOpen || compose !== null || accountOpen || view === 'settings') return
+      if (typing || paletteOpen || (compose !== null && !composeMinimized) || accountOpen || view === 'settings') return
 
       switch (action) {
         case 'next':
@@ -1178,6 +1186,18 @@ export function App(): React.JSX.Element {
       <ComposeOverlay
         key={`${accountIdentity.current ?? 'demo'}:${composeSession}`}
         open={compose !== null}
+        minimized={composeMinimized}
+        onRestore={() => setComposeMinimized(false)}
+        onMinimize={async values => {
+          const generation = accountGeneration.current
+          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.attachments?.length
+          if (live && hasContent) {
+            const result = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
+            if (generation !== accountGeneration.current) return
+            setCompose(current => current ? { ...current, id: result.id } : current)
+          }
+          setComposeMinimized(true)
+        }}
         to={compose?.to ?? ''}
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}

@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('api',{
  getMessage:async()=>({ok:true,data:{...envelope,to:[{name:'Recipient',address:remote.to}],cc:[],text:remote.body,html:remote.html,attachments:[]},meta}),
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
- saveDraft:async input=>{const previous=drafts.find(item=>item.id===input.id);drafts=drafts.filter(item=>item.id!==input.id);drafts.push({...previous,...input,id:input.id??'new-draft'});notify();return{queued:true}},
+ saveDraft:async input=>{const previous=drafts.find(item=>item.id===input.id);drafts=drafts.filter(item=>item.id!==input.id);drafts.push({...previous,...input,id:input.id??'new-draft'});notify();return{id:input.id??'new-draft',queued:true}},
  clearDraft:async id=>{drafts=drafts.filter(item=>item.id!==id);notify()},inspectTestDrafts:async()=>drafts,
  onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
@@ -42,34 +42,71 @@ app.setPath('userData',${JSON.stringify(join(folder,'profile'))});app.disableHar
 app.whenReady().then(async()=>{
  const errors=[];
  const win=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{preload:${JSON.stringify(join(folder,'preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
- win.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message)});
+ win.webContents.on('console-message',event=>{if(event.level==='error')errors.push('demo: '+event.message+' ['+event.sourceId+':'+event.lineNumber+']')});
  await win.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
+ win.webContents.debugger.attach('1.3');
+ await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  const wait=()=>new Promise(resolve=>setTimeout(resolve,50));
  const until=async(predicate,message)=>{for(let i=0;i<100;i++){if(predicate())return;await wait()}throw new Error(message)};
+ const settle=async()=>{await new Promise(requestAnimationFrame);await Promise.all(document.querySelector('.composer').getAnimations().map(animation=>animation.finished.catch(()=>{})))};
  const compose=()=>[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Redactar'));
  await until(compose,'Application did not load');
  for(let cycle=0;cycle<4;cycle++){
   compose().click();
   await until(()=>document.querySelector('.tiptap')?.editor,'Editor did not mount / blank screen');
   const editor=document.querySelector('.tiptap').editor;
+  const bounds=()=>document.querySelector('.composer').getBoundingClientRect();
+  await settle();
+  const normal=bounds();
+  document.querySelector('.composer__head [aria-label="Expandir"]').click();
+  await until(()=>document.querySelector('.composer--expanded'),'Expand did not activate');
+  if(!document.querySelector('.composer').getAnimations().some(animation=>animation.transitionProperty==='height'))throw new Error('Expand must animate the height change');
+  await settle();
+  const expanded=bounds();
+  if(expanded.width<=normal.width||expanded.height<=normal.height)throw new Error('Expand must increase both width and height on desktop: '+JSON.stringify({normal:normal.toJSON(),expanded:expanded.toJSON()}));
+  if(expanded.left<0||expanded.top<0||expanded.right>innerWidth||expanded.bottom>innerHeight)throw new Error('Expanded composer exceeds the viewport');
+  document.querySelector('.composer__head [aria-label="Volver al tamaño anterior"]').click();
+  await until(()=>!document.querySelector('.composer--expanded'),'Normal size did not restore');
+  await settle();
+  if(Math.abs(bounds().width-normal.width)>1||Math.abs(bounds().height-normal.height)>1)throw new Error('Restore did not recover original dimensions');
+
   if(editor.getText()!=='')throw new Error('New message retained previous content');
   if(document.querySelector('.subject-input').value!=='')throw new Error('New message retained the subject');
   editor.commands.insertContent('Mensaje de prueba '+cycle);
   editor.commands.selectAll();document.querySelector('[data-tooltip="Negrita"]').click();await wait();
   if(!editor.getHTML().includes('<strong>'))throw new Error('Cannot format after opening');
   if(!document.querySelector('.thread-list'))throw new Error('Mailbox unmounted while composing');
-  document.querySelector('.composer__head [aria-label="Cerrar"]').click();
+  document.querySelector('.composer__head [aria-label="Minimizar"]').click();
+  await until(()=>document.querySelector('.composer-dock'),'Minimize did not dock');
+  if(document.querySelector('.composer').getAttribute('aria-modal')!=='false')throw new Error('Minimized composer remains modal');
+  if(getComputedStyle(document.querySelector('.composer__fields')).display!=='none')throw new Error('Fields still visible while minimized');
+  compose().click();await until(()=>!document.querySelector('.composer-dock'),'Compose did not restore existing message');
+  if(document.querySelector('.tiptap').editor!==editor||!editor.getHTML().includes('<strong>'))throw new Error('Minimize lost editor content or instance');
+  document.querySelector('.send-caret').click();await until(()=>document.querySelector('.composer-send-options'),'Send options missing');
+  document.querySelector('.composer-send-options button:last-child').click();
+
   await until(()=>!document.querySelector('.composer'),'Editor did not close');
   if(!compose()||!document.querySelector('.thread-list'))throw new Error('Mailbox disappeared after closing');
  }
 })()`)});
+ await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ document.querySelector('[aria-label="Redactar"]').click();
+ await new Promise(resolve=>setTimeout(resolve,100));
+ const composer=document.querySelector('.composer');
+ if(getComputedStyle(composer).transitionDuration.split(',').some(value=>parseFloat(value)>0.01))throw new Error('Reduced motion must suppress resizing transitions');
+ document.querySelector('.composer__head [aria-label="Cerrar"]').click();
+})()`)});
  const live=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{preload:${JSON.stringify(join(folder,'drafts-preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
- live.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message)});
+ live.webContents.on('console-message',event=>{if(event.level==='error')errors.push('live: '+event.message+' ['+event.sourceId+':'+event.lineNumber+']')});
  await live.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
+ live.webContents.debugger.attach('1.3');
+ await live.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1024,height:768,deviceScaleFactor:1,mobile:false});
  await live.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  const wait=()=>new Promise(resolve=>setTimeout(resolve,50));
  const until=async(predicate,message)=>{for(let i=0;i<100;i++){if(predicate())return;await wait()}throw new Error(message)};
+ const settle=async()=>{await new Promise(requestAnimationFrame);await Promise.all(document.querySelector('.composer').getAnimations().map(animation=>animation.finished.catch(()=>{})))};
  const card=title=>[...document.querySelectorAll('.thread__content')].find(item=>item.textContent.includes(title));
  await until(()=>document.querySelector('[aria-label="Drafts"]'),'Drafts folder missing');document.querySelector('[aria-label="Drafts"]').click();
  await until(()=>card('Pendiente local')&&card('Borrador servidor'),'Drafts list did not combine remote and pending drafts');
@@ -84,7 +121,19 @@ app.whenReady().then(async()=>{
  document.querySelector('.composer__foot .btn--danger').click();await until(()=>!document.querySelector('.composer'),'Discard did not close editor');
  saved=await window.api.inspectTestDrafts();if(saved.some(item=>item.id==='pending-draft')||!saved.some(item=>item.id==='remote-draft'))throw new Error('Discard affected another draft');
  document.querySelector('[aria-label="Redactar"]').click();await until(()=>document.querySelector('.tiptap')?.editor,'New composer missing');
+ await settle();
+ const normal=document.querySelector('.composer').getBoundingClientRect();
+ document.querySelector('.composer__head [aria-label="Expandir"]').click();
+ await until(()=>document.querySelector('.composer--expanded'),'Compact desktop did not expand');
+ await settle();
+ const expanded=document.querySelector('.composer').getBoundingClientRect();
+ if(expanded.height<=normal.height||expanded.width<normal.width||expanded.bottom>innerHeight)throw new Error('Compact desktop expansion failed');
+ document.querySelector('.composer__head [aria-label="Volver al tamaño anterior"]').click();
+ await until(()=>!document.querySelector('.composer--expanded'),'Compact desktop did not restore');
  editor=document.querySelector('.tiptap').editor;if(editor.getText()!=='')throw new Error('New draft not empty');editor.commands.insertContent('New draft body');
+ document.querySelector('.composer__head [aria-label="Minimizar"]').click();await until(()=>document.querySelector('.composer-dock'),'Live draft did not minimize');
+ document.querySelector('.composer__head [aria-label="Restaurar mensaje"]').click();await until(()=>!document.querySelector('.composer-dock'),'Live draft did not restore');
+ if(document.querySelector('.tiptap').editor!==editor||!editor.getText().includes('New draft body'))throw new Error('Saved minimize lost draft state');
  document.querySelector('.composer__head [aria-label="Cerrar"]').click();await until(()=>!document.querySelector('.composer'),'New draft did not save');
  saved=await window.api.inspectTestDrafts();if(saved.length!==2||!saved.some(item=>item.id==='new-draft'))throw new Error('Multiple drafts not preserved');
 })()`)});

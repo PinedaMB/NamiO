@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'), fs=require('node:fs'), vm=require('n
 const compile=text=>ts.transpile(text,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX})
 const addresses={};vm.runInNewContext(compile(fs.readFileSync('src/shared/mailAddresses.ts','utf8')),{exports:addresses})
 const exportsObject={}, state=[],refs=[];let index=0,refIndex=0,effects=[], keyHandler,failSend=false
-const sent=[],closed=[],discarded=[]
+const sent=[],closed=[],discarded=[],minimized=[]
 vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeOverlay.tsx','utf8')),{
  exports:exportsObject,Error,window:{addEventListener:(_name,fn)=>{keyHandler=fn},removeEventListener(){}},require:id=>{
  if(id==='react')return {...React,useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=initial;return[state[slot],value=>{state[slot]=typeof value==='function'?value(state[slot]):value}]},useRef:initial=>{const slot=refIndex++;return refs[slot]??(refs[slot]={current:initial})},useEffect:fn=>effects.push(fn)}
@@ -18,7 +18,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if(id==='./Tooltip')return{TooltipButton:()=>null}
  return require(id)
 }})
-function render(){index=refIndex=0;effects=[];const tree=exportsObject.ComposeOverlay({open:true,to:'',subject:'Subject',body:'Text',copilot:false,onClose:async value=>closed.push(value),onDiscard:async()=>discarded.push(true),onSend:async value=>{if(failSend)throw new Error('Send failed');sent.push(value)}});effects.at(-1)();return tree}
+function render(){index=refIndex=0;effects=[];const tree=exportsObject.ComposeOverlay({open:true,to:'',subject:'Subject',body:'Text',copilot:false,onClose:async value=>closed.push(value),onDiscard:async()=>discarded.push(true),onMinimize:async value=>minimized.push(value),onSend:async value=>{if(failSend)throw new Error('Send failed');sent.push(value)}});effects.at(-1)();return tree}
 function find(tree,predicate){let result;function visit(node){if(!React.isValidElement(node))return;if(predicate(node))result=node;React.Children.forEach(node.props.children,visit)}visit(tree);return result}
 const flush=()=>new Promise(resolve=>setImmediate(resolve))
 ;(async()=>{
@@ -49,6 +49,12 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  find(tree,n=>n.props.title==='common.close').props.onClick();await flush()
  assert.equal(closed.at(-1).body,'Latest edit','closing in the same turn must save the latest rich editor transaction')
  assert.ok(closed.at(-1).html.includes('<strong>'))
+ tree=render();find(tree,n=>n.props.title==='compose.minimize').props.onClick();await flush()
+ assert.equal(minimized.at(-1).body,'Latest edit');assert.ok(minimized.at(-1).html.includes('<strong>'))
+ tree=render();find(tree,n=>n.props.className==='send-caret').props.onClick()
+ tree=render();find(tree,n=>n.type==='button'&&React.Children.toArray(n.props.children).includes('compose.sendPlain')).props.onClick();await flush()
+ assert.equal(sent.at(-1).html,undefined);assert.equal(sent.at(-1).body,'Latest edit')
+ assert.ok(closed.at(-1).html.includes('<strong>'),'plain sending must not mutate draft formatting')
  console.log('Compose editor: pending addresses, validation, CC/BCC, Escape draft, failed sends, duplicate clicks and discard passed')
 })().catch(error=>{console.error(error);process.exitCode=1})
 

@@ -395,7 +395,7 @@ export interface MailApi {
   getDraft(id?: string): Promise<Draft | null>
   listDrafts(): Promise<Draft[]>
   openDraft(path: string, uid: number): Promise<Draft>
-  saveDraft(draft: Draft): Promise<{ queued: boolean }>
+  saveDraft(draft: Draft): Promise<{ id: string; queued: boolean }>
   clearDraft(id?: string): Promise<void>
   listOutbox(): Promise<OutboxItem[]>
   retryOutbox(id: string): Promise<void>

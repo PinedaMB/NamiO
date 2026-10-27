@@ -2104,6 +2104,7 @@
   width: 100%;
   max-width: 1180px;
   height: min(88vh, 820px);
+  transition: max-width 260ms var(--ease), height 260ms var(--ease);
   border-radius: var(--r-xl);
   background: var(--surface-container);
   box-shadow: var(--shadow-lg);
@@ -4921,8 +4922,10 @@
 }
 
 .composer--expanded {
-  width: min(1200px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
+  width: 100%;
+  max-width: calc(100vw - 2 * var(--sp-md));
+  height: calc(100vh - 2 * var(--sp-md));
+  max-height: 100%;
 }
 
 .composer > .account-error {
@@ -5089,11 +5092,6 @@
   color: var(--on-surface-variant);
 }
 
-.rich-editor__content:focus-visible {
-  outline: 1px solid var(--outline-variant);
-  outline-offset: 8px;
-}
-
 .rich-editor__content ::selection {
   background: color-mix(in srgb, var(--primary) 28%, transparent);
 }
@@ -5158,4 +5156,65 @@
 
 .rich-editor {
   min-width: 0;
+}
+
+.composer-dock {
+  position: fixed;
+  right: var(--sp-lg);
+  bottom: calc(var(--status-h) + var(--sp-md));
+  width: min(380px, calc(100vw - 40px));
+  z-index: 80;
+}
+
+.composer--minimized {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.composer--minimized .composer__fields,
+.composer--minimized .composer__split,
+.composer--minimized .composer__foot {
+  display: none;
+}
+
+.composer--minimized .composer__head {
+  padding: 0 var(--sp-md);
+}
+
+
+.send-group {
+  position: relative;
+}
+
+.composer-send-options {
+  position: absolute;
+  bottom: calc(100% + var(--sp-sm));
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 230px;
+  padding: var(--sp-sm);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--r-lg);
+  background: var(--surface-container);
+  z-index: 10;
+}
+
+.composer-send-options .tool-btn {
+  justify-content: flex-start;
+  min-height: 36px;
+}
+
+.composer-dock:not(.overlay--closing) .composer {
+  animation: composer-dock-in 220ms var(--ease) both;
+}
+
+@keyframes composer-dock-in {
+  from { opacity: 0.5; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.composer-send-options {
+  animation: content-in 140ms var(--ease) both;
 }

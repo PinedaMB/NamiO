@@ -14,7 +14,7 @@ const source=fs.readFileSync('src/renderer/src/App.tsx','utf8'),ast=ts.createSou
 let code
 function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='select')code=node.initializer.getText(ast);ts.forEachChild(node,visit)}visit(ast)
 let opened,lookup,session=0
-const context={live:true,draftsFolder:true,folder:'Drafts',accountGeneration:{current:0},folderRequest:{current:0},
+const context={compose:null,setComposeMinimized(){},live:true,draftsFolder:true,folder:'Drafts',accountGeneration:{current:0},folderRequest:{current:0},
  setIndividualMessageId(){},userNavigated:{current:false},setSelectedId(){},
  setComposeSession:fn=>{session=fn(session)},setCompose:draft=>{opened=draft},uidOf:id=>Number(id.slice(5)),
  window:{api:{openDraft:async(path,uid)=>{lookup=[path,uid];return drafts[2]},getDraft:async id=>drafts.find(draft=>draft.id===id)}},

@@ -7,6 +7,8 @@ const state = []
 let index = 0
 let darkened = false
 let measured = false
+let resize, pendingMeasure
+const animationFrame = { current: 0 }
 const inner = {
   documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
   body: {}, addEventListener() {}
@@ -16,12 +18,14 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX
 }), {
   exports: exportsObject,
-  ResizeObserver: class { observe() {} disconnect() {} },
+  ResizeObserver: class { constructor(callback) { resize = callback } observe() {} disconnect() {} },
+  requestAnimationFrame: callback => { pendingMeasure = callback; return 1 },
+  cancelAnimationFrame: () => { pendingMeasure = undefined },
   DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },
   require: id => {
     if (id === 'react') return { ...React,
       useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = initial; return [state[slot], value => { state[slot] = value }] },
-      useRef: () => ({ current: { contentDocument: inner, disconnect() {} } }), useEffect() {}, useLayoutEffect() {}, useMemo: fn => fn()
+      useRef: initial => typeof initial === 'number' ? animationFrame : ({ current: { contentDocument: inner, disconnect() {} } }), useEffect() {}, useLayoutEffect() {}, useMemo: fn => fn()
     }
     if (id === 'dompurify') return { default: { sanitize: html => html } }
     if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
@@ -46,6 +50,11 @@ assert.match(baseStyle, /word-break: normal/)
 assert.doesNotMatch(baseStyle, /overflow-wrap: anywhere|word-break: break-word/)
 
 frame.props.onLoad()
+assert.ok(measured)
+measured = false
+resize()
+assert.equal(measured, false, 'ResizeObserver must defer layout mutations to the next frame')
+pendingMeasure()
 assert.ok(measured)
 frame = render()
 assert.equal(frame.props.style.visibility, 'visible')

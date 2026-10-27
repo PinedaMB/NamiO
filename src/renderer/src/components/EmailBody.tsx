@@ -82,6 +82,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   const bodyTheme = theme ?? preferredTheme
   const frameRef = useRef<HTMLIFrameElement>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
+  const measureFrame = useRef(0)
   const [allowOverride, setAllowOverride] = useState<boolean | null>(null)
   const [height, setHeight] = useState(320)
   const [background, setBackground] = useState<string | undefined>(undefined)
@@ -129,7 +130,12 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
 
     // Imágenes y fuentes cambian la altura después del load.
     observerRef.current?.disconnect()
-    const observer = new ResizeObserver(measure)
+    cancelAnimationFrame(measureFrame.current)
+    // Medir fuera del observer evita realimentar el layout al cambiar el lector.
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(measureFrame.current)
+      measureFrame.current = requestAnimationFrame(measure)
+    })
     observer.observe(inner.documentElement)
     if (inner.body) observer.observe(inner.body)
     observerRef.current = observer
@@ -144,7 +150,10 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
     })
   }
 
-  useEffect(() => () => observerRef.current?.disconnect(), [])
+  useEffect(() => () => {
+    observerRef.current?.disconnect()
+    cancelAnimationFrame(measureFrame.current)
+  }, [])
 
   return (
     <div className="email-body" style={{ background: readyDocument === documentHtml ? background : undefined, borderRadius: 'var(--r-xl)' }}>

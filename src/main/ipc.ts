@@ -259,9 +259,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.draftsList, () => listDrafts())
   ipcMain.handle(IPC.draftOpen, (_event, path: string, uid: number) => openServerDraft(path, uid))
   ipcMain.handle(IPC.draftSave, async (_event, input: Draft) => {
-    queueDraftSave(input)
+    const draft = queueDraftSave(input)
     void processOutbox()
-    return { queued: true }
+    return { id: draft.id!, queued: true }
   })
   ipcMain.handle(IPC.draftClear, async (_event, id?: string) => {
     if (id) queueDraftDelete(id)

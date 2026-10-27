@@ -21,6 +21,9 @@ interface ComposeOverlayProps {
   cc?: string
   bcc?: string
   initialAttachments?: PickedAttachment[]
+  minimized?: boolean
+  onMinimize?: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
+  onRestore?: () => void
   onDiscard: () => Promise<void>
   onRestoreDraft?: () => Promise<void>
   /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
@@ -51,6 +54,9 @@ export function ComposeOverlay({
   bcc = '',
   initialAttachments,
   onDiscard,
+  minimized = false,
+  onMinimize,
+  onRestore,
   onRestoreDraft,
   copilot = true,
   onClose,
@@ -70,6 +76,9 @@ export function ComposeOverlay({
   const sendingRef = useRef(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sendOptionsOpen, setSendOptionsOpen] = useState(false)
+  const sendOptionsRef = useRef<HTMLDivElement>(null)
+  const sendCaretRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
   const [tone, setTone] = useState<TranslationKey>('compose.toneDirect')
@@ -101,6 +110,7 @@ export function ComposeOverlay({
     setCcOpen(Boolean(cc))
     setBccOpen(Boolean(bcc))
     setError(null)
+    setSendOptionsOpen(false)
     // Los adjuntos de ejemplo solo existen en la demo.
     setAttachments(
       copilot
@@ -125,16 +135,30 @@ export function ComposeOverlay({
     finally { sendingRef.current = false }
   }
 
-  const send = async (): Promise<void> => {
+  const send = async (formatted = true): Promise<void> => {
+    setSendOptionsOpen(false)
     if (sendingRef.current) return
     const payload = values()
     if (!validRecipients(payload.to, payload.cc, payload.bcc ?? '')) { setError(t('compose.invalidRecipients')); return }
     sendingRef.current = true
     setSending(true)
     setError(null)
-    try { await onSend({ ...payload, html: payload.html ? composeEmailHtml(payload.html) : undefined }) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    try { await onSend({ ...payload, html: formatted && payload.html ? composeEmailHtml(payload.html) : undefined }) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { sendingRef.current = false; setSending(false) }
   }
+
+  const minimize = async (): Promise<void> => {
+    if (sendingRef.current || !onMinimize) return
+    sendingRef.current = true
+    setSending(true)
+    setSendOptionsOpen(false)
+    try { await onMinimize(values()) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { sendingRef.current = false; setSending(false) }
+  }
+
+  useEffect(() => {
+    if (sendOptionsOpen) sendOptionsRef.current?.querySelector('button')?.focus()
+  }, [sendOptionsOpen])
 
   const discard = async (): Promise<void> => {
     if (sendingRef.current) return
@@ -143,7 +167,7 @@ export function ComposeOverlay({
 
   // Escape cierra guardando el borrador; en captura para adelantarse al atajo global.
   useEffect(() => {
-    if (!open) return
+    if (!open || minimized) return
     const onKey = (event: KeyboardEvent): void => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void send(); return }
       if (event.key !== 'Escape') return
@@ -154,7 +178,7 @@ export function ComposeOverlay({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, toValue, ccValue, bccValue, subjectValue, bodyValue, htmlValue, picked, sending, onClose])
+  }, [open, minimized, toValue, ccValue, bccValue, subjectValue, bodyValue, htmlValue, picked, sending, onClose])
 
   if (!mounted) return null
 
@@ -176,12 +200,12 @@ export function ComposeOverlay({
 
   return (
     <div
-      className={cx('overlay overlay--center', closing && 'overlay--closing')}
+      className={cx(minimized ? 'composer-dock' : 'overlay overlay--center', closing && 'overlay--closing')}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) closeWithDraft()
+        if (event.target === event.currentTarget) { if (sendOptionsOpen) setSendOptionsOpen(false); else void closeWithDraft() }
       }}
     >
-      <div className={cx('composer', expanded && 'composer--expanded')} aria-busy={sending} role="dialog" aria-modal="true" aria-label={t('compose.newMessage')}>
+      <div className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')} aria-busy={sending} role="dialog" aria-modal={!minimized} aria-label={t('compose.newMessage')}>
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
@@ -202,8 +226,11 @@ export function ComposeOverlay({
                 <Icon name="history" size={16} />{t('draft.restore')}
               </button>
             )}
-            <TooltipButton className="icon-btn" type="button" title={t('compose.expand')} onClick={() => setExpanded(value => !value)} disabled={sending}>
-              <Icon name="open_in_full" size={16} />
+            <TooltipButton className="icon-btn" type="button" title={t(minimized ? 'compose.restore' : 'compose.minimize')} onClick={() => minimized ? onRestore?.() : void minimize()} disabled={sending || !onMinimize}>
+              <Icon name={minimized ? 'expand_less' : 'remove'} size={16} />
+            </TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t(expanded && !minimized ? 'compose.restoreSize' : 'compose.expand')} aria-pressed={expanded && !minimized} onClick={() => { if (minimized) { onRestore?.(); setExpanded(true) } else setExpanded(value => !value) }} disabled={sending}>
+              <Icon name={expanded && !minimized ? 'close_fullscreen' : 'open_in_full'} size={16} />
             </TooltipButton>
             <TooltipButton className="icon-btn" type="button" onClick={() => void closeWithDraft()} disabled={sending} title={t('common.close')}>
               <Icon name="close" size={16} />
@@ -392,10 +419,7 @@ export function ComposeOverlay({
                     <Icon name="calendar_add_on" size={14} />
                     {t('compose.insertSlots')}
                   </button>
-                  <button className="micro-btn" type="button">
-                    <Icon name="verified_user" size={14} />
-                    {t('compose.sla')}
-                  </button>
+
                 </div>
               </div>
             </div>
@@ -427,16 +451,19 @@ export function ComposeOverlay({
                 {t(sending ? 'compose.sending' : 'compose.sendNow')}
                 <kbd className="kbd">⌘↵</kbd>
               </button>
-              <TooltipButton className="send-caret" type="button" title={t('compose.sendingOptions')} disabled>
+              <TooltipButton ref={sendCaretRef} className="send-caret" type="button" title={t('compose.sendingOptions')} disabled={sending}
+                aria-expanded={sendOptionsOpen} aria-controls={sendOptionsOpen ? 'composer-send-options' : undefined}
+                onClick={() => setSendOptionsOpen(value => !value)}>
                 <Icon name="arrow_drop_down" size={16} />
               </TooltipButton>
             </div>
-            {copilot && (
-              <button className="tool-btn" type="button">
-                <Icon name="schedule_send" size={16} />
-                {t('compose.sendTomorrow')}
-              </button>
-            )}
+            {sendOptionsOpen && <div className="composer-send-options" id="composer-send-options" ref={sendOptionsRef} role="group" aria-label={t('compose.sendingOptions')} data-editor-popup
+              onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSendOptionsOpen(false) }}
+              onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSendOptionsOpen(false); sendCaretRef.current?.focus() } }}>
+              <button className="tool-btn" type="button" onClick={() => void send()}><Icon name="send" size={16} />{t('compose.sendNow')}</button>
+              <button className="tool-btn" type="button" onClick={() => void send(false)}><Icon name="text_fields" size={16} />{t('compose.sendPlain')}</button>
+              <button className="tool-btn" type="button" onClick={() => { setSendOptionsOpen(false); void closeWithDraft() }}><Icon name="save" size={16} />{t('compose.saveDraft')}</button>
+            </div>}
           </div>
 
           <div className="composer__foot-right">
