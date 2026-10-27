@@ -466,6 +466,34 @@ Verificado: asunto de 64 px de alto (dos líneas) con estrella y título en la m
 3650 px con `contenido == ventana` y **0 px de scroll interno**; al alternar el tema el filtro pasa a
 `invert(1) hue-rotate(180deg)` con fondo `#14161b` y `settings.json` guarda `bodyTheme`.
 
+## Cómo probarlo
+
+Tres caminos, de más rápido a más real:
+
+1. **Sin instalar** (si tenés Node 22+ y pnpm 12): `pnpm install && pnpm dev`. La app abre con un
+   perfil de desarrollo en `.cache/userdata` y el servidor de pruebas se levanta aparte con
+   `node scripts/fake-imap.mjs 1143` (usuario `testuser`, contraseña `testpass`).
+2. **Instalable**: bajá `NamiO-0.2.0.AppImage` o `namio_0.2.0_amd64.deb` de
+   [Releases](https://github.com/PinedaMB/NamiO/releases) y ejecutalo.
+3. **Con tu cuenta real**: Gmail/Outlook necesitan tu propio cliente OAuth (ver
+   [OAuth2](#oauth2-gmail-y-outlook)); cualquier otro IMAP va con contraseña o contraseña de
+   aplicación.
+
+Qué vale la pena recorrer en esta versión:
+
+| Probá | Qué debería pasar |
+| --- | --- |
+| Primer arranque | Bienvenida → elegir proveedor → conectar → bandeja |
+| Reglas (Ajustes → Reglas y filtros) | Crear regla, aplicar a los existentes, ver los `hits` |
+| Multi-cuenta | Agregar una segunda cuenta y cambiar desde el menú del rail |
+| Cuenta inactiva | Con otra cuenta activa, el rail muestra el badge y avisa al llegar correo |
+| Correo HTML | Imágenes bloqueadas con aviso, un solo scroll, botón de tema claro/oscuro |
+| Sincronización | Barra de progreso en el pie mientras baja el buzón completo |
+| Desconexión | Cortar la red: la app sigue mostrando la caché con la franja "Sin conexión" |
+
+Los datos viven en el perfil (Linux: `~/.config/NamiO`). Para empezar de cero, cerrá la app y borrá
+esa carpeta. Un `cache-<id>.db` por cuenta y `settings.json` con cuentas, idioma y preferencias.
+
 ## Comandos
 
 ```bash
@@ -535,7 +563,7 @@ En Linux (o en CI, que es lo recomendado):
 
 ```bash
 pnpm install
-pnpm run build:linux     # → release/NamiO-0.1.0.AppImage + release/namio_0.1.0_amd64.deb
+pnpm run build:linux     # → release/NamiO-0.2.0.AppImage + release/namio_0.2.0_amd64.deb
 ```
 
 La CI está en dos workflows, y se reparten el trabajo para no empaquetar de más:
@@ -553,25 +581,24 @@ Para disparar un release, con el remoto ya configurado:
 ```bash
 git remote add origin <url-del-repo>
 git push -u origin master
-git push origin v0.1.0     # tag anotado: dispara release-linux.yml
+git push origin v0.2.0     # tag anotado: dispara release-linux.yml
 ```
 
 El tag tiene que apuntar al commit que querés publicar (`git describe --tags` lo confirma).
 
-### El primer release (v0.1.0)
+### Los releases
 
-La [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) salió del workflow
-`release-linux` en **2 min 15 s** y trae dos archivos:
-
-| Archivo | Tamaño |
+| Versión | Qué trae |
 | --- | --- |
-| `NamiO-0.1.0.AppImage` | 126.3 MB |
-| `namio_0.1.0_amd64.deb` | 101.8 MB |
+| [v0.2.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.2.0) | Actual: reglas locales, varias cuentas y avisos de la cuenta inactiva |
+| [v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | Primera entrega: cuenta, OAuth2, bienvenida, sync completa y reglas no |
 
-El `.deb` se verificó abriéndolo (sin `dpkg`): `control` dice `Package: namio`, `Version: 0.1.0`,
-`Maintainer: PinedaMB <mendez-pineda@outlook.es>`, `Homepage: https://github.com/PinedaMB/NamiO` y
-`Depends` con GTK3/NSS/libsecret; instala **91 archivos**, con el icono de 512², el `.desktop` y el
-binario en `/opt/NamiO/namio`.
+El primer release (v0.1.0) salió del workflow `release-linux` en **2 min 15 s** y trajo
+`NamiO-0.1.0.AppImage` (126.3 MB) y `namio_0.1.0_amd64.deb` (101.8 MB). El `.deb` se verificó
+abriéndolo (sin `dpkg`): `control` dice `Package: namio`, `Maintainer: PinedaMB
+<mendez-pineda@outlook.es>`, `Homepage: https://github.com/PinedaMB/NamiO` y `Depends` con
+GTK3/NSS/libsecret; instala **91 archivos**, con el icono de 512², el `.desktop` y el binario en
+`/opt/NamiO/namio`.
 
 Dos cosas que costaron el primer intento:
 
@@ -627,7 +654,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Aviso de correo nuevo en la cuenta inactiva (STATUS por cuenta) | ✅ |
 | Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
 | App empaquetada (`isPackaged: true`): CSP, fuentes del asar, bienvenida y cero errores | ✅ |
-| AppImage 126.3 MB + `.deb` 101.8 MB en la [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | ✅ |
+| AppImage + `.deb` publicados por CI en cada tag ([v0.2.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.2.0)) | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
