@@ -495,7 +495,8 @@ En un tag, además del artefacto del run, la Release de GitHub queda con los ins
   30 px junto al wordmark.
 - `desktopName: namio.desktop` en `package.json` + `linux.syncDesktopName` en `electron-builder.yml`
   para que GNOME/KDE asocien la ventana con el lanzador.
-- **Antes de publicar**: reemplazar `homepage` (hoy `https://example.com/namio`) y `maintainer`.
+- **Antes de publicar**: reemplazar `homepage` (hoy `https://example.com/namio`) por el repo real.
+  El maintainer ya está puesto: `PinedaMB <mendez-pineda@outlook.es>`.
 
 ### La CSP en producción va por meta, no por cabecera
 
@@ -606,6 +607,6 @@ núcleo responde con un `stage` válido (M0–M6).
 - Los paquetes se generan en
   [`.github/workflows/release-linux.yml`](.github/workflows/release-linux.yml) (Ubuntu), no desde Windows.
 - El icono ya está: `build/icon.png` (512²) y `build/icon-1024.png`, ambos desde `build/logo-source.png`.
-- Antes de publicar: reemplazar `homepage` y `maintainer` en `package.json` / `electron-builder.yml`
-  (el `.deb` usa el segundo).
+- Autor y maintainer ya son **PinedaMB <mendez-pineda@outlook.es>** (el `.deb` usa el maintainer).
+- Queda reemplazar `homepage` (hoy `https://example.com/namio`) por el repo real cuando exista.
 - Flatpak queda para después; el canal natural es Flathub con el runtime de Electron.

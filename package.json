@@ -5,8 +5,8 @@
   "description": "NamiO — cliente de correo de escritorio para Linux",
   "main": "./out/main/index.js",
   "author": {
-    "name": "linux-mail-client",
-    "email": "dev@example.com"
+    "name": "PinedaMB",
+    "email": "mendez-pineda@outlook.es"
   },
   "license": "MIT",
   "homepage": "https://example.com/namio",

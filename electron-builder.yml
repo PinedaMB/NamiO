@@ -1,6 +1,6 @@
 appId: dev.namio.app
 productName: NamiO
-copyright: Copyright © 2026
+copyright: Copyright © 2026 PinedaMB
 
 directories:
   buildResources: build
@@ -27,7 +27,7 @@ linux:
   # WM_CLASS / app_id: sin esto, GNOME y KDE no asocian la ventana con el .desktop
   # (el nombre va en package.json: "desktopName").
   syncDesktopName: true
-  maintainer: linux-mail-client <dev@example.com>
+  maintainer: PinedaMB <mendez-pineda@outlook.es>
   desktop:
     entry:
       Name: NamiO
