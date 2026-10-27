@@ -14,6 +14,7 @@ import {
 import {
   accountIdFor,
   activateAccount,
+  checkAccountsActivity,
   connectAccount,
   connectAccountOAuth,
   disconnectAccount,
@@ -76,6 +77,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.accountsList, () => listAccounts())
 
   ipcMain.handle(IPC.accountSelect, (_event, id: string) => selectAccount(String(id)))
+
+  ipcMain.handle(IPC.accountsCheck, () => checkAccountsActivity())
 
   ipcMain.handle(
     IPC.accountConnect,

@@ -4078,3 +4078,30 @@
   background: var(--surface-container-high);
   color: var(--on-surface);
 }
+﻿
+/* Aviso de correo en las cuentas que no están activas. */
+.account__alert {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.account-menu__count {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.account-menu__count--active {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+}

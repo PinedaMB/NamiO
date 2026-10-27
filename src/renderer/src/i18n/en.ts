@@ -368,6 +368,8 @@ export const en: Dictionary = {
   'account.manage': 'This account’s settings',
   'account.switched': 'Account switched.',
   'account.switchFailed': 'Could not switch accounts.',
+  'account.inactiveMail': '{count} unread in other accounts',
+  'account.newMail': 'New mail in {label} · {count} unread',
   'account.title': 'Connect IMAP account',
   'account.subtitle': 'Credentials stay on this machine; the password is stored encrypted by the system.',
   'account.provider': 'Provider',

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { AccountSummary } from '@shared/ipc'
+import type { AccountActivity, AccountSummary } from '@shared/ipc'
 import logo from '../assets/logo.png'
 import { TAGS } from '../data/demo'
 import type { FolderView } from '../data/live'
@@ -14,6 +14,8 @@ interface SidebarProps {
   accountConnected: boolean
   /** Cuentas guardadas: con más de una aparece el conmutador. */
   accounts: readonly AccountSummary[]
+  /** No leídos por cuenta (incluidas las inactivas). */
+  activity?: readonly AccountActivity[]
   showTags: boolean
   syncLabel: string
   offline: boolean
@@ -33,6 +35,7 @@ export function Sidebar({
   accountLabel,
   accountConnected,
   accounts = [],
+  activity = [],
   showTags,
   syncLabel,
   offline,
@@ -60,6 +63,11 @@ export function Sidebar({
     onRefreshAccounts?.()
   }
 
+  const unseenOf = (id: string): number => activity.find((item) => item.id === id)?.unseen ?? 0
+  const inactiveUnseen = activity
+    .filter((item) => !item.active && item.unseen > 0)
+    .reduce((total, item) => total + item.unseen, 0)
+
   return (
     <aside className="rail">
       <div>
@@ -86,6 +94,11 @@ export function Sidebar({
               <span className={cx('dot', !accountConnected && 'dot--idle')} />
               <span className="account__mail">{accountLabel}</span>
             </span>
+            {inactiveUnseen > 0 && (
+              <span className="account__alert" title={t('account.inactiveMail', { count: inactiveUnseen })}>
+                {inactiveUnseen}
+              </span>
+            )}
             <Icon name={accounts.length > 1 ? 'expand_more' : accountConnected ? 'tune' : 'add'} size={16} />
           </button>
 
@@ -115,6 +128,11 @@ export function Sidebar({
                           {item.host}:{item.port}
                         </span>
                       </span>
+                      {unseenOf(item.id) > 0 && (
+                        <span className={cx('account-menu__count', item.active && 'account-menu__count--active')}>
+                          {unseenOf(item.id)}
+                        </span>
+                      )}
                       {item.active && <Icon name="check" size={15} />}
                     </button>
                   ))}

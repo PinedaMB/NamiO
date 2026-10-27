@@ -371,6 +371,8 @@ export const es = {
   'account.manage': 'Ajustes de esta cuenta',
   'account.switched': 'Cuenta cambiada.',
   'account.switchFailed': 'No se pudo cambiar de cuenta.',
+  'account.inactiveMail': '{count} sin leer en otras cuentas',
+  'account.newMail': 'Correo nuevo en {label} · {count} sin leer',
   'account.title': 'Conectar cuenta IMAP',
   'account.subtitle': 'Las credenciales quedan en este equipo; la contraseña se guarda cifrada por el sistema.',
   'account.provider': 'Proveedor',

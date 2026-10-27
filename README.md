@@ -332,6 +332,24 @@ la caché `cache.db`; agregar el segundo creó `cache-acc-2-testuser.db` y lo de
 se volvió al primero y la lista mostró sus **11** hilos (el segundo conserva los **8**). Las reglas y
 la cola no se mezclan porque cada cuenta tiene su base.
 
+### Avisos de la cuenta inactiva
+
+![Aviso de correo en la otra cuenta](docs/account-activity.png)
+
+Con varias cuentas, la que no está activa también avisa:
+
+- Cada **3 minutos** (y al abrir el menú de cuentas, o después de conectar/cambiar) el proceso
+  principal abre una **sesión corta** por cuenta inactiva y pide solo `STATUS INBOX`: no descarga
+  mensajes ni deja otra conexión abierta.
+- Si los no leídos **suben**, aparece un aviso con la cuenta identificada por `host:puerto` (dos
+  cuentas pueden ser del mismo usuario) y el total; el menú muestra el contador de cada cuenta y el
+  pill del rail un badge con la suma de las inactivas.
+- Solo avisa cuando **sube**: ni al bajar, ni la primera vez que se ve una cuenta.
+
+Verificado con dos servidores: con A activa y B inactiva, un mensaje nuevo en B pasó el contador de
+**6 → 7** y el aviso dijo *Correo nuevo en testuser (127.0.0.1:2143) · 7 sin leer*; el badge del rail y
+el menú coincidieron. Repetido con 9 y 10: el aviso vuelve a aparecer solo cuando entra correo.
+
 ## Integridad del CSS
 
 `pnpm run css:audit` cruza el CSS con el JSX y verifica cuatro cosas: que toda variable usada esté
@@ -606,6 +624,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Tema del cuerpo del correo, un solo scroll y estrella alineada | ✅ |
 | Reglas locales: alta, activar/desactivar, aplicar a la caché y `hits` | ✅ |
 | Varias cuentas conmutables con caché separada por cuenta | ✅ |
+| Aviso de correo nuevo en la cuenta inactiva (STATUS por cuenta) | ✅ |
 | Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
 | App empaquetada (`isPackaged: true`): CSP, fuentes del asar, bienvenida y cero errores | ✅ |
 | AppImage 126.3 MB + `.deb` 101.8 MB en la [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | ✅ |

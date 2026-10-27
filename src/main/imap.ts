@@ -3,6 +3,7 @@ import { simpleParser } from 'mailparser'
 import type {
   AccountConfig,
   AccountState,
+  AccountActivity,
   AccountSummary,
   CachedResult,
   Envelope,
@@ -836,8 +837,7 @@ export async function getAccountState(): Promise<AccountState> {
 }
 
 /** Todas las cuentas guardadas, con la activa marcada. */
-export async function listAccounts(): Promise<AccountSummary[]> {
-  const { accounts, active } = await readAccounts()
+export async function listAccounts(): Promise<AccountSummary[]> {  const { accounts, active } = await readAccounts()
   return accounts.map((account) => ({
     id: account.id,
     label: account.label ?? account.user,
@@ -848,6 +848,69 @@ export async function listAccounts(): Promise<AccountSummary[]> {
     active: account.id === active
   }))
 }
+
+/**
+ * Revisa el INBOX de todas las cuentas con una sesión corta (solo STATUS) y
+ * marca cuáles sumaron no leídos desde la revisión anterior. Es lo que permite
+ * avisar de correo en las cuentas que no están activas sin abrir la bandeja.
+ */
+export async function checkAccountsActivity(): Promise<AccountActivity[]> {
+  const { accounts, active } = await readAccounts()
+
+  const activity: AccountActivity[] = []
+  for (const account of accounts) {
+    const isActive = account.id === active
+    let unseen = 0
+
+    if (isActive) {
+      // La cuenta activa ya se sincroniza sola: su contador sale de la caché.
+      unseen = countUnread('INBOX')
+    } else {
+      try {
+        const auth = await authFor(account)
+        const client = new ImapFlow({
+          host: account.host,
+          port: account.port,
+          secure: account.secure,
+          auth:
+            'accessToken' in auth
+              ? { user: account.user, accessToken: auth.accessToken }
+              : { user: account.user, pass: auth.password },
+          logger: false,
+          emitLogs: false
+        })
+        await client.connect()
+        try {
+          const status = await client.status('INBOX', { unseen: true })
+          unseen = status !== false ? Number(status.unseen ?? 0) : 0
+        } finally {
+          await client.logout().catch(() => undefined)
+        }
+      } catch {
+        // Sin red o credenciales vencidas: se conserva el último valor conocido.
+        unseen = lastUnseen.get(account.id) ?? 0
+      }
+    }
+
+    const previous = lastUnseen.get(account.id)
+    lastUnseen.set(account.id, unseen)
+
+    activity.push({
+      id: account.id,
+      label: account.label ?? account.user,
+      host: account.host,
+      port: account.port,
+      unseen,
+      // Avisa solo cuando sube, nunca al bajar ni la primera vez que se ve.
+      fresh: previous !== undefined && unseen > previous && !isActive,
+      active: isActive
+    })
+  }
+
+  return activity
+}
+
+const lastUnseen = new Map<string, number>()
 
 /**
  * Cambia de cuenta: corta la sesión, reapunta la caché a la cuenta elegida y

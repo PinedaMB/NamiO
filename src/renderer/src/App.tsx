@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AccountState,
+  AccountActivity,
   AccountSummary,
   AppSettings,
   CoreStatus,
@@ -110,6 +111,7 @@ export function App(): React.JSX.Element {
 
   const [account, setAccount] = useState<AccountState | null>(null)
   const [accounts, setAccounts] = useState<readonly AccountSummary[]>([])
+  const [activity, setActivity] = useState<readonly AccountActivity[]>([])
   const [accountOpen, setAccountOpen] = useState(false)
   const [settings, setSettings] = useState<Partial<AppSettings>>({})
   const [settingsLoaded, setSettingsLoaded] = useState(false)
@@ -127,10 +129,29 @@ export function App(): React.JSX.Element {
   const [searching, setSearching] = useState(false)
   const busySwitch = useRef(false)
 
+  /** Guarda los no leídos por cuenta y avisa cuando llegó correo a otra cuenta. */
+  const applyActivity = useCallback(
+    (list: readonly AccountActivity[]): void => {
+      setActivity(list)
+      const fresh = list.find((item) => item.fresh)
+      if (fresh) {
+        // Con dos cuentas del mismo usuario, el host:puerto es lo que distingue.
+        setToast(
+          t('account.newMail', { label: `${fresh.label} (${fresh.host}:${fresh.port})`, count: fresh.unseen })
+        )
+      }
+    },
+    [t]
+  )
+
   const refreshAccounts = useCallback(async (): Promise<void> => {
     const list = await window.api?.accounts?.().catch(() => null)
     if (list) setAccounts(list)
-  }, [])
+
+    // Aprovecha para refrescar los no leídos de cada cuenta (STATUS del INBOX).
+    const next = await window.api?.checkAccounts?.().catch(() => null)
+    if (next) applyActivity(next)
+  }, [applyActivity])
   /** Cuántos mensajes se piden a la caché (crece al llegar al final de la lista). */
   const [listLimit, setListLimit] = useState(PAGE_SIZE)
   const loadingMoreRef = useRef(false)
@@ -304,6 +325,12 @@ export function App(): React.JSX.Element {
     const unsubscribe = window.api?.onSyncProgress?.((value) => setSyncProgress(value))
     return () => unsubscribe?.()
   }, [])
+
+  /** No leídos por cuenta: la activa la sincroniza el motor y las demás el sondeo. */
+  useEffect(() => {
+    const unsubscribe = window.api?.onAccountsActivity?.((list) => applyActivity(list))
+    return () => unsubscribe?.()
+  }, [applyActivity])
 
   const loadMailboxes = useCallback(
     async (state: AccountState): Promise<void> => {
@@ -760,6 +787,7 @@ export function App(): React.JSX.Element {
         accountLabel={accountLabel}
         accountConnected={live}
         accounts={accounts}
+        activity={activity}
         showTags={!live}
         syncLabel={syncLabel}
         offline={live && sync.offline}

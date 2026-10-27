@@ -12,6 +12,8 @@ export const IPC = {
   accountStatus: 'account:status',
   accountsList: 'accounts:list',
   accountSelect: 'accounts:select',
+  accountsCheck: 'accounts:check',
+  accountsActivity: 'accounts:activity',
   accountConnect: 'account:connect',
   accountConnectOAuth: 'account:connect-oauth',
   accountDisconnect: 'account:disconnect',
@@ -136,6 +138,18 @@ export interface AccountSummary {
   host: string
   port: number
   auth: AuthMethod
+  active: boolean
+}
+
+/** Estado de una cuenta para los avisos: no leídos y si llegó algo nuevo. */
+export interface AccountActivity {
+  id: string
+  label: string
+  host: string
+  port: number
+  unseen: number
+  /** `true` cuando aumentó desde la última revisión. */
+  fresh: boolean
   active: boolean
 }
 
@@ -304,6 +318,9 @@ export interface MailApi {
   accounts(): Promise<AccountSummary[]>
   /** Cambia la cuenta activa: corta la sesión y reapunta la caché. */
   selectAccount(id: string): Promise<ImapResult<AccountState>>
+  /** Revisa el INBOX de cada cuenta (incluidas las inactivas) y devuelve no leídos. */
+  checkAccounts(): Promise<AccountActivity[]>
+  onAccountsActivity(listener: (activity: AccountActivity[]) => void): () => void
   accountConnect(config: AccountConfig, password: string): Promise<ImapResult<AccountState>>
   /** OAuth2: abre el navegador, espera el redirect y guarda el refresh token. */
   accountConnectOAuth(config: AccountConfig): Promise<ImapResult<AccountState>>

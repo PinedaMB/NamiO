@@ -2,7 +2,7 @@ import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
-import { setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
+import { checkAccountsActivity, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
 import { readActiveAccount } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
@@ -162,6 +162,20 @@ void app.whenReady().then(() => {
   setInterval(() => {
     void syncInbox()
   }, 60_000)
+
+  // Avisos de las cuentas inactivas: STATUS del INBOX cada 3 minutos.
+  const pushActivity = async (): Promise<void> => {
+    try {
+      const activity = await checkAccountsActivity()
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send(IPC.accountsActivity, activity)
+      }
+    } catch {
+      // sin red: se reintenta en el próximo ciclo
+    }
+  }
+  setTimeout(() => void pushActivity(), 20_000)
+  setInterval(() => void pushActivity(), 180_000)
 
   createWindow()
 

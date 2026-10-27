@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type AccountConfig,
+  type AccountActivity,
   type AccountState,
   type AccountSummary,
   type AppSettings,
@@ -35,6 +36,12 @@ const api: MailApi = {
   accountStatus: (): Promise<AccountState> => ipcRenderer.invoke(IPC.accountStatus),
   accounts: (): Promise<AccountSummary[]> => ipcRenderer.invoke(IPC.accountsList),
   selectAccount: (id: string): Promise<ImapResult<AccountState>> => ipcRenderer.invoke(IPC.accountSelect, id),
+  checkAccounts: (): Promise<AccountActivity[]> => ipcRenderer.invoke(IPC.accountsCheck),
+  onAccountsActivity: (listener: (activity: AccountActivity[]) => void): (() => void) => {
+    const handler = (_event: unknown, activity: AccountActivity[]): void => listener(activity)
+    ipcRenderer.on(IPC.accountsActivity, handler)
+    return () => ipcRenderer.removeListener(IPC.accountsActivity, handler)
+  },
   accountConnect: (config: AccountConfig, password: string): Promise<ImapResult<AccountState>> =>
     ipcRenderer.invoke(IPC.accountConnect, config, password),
   accountConnectOAuth: (config: AccountConfig): Promise<ImapResult<AccountState>> =>
