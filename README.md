@@ -1,8 +1,9 @@
 # NamiO — cliente de email para Linux
 
 NamiO es un cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y
-desarrollado en Windows. Estado actual: **M0 + shell visual** — aislamiento real entre UI y núcleo, y
-la identidad visual del producto aplicada sobre datos de demostración.
+desarrollado en Windows. Estado actual: **M6 cerrado** — conectar cuenta (contraseña u OAuth2), leer
+HTML, caché offline, enviar con cola, buscar en local y sincronizar el buzón completo, con bienvenida
+guiada en el primer arranque. Los instalables de Linux se generan en CI.
 
 ## Stack y por qué
 
@@ -19,11 +20,11 @@ salida es Tauri + Rust, no seguir optimizando Electron.
 ## Arquitectura
 
 ```
-┌── Renderer (React) ── solo UI, sin red, sin disco, sin Node ──┐
+┌── Renderer (React) ── solo UI, sin red, sin disco, sin Node ─┐
 │                  IPC tipado (contextBridge)                  │
 ├── Main (Node) ── ventanas, menús, keyring, CSP ──────────────┤
-│   Worker: motor de sync (imapflow + IDLE)                    │
-│   SQLite WAL + FTS5  ← caché local = offline                 │
+│   Sync por sondeo cada 60 s (imapflow, sin IDLE)             │
+│   SQLite WAL + FTS5 ← caché local = offline                  │
 │   Cola de salida (nodemailer) + borradores                   │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -44,7 +45,8 @@ Decisiones de seguridad ya aplicadas en M0:
 
 - `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`.
 - Navegación externa bloqueada: los links van al navegador del sistema, nunca a una ventana de Electron.
-- CSP estricta en producción (`frame-src 'none'`, `object-src 'none'`, `connect-src 'self'`).
+- CSP estricta en producción (`script-src 'self'`, `object-src 'none'`, `connect-src 'self'`), con
+  `frame-src 'self' about:` únicamente para el iframe del correo HTML.
 - Permisos de la sesión denegados por defecto; se habilitan uno por uno cuando una feature lo justifique.
 - Instancia única: dos procesos escribiendo la misma caché SQLite es un bug garantizado.
 
@@ -92,8 +94,9 @@ Dos decisiones a tener presentes:
 
 - **La UI es bilingüe (es/en)**: toda la copia sale de `src/renderer/src/i18n/`. El contenido de los
   correos no se traduce, se lee en el idioma en que llegó (ver [Idioma](#idioma)).
-- **`src/renderer/src/data/demo.ts` es demostración**, no datos reales. Cuando llegue el motor de
-  sync esto se reemplaza por la caché SQLite sin tocar los componentes.
+- **`src/renderer/src/data/demo.ts` es solo la demo**: con una cuenta conectada, los mismos
+  componentes leen de la caché SQLite por IPC. La demo queda para "Explorar la demo" del primer
+  arranque.
 
 ## Idioma
 
@@ -148,7 +151,8 @@ General y velocidad, Atajos de teclado, Cuentas y alias, Ajuste del copiloto, y 
 ![Cuenta conectada](docs/inbox-live.png)
 
 Conectar una cuenta real ya funciona de punta a punta: diálogo de credenciales, buzones del servidor,
-bandeja con los últimos 50 mensajes y lectura del cuerpo de texto.
+bandeja con los últimos 50 mensajes y lectura del cuerpo de texto. El resto del buzón se baja en
+segundo plano (ver [Sincronización completa](#sincronización-completa-y-navegación)).
 
 ![Conectar cuenta](docs/account.png)
 
@@ -161,11 +165,12 @@ bandeja con los últimos 50 mensajes y lectura del cuerpo de texto.
   M3 lo resuelve con la caché local.
 - **Mensajes**: `ENVELOPE` + `FLAGS` + tamaño; al abrir, se descarga la fuente y se parsea con
   `mailparser` para mostrar texto y adjuntos. El HTML sanitizado es M2.
-- **Destacar** sí escribe en el servidor (`\Flagged`). Archivar, mover, posponer y eliminar quedan
-  deshabilitados hasta que exista la caché local (M3): mejor un botón apagado que uno que mienta.
+- **Destacar** escribe en el servidor (`\Flagged`) desde el primer día. En M1 archivar, mover,
+  posponer y eliminar estaban apagados a propósito; archivar y eliminar se habilitaron con la cola de
+  salida de M4. **Mover y posponer siguen sin escribir en el servidor.**
 
-Limitaciones conocidas de M1: sin OAuth2 (solo contraseña de aplicación), sin STARTTLS (el cifrado se
-elige con el switch), sin caché (cada carpeta se consulta al servidor) y sin HTML.
+Lo que M1 dejó atrás, ya resuelto en hitos siguientes: OAuth2, caché local, HTML y sync incremental.
+Sigue sin **STARTTLS** (el cifrado se elige con el switch) y sin `IDLE`.
 
 Para probar sin cuenta real:
 
@@ -187,10 +192,10 @@ En la app: Conectar cuenta → Local (pruebas) → Conectar.
   **Ajustes → General** se elige la política global (`Bloquear` o `Permitir`), que se guarda en el perfil.
 - **Links**: los clicks se interceptan y se abren con `shell.openExternal`, que solo acepta `http(s)` y
   `mailto:`. Nada de `javascript:`, `data:` ni `file:`.
-- El correo se dibuja sobre **papel claro** dentro del tema oscuro, como hacen la mayoría de los clientes:
-  el HTML ajeno asume fondo blanco.
-- **Altura automática**: el iframe comparte origen (sin scripts), el padre lo mide y evita el scroll
-  anidado.
+- El correo se dibuja sobre **papel claro** por defecto: el HTML ajeno asume fondo blanco. Si preferís
+  leer de noche, el **tema del cuerpo** invierte el lienzo (ver [Cuerpo del correo](#cuerpo-del-correo)).
+- **Un solo scroll**: el iframe comparte origen (sin scripts), el padre mide su contenido y crece a
+  esa altura, sin scroll anidado.
 
 Verificado: 2 imágenes remotas pasan a `data:`, el click de un link no navega el iframe (queda en
 `about:srcdoc`, o sea que el `preventDefault` corre) y al mostrar imágenes vuelven las URLs reales.
@@ -234,8 +239,8 @@ Verificado con el servidor de pruebas: varios envíos llegaron a INBOX y quedaro
 archivado terminó en Archive, otro borrado desapareció del servidor, y un envío encolado sin red salió
 al reconectar.
 
-Limitaciones de M4: sin borradores persistidos, sin adjuntos ni HTML en el envío, y sin IDLE (la
-bandeja se sondea cada 60 s).
+Limitaciones de M4: el cuerpo se envía en **texto plano** (sin HTML) y no se elige remitente
+alternativo. Borradores y adjuntos llegaron en el pulido; `IDLE` sigue sin usarse (sondeo cada 60 s).
 
 ## M5: búsqueda local (FTS5)
 
@@ -289,7 +294,8 @@ envió no permite aún elegir remitente alternativo.
 definida, que toda clase usada en un componente tenga al menos una regla, que los `url()` locales
 resuelvan y que el bundle construido conserve sus assets (fuentes incluidas).
 
-Estado actual: **337 clases definidas / 322 usadas · 54 variables (46 usadas) · 0 problemas**.
+Estado actual: **382 clases definidas / 367 usadas · 54 variables (46 usadas) · bundle 87.0 kB ·
+0 problemas**.
 
 Lo que encontró y se corrigió en esta pasada:
 
@@ -409,6 +415,8 @@ pnpm dev:restricted # fuerza sandbox desactivado (ver más abajo)
 pnpm typecheck      # tsc para main/preload y para el renderer
 pnpm build          # typecheck + build de producción en out/
 pnpm build:linux    # AppImage + .deb (requiere Linux o CI)
+pnpm pack:dir       # linux-unpacked para inspeccionar el paquete
+pnpm pack:inspect   # resumen del app.asar: deps, fuentes y entrypoints
 pnpm css:audit      # integridad del CSS contra el JSX
 pnpm preview        # sirve out/renderer en http://127.0.0.1:4173 (revisar UI sin Electron)
 node scripts/fake-imap.mjs   # IMAP 1143 + SMTP 1025, con XOAUTH2 (testuser/testpass | testtoken)
@@ -449,10 +457,11 @@ Y sobre ese mismo `app.asar`, ejecutado como aplicación:
   tema del cuerpo presente.
 - Cero errores de consola y cero excepciones.
 
-> Nota de transparencia: en esta ronda el ejecutable empaquetado de Windows (`release/win-unpacked`,
-> construido solo para probar el runtime) **no llega a abrirse en esta máquina**: sale con código 0 y
-> crashpad reporta `not connected`, así que no pude re-afirmar `isPackaged: true` (sí se verificó en
-> una ronda anterior). El objetivo es Linux, y ahí el binario es Electron + este mismo `app.asar`.
+Y sobre el ejecutable empaquetado de Windows (construido solo para probar el wrapper), con
+`isPackaged: true`: la CSP sigue aplicándose (script inline bloqueado), las fuentes cargan del asar,
+el perfil nuevo muestra la bienvenida y no hay errores de consola. **Necesita el sandbox desactivado
+en este entorno**, exactamente como `pnpm dev` (ver más abajo): sin eso Chromium muere con
+`STATUS_BREAKPOINT` antes de mostrar la ventana.
 
 ### Por qué AppImage y .deb necesitan Linux
 
@@ -514,9 +523,8 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Sync completa en segundo plano con progreso, badge de no leídos y scroll | ✅ |
 | Tema del cuerpo del correo, un solo scroll y estrella alineada | ✅ |
 | Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
+| App empaquetada (`isPackaged: true`): CSP, fuentes del asar, bienvenida y cero errores | ✅ |
 | AppImage / .deb | ⏳ CI (necesita Linux) |
-| Icono, metadatos y paquete linux-unpacked (12.6 MB de asar) | ✅ |
-| CSP activa en la app empaquetada | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
@@ -556,7 +564,7 @@ node scripts/smoke.mjs
 ```
 
 Valida que React montó, que el puente IPC existe, que `window.require` **no** está expuesto y que el
-núcleo responde `stage: "M0"`.
+núcleo responde con un `stage` válido (M0–M6).
 
 ## Roadmap
 
@@ -569,27 +577,29 @@ núcleo responde `stage: "M0"`.
 | ✅ M3 | Caché SQLite + sync incremental + offline | Sin red, la app muestra todo lo ya sincronizado |
 | ✅ M4 | Envío SMTP + cola de salida + archivar/eliminar | Me envío un correo y me llega |
 | ✅ M5 | Búsqueda FTS5 sobre la caché | Encuentro un correo por una palabra del cuerpo |
-| M6 | Reglas y filtros locales | Un remitente molesto se archiva solo |
-| M5 | Multi-cuenta, búsqueda FTS5, hilos por `References` | Buscar devuelve resultados correctos |
-| M6 | OAuth2 (Gmail/Outlook) + empaquetado | Instalable en Linux vía `.deb` |
+| ✅ M6 | OAuth2 (Gmail/Outlook) + empaquetado en CI | Instalable en Linux vía `.deb` |
+| M7 | Multi-cuenta y reglas locales | Un remitente molesto se archiva solo |
 
 ## Los problemas que hay que respetar desde el día uno
 
-1. **OAuth2 antes de M4.** Gmail y Outlook ya no aceptan contraseña de aplicación en todos los casos:
-   hace falta registrar la app en Google Cloud / Entra y usar PKCE con redirect a loopback.
+1. **OAuth2 no es un extra.** Gmail y Outlook dejaron de aceptar contraseña de aplicación en muchos
+   casos: si el cliente no trae PKCE con redirect a loopback, media base de usuarios no puede entrar.
+   (Se implementó en M6; costó hacerlo tarde.)
 2. **Sync incremental de verdad.** `UIDVALIDITY` y `UIDNEXT` son el mínimo; `CONDSTORE`/`QRESYNC`
    evita re-bajar la bandeja entera cada vez.
 3. **MIME real.** Multipart anidado, `encoded-words` (RFC 2047), charsets rotos, base64 y
    quoted-printable, adjuntos en streaming (nunca cargar 30 MB en memoria).
 4. **HTML hostil.** Sanitizar (DOMPurify), bloquear imágenes remotas por defecto (tracking pixels),
-   cero JS, CSP estricta, sin `iframe` hasta que haya sandboxing explícito.
+   cero JS y CSP estricta. El único iframe permitido es el del correo, con `sandbox` sin
+   `allow-scripts` y su propia CSP.
 5. **Gmail no es IMAP estándar.** Etiquetas vs. carpetas, `[Gmail]/All Mail`, nombres en UTF-7.
 6. **Cola de salida idempotente.** Sin red el envío se encola; con red se reintenta sin duplicar.
 
 ## Notas de despliegue en Linux
 
-- Los paquetes se generan en `.github/workflows/build-linux.yml` (Ubuntu), no desde Windows.
-- Falta `build/icon.png` de 512×512 antes del primer release; sin eso electron-builder usa el icono
-  por defecto de Electron.
-- `author.email` en `package.json` es un placeholder: `.deb` lo usa como maintainer.
-- Flatpak queda para después de M6; el canal natural es Flathub con el runtime de Electron.
+- Los paquetes se generan en
+  [`.github/workflows/release-linux.yml`](.github/workflows/release-linux.yml) (Ubuntu), no desde Windows.
+- El icono ya está: `build/icon.png` (512²) y `build/icon-1024.png`, ambos desde `build/logo-source.png`.
+- Antes de publicar: reemplazar `homepage` y `maintainer` en `package.json` / `electron-builder.yml`
+  (el `.deb` usa el segundo).
+- Flatpak queda para después; el canal natural es Flathub con el runtime de Electron.

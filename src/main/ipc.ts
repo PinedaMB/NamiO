@@ -54,7 +54,7 @@ export function registerIpcHandlers(): void {
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
-      stage: 'M5',
+      stage: 'M6',
       accountCount: 0
     }
   })
