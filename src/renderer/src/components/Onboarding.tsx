@@ -84,7 +84,8 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
   const [error, setError] = useState<{ code: keyof typeof ERROR_KEYS; detail: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const preset = choice ? PRESETS[choice] : null
+  const [gmailPassword, setGmailPassword] = useState(false)
+  const preset = choice ? { ...PRESETS[choice], oauth: PRESETS[choice].oauth && !(choice === 'gmail' && gmailPassword) } : null
 
   // Campos del alta
   const [user, setUser] = useState('')
@@ -101,6 +102,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
   const openForm = (next: OnboardingChoice): void => {
     const config = PRESETS[next]
     setChoice(next)
+    setGmailPassword(false)
     setError(null)
     setPassword('')
     setUser('')
@@ -274,6 +276,21 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 <p className="onboarding__field-hint">{t('account.emailWarning')}</p>
               )}
 
+              {choice === 'gmail' && (
+                <div className="account-field">
+                  <span>{t('account.auth')}</span>
+                  <div className="seg" role="group" aria-label={t('account.auth')}>
+                    <button type="button" className={cx('seg__btn', !gmailPassword && 'seg__btn--active')} aria-pressed={!gmailPassword} onClick={() => { setGmailPassword(false); setPassword(''); setError(null) }}>
+                      {t('account.authOAuth')}
+                    </button>
+                    <button type="button" className={cx('seg__btn', gmailPassword && 'seg__btn--active')} aria-pressed={gmailPassword} onClick={() => { setGmailPassword(true); setError(null) }}>
+                      {t('account.appPassword')}
+                    </button>
+                  </div>
+                  <em className="account-field__hint">{t('account.gmailHint')}</em>
+                </div>
+              )}
+
               {preset?.oauth ? (choice !== 'outlook' && (
                 <>
                   <label className="account-field">
@@ -300,13 +317,14 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
               )) : (
                 <>
                   <label className="account-field">
-                    <span>{t('account.password')}</span>
+                    <span>{t(choice === 'gmail' ? 'account.appPassword' : 'account.password')}</span>
                     <PasswordField
                       value={password}
                       onChange={setPassword}
-                      ariaLabel={t('account.password')}
+                      ariaLabel={t(choice === 'gmail' ? 'account.appPassword' : 'account.password')}
                       autoComplete="current-password"
                     />
+                    {choice === 'gmail' && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
                   </label>
 
                   <div className="account-section">

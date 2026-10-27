@@ -3037,6 +3037,23 @@
   gap: 10px;
 }
 
+.account-advanced {
+  border-top: 1px solid var(--surface-container-highest);
+}
+
+.account-advanced > summary {
+  padding: var(--sp-md) 0;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.account-advanced > summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--r-md);
+}
+
 .account-field {
   display: flex;
   flex-direction: column;

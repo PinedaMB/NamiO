@@ -33,11 +33,11 @@ export const es = {
   'onboarding.subtitle':
     'Conectá una cuenta y tus mensajes quedan en una caché local: búsqueda instantánea, lectura sin conexión y nada de nube de por medio.',
   'onboarding.gmail': 'Gmail',
-  'onboarding.gmailHint': 'Con OAuth2, sin contraseñas de aplicación',
+  'onboarding.gmailHint': 'OAuth2 o contraseña de aplicación',
   'onboarding.outlook': 'Outlook / Microsoft 365',
   'onboarding.outlookHint': 'Iniciá sesión con tu cuenta de Microsoft',
   'onboarding.custom': 'Otro correo (IMAP)',
-  'onboarding.customHint': 'Fastmail, iCloud, Proton o tu servidor',
+  'onboarding.customHint': 'Fastmail, iCloud o tu servidor; Proton requiere Bridge',
   'onboarding.local': 'Servidor local',
   'onboarding.localHint': 'Pruebas en 127.0.0.1 (IMAP y SMTP)',
   'onboarding.oauthBadge': 'OAuth2',
@@ -374,6 +374,7 @@ export const es = {
   'account.switchFailed': 'No se pudo cambiar de cuenta.',
   'account.inactiveMail': '{count} sin leer en otras cuentas',
   'account.newMail': 'Correo nuevo en {label} · {count} sin leer',
+  'account.advanced': 'Configuración avanzada',
   'account.title': 'Conectar cuenta IMAP',
   'account.subtitle': 'Las credenciales quedan en este equipo; la contraseña se guarda cifrada por el sistema.',
   'account.provider': 'Proveedor',
@@ -400,15 +401,18 @@ export const es = {
   'account.emailInvalid': 'El correo no puede tener espacios ni comas.',
   'account.hidePassword': 'Ocultar contraseña',
   'account.oauthRequired':
-    'Google y Microsoft desactivaron el IMAP con contraseña (ni la de aplicación): esta cuenta solo entra con OAuth2.',
+    'Outlook requiere OAuth2. Iniciá sesión con Microsoft desde el navegador.',
   'account.authHint':
-    'Si el servidor rechaza el usuario, probá con el correo completo (incluye @) y confirmá que IMAP esté habilitado. Gmail y Outlook necesitan OAuth2.',
+    'Si el servidor rechaza el usuario, probá con el correo completo (incluye @) y confirmá que IMAP esté habilitado. Outlook requiere OAuth2; Gmail admite OAuth2 o una contraseña de aplicación habilitada en tu cuenta.',
   'account.microsoftHint': 'Iniciá sesión en Microsoft desde el navegador y autorizá a NamiO. No necesitás configurar Azure ni introducir tu contraseña en la app.',
   'account.oauthHint':
     'Necesitás un cliente OAuth de escritorio del proveedor. La app abre el navegador y guarda el refresh token cifrado por el sistema.',
   'account.tlsOn': 'SSL/TLS',
   'account.tlsOff': 'Sin cifrar',
   'account.user': 'Usuario',
+  'account.appPassword': 'Contraseña de aplicación',
+  'account.appPasswordHint': 'Generá una contraseña de aplicación en la seguridad de tu cuenta. No uses tu contraseña habitual.',
+  'account.gmailHint': 'Usá OAuth2 o una contraseña de aplicación de Google. Esta última requiere verificación en dos pasos y puede no estar disponible según la cuenta.',
   'account.password': 'Contraseña',
   'account.hint':
     'Con OAuth2 la app abre tu navegador y nunca ve tu contraseña. Con contraseña, conviene usar una de aplicación si el proveedor la exige.',

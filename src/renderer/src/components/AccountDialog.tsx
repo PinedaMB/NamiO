@@ -108,9 +108,11 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
   const portNumber = Number(port)
   const smtpPortNumber = Number(smtpPort)
-  // Google y Microsoft desactivaron el IMAP con contraseña (ni la de aplicación):
-  // con esos hosts el único método que funciona es OAuth2.
-  const needsOAuth = /^(imap\.gmail\.com|outlook\.office365\.com)$/i.test(host.trim())
+  const needsOAuth = /^outlook\.office365\.com$/i.test(host.trim())
+  const gmail = /^imap\.gmail\.com$/i.test(host.trim())
+  const yahoo = /^imap\.mail\.yahoo\.com$/i.test(host.trim())
+  const appPassword = auth === 'password' && (gmail || yahoo)
+  const microsoft = auth === 'oauth2' && provider === 'microsoft'
   const endpointsOk =
     provider !== 'custom' || (authUrl.trim() !== '' && tokenUrl.trim() !== '' && scope.trim() !== '')
   // Espacios o comas en el usuario son error de tipeo; falta de @ solo avisa.
@@ -130,7 +132,8 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     (auth === 'oauth2' ? (provider === 'microsoft' || clientId.trim() !== '') && endpointsOk : password !== '')
 
   const applyPreset = (preset: (typeof PRESETS)[number]): void => {
-    if (preset.id === 'custom') return
+    setPassword('')
+    setError(null)
     setHost(preset.imap.host)
     setPort(String(preset.imap.port))
     setSecure(preset.imap.secure)
@@ -138,13 +141,13 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setSmtpPort(String(preset.smtp.port))
     setSmtpSecure(preset.smtp.secure)
 
-    // Google y Microsoft no aceptan contraseña para IMAP: el preset deja el
-    // método correcto elegido en vez de ofrecer un camino que va a fallar.
+    // OAuth2 es el valor inicial para Gmail y Outlook.
     if (preset.id === 'gmail' || preset.id === 'outlook') {
       setAuth('oauth2')
       setProvider(preset.id === 'gmail' ? 'google' : 'microsoft')
     } else {
       setAuth('password')
+      setProvider('custom')
     }
   }
 
@@ -236,52 +239,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
           }}
         >
           <label className="account-field">
-            <span>{t('account.host')}</span>
-            <input
-              value={host}
-              onChange={(event) => setHost(event.target.value)}
-              placeholder="imap.example.com"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-
-          <div className="account-row">
-            <label className="account-field account-field--port">
-              <span>{t('account.port')}</span>
-              <input
-                value={port}
-                onChange={(event) => setPort(event.target.value.replace(/[^\d]/g, ''))}
-                inputMode="numeric"
-                placeholder="993"
-              />
-            </label>
-
-            <div className="account-field">
-              <span>{t('account.tls')}</span>
-              <div className="seg" role="group" aria-label={t('account.tls')}>
-                <button
-                  type="button"
-                  className={cx('seg__btn', secure && 'seg__btn--active')}
-                  onClick={() => setSecure(true)}
-                  aria-pressed={secure}
-                >
-                  {t('account.tlsOn')}
-                </button>
-                <button
-                  type="button"
-                  className={cx('seg__btn', !secure && 'seg__btn--active')}
-                  onClick={() => setSecure(false)}
-                  aria-pressed={!secure}
-                >
-                  {t('account.tlsOff')}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <label className="account-field">
-            <span>{t('account.user')}</span>
+            <span>{t(microsoft ? 'onboarding.email' : 'account.user')}</span>
             <input
               value={user}
               onChange={(event) => setUser(event.target.value)}
@@ -296,188 +254,249 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             )}
           </label>
 
-          <label className="account-field">
-            <span>{t('account.auth')}</span>
-            <div className="seg" role="group" aria-label={t('account.auth')}>
-              <TooltipButton
-                type="button"
-                className={cx('seg__btn', auth === 'password' && 'seg__btn--active')}
-                onClick={() => setAuth('password')}
-                aria-pressed={auth === 'password'}
-                disabled={needsOAuth}
-                title={needsOAuth ? t('account.oauthRequired') : undefined}
-              >
-                {t('account.authPassword')}
-              </TooltipButton>
-              <button
-                type="button"
-                className={cx('seg__btn', auth === 'oauth2' && 'seg__btn--active')}
-                onClick={() => {
-                  setAuth('oauth2')
-                  const preset = PRESETS.find((item) => item.id === provider)
-                  if (preset) applyPreset(preset)
-                }}
-                aria-pressed={auth === 'oauth2'}
-              >
-                {t('account.authOAuth')}
-              </button>
-            </div>
-            {needsOAuth && <em className="account-field__hint">{t('account.oauthRequired')}</em>}
-          </label>
-
-          {auth === 'oauth2' && (
-            <>
-              <label className="account-field">
-                <span>{t('account.oauthProvider')}</span>
-                <div className="seg" role="group" aria-label={t('account.oauthProvider')}>
-                  {(['google', 'microsoft', 'custom'] as const).map((id) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className={cx('seg__btn', provider === id && 'seg__btn--active')}
-                      onClick={() => {
-                        setProvider(id)
-                        const preset = PRESETS.find((item) => item.id === (id === 'custom' ? 'custom' : id))
-                        if (id !== 'custom' && preset) applyPreset(preset)
-                      }}
-                      aria-pressed={provider === id}
-                    >
-                      {id === 'google' ? 'Google' : id === 'microsoft' ? 'Microsoft' : t('account.oauthCustom')}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              {provider !== 'microsoft' && (
-                <>
-                  <label className="account-field">
-                    <span>{t('account.clientId')}</span>
-                    <input
-                      value={clientId}
-                      onChange={(event) => setClientId(event.target.value)}
-                      placeholder="1234-abc.apps.googleusercontent.com"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
-
-                  <label className="account-field">
-                    <span>{t('account.clientSecret')}</span>
-                    <input
-                      value={clientSecret}
-                      onChange={(event) => setClientSecret(event.target.value)}
-                      placeholder="GOCSPX-…"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
-                </>
-              )}
-
-              {provider === 'custom' && (
-                <>
-                  <label className="account-field">
-                    <span>{t('account.authUrl')}</span>
-                    <input
-                      value={authUrl}
-                      onChange={(event) => setAuthUrl(event.target.value)}
-                      placeholder="https://proveedor/auth"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
-                  <label className="account-field">
-                    <span>{t('account.tokenUrl')}</span>
-                    <input
-                      value={tokenUrl}
-                      onChange={(event) => setTokenUrl(event.target.value)}
-                      placeholder="https://proveedor/token"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
-                  <label className="account-field">
-                    <span>{t('account.scope')}</span>
-                    <input
-                      value={scope}
-                      onChange={(event) => setScope(event.target.value)}
-                      placeholder="openid email https://mail.example.com/"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
-                </>
-              )}
-
-              <p className="account-hint">
-                <Icon name="info" size={14} />
-                {t(provider === 'microsoft' ? 'account.microsoftHint' : 'account.oauthHint')}
-              </p>
-            </>
+          {microsoft && (
+            <p className="account-hint">
+              <Icon name="lock" size={14} />
+              {t('account.microsoftHint')}
+            </p>
           )}
 
           {auth === 'password' && (
             <label className="account-field">
-              <span>{t('account.password')}</span>
+              <span>{t(appPassword ? 'account.appPassword' : 'account.password')}</span>
               <PasswordField
                 value={password}
                 onChange={setPassword}
-                ariaLabel={t('account.password')}
+                ariaLabel={t(appPassword ? 'account.appPassword' : 'account.password')}
                 autoComplete="new-password"
               />
+              {appPassword && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
             </label>
           )}
 
-          <div className="account-section">
-            <span className="account-section__title">{t('account.smtp')}</span>
-            <div className="account-row account-row--host">
+          <details className="account-advanced" open={!microsoft && !yahoo} key={String(microsoft || yahoo)}>
+            <summary>{t('account.advanced')}</summary>
+            <div className="account-form">
               <label className="account-field">
                 <span>{t('account.host')}</span>
                 <input
-                  value={smtpHost}
-                  onChange={(event) => setSmtpHost(event.target.value)}
-                  placeholder="smtp.example.com"
+                  value={host}
+                  onChange={(event) => setHost(event.target.value)}
+                  placeholder="imap.example.com"
                   autoComplete="off"
                   spellCheck={false}
                 />
               </label>
-              <label className="account-field account-field--port">
-                <span>{t('account.port')}</span>
-                <input
-                  value={smtpPort}
-                  onChange={(event) => setSmtpPort(event.target.value.replace(/[^\d]/g, ''))}
-                  inputMode="numeric"
-                  placeholder="465"
-                />
-              </label>
-              <div className="account-field">
-                <span>{t('account.tls')}</span>
-                <div className="seg" role="group" aria-label={t('account.tls')}>
-                  <button
-                    type="button"
-                    className={cx('seg__btn', smtpSecure && 'seg__btn--active')}
-                    onClick={() => setSmtpSecure(true)}
-                    aria-pressed={smtpSecure}
-                  >
-                    {t('account.tlsOn')}
-                  </button>
-                  <button
-                    type="button"
-                    className={cx('seg__btn', !smtpSecure && 'seg__btn--active')}
-                    onClick={() => setSmtpSecure(false)}
-                    aria-pressed={!smtpSecure}
-                  >
-                    {t('account.tlsOff')}
-                  </button>
+
+              <div className="account-row">
+                <label className="account-field account-field--port">
+                  <span>{t('account.port')}</span>
+                  <input
+                    value={port}
+                    onChange={(event) => setPort(event.target.value.replace(/[^\d]/g, ''))}
+                    inputMode="numeric"
+                    placeholder="993"
+                  />
+                </label>
+
+                <div className="account-field">
+                  <span>{t('account.tls')}</span>
+                  <div className="seg" role="group" aria-label={t('account.tls')}>
+                    <button
+                      type="button"
+                      className={cx('seg__btn', secure && 'seg__btn--active')}
+                      onClick={() => setSecure(true)}
+                      aria-pressed={secure}
+                    >
+                      {t('account.tlsOn')}
+                    </button>
+                    <button
+                      type="button"
+                      className={cx('seg__btn', !secure && 'seg__btn--active')}
+                      onClick={() => setSecure(false)}
+                      aria-pressed={!secure}
+                    >
+                      {t('account.tlsOff')}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <p className="account-hint">
-            <Icon name="info" size={14} />
-            {t('account.hint')}
-          </p>
+              <label className="account-field">
+                <span>{t('account.auth')}</span>
+                <div className="seg" role="group" aria-label={t('account.auth')}>
+                  <TooltipButton
+                    type="button"
+                    className={cx('seg__btn', auth === 'password' && 'seg__btn--active')}
+                    onClick={() => setAuth('password')}
+                    aria-pressed={auth === 'password'}
+                    disabled={needsOAuth}
+                    title={needsOAuth ? t('account.oauthRequired') : undefined}
+                  >
+                    {t('account.authPassword')}
+                  </TooltipButton>
+                  <button
+                    type="button"
+                    className={cx('seg__btn', auth === 'oauth2' && 'seg__btn--active')}
+                    onClick={() => {
+                      setAuth('oauth2')
+                    }}
+                    aria-pressed={auth === 'oauth2'}
+                  >
+                    {t('account.authOAuth')}
+                  </button>
+                </div>
+                {(needsOAuth || gmail) && <em className="account-field__hint">{t(needsOAuth ? 'account.oauthRequired' : 'account.gmailHint')}</em>}
+              </label>
+
+              {auth === 'oauth2' && (
+                <>
+                  <label className="account-field">
+                    <span>{t('account.oauthProvider')}</span>
+                    <div className="seg" role="group" aria-label={t('account.oauthProvider')}>
+                      {(['google', 'microsoft', 'custom'] as const).map((id) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={cx('seg__btn', provider === id && 'seg__btn--active')}
+                          onClick={() => {
+                            if (id === 'custom') {
+                              setProvider(id)
+                            } else {
+                              const preset = PRESETS.find((item) => item.id === (id === 'google' ? 'gmail' : 'outlook'))
+                              if (preset) applyPreset(preset)
+                            }
+                          }}
+                          aria-pressed={provider === id}
+                        >
+                          {id === 'google' ? 'Google' : id === 'microsoft' ? 'Microsoft' : t('account.oauthCustom')}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+
+                  {provider !== 'microsoft' && (
+                    <>
+                      <label className="account-field">
+                        <span>{t('account.clientId')}</span>
+                        <input
+                          value={clientId}
+                          onChange={(event) => setClientId(event.target.value)}
+                          placeholder="1234-abc.apps.googleusercontent.com"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </label>
+
+                      <label className="account-field">
+                        <span>{t('account.clientSecret')}</span>
+                        <input
+                          value={clientSecret}
+                          onChange={(event) => setClientSecret(event.target.value)}
+                          placeholder="GOCSPX-…"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {provider === 'custom' && (
+                    <>
+                      <label className="account-field">
+                        <span>{t('account.authUrl')}</span>
+                        <input
+                          value={authUrl}
+                          onChange={(event) => setAuthUrl(event.target.value)}
+                          placeholder="https://proveedor/auth"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </label>
+                      <label className="account-field">
+                        <span>{t('account.tokenUrl')}</span>
+                        <input
+                          value={tokenUrl}
+                          onChange={(event) => setTokenUrl(event.target.value)}
+                          placeholder="https://proveedor/token"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </label>
+                      <label className="account-field">
+                        <span>{t('account.scope')}</span>
+                        <input
+                          value={scope}
+                          onChange={(event) => setScope(event.target.value)}
+                          placeholder="openid email https://mail.example.com/"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {!microsoft && (
+                    <p className="account-hint">
+                      <Icon name="info" size={14} />
+                      {t('account.oauthHint')}
+                    </p>
+                  )}
+                </>
+              )}
+
+              <div className="account-section">
+                <span className="account-section__title">{t('account.smtp')}</span>
+                <div className="account-row account-row--host">
+                  <label className="account-field">
+                    <span>{t('account.host')}</span>
+                    <input
+                      value={smtpHost}
+                      onChange={(event) => setSmtpHost(event.target.value)}
+                      placeholder="smtp.example.com"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <label className="account-field account-field--port">
+                    <span>{t('account.port')}</span>
+                    <input
+                      value={smtpPort}
+                      onChange={(event) => setSmtpPort(event.target.value.replace(/[^\d]/g, ''))}
+                      inputMode="numeric"
+                      placeholder="465"
+                    />
+                  </label>
+                  <div className="account-field">
+                    <span>{t('account.tls')}</span>
+                    <div className="seg" role="group" aria-label={t('account.tls')}>
+                      <button
+                        type="button"
+                        className={cx('seg__btn', smtpSecure && 'seg__btn--active')}
+                        onClick={() => setSmtpSecure(true)}
+                        aria-pressed={smtpSecure}
+                      >
+                        {t('account.tlsOn')}
+                      </button>
+                      <button
+                        type="button"
+                        className={cx('seg__btn', !smtpSecure && 'seg__btn--active')}
+                        onClick={() => setSmtpSecure(false)}
+                        aria-pressed={!smtpSecure}
+                      >
+                        {t('account.tlsOff')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p className="account-hint">
+                <Icon name="info" size={14} />
+                {t('account.hint')}
+              </p>
+            </div>
+          </details>
 
           {account?.configured && !account.passwordStored && (
             <p className="account-hint account-hint--warn">

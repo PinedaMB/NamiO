@@ -30,11 +30,11 @@ export const en: Dictionary = {
   'onboarding.subtitle':
     'Connect an account and your messages land in a local cache: instant search, offline reading and no cloud in between.',
   'onboarding.gmail': 'Gmail',
-  'onboarding.gmailHint': 'OAuth2, no app passwords',
+  'onboarding.gmailHint': 'OAuth2 or an app password',
   'onboarding.outlook': 'Outlook / Microsoft 365',
   'onboarding.outlookHint': 'Sign in with your Microsoft account',
   'onboarding.custom': 'Other mail (IMAP)',
-  'onboarding.customHint': 'Fastmail, iCloud, Proton or your own server',
+  'onboarding.customHint': 'Fastmail, iCloud or your server; Proton requires Bridge',
   'onboarding.local': 'Local server',
   'onboarding.localHint': 'Testing on 127.0.0.1 (IMAP and SMTP)',
   'onboarding.oauthBadge': 'OAuth2',
@@ -371,6 +371,7 @@ export const en: Dictionary = {
   'account.switchFailed': 'Could not switch accounts.',
   'account.inactiveMail': '{count} unread in other accounts',
   'account.newMail': 'New mail in {label} · {count} unread',
+  'account.advanced': 'Advanced settings',
   'account.title': 'Connect IMAP account',
   'account.subtitle': 'Credentials stay on this machine; the password is stored encrypted by the system.',
   'account.provider': 'Provider',
@@ -397,15 +398,18 @@ export const en: Dictionary = {
   'account.emailInvalid': 'The email cannot contain spaces or commas.',
   'account.hidePassword': 'Hide password',
   'account.oauthRequired':
-    'Google and Microsoft disabled IMAP with a password (app passwords included): this account only works with OAuth2.',
+    'Outlook requires OAuth2. Sign in to Microsoft in your browser.',
   'account.authHint':
-    'If the server rejects the user, try the full email (including @) and confirm IMAP is enabled. Gmail and Outlook need OAuth2.',
+    'If the server rejects the user, try the full email (including @) and confirm IMAP is enabled. Outlook requires OAuth2; Gmail supports OAuth2 or an app password enabled for your account.',
   'account.microsoftHint': 'Sign in to Microsoft in your browser and authorize NamiO. You do not need to configure Azure or enter your password in the app.',
   'account.oauthHint':
     'You need a desktop OAuth client from the provider. The app opens the browser and stores the refresh token encrypted by the OS.',
   'account.tlsOn': 'SSL/TLS',
   'account.tlsOff': 'Unencrypted',
   'account.user': 'Username',
+  'account.appPassword': 'App password',
+  'account.appPasswordHint': 'Generate an app password in your account security settings. Do not use your regular password.',
+  'account.gmailHint': 'Use OAuth2 or a Google app password. App passwords require two-step verification and may not be available for your account.',
   'account.password': 'Password',
   'account.hint':
     'With OAuth2 the app opens your browser and never sees your password. With password sign-in, prefer an app password when the provider requires one.',
