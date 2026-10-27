@@ -33,7 +33,7 @@ const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }
 export function Settings({ onBack }: SettingsProps): React.JSX.Element {
   const { t, locale, setLocale } = useI18n()
   const { bindings, save, reset } = useShortcuts()
-  const { remoteImages, setRemoteImages } = usePreferences()
+  const { remoteImages, setRemoteImages, bodyTheme, setBodyTheme } = usePreferences()
   const [section, setSection] = useState<Section>('shortcuts')
   const [query, setQuery] = useState('')
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
@@ -226,6 +226,35 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
               >
                 <Icon name="image" size={14} />
                 {t('settings.images.allow')}
+              </button>
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <div className="settings-card__head">
+              <div>
+                <h2 className="settings-card__title">{t('settings.body.title')}</h2>
+                <p className="settings-card__subtitle">{t('settings.body.hint')}</p>
+              </div>
+            </div>
+            <div className="seg" role="group" aria-label={t('settings.body.title')}>
+              <button
+                type="button"
+                className={cx('seg__btn', bodyTheme === 'light' && 'seg__btn--active')}
+                onClick={() => setBodyTheme('light')}
+                aria-pressed={bodyTheme === 'light'}
+              >
+                <Icon name="light_mode" size={14} />
+                {t('settings.body.light')}
+              </button>
+              <button
+                type="button"
+                className={cx('seg__btn', bodyTheme === 'dark' && 'seg__btn--active')}
+                onClick={() => setBodyTheme('dark')}
+                aria-pressed={bodyTheme === 'dark'}
+              >
+                <Icon name="dark_mode" size={14} />
+                {t('settings.body.dark')}
               </button>
             </div>
           </div>

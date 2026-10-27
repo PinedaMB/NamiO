@@ -1,5 +1,6 @@
 import type { Attachment, Message, Thread } from '../data/demo'
 import { useI18n } from '../i18n'
+import { usePreferences } from '../settings/PreferencesProvider'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
 import { EmailBody } from './EmailBody'
 import { Icon } from './Icon'
@@ -111,6 +112,7 @@ export function ThreadPane({
   onNext
 }: ThreadPaneProps): React.JSX.Element {
   const { t } = useI18n()
+  const { bodyTheme, setBodyTheme } = usePreferences()
   const message = thread.messages[0]
   const from = message?.from
   const recipients = (message?.to ?? []).map((person) => person.email)
@@ -206,6 +208,16 @@ export function ThreadPane({
                   {from?.org ?? 'VIP'}
                 </span>
               )}
+              <button
+                className="icon-btn"
+                type="button"
+                onClick={() => setBodyTheme(bodyTheme === 'dark' ? 'light' : 'dark')}
+                title={bodyTheme === 'dark' ? t('mail.bodyThemeLight') : t('mail.bodyThemeDark')}
+                aria-label={bodyTheme === 'dark' ? t('mail.bodyThemeLight') : t('mail.bodyThemeDark')}
+                aria-pressed={bodyTheme === 'dark'}
+              >
+                <Icon name={bodyTheme === 'dark' ? 'light_mode' : 'dark_mode'} size={16} />
+              </button>
               <button
                 className="icon-btn"
                 type="button"

@@ -923,10 +923,12 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-md);
-  flex-wrap: wrap;
+  /* Sin wrap: con títulos largos la estrella se caía debajo del título. */
 }
 
 .letter__subject {
+  flex: 1;
+  min-width: 0;
   font-size: 28px;
   line-height: 36px;
   font-weight: 600;
@@ -3196,6 +3198,7 @@
   border-radius: var(--r-xl);
   background: #ffffff;
   display: block;
+  overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
 }
 

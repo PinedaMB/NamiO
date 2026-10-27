@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { BodyTheme } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
@@ -39,7 +40,7 @@ function prepare(html: string, allowImages: boolean): { body: string; blocked: n
   return { body: document_.body.innerHTML, blocked }
 }
 
-function buildDocument(body: string, allowImages: boolean): string {
+function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): string {
   const csp = [
     "default-src 'none'",
     allowImages ? 'img-src data: https: http:' : 'img-src data:',
@@ -52,9 +53,24 @@ function buildDocument(body: string, allowImages: boolean): string {
 
   // El correo se pinta sobre "papel" claro: es lo que asume el HTML de la mayoría
   // de los clientes, y evita que sus estilos choquen con el tema oscuro de la app.
-  const style = `
+  // En oscuro se invierte el lienzo (y se re-invierten las imágenes) porque el HTML
+  // de los correos trae colores propios: forzar `color` dejaría texto ilegible.
+  const paper =
+    theme === 'dark'
+      ? `
+    :root { color-scheme: dark; }
+    html { background: #14161b; }
+    body { background: #f2f2f2; filter: invert(1) hue-rotate(180deg); }
+    img, video, picture, svg, [style*='background-image'] { filter: invert(1) hue-rotate(180deg); }
+  `
+      : `
     :root { color-scheme: light; }
-    html, body { margin: 0; padding: 0; background: #ffffff; color: #1a1a1a; }
+    html, body { background: #ffffff; color: #1a1a1a; }
+  `
+
+  const style = `
+    ${paper}
+    html, body { margin: 0; padding: 0; overflow: hidden; }
     body {
       padding: 18px 20px;
       font: 14px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -72,8 +88,9 @@ function buildDocument(body: string, allowImages: boolean): string {
 
 export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
-  const { remoteImages } = usePreferences()
+  const { remoteImages, bodyTheme } = usePreferences()
   const frameRef = useRef<HTMLIFrameElement>(null)
+  const observerRef = useRef<ResizeObserver | null>(null)
   const [allowOverride, setAllowOverride] = useState<boolean | null>(null)
   const [height, setHeight] = useState(320)
 
@@ -85,7 +102,10 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
 
   const allowImages = allowOverride ?? remoteImages === 'allow'
   const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
-  const documentHtml = useMemo(() => buildDocument(prepared.body, allowImages), [prepared, allowImages])
+  const documentHtml = useMemo(
+    () => buildDocument(prepared.body, allowImages, bodyTheme),
+    [prepared, allowImages, bodyTheme]
+  )
 
   const handleLoad = (): void => {
     const frame = frameRef.current
@@ -93,13 +113,20 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
     if (!frame || !inner) return
 
     // El iframe comparte origen (sin scripts), así que el padre puede medirlo:
-    // así evitamos scroll anidado y el correo crece a su altura real.
+    // así el correo crece a su altura real y hay un solo scroll (el del lector).
     const measure = (): void => {
-      const next = Math.min(Math.max(inner.documentElement.scrollHeight, 140), 1600)
+      const next = Math.max(inner.documentElement.scrollHeight, 140)
       setHeight(next)
     }
     measure()
     window.setTimeout(measure, 350)
+
+    // Imágenes y fuentes cambian la altura después del load.
+    observerRef.current?.disconnect()
+    const observer = new ResizeObserver(measure)
+    observer.observe(inner.documentElement)
+    if (inner.body) observer.observe(inner.body)
+    observerRef.current = observer
 
     inner.addEventListener('click', (event) => {
       const target = event.target as HTMLElement | null
@@ -110,6 +137,8 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
       if (/^(https?:|mailto:)/i.test(href)) void window.api?.openExternal?.(href)
     })
   }
+
+  useEffect(() => () => observerRef.current?.disconnect(), [])
 
   return (
     <div className="email-body">
@@ -130,7 +159,8 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
         referrerPolicy="no-referrer"
         title={t('mail.frameTitle')}
         srcDoc={documentHtml}
-        style={{ height }}
+        scrolling="no"
+        style={{ height, background: bodyTheme === 'dark' ? '#14161b' : '#ffffff' }}
         onLoad={handleLoad}
       />
     </div>

@@ -53,6 +53,9 @@ export interface CoreStatus {
 
 export type Language = 'es' | 'en'
 
+/** Lienzo del cuerpo HTML: papel claro del correo o invertido para leer de noche. */
+export type BodyTheme = 'light' | 'dark'
+
 export interface AppSettings {
   language: Language
   /** Acción → combinación normalizada (`j`, `mod+k`). */
@@ -61,6 +64,8 @@ export interface AppSettings {
   contextPanel?: boolean
   /** Imágenes remotas en el HTML de los correos: bloqueadas salvo que se permita. */
   remoteImages?: RemoteImagePolicy
+  /** Lienzo del cuerpo HTML: claro (papel del correo) u oscuro (invertido). */
+  bodyTheme?: BodyTheme
   /** Ya eligió cuenta o demo: no se vuelve a mostrar la bienvenida. */
   onboarded?: boolean
 }

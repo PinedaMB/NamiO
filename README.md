@@ -379,6 +379,25 @@ Verificado con un buzón de **1204 mensajes**: la caché terminó con los 1204, 
 (no leídos reales), la barra pasó por 71 % → 96 % y desapareció al terminar, y el scroll agregó
 filas (50 → 150). El fixture acepta volumen: `node scripts/fake-imap.mjs 1143 1025 1200`.
 
+## Cuerpo del correo
+
+![Cuerpo en tema oscuro](docs/body-dark.png)
+
+- **Tema del cuerpo (claro/oscuro)**: el HTML de los correos trae sus propios colores, así que en
+  oscuro se invierte el lienzo (con las imágenes re-invertidas para que no queden en negativo). Se
+  cambia desde el lector (icono sol/luna al lado de la estrella) o desde Ajustes → *Tema del cuerpo*,
+  y queda guardado.
+- **Un solo scroll**: el iframe del correo mide la altura real de su contenido y crece a ella. Antes
+  estaba limitado a 1600 px, y un correo más alto quedaba con scroll propio adentro. La altura se
+  re-mide con un `ResizeObserver`, así también se ajusta cuando cargan las imágenes.
+- **La estrella ya no se cae**: con asuntos de dos líneas, el encabezado se envolvía y el botón
+  bajaba debajo del título. Ahora el título ocupa el espacio disponible y la estrella queda siempre
+  arriba a la derecha.
+
+Verificado: asunto de 64 px de alto (dos líneas) con estrella y título en la misma `y`; cuerpo de
+3650 px con `contenido == ventana` y **0 px de scroll interno**; al alternar el tema el filtro pasa a
+`invert(1) hue-rotate(180deg)` con fondo `#14161b` y `settings.json` guarda `bodyTheme`.
+
 ## Comandos
 
 ```bash

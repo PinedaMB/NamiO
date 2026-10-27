@@ -159,6 +159,33 @@ const server = hoodiecrow({
     INBOX: {
       messages: [
         ...INBOX,
+        // Caso de prueba: asunto largo (la estrella no debe caerse) y cuerpo
+        // HTML muy alto (no debe quedar scroll dentro del iframe).
+        {
+          flags: [],
+          raw: message(
+            [
+              'From: LAM Campaign <lac.campaign@sabre.com>',
+              'To: testuser@namio.dev',
+              'Subject: Recordatorio - Automatizacion Sabre en Vivo: Automated Exchange, Schedule Changes y Ciberseguridad',
+              'Date: Wed, 22 Oct 2026 11:36:00 -0700',
+              'Message-ID: <long-body-001@sabre.com>',
+              'MIME-Version: 1.0',
+              'Content-Type: text/html; charset=utf-8'
+            ].join('\r\n'),
+            [
+              '<div style="background:#f3efe6;padding:20px;font-family:Arial,sans-serif;color:#1a1a1a">',
+              '<p style="font-size:22px;letter-spacing:2px">sabre</p>',
+              '<h1 style="font-size:24px">Automatizacion Sabre en Vivo</h1>',
+              ...Array.from(
+                { length: 60 },
+                (_, index) =>
+                  `<p>Parrafo ${index + 1}: repaso del contenido del correo para que el cuerpo supere los 1600 px y se note si queda un scroll anidado.</p>`
+              ),
+              '</div>'
+            ].join('')
+          )
+        },
         // Volumen opcional para probar la sync completa y el progreso.
         ...Array.from({ length: bulk }, (_, index) => ({
           flags: [],

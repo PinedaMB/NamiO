@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import type { RemoteImagePolicy } from '@shared/ipc'
+import type { BodyTheme, RemoteImagePolicy } from '@shared/ipc'
 
 interface PreferencesValue {
   remoteImages: RemoteImagePolicy
   setRemoteImages: (policy: RemoteImagePolicy) => void
+  bodyTheme: BodyTheme
+  setBodyTheme: (theme: BodyTheme) => void
 }
 
 const PreferencesContext = createContext<PreferencesValue | null>(null)
@@ -14,6 +16,7 @@ const PreferencesContext = createContext<PreferencesValue | null>(null)
  */
 export function PreferencesProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [remoteImages, setRemoteImagesState] = useState<RemoteImagePolicy>('block')
+  const [bodyTheme, setBodyThemeState] = useState<BodyTheme>('light')
 
   useEffect(() => {
     window.api
@@ -21,6 +24,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       .then((settings) => {
         if (settings?.remoteImages === 'allow' || settings?.remoteImages === 'block') {
           setRemoteImagesState(settings.remoteImages)
+        }
+        if (settings?.bodyTheme === 'dark' || settings?.bodyTheme === 'light') {
+          setBodyThemeState(settings.bodyTheme)
         }
       })
       .catch(() => undefined)
@@ -31,7 +37,15 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     window.api?.setSettings?.({ remoteImages: policy }).catch(() => undefined)
   }, [])
 
-  const value = useMemo<PreferencesValue>(() => ({ remoteImages, setRemoteImages }), [remoteImages, setRemoteImages])
+  const setBodyTheme = useCallback((theme: BodyTheme) => {
+    setBodyThemeState(theme)
+    window.api?.setSettings?.({ bodyTheme: theme }).catch(() => undefined)
+  }, [])
+
+  const value = useMemo<PreferencesValue>(
+    () => ({ remoteImages, setRemoteImages, bodyTheme, setBodyTheme }),
+    [remoteImages, setRemoteImages, bodyTheme, setBodyTheme]
+  )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
 }
