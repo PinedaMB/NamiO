@@ -185,6 +185,26 @@ export function upsertMailboxes(mailboxes: readonly MailboxInfo[]): void {
   }
 }
 
+/** Reconcilia solo tras recibir un LIST completo; conserva borradores y cola de salida. */
+export function replaceMailboxes(mailboxes: readonly MailboxInfo[]): void {
+  const database = handle()
+  const paths = new Set(mailboxes.map((box) => box.path))
+  database.exec('BEGIN')
+  try {
+    for (const box of readMailboxes()) {
+      if (paths.has(box.path)) continue
+      database.prepare('DELETE FROM search WHERE mailbox = ?').run(box.path)
+      database.prepare('DELETE FROM messages WHERE mailbox = ?').run(box.path)
+      database.prepare('DELETE FROM mailboxes WHERE path = ?').run(box.path)
+    }
+    upsertMailboxes(mailboxes)
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
+}
+
 export function readMailboxes(): MailboxInfo[] {
   const rows = handle()
     .prepare('SELECT path, name, special_use, messages, unseen FROM mailboxes ORDER BY path')

@@ -6,7 +6,9 @@ const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 function compile(file) { return ts.transpile(fs.readFileSync(file, 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }) }
 const live = {}
-vm.runInNewContext(compile('src/renderer/src/data/live.ts'), { exports: live })
+const mailboxes = {}
+vm.runInNewContext(compile('src/shared/mailboxes.ts'), { exports: mailboxes })
+vm.runInNewContext(compile('src/renderer/src/data/live.ts'), { exports: live, require: () => mailboxes })
 for (const mailbox of [
   { path: 'provider-special-folder', specialUse: '\\Junk' },
   { path: '[Gmail]/Spam' }, { path: 'Junk Email' },
@@ -26,6 +28,7 @@ for (const blocked of [true, false]) for (const setting of ['allow', 'block']) f
       if (id === 'dompurify') return { default: { sanitize: html => html } }
       if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
       if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ remoteImages: setting, bodyTheme: 'light' }) }
+      if (id === '../lib/emailTheme') return { darkenEmail() {} }
       if (id === './Icon') return { Icon: () => null }
       return require(id)
     }

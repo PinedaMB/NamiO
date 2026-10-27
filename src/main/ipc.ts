@@ -1,3 +1,4 @@
+import { senderLogo } from './senderLogo'
 import { writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { app } from 'electron'
@@ -28,6 +29,7 @@ import {
   searchMail,
   selectAccount,
   syncMailbox,
+  trashPath,
   setFlagged,
   setSeen
 } from './imap'
@@ -178,7 +180,30 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle(IPC.messageSeen, (_event, path: string, uid: number, seen: boolean) => setSeen(path, uid, seen))
   ipcMain.handle(IPC.messageArchive, (_event, path: string, uid: number) => archiveMessage(path, uid))
-  ipcMain.handle(IPC.messageDelete, (_event, path: string, uid: number) => deleteMessageAction(path, uid))
+  ipcMain.handle(IPC.messageDelete, async (event, path: string, uid: number) => {
+    if (typeof path !== 'string' || !path || !Number.isInteger(uid) || uid <= 0) {
+      return { ok: false, queued: false, error: 'Mensaje inválido' }
+    }
+    const permanent = path === trashPath()
+    if (permanent) {
+      const account = await readActiveAccount()
+      const english = (await readSettings()).language === 'en'
+      const options = {
+        type: 'warning' as const,
+        message: english ? 'Permanently delete this message?' : '¿Eliminar este mensaje definitivamente?',
+        detail: english ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.',
+        buttons: english ? ['Cancel', 'Delete permanently'] : ['Cancelar', 'Eliminar definitivamente'],
+        defaultId: 0, cancelId: 0, noLink: true
+      }
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const choice = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      if (choice.response !== 1) return { ok: true, queued: false, canceled: true }
+      if (!account || (await readActiveAccount())?.id !== account.id) {
+        return { ok: false, queued: false, error: 'La cuenta activa cambió' }
+      }
+    }
+    return deleteMessageAction(path, uid, permanent)
+  })
 
   ipcMain.handle(IPC.attachmentSave, async (event, path: string, uid: number, index: number) => {
     const attachment = await readAttachment(path, uid, index)
@@ -214,6 +239,7 @@ export function registerIpcHandlers(): void {
     }
     return syncMailbox(path)
   })
+  ipcMain.handle(IPC.senderLogo, (_event, email: string, mailbox: string) => senderLogo(email, mailbox))
   ipcMain.handle(IPC.syncProgress, () => getSyncProgress())
 
   ipcMain.handle(IPC.rulesList, () => readRules())

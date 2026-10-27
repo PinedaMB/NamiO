@@ -4,10 +4,12 @@ import type { BodyTheme } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
+import { darkenEmail } from '../lib/emailTheme'
 
 interface EmailBodyProps {
   html: string
   blockRemote?: boolean
+  theme?: BodyTheme
 }
 
 /** GIF transparente de 1×1: conserva el layout cuando se bloquea una imagen remota. */
@@ -24,9 +26,16 @@ function sanitize(html: string): string {
 }
 
 /** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas se bloquearon. */
-function prepare(html: string, allowImages: boolean): { body: string; blocked: number } {
+function prepare(html: string, allowImages: boolean, theme: BodyTheme): { body: string; blocked: number } {
   const document_ = new DOMParser().parseFromString(html, 'text/html')
   let blocked = 0
+
+  for (const style of document_.querySelectorAll('style')) {
+    const adaptQuery = (css: string): string => css.replace(/\(prefers-color-scheme:\s*(dark|light)\)/gi,
+      (_match, mode: string) => mode.toLowerCase() === theme ? '(min-width: 0px)' : '(width: 0px)')
+    style.textContent = adaptQuery(style.textContent ?? '')
+    if (style.media) style.media = adaptQuery(style.media)
+  }
 
   if (!allowImages) {
     document_.querySelectorAll('img').forEach((image) => {
@@ -38,7 +47,8 @@ function prepare(html: string, allowImages: boolean): { body: string; blocked: n
     })
   }
 
-  return { body: document_.body.innerHTML, blocked }
+  const styles = [...(document_.head?.querySelectorAll('style') ?? [])].map((style) => style.outerHTML).join('')
+  return { body: styles + document_.body.innerHTML, blocked }
 }
 
 function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): string {
@@ -52,22 +62,9 @@ function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): st
     "base-uri 'none'"
   ].join('; ')
 
-  // El correo se pinta sobre "papel" claro: es lo que asume el HTML de la mayoría
-  // de los clientes, y evita que sus estilos choquen con el tema oscuro de la app.
-  // En oscuro se invierte el lienzo (y se re-invierten las imágenes) porque el HTML
-  // de los correos trae colores propios: forzar `color` dejaría texto ilegible.
-  const paper =
-    theme === 'dark'
-      ? `
-    :root { color-scheme: dark; }
-    html { background: #14161b; }
-    body { background: #f2f2f2; filter: invert(1) hue-rotate(180deg); }
-    img, video, picture, svg, [style*='background-image'] { filter: invert(1) hue-rotate(180deg); }
-  `
-      : `
-    :root { color-scheme: light; }
-    html, body { background: #ffffff; color: #1a1a1a; }
-  `
+  const paper = theme === 'dark'
+    ? ':root { color-scheme: dark; } html, body { background: #14161b; color: #dfe2ee; }'
+    : ':root { color-scheme: light; } html, body { background: #ffffff; color: #1a1a1a; }'
 
   const style = `
     ${paper}
@@ -87,9 +84,10 @@ function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): st
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${style}</style></head><body>${body}</body></html>`
 }
 
-export function EmailBody({ html, blockRemote = false }: EmailBodyProps): React.JSX.Element {
+export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
-  const { remoteImages, bodyTheme } = usePreferences()
+  const { remoteImages, bodyTheme: preferredTheme } = usePreferences()
+  const bodyTheme = theme ?? preferredTheme
   const frameRef = useRef<HTMLIFrameElement>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
   const [allowOverride, setAllowOverride] = useState<boolean | null>(null)
@@ -102,7 +100,7 @@ export function EmailBody({ html, blockRemote = false }: EmailBodyProps): React.
   }, [remoteImages, html])
 
   const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
-  const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
+  const prepared = useMemo(() => prepare(sanitize(html), allowImages, bodyTheme), [html, allowImages, bodyTheme])
   const documentHtml = useMemo(
     () => buildDocument(prepared.body, allowImages, bodyTheme),
     [prepared, allowImages, bodyTheme]
@@ -112,6 +110,8 @@ export function EmailBody({ html, blockRemote = false }: EmailBodyProps): React.
     const frame = frameRef.current
     const inner = frame?.contentDocument
     if (!frame || !inner) return
+
+    if (bodyTheme === 'dark') darkenEmail(inner)
 
     // El iframe comparte origen (sin scripts), así que el padre puede medirlo:
     // así el correo crece a su altura real y hay un solo scroll (el del lector).

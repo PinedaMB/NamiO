@@ -184,7 +184,7 @@ async function runOne(row: OutboxRow): Promise<void> {
     if (!target) throw new Error('El servidor no expone un buzón de archivo')
     await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target)
   } else if (row.kind === 'delete') {
-    await deleteMessage(row.mailbox ?? 'INBOX', row.uid ?? 0)
+    await deleteMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, payloadOf(row).permanent === true)
   } else if (row.kind === 'move') {
     const target = payloadOf(row).target
     if (typeof target !== 'string' || target === '') throw new Error('La regla no tiene buzón destino')
@@ -244,8 +244,8 @@ export async function archiveMessage(path: string, uid: number): Promise<MailAct
   return { ok: true, queued: Boolean(pending) }
 }
 
-export async function deleteMessageAction(path: string, uid: number): Promise<MailAction> {
-  enqueueOutbox({ kind: 'delete', mailbox: path, uid })
+export async function deleteMessageAction(path: string, uid: number, permanent = false): Promise<MailAction> {
+  enqueueOutbox({ kind: 'delete', mailbox: path, uid, payload: { permanent } })
   notify()
   await processOutbox()
 

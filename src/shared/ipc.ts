@@ -40,6 +40,7 @@ export const IPC = {
   searchQuery: 'search:query',
   syncProgress: 'sync:progress',
   syncMailbox: 'sync:mailbox',
+  senderLogo: 'sender:logo',
   rulesList: 'rules:list',
   rulesSave: 'rules:save',
   rulesDelete: 'rules:delete',
@@ -305,6 +306,7 @@ export interface SearchHit {  mailbox: string
 
 export interface MailAction {
   ok: boolean
+  canceled?: boolean
   /** `true` si quedó en la cola en vez de aplicarse en el acto. */
   queued: boolean
   error?: string
@@ -358,6 +360,7 @@ export interface MailApi {
   /** Búsqueda de texto completo sobre la caché local. */
   search(query: string, limit?: number): Promise<SearchHit[]>
   /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
+  senderLogo(email: string, mailbox: string): Promise<string | null>
   syncMailbox(path: string): Promise<ImapResult<boolean>>
   syncProgress(): Promise<SyncProgress | null>
   onSyncProgress(listener: (progress: SyncProgress | null) => void): () => void

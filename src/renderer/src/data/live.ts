@@ -1,3 +1,5 @@
+import { isSpamMailbox } from '@shared/mailboxes'
+export { isSpamMailbox } from '@shared/mailboxes'
 import type { AccountConfig, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
 import type { Attachment, Message, Person, Thread } from './demo'
 
@@ -108,23 +110,19 @@ const SPECIAL_USE_ICON: Record<string, string> = {
   '\\Flagged': 'star'
 }
 
-export function isSpamMailbox(mailbox: { path: string; name?: string; specialUse?: string | null }): boolean {
-  if (mailbox.specialUse === '\\Junk') return true
-  return [mailbox.name ?? '', ...mailbox.path.split(/[\/\\]/)].some((name) =>
-    /^(spam|junk|junk e-?mail|correo no deseado|correo basura|bulk mail)$/i.test(name.trim())
-  )
-}
-
 export function mailboxToFolder(mailbox: MailboxInfo): FolderView {
-  // El contador de la carpeta es de NO LEÍDOS (como en cualquier cliente):
-  // el total de mensajes no dice nada accionable.
+  // Papelera muestra el total; las demás carpetas muestran los no leídos.
   const spam = isSpamMailbox(mailbox)
+  const trash = mailbox.specialUse === '\\Trash' ||
+    /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(mailbox.name) ||
+    /(^|\/)(trash|deleted items|papelera)$/i.test(mailbox.path)
+  const count = trash ? mailbox.messages : mailbox.unseen
   return {
     id: mailbox.path,
     spam,
     icon: spam ? 'report' : (mailbox.specialUse && SPECIAL_USE_ICON[mailbox.specialUse]) ?? 'folder',
     label: mailbox.name,
-    count: mailbox.unseen > 0 ? mailbox.unseen : undefined,
+    count: count > 0 ? count : undefined,
     accent: mailbox.specialUse === '\\Inbox' || mailbox.path.toUpperCase() === 'INBOX'
   }
 }

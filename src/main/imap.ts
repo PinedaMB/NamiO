@@ -33,6 +33,7 @@ import {
   readEnvelope,
   readEnvelopes,
   readMailboxes,
+  replaceMailboxes,
   pruneExcept,
   saveBody,
   saveMailboxSync,
@@ -42,7 +43,6 @@ import {
   setUnread as cacheUnread,
   updateFlags,
   upsertEnvelopes,
-  upsertMailboxes
 } from './db'
 import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
@@ -297,7 +297,7 @@ async function syncMailboxes(): Promise<MailboxInfo[]> {
     })
   }
 
-  upsertMailboxes(result)
+  replaceMailboxes(result)
   setMeta('lastSync', String(Date.now()))
   offline = false
   return result
@@ -813,6 +813,14 @@ export function archivePath(): string | null {
   return (boxes.find((box) => box.specialUse === '\\Archive') ?? boxes.find((box) => /^archive$/i.test(box.path)))?.path ?? null
 }
 
+export function trashPath(): string | null {
+  const boxes = readMailboxes()
+  return (boxes.find((box) => box.specialUse === '\\Trash') ?? boxes.find((box) =>
+    /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(box.name) ||
+    /(^|\/)(trash|deleted items|papelera)$/i.test(box.path)
+  ))?.path ?? null
+}
+
 /** Copia el mensaje en Enviados después de un envío correcto (best effort). */
 export function appendToSent(raw: Buffer): Promise<void> {
   return serial(async () => {
@@ -828,7 +836,8 @@ export function moveMessage(path: string, uid: number, target: string): Promise<
     const client = await ensureClient()
     const lock = await client.getMailboxLock(path)
     try {
-      await client.messageMove(String(uid), target, { uid: true })
+      if (!client.capabilities.has('MOVE') && !client.capabilities.has('UIDPLUS')) throw new Error('El servidor no permite mover solo este mensaje de forma segura')
+      if (!await client.messageMove(String(uid), target, { uid: true })) throw new Error('El servidor no confirmó el movimiento')
     } finally {
       lock.release()
     }
@@ -839,18 +848,29 @@ export function moveMessage(path: string, uid: number, target: string): Promise<
   })
 }
 
-export function deleteMessage(path: string, uid: number): Promise<void> {
+export function deleteMessage(path: string, uid: number, permanent = false): Promise<void> {
   return serial(async () => {
     const client = await ensureClient()
+    if (!trashPath()) await syncMailboxes()
+    const trash = trashPath()
+    if (!trash) throw new Error('No se encontró la carpeta Papelera; no se eliminó el mensaje')
+    if (path === trash && !permanent) throw new Error('El borrado definitivo requiere confirmación')
     const lock = await client.getMailboxLock(path)
     try {
-      await client.messageDelete(String(uid), { uid: true })
+      if (!client.capabilities.has('UIDPLUS') && (path === trash || !client.capabilities.has('MOVE'))) {
+        throw new Error('El servidor no permite eliminar solo este mensaje de forma segura')
+      }
+      const result = path === trash
+        ? await client.messageDelete(String(uid), { uid: true })
+        : await client.messageMove(String(uid), trash, { uid: true })
+      if (!result) throw new Error('El servidor no confirmó la eliminación')
     } finally {
       lock.release()
     }
     const removed = deleteMessageRow(path, uid)
     if (removed?.unread) adjustMailboxUnseen(path, -1)
-    notify(path)
+    await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
+    notify('*')
   })
 }
 

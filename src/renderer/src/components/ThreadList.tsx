@@ -1,3 +1,4 @@
+import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Tag, Thread } from '../data/demo'
 import type { FilterId } from './Topbar'
@@ -7,7 +8,15 @@ import { cx } from '../lib/cx'
 
 interface ThreadListProps {
   threads: readonly Thread[]
+  mailbox: string
+  spam: boolean
   selectedId: string | null
+  checkedIds: readonly string[]
+  onCheck: (id: string) => void
+  onCheckAll: () => void
+  onClearChecked: () => void
+  onBulkAction: (action: 'read' | 'archive' | 'delete') => void
+  bulkBusy: boolean
   filter: FilterId
   unreadCount: number
   otherCount: number
@@ -53,6 +62,14 @@ function tagClass(tag: Tag): string {
 export function ThreadList({
   threads,
   selectedId,
+  mailbox,
+  spam,
+  checkedIds,
+  onCheck,
+  onCheckAll,
+  onClearChecked,
+  onBulkAction,
+  bulkBusy,
   filter,
   unreadCount,
   otherCount,
@@ -148,6 +165,26 @@ export function ThreadList({
         </div>
       </div>
 
+      {checkedIds.length > 0 && (
+        <div className="list-selection">
+          <label className="list-selection__all" data-tooltip={t('list.selectLoaded')}>
+            <input type="checkbox" aria-label={t('list.selectLoaded')}
+              checked={threads.length > 0 && threads.every((thread) => checkedIds.includes(thread.id))}
+              ref={(node) => { if (node) node.indeterminate = !threads.every((thread) => checkedIds.includes(thread.id)) }}
+              onChange={onCheckAll} disabled={bulkBusy || threads.length === 0} />
+            <span className="list-selection__count" role="status">
+              {t(checkedIds.length === 1 ? 'list.selectedOne' : 'list.selectedCount', { count: checkedIds.length })}
+            </span>
+          </label>
+          <div className="list-selection__actions">
+            <TooltipButton className="icon-btn" type="button" title={t('common.markRead')} onClick={() => onBulkAction('read')} disabled={bulkBusy}><Icon name="mark_email_read" size={16} /></TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t('common.archive')} onClick={() => onBulkAction('archive')} disabled={bulkBusy}><Icon name="archive" size={16} /></TooltipButton>
+            <TooltipButton className="icon-btn btn--danger" type="button" title={t('common.delete')} onClick={() => onBulkAction('delete')} disabled={bulkBusy}><Icon name="delete" size={16} /></TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t('list.clearSelection')} onClick={onClearChecked} disabled={bulkBusy}><Icon name="close" size={16} /></TooltipButton>
+          </div>
+        </div>
+      )}
+
       <div
         className="thread-list"
         onScroll={(event) => {
@@ -171,6 +208,13 @@ export function ThreadList({
             <article
               key={thread.id}
               className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread')}
+            >
+              <label className="thread__select">
+                <input className="thread__check" type="checkbox" checked={checkedIds.includes(thread.id)}
+                  onChange={() => onCheck(thread.id)} disabled={bulkBusy}
+                  aria-label={t('list.selectMessage', { subject: thread.subject })} />
+              </label>
+              <div className="thread__content"
               onClick={() => onSelect(thread.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -185,9 +229,7 @@ export function ThreadList({
               <div className="thread__row">
                 <div className="thread__who">
                   <div className="thread__avatar-wrap">
-                    <span className={cx('avatar', active ? 'avatar--accent' : 'avatar--tertiary')}>
-                      {sender?.initials ?? '??'}
-                    </span>
+                    <SenderAvatar email={sender?.email ?? ''} initials={sender?.initials ?? '??'} mailbox={mailbox} blocked={spam || !live} className={active ? 'avatar--accent' : 'avatar--tertiary'} />
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -221,6 +263,7 @@ export function ThreadList({
                     {t(tag.labelKey, tag.count !== undefined ? { count: tag.count } : undefined)}
                   </span>
                 ))}
+              </div>
               </div>
             </article>
           )

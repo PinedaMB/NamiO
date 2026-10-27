@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import type { BodyTheme } from '@shared/ipc'
+import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Attachment, Message, Thread } from '../data/demo'
 import { useI18n } from '../i18n'
@@ -16,6 +19,7 @@ interface ThreadPaneProps {
   canToggleContext: boolean
   /** Hay cuenta real: archivar, eliminar y leído aplican sobre el servidor. */
   canMutate: boolean
+  mailbox: string
   spam: boolean
   unread: boolean
   onToggleContext: () => void
@@ -38,13 +42,13 @@ const ATTACHMENT_ICON: Record<Attachment['kind'], { icon: string; tone: string }
   file: { icon: 'description', tone: 'var(--on-surface-variant)' }
 }
 
-function Body({ message }: { message: Message }): React.JSX.Element {
+function Body({ message, theme }: { message: Message; theme: BodyTheme }): React.JSX.Element {
   const { t } = useI18n()
 
   if (message.partial) {
     return (
-      <div className="body">
-        <p style={{ color: 'var(--outline)' }}>{t('offline.bodyUnavailable')}</p>
+      <div className={cx('body', theme === 'light' && 'body--light')}>
+        <p style={{ color: theme === 'light' ? '#555555' : 'var(--outline)' }}>{t('offline.bodyUnavailable')}</p>
       </div>
     )
   }
@@ -53,7 +57,7 @@ function Body({ message }: { message: Message }): React.JSX.Element {
   const after = message.body.slice(2)
 
   return (
-    <div className="body">
+    <div className={cx('body', theme === 'light' && 'body--light')}>
       {before.map((paragraph, index) => (
         <p key={`lead-${index}`}>{paragraph}</p>
       ))}
@@ -85,7 +89,7 @@ function Body({ message }: { message: Message }): React.JSX.Element {
         <div className="signature">
           <strong>{message.signature.name}</strong>
           <span>{message.signature.role}</span>
-          <span style={{ color: 'var(--outline)' }}>{message.signature.place}</span>
+          <span style={{ color: theme === 'light' ? '#555555' : 'var(--outline)' }}>{message.signature.place}</span>
         </div>
       )}
     </div>
@@ -101,6 +105,7 @@ export function ThreadPane({
   canToggleContext,
   canMutate,
   spam,
+  mailbox,
   unread,
   onToggleContext,
   onArchive,
@@ -115,7 +120,11 @@ export function ThreadPane({
   onNext
 }: ThreadPaneProps): React.JSX.Element {
   const { t } = useI18n()
-  const { bodyTheme, setBodyTheme } = usePreferences()
+  const { bodyTheme: preferredTheme } = usePreferences()
+  const themeKey = `${mailbox}:${thread.id}:${preferredTheme}`
+  const [themeOverride, setThemeOverride] = useState<{ key: string; theme: BodyTheme } | null>(null)
+  const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : preferredTheme
+  useEffect(() => { setThemeOverride(null) }, [themeKey])
   const message = thread.messages[0]
   const from = message?.from
   const recipients = (message?.to ?? []).map((person) => person.email)
@@ -214,7 +223,7 @@ export function ThreadPane({
               <TooltipButton
                 className="icon-btn"
                 type="button"
-                onClick={() => setBodyTheme(bodyTheme === 'dark' ? 'light' : 'dark')}
+                onClick={() => setThemeOverride({ key: themeKey, theme: bodyTheme === 'dark' ? 'light' : 'dark' })}
                 title={bodyTheme === 'dark' ? t('mail.bodyThemeLight') : t('mail.bodyThemeDark')}
                 aria-label={bodyTheme === 'dark' ? t('mail.bodyThemeLight') : t('mail.bodyThemeDark')}
                 aria-pressed={bodyTheme === 'dark'}
@@ -244,7 +253,7 @@ export function ThreadPane({
               <div className="participants">
                 <div className="participants__top">
                   <div className="participants__who">
-                    <span className="avatar avatar--lg avatar--accent">{from?.initials ?? '??'}</span>
+                    <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam} className="avatar--lg avatar--accent" />
                     <div>
                       <div className="participants__name">
                         <span className="t-headline-sm">{from?.name}</span>
@@ -293,7 +302,7 @@ export function ThreadPane({
                 )}
               </div>
 
-              {message.html ? <EmailBody html={message.html} blockRemote={spam} /> : <Body message={message} />}
+              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} /> : <Body message={message} theme={bodyTheme} />}
             </>
           )}
 

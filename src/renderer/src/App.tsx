@@ -102,6 +102,9 @@ export function App(): React.JSX.Element {
   const [view, setView] = useState<View>('mailbox')
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
+  const [checkedIds, setCheckedIds] = useState<string[]>([])
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const bulkRunning = useRef(false)
   const [filter, setFilter] = useState<FilterId>('focused')
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -132,6 +135,7 @@ export function App(): React.JSX.Element {
   const [searching, setSearching] = useState(false)
   const busySwitch = useRef(false)
   const manualSyncBusy = useRef(false)
+  const deletingMessage = useRef(false)
   const [manualSyncing, setManualSyncing] = useState(false)
 
   /** Guarda los no leídos por cuenta y avisa cuando llegó correo a otra cuenta. */
@@ -209,6 +213,55 @@ export function App(): React.JSX.Element {
     }
     return threads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
   }, [live, threads, filter, folder, selectedId])
+
+  useEffect(() => {
+    setCheckedIds([])
+  }, [folder, filter, query, account?.account?.host, account?.account?.port, account?.account?.user])
+
+  useEffect(() => {
+    setCheckedIds((current) => current.filter((id) => threads.some((thread) => thread.id === id)))
+  }, [threads])
+
+  const bulkAction = async (action: 'read' | 'archive' | 'delete'): Promise<void> => {
+    if (bulkRunning.current || deletingMessage.current) return
+    bulkRunning.current = true
+    setBulkBusy(true)
+    const generation = accountGeneration.current
+    const request = folderRequest.current
+    try {
+      for (const id of checkedIds) {
+        if (generation !== accountGeneration.current || request !== folderRequest.current) break
+        if (!threads.some((thread) => thread.id === id)) continue
+        if (live) {
+          const uid = uidOf(id)
+          if (uid === null) continue
+          const result = action === 'read'
+            ? await window.api.setSeen(folder, uid, true)
+            : action === 'archive'
+              ? await window.api.archiveMessage(folder, uid)
+              : await window.api.deleteMessage(folder, uid)
+          if (generation !== accountGeneration.current || request !== folderRequest.current) break
+          if (!result.ok) throw new Error('detail' in result ? result.detail : result.error ?? 'IPC')
+          if ('canceled' in result && result.canceled) break
+          if ('queued' in result && result.queued) {
+            setToast(t('toast.queued'))
+            setCheckedIds((current) => current.filter((checked) => checked !== id))
+            continue
+          }
+        }
+        setThreads((current) => action === 'read'
+          ? current.map((thread) => thread.id === id ? { ...thread, unread: false } : thread)
+          : current.filter((thread) => thread.id !== id))
+        setCheckedIds((current) => current.filter((checked) => checked !== id))
+      }
+    } catch (error) {
+      if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+    } finally {
+      bulkRunning.current = false
+      setBulkBusy(false)
+      void refreshOutbox()
+    }
+  }
 
   const selected = useMemo(
     () => threads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
@@ -945,6 +998,14 @@ export function App(): React.JSX.Element {
               ) : (
                 <ThreadList
                 threads={visible}
+                mailbox={folder}
+                spam={folderViews.some((item) => item.id === folder && item.spam)}
+                checkedIds={checkedIds}
+                onCheck={(id) => setCheckedIds((current) => current.includes(id) ? current.filter((checked) => checked !== id) : [...current, id])}
+                onCheckAll={() => setCheckedIds(visible.every((thread) => checkedIds.includes(thread.id)) ? [] : visible.map((thread) => thread.id))}
+                onClearChecked={() => setCheckedIds([])}
+                onBulkAction={(action) => void bulkAction(action)}
+                bulkBusy={bulkBusy}
                 selectedId={selected?.id ?? null}
                 filter={filter}
                 unreadCount={unreadCount}
@@ -973,6 +1034,7 @@ export function App(): React.JSX.Element {
               {selected ? (
                 <ThreadPane
                   thread={selected}
+                  mailbox={folder}
                   spam={folderViews.some((item) => item.id === folder && item.spam)}
                   position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
                   total={visible.length}
@@ -986,16 +1048,26 @@ export function App(): React.JSX.Element {
                   onToggleRead={toggleRead}
                   onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
                   onDelete={() => {
-                    if (!selected) return
+                    if (!selected || deletingMessage.current || bulkRunning.current) return
                     if (live) {
                       const uid = uidOf(selected.id)
                       if (uid === null) return
-                      setThreads((current) => current.filter((thread) => thread.id !== selected.id))
-                      setToast(t('toast.trashed'))
+                      deletingMessage.current = true
+                      const id = selected.id
+                      const generation = accountGeneration.current
+                      const permanent = mailboxes.some((box) => box.path === folder && (box.specialUse === '\\Trash' || /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(box.name)))
                       void window.api.deleteMessage(folder, uid).then((result) => {
+                        if (generation !== accountGeneration.current || result.canceled) return
                         if (!result.ok) setToast(t('toast.actionFailed', { error: result.error ?? '' }))
+                        else if (result.queued) setToast(t('toast.queued'))
+                        else {
+                          setThreads((current) => current.filter((thread) => thread.id !== id))
+                          setToast(t(permanent ? 'toast.deleted' : 'toast.trashed'))
+                        }
                         void refreshOutbox()
-                      })
+                      }).catch((error: unknown) => {
+                        if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+                      }).finally(() => { deletingMessage.current = false })
                       return
                     }
                     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
