@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+.cache/
+out/
+release/
+dist/
+.vite/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
