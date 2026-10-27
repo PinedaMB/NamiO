@@ -48,6 +48,8 @@ export interface Message {
 }
 
 export interface Thread {
+  hasAttachments?: boolean
+  messageIds?: number[]
   id: string
   subject: string
   preview: string

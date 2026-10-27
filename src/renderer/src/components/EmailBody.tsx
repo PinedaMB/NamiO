@@ -1,10 +1,10 @@
 import DOMPurify from 'dompurify'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { BodyTheme } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
-import { darkenEmail } from '../lib/emailTheme'
+import { applyEmailTheme, emailBackground } from '../lib/emailTheme'
 
 interface EmailBodyProps {
   html: string
@@ -26,16 +26,9 @@ function sanitize(html: string): string {
 }
 
 /** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas se bloquearon. */
-function prepare(html: string, allowImages: boolean, theme: BodyTheme): { body: string; blocked: number } {
+function prepare(html: string, allowImages: boolean): { body: string; blocked: number } {
   const document_ = new DOMParser().parseFromString(html, 'text/html')
   let blocked = 0
-
-  for (const style of document_.querySelectorAll('style')) {
-    const adaptQuery = (css: string): string => css.replace(/\(prefers-color-scheme:\s*(dark|light)\)/gi,
-      (_match, mode: string) => mode.toLowerCase() === theme ? '(min-width: 0px)' : '(width: 0px)')
-    style.textContent = adaptQuery(style.textContent ?? '')
-    if (style.media) style.media = adaptQuery(style.media)
-  }
 
   if (!allowImages) {
     document_.querySelectorAll('img').forEach((image) => {
@@ -51,7 +44,7 @@ function prepare(html: string, allowImages: boolean, theme: BodyTheme): { body: 
   return { body: styles + document_.body.innerHTML, blocked }
 }
 
-function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): string {
+function buildDocument(body: string, allowImages: boolean): string {
   const csp = [
     "default-src 'none'",
     allowImages ? 'img-src data: https: http:' : 'img-src data:',
@@ -62,18 +55,17 @@ function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): st
     "base-uri 'none'"
   ].join('; ')
 
-  const paper = theme === 'dark'
-    ? ':root { color-scheme: dark; } html, body { background: #14161b; color: #dfe2ee; }'
-    : ':root { color-scheme: light; } html, body { background: #ffffff; color: #1a1a1a; }'
-
   const style = `
-    ${paper}
+    :root { color-scheme: light; }
+    html, body { background: #ffffff; color: #1a1a1a; }
+    :root[data-email-theme="dark"] { color-scheme: dark; }
+    html[data-email-theme="dark"], html[data-email-theme="dark"] body { background: #14161b; color: #dfe2ee; }
     html, body { margin: 0; padding: 0; overflow: hidden; }
     body {
       padding: 18px 20px;
       font: 14px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif;
-      overflow-wrap: anywhere;
-      word-break: break-word;
+      overflow-wrap: break-word;
+      word-break: normal;
     }
     img { max-width: 100%; height: auto; }
     a { color: #2f5bd3; }
@@ -92,6 +84,8 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   const observerRef = useRef<ResizeObserver | null>(null)
   const [allowOverride, setAllowOverride] = useState<boolean | null>(null)
   const [height, setHeight] = useState(320)
+  const [background, setBackground] = useState<string | undefined>(undefined)
+  const [readyDocument, setReadyDocument] = useState<string | null>(null)
 
   // La preferencia manda; el override es solo para este mensaje. Si el usuario
   // cambia la preferencia mientras lee, se vuelve a ella.
@@ -100,27 +94,38 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   }, [remoteImages, html])
 
   const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
-  const prepared = useMemo(() => prepare(sanitize(html), allowImages, bodyTheme), [html, allowImages, bodyTheme])
+  const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
   const documentHtml = useMemo(
-    () => buildDocument(prepared.body, allowImages, bodyTheme),
-    [prepared, allowImages, bodyTheme]
+    () => buildDocument(prepared.body, allowImages),
+    [prepared, allowImages]
   )
+
+  useLayoutEffect(() => {
+    const inner = frameRef.current?.contentDocument
+    if (inner && readyDocument === documentHtml) setBackground(applyEmailTheme(inner, bodyTheme))
+  }, [bodyTheme, documentHtml, readyDocument])
 
   const handleLoad = (): void => {
     const frame = frameRef.current
     const inner = frame?.contentDocument
     if (!frame || !inner) return
 
-    if (bodyTheme === 'dark') darkenEmail(inner)
+    setBackground(applyEmailTheme(inner, bodyTheme))
 
     // El iframe comparte origen (sin scripts), así que el padre puede medirlo:
     // así el correo crece a su altura real y hay un solo scroll (el del lector).
     const measure = (): void => {
+      // Al expandir un mensaje, sus superficies ya tienen dimensiones reales.
+      const background = emailBackground(inner)
+      if (background) {
+        inner.body.style.setProperty('background-color', background, 'important')
+        setBackground(background)
+      }
       const next = Math.max(inner.documentElement.scrollHeight, 140)
       setHeight(next)
     }
     measure()
-    window.setTimeout(measure, 350)
+    setReadyDocument(documentHtml)
 
     // Imágenes y fuentes cambian la altura después del load.
     observerRef.current?.disconnect()
@@ -142,7 +147,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   useEffect(() => () => observerRef.current?.disconnect(), [])
 
   return (
-    <div className="email-body">
+    <div className="email-body" style={{ background: readyDocument === documentHtml ? background : undefined, borderRadius: 'var(--r-xl)' }}>
       {(blockRemote || prepared.blocked > 0) && (
         <div className="email-banner">
           <Icon name="image_not_supported" size={15} />
@@ -153,7 +158,11 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
         </div>
       )}
 
+      {readyDocument !== documentHtml && (
+        <div className="letter-loading" role="status">{t('thread.loading')}</div>
+      )}
       <iframe
+        key={documentHtml}
         ref={frameRef}
         className="email-body__frame"
         sandbox="allow-same-origin"
@@ -161,7 +170,8 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
         title={t('mail.frameTitle')}
         srcDoc={documentHtml}
         scrolling="no"
-        style={{ height, background: bodyTheme === 'dark' ? '#14161b' : '#ffffff' }}
+        aria-hidden={readyDocument !== documentHtml}
+        style={{ height: readyDocument === documentHtml ? height : 0, visibility: readyDocument === documentHtml ? 'visible' : 'hidden', background: readyDocument === documentHtml ? background : undefined }}
         onLoad={handleLoad}
       />
     </div>

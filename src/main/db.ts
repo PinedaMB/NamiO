@@ -21,6 +21,9 @@ interface MailboxRow {
 }
 
 interface MessageRow {
+  has_attachments: number | null
+  message_id: string | null
+  in_reply_to: string | null
   mailbox: string
   uid: number
   subject: string
@@ -149,6 +152,11 @@ export function openAccountCache(accountId: string): void {
     );
   `)
 
+  const columns = db.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
+  for (const column of ['message_id', 'in_reply_to', 'has_attachments']) {
+    if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE messages ADD COLUMN ${column} ${column === 'has_attachments' ? 'INTEGER' : 'TEXT'}`)
+  }
+
   // Migración aditiva: la tabla ya existe en instalaciones previas.
   try {
     db.exec('ALTER TABLE messages ADD COLUMN attachments_json TEXT')
@@ -275,8 +283,8 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
   }
 
   const statement = database.prepare(`
-    INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(mailbox, uid) DO UPDATE SET
       subject = excluded.subject,
       from_name = excluded.from_name,
@@ -284,7 +292,10 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
       date = excluded.date,
       size = excluded.size,
       unread = excluded.unread,
-      flagged = excluded.flagged
+      flagged = excluded.flagged,
+      message_id = excluded.message_id,
+      in_reply_to = excluded.in_reply_to,
+      has_attachments = excluded.has_attachments
   `)
 
   database.exec('BEGIN')
@@ -299,7 +310,10 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
         new Date(envelope.date).getTime(),
         envelope.size,
         envelope.unread ? 1 : 0,
-        envelope.flagged ? 1 : 0
+        envelope.flagged ? 1 : 0,
+        envelope.messageId ?? null,
+        envelope.inReplyTo ?? null,
+        envelope.hasAttachments === undefined ? null : envelope.hasAttachments ? 1 : 0
       )
       reindexMessage(mailbox, envelope.uid)
     }
@@ -315,13 +329,16 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
 export function readEnvelopes(mailbox: string, limit: number): Envelope[] {
   const rows = handle()
     .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged
+      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments
        FROM messages WHERE mailbox = ? ORDER BY date DESC, uid DESC LIMIT ?`
     )
     .all(mailbox, limit) as unknown as MessageRow[]
 
   return rows.map((row) => ({
     uid: row.uid,
+    hasAttachments: Number(row.has_attachments) === 1,
+    messageId: row.message_id ?? undefined,
+    inReplyTo: row.in_reply_to ?? undefined,
     subject: row.subject,
     from: row.from_addr ? { name: row.from_name, address: row.from_addr } : null,
     date: new Date(row.date).toISOString(),
@@ -334,7 +351,7 @@ export function readEnvelopes(mailbox: string, limit: number): Envelope[] {
 export function readEnvelope(mailbox: string, uid: number): Envelope | null {
   const row = handle()
     .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged
+      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments
        FROM messages WHERE mailbox = ? AND uid = ?`
     )
     .get(mailbox, uid) as unknown as MessageRow | undefined
@@ -342,6 +359,9 @@ export function readEnvelope(mailbox: string, uid: number): Envelope | null {
   if (!row) return null
   return {
     uid: row.uid,
+    hasAttachments: Number(row.has_attachments) === 1,
+    messageId: row.message_id ?? undefined,
+    inReplyTo: row.in_reply_to ?? undefined,
     subject: row.subject,
     from: row.from_addr ? { name: row.from_name, address: row.from_addr } : null,
     date: new Date(row.date).toISOString(),
@@ -939,4 +959,11 @@ export function allCachedMessages(limit: number = 5000): CachedMessage[] {
     to_json: string | null
   }[]
   return rows.map(mapMessage)
+}
+
+/** Sobres anteriores a la detección de adjuntos: se actualizan sin descargar cuerpos. */
+export function missingEnvelopeMetadata(mailbox: string): number[] {
+  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND has_attachments IS NULL')
+    .all(mailbox) as unknown as { uid: number }[]
+  return rows.map(row => row.uid)
 }

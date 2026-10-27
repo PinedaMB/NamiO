@@ -30,7 +30,7 @@ interface ThreadPaneProps {
   onStar: () => void
   onReply: () => void
   onQuickDraft: () => void
-  onOpenAttachment: (index: number) => void
+  onOpenAttachment: (index: number, messageId?: string) => void
   onPrev: () => void
   onNext: () => void
 }
@@ -127,8 +127,6 @@ export function ThreadPane({
   useEffect(() => { setThemeOverride(null) }, [themeKey])
   const message = thread.messages[0]
   const from = message?.from
-  const recipients = (message?.to ?? []).map((person) => person.email)
-  const toLine = [`me <${recipients[0] ?? ''}>`, ...recipients.slice(1)].join(', ')
 
   return (
     <main className="reading" aria-label={thread.subject}>
@@ -249,8 +247,12 @@ export function ThreadPane({
               {t('thread.loading')}
             </div>
           ) : (
-            <>
-              <div className="participants">
+            thread.messages.map((message, messageIndex) => {
+              const from = message.from
+              const toLine = message.to.map(person => person.email).join(', ')
+              return (
+              <details className="thread-message" key={message.id} open={messageIndex === thread.messages.length - 1}>
+              <summary className="participants">
                 <div className="participants__top">
                   <div className="participants__who">
                     <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam} className="avatar--lg avatar--accent" />
@@ -261,7 +263,7 @@ export function ThreadPane({
                       </div>
                       <div className="participants__to">
                         <span>{t('thread.to')}</span>
-                        <span style={{ color: 'var(--on-surface)', fontWeight: 500 }}>{toLine}</span>
+                        <span className="participants__recipients" title={toLine}>{toLine}</span>
                       </div>
                     </div>
                   </div>
@@ -273,9 +275,18 @@ export function ThreadPane({
                       {t('thread.encrypted')}
                     </span>
                   </div>
+                  <Icon name="expand_more" size={20} className="thread-message__chevron" />
                 </div>
 
+              </summary>
+
                 {message.attachments && message.attachments.length > 0 && (
+                  <details className="thread-message__files" open>
+                    <summary className="thread-message__files-label">
+                      <Icon name="attach_file" size={16} />
+                      <span>{t('thread.attachments')} · {message.attachments.length}</span>
+                      <Icon name="expand_more" size={18} className="thread-message__files-chevron" />
+                    </summary>
                   <div className="attachments" aria-label={t('thread.attachments')}>
                     {message.attachments.map((attachment, index) => {
                       const meta = ATTACHMENT_ICON[attachment.kind]
@@ -285,7 +296,7 @@ export function ThreadPane({
                           className="attachment"
                           type="button"
                           title={t('thread.download')}
-                          onClick={() => onOpenAttachment(index)}
+                          onClick={() => onOpenAttachment(index, message.id)}
                         >
                           <Icon name={meta.icon} size={18} className="attachment__icon" />
                           <span className="attachment__meta">
@@ -299,11 +310,13 @@ export function ThreadPane({
                       )
                     })}
                   </div>
+                  </details>
                 )}
-              </div>
 
               {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} /> : <Body message={message} theme={bodyTheme} />}
-            </>
+              </details>
+              )
+            })
           )}
 
           <div className="quick-reply">
@@ -329,12 +342,17 @@ export function ThreadPane({
   )
 }
 
-export function ThreadPaneEmpty({ label }: { label?: string }): React.JSX.Element {
+export function ThreadPaneEmpty({ label, loading = false }: { label?: string; loading?: boolean }): React.JSX.Element {
   const { t } = useI18n()
   return (
     <main className="reading" aria-label={t('thread.select')}>
       <div className="reading__scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p className="muted">{label ?? t('thread.select')}</p>
+        {loading ? (
+          <div className="letter-loading" role="status">
+            <Icon name="progress_activity" size={18} className="spin" />
+            {t('list.loading')}
+          </div>
+        ) : <p className="muted">{label ?? t('thread.select')}</p>}
       </div>
     </main>
   )

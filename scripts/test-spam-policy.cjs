@@ -24,11 +24,11 @@ for (const blocked of [true, false]) for (const setting of ['allow', 'block']) f
     exports,
     DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },
     require: id => {
-      if (id === 'react') return { ...React, useState: initial => [index++ === 0 ? override : initial, () => {}], useRef: () => ({ current: null }), useEffect: () => {}, useMemo: fn => fn() }
+      if (id === 'react') return { ...React, useState: initial => [index++ === 0 ? override : initial, () => {}], useRef: () => ({ current: null }), useEffect: () => {}, useLayoutEffect: () => {}, useMemo: fn => fn() }
       if (id === 'dompurify') return { default: { sanitize: html => html } }
       if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
       if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ remoteImages: setting, bodyTheme: 'light' }) }
-      if (id === '../lib/emailTheme') return { darkenEmail() {} }
+      if (id === '../lib/emailTheme') return { applyEmailTheme() {} }
       if (id === './Icon') return { Icon: () => null }
       return require(id)
     }

@@ -42,3 +42,59 @@ export function darkenEmail(document: Document): void {
     }
   }
 }
+
+// Guardamos los estilos originales una vez para que cada cambio de tema sea reversible.
+const originalStyles = new WeakMap<Document, {
+  elements: { element: HTMLElement; style: string | null }[]
+  sheets: { element: HTMLStyleElement; text: string; media: string }[]
+}>()
+
+export function applyEmailTheme(document: Document, theme: 'light' | 'dark'): string | undefined {
+  if (!document.body) return
+  let original = originalStyles.get(document)
+  if (!original) {
+    original = {
+      elements: [document.body, ...document.body.querySelectorAll<HTMLElement>('*')]
+        .map(element => ({ element, style: element.getAttribute('style') })),
+      sheets: [...document.querySelectorAll('style')]
+        .map(element => ({ element, text: element.textContent ?? '', media: element.media }))
+    }
+    originalStyles.set(document, original)
+  }
+  for (const { element, style } of original.elements) {
+    if (style === null) element.removeAttribute('style')
+    else element.setAttribute('style', style)
+  }
+  const adaptQuery = (css: string): string => css.replace(/\(prefers-color-scheme:\s*(dark|light)\)/gi,
+    (_match, mode: string) => mode.toLowerCase() === theme ? '(min-width: 0px)' : '(width: 0px)')
+  for (const { element, text, media } of original.sheets) {
+    element.textContent = adaptQuery(text)
+    element.media = adaptQuery(media)
+  }
+  document.documentElement.setAttribute('data-email-theme', theme)
+  if (theme === 'dark') darkenEmail(document)
+  const background = emailBackground(document)
+  if (background) document.body.style.setProperty('background-color', background, 'important')
+  return background
+}
+
+/** Usa la superficie más grande del contenido, sin tomar imágenes ni fondos transparentes. */
+export function emailBackground(document: Document): string | undefined {
+  const view = document.defaultView
+  if (!view || !document.body) return
+  let background = view.getComputedStyle(document.body).backgroundColor
+  let largest = 0
+  for (const element of document.body.querySelectorAll<HTMLElement>('table, div')) {
+    const computed = view.getComputedStyle(element)
+    const color = computed.backgroundColor
+    if (computed.backgroundImage !== 'none' || !/^rgb\(|^rgba\([^)]*,\s*1\)$/.test(color)) continue
+    const { width, height } = element.getBoundingClientRect()
+    const area = width * height
+    if (area > largest) {
+      largest = area
+      background = color
+    }
+  }
+  return background
+}
+

@@ -55,10 +55,16 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
   }
 ]
 
+function serverFromEmail(email: string): string {
+  const domain = /^[^\s@,]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$/i.exec(email.trim())?.[1]
+  return domain ? `email.${domain.toLowerCase()}` : ''
+}
+
 export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 160)
 
+  const [presetId, setPresetId] = useState('custom')
   const [host, setHost] = useState('')
   const [port, setPort] = useState('993')
   const [secure, setSecure] = useState(true)
@@ -86,6 +92,9 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   useEffect(() => {
     if (!open) return
     const current = configFromAccount(accountRef.current?.account ?? null)
+    const preset = PRESETS.find(item => item.id !== 'custom' && item.imap.host === current.host)
+    const presetAuth = preset?.id === 'gmail' || preset?.id === 'outlook' ? 'oauth2' : 'password'
+    setPresetId(preset && (current.auth ?? 'password') === presetAuth ? preset.id : 'custom')
     setHost(current.host)
     setPort(String(current.port))
     setSecure(current.secure)
@@ -134,6 +143,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     (auth === 'oauth2' ? (provider === 'microsoft' || clientId.trim() !== '') && endpointsOk : password !== '')
 
   const applyPreset = (preset: (typeof PRESETS)[number]): void => {
+    setPresetId(preset.id)
     setPassword('')
     setError(null)
     setHost(preset.imap.host)
@@ -151,6 +161,15 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
       setAuth('password')
       setProvider('custom')
     }
+  }
+
+  const updateUser = (value: string): void => {
+    setUser(value)
+    if (presetId !== 'custom') return
+    const previous = serverFromEmail(user)
+    const next = serverFromEmail(value)
+    if (!host || host === previous) setHost(next)
+    if (!smtpHost || smtpHost === previous) setSmtpHost(next)
   }
 
   const submit = async (): Promise<void> => {
@@ -226,7 +245,8 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             <button
               key={preset.id}
               type="button"
-              className={cx('chip', 'account-preset', host === preset.imap.host && 'chip--primary')}
+              className={cx('chip', 'account-preset', presetId === preset.id && 'chip--primary')}
+              aria-pressed={presetId === preset.id}
               onClick={() => applyPreset(preset)}
             >
               {preset.id === 'custom' ? t('account.custom') : preset.id === 'local' ? t('account.local') : preset.id === 'gmail' ? 'Gmail' : preset.id === 'outlook' ? 'Outlook' : 'Yahoo'}
@@ -267,7 +287,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             <span>{t(microsoft ? 'onboarding.email' : 'account.user')}</span>
             <input
               value={user}
-              onChange={(event) => setUser(event.target.value)}
+              onChange={(event) => updateUser(event.target.value)}
               placeholder="vos@ejemplo.com"
               autoComplete="off"
               spellCheck={false}
@@ -299,14 +319,16 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             </label>
           )}
 
-          <details className="account-advanced" open={!microsoft && !yahoo} key={String(microsoft || yahoo)}>
+          <details className="account-advanced" key={String(open)}>
             <summary>{t('account.advanced')}</summary>
             <div className="account-form">
+              <fieldset className="account-section">
+                <legend className="account-section__title">{t('account.imap')}</legend>
               <label className="account-field">
                 <span>{t('account.host')}</span>
                 <input
                   value={host}
-                  onChange={(event) => setHost(event.target.value)}
+                  onChange={(event) => { setHost(event.target.value); setPresetId('custom') }}
                   placeholder="imap.example.com"
                   autoComplete="off"
                   spellCheck={false}
@@ -347,8 +369,11 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 </div>
               </div>
 
-              <label className="account-field">
-                <span>{t('account.auth')}</span>
+              </fieldset>
+
+              {(presetId === 'custom' || auth === 'oauth2') && <fieldset className="account-section">
+                <legend className="account-section__title">{t('account.auth')}</legend>
+              {presetId === 'custom' && <div className="account-field">
                 <div className="seg" role="group" aria-label={t('account.auth')}>
                   <TooltipButton
                     type="button"
@@ -372,7 +397,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                   </button>
                 </div>
                 {(needsOAuth || gmail) && <em className="account-field__hint">{t(needsOAuth ? 'account.oauthRequired' : 'account.gmailHint')}</em>}
-              </label>
+              </div>}
 
               {auth === 'oauth2' && (
                 <>
@@ -470,9 +495,10 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 </>
               )}
 
-              <div className="account-section">
-                <span className="account-section__title">{t('account.smtp')}</span>
-                <div className="account-row account-row--host">
+              </fieldset>}
+
+              <fieldset className="account-section">
+                <legend className="account-section__title">{t('account.smtp')}</legend>
                   <label className="account-field">
                     <span>{t('account.host')}</span>
                     <input
@@ -483,6 +509,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                       spellCheck={false}
                     />
                   </label>
+                <div className="account-row">
                   <label className="account-field account-field--port">
                     <span>{t('account.port')}</span>
                     <input
@@ -514,7 +541,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                     </div>
                   </div>
                 </div>
-              </div>
+              </fieldset>
 
               <p className="account-hint">
                 <Icon name="info" size={14} />

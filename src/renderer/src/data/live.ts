@@ -57,6 +57,7 @@ export function envelopeToThread(envelope: Envelope, locale: string): Thread {
   const sender = personFrom(envelope.from)
   return {
     id: `live:${envelope.uid}`,
+    hasAttachments: envelope.hasAttachments,
     subject: envelope.subject || '—',
     preview: '',
     receivedAt: formatTime(envelope.date, locale),
@@ -68,6 +69,36 @@ export function envelopeToThread(envelope: Envelope, locale: string): Thread {
     participants: [sender],
     messages: []
   }
+}
+
+/** Relaciona respuestas por sus cabeceras, nunca solo por un asunto parecido. */
+// shortcut: solo sobres cargados de la carpeta; ampliar la búsqueda para incluir Enviados y otras carpetas.
+export function envelopesToThreads(envelopes: Envelope[], locale: string): Thread[] {
+  const parents = new Map<string, string>()
+  const root = (id: string): string => {
+    let current = id
+    while (parents.has(current)) current = parents.get(current)!
+    return current
+  }
+  for (const envelope of envelopes) {
+    if (!envelope.messageId || !envelope.inReplyTo) continue
+    const child = root(envelope.messageId)
+    const parent = root(envelope.inReplyTo)
+    if (child !== parent) parents.set(child, parent)
+  }
+  const groups = new Map<string, Envelope[]>()
+  for (const envelope of envelopes) {
+    const key = envelope.messageId ? root(envelope.messageId) : `uid:${envelope.uid}`
+    const group = groups.get(key) ?? []
+    group.push(envelope)
+    groups.set(key, group)
+  }
+  return envelopes.map(envelope => {
+    const key = envelope.messageId ? root(envelope.messageId) : `uid:${envelope.uid}`
+    const group = groups.get(key)!
+    const messageIds = [...group].sort((a, b) => a.date.localeCompare(b.date) || a.uid - b.uid).map(item => item.uid)
+    return { ...envelopeToThread(envelope, locale), messageIds, messageCount: messageIds.length }
+  })
 }
 
 export function detailToMessage(detail: MessageDetail, locale: string, partial = false): Message {

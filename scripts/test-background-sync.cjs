@@ -8,7 +8,7 @@ let code
 for (const node of ast.statements) {
   if (ts.isFunctionDeclaration(node) && node.name?.text === 'fullSyncMailbox') code = node.getText(ast)
 }
-async function check(initial, switchAccount = false, fail = false) {
+async function check(initial, switchAccount = false, fail = false, metadata = false) {
   const server = [7, 8, 1000, 9000, 20000]
   const cached = new Set(initial)
   const requests = []
@@ -21,6 +21,7 @@ async function check(initial, switchAccount = false, fail = false) {
       search: async () => server.slice(),
       getMailboxLock: async () => ({ release: () => releases++ })
     }),
+    missingEnvelopeMetadata: () => metadata ? initial : [],
     messagesByUids: (_path, uids) => uids.filter(uid => cached.has(uid)).map(uid => ({ uid })),
     fetchRange: async (_client, range, byUid) => {
       assert.equal(byUid, true)
@@ -44,13 +45,14 @@ async function check(initial, switchAccount = false, fail = false) {
   } else {
     assert.deepEqual([...cached].sort((a, b) => a - b), server)
     const fetched = requests.flatMap(range => range.split(',').map(Number))
-    assert.ok(fetched.every(uid => !initial.includes(uid)), 'already cached messages are not fetched again')
-    assert.equal(fetched.length, server.length - initial.length)
+    assert.ok(fetched.every(uid => metadata || !initial.includes(uid)), 'already cached messages are not fetched again')
+    assert.equal(fetched.length, server.length - (metadata ? 0 : initial.length))
   }
 }
 (async () => {
   await check([20000])
   await check([])
+  await check([20000], false, false, true)
   await check([20000], true)
   await check([20000], false, true)
   console.log('Background sync: sparse UIDs, empty cache, account switch and network failure passed')

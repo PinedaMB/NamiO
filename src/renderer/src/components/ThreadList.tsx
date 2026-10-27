@@ -8,8 +8,10 @@ import { cx } from '../lib/cx'
 
 interface ThreadListProps {
   threads: readonly Thread[]
+  allThreads?: readonly Thread[]
   mailbox: string
   spam: boolean
+  selectedMessageId?: string | null
   selectedId: string | null
   checkedIds: readonly string[]
   onCheck: (id: string) => void
@@ -33,7 +35,7 @@ interface ThreadListProps {
   hasMore?: boolean
   onLoadMore?: () => void
   onFilter: (filter: FilterId) => void
-  onSelect: (id: string) => void
+  onSelect: (id: string, messageId?: string) => void
 }
 
 const QUEUE_LABEL: Record<FilterId, TranslationKey> = {
@@ -61,7 +63,9 @@ function tagClass(tag: Tag): string {
 
 export function ThreadList({
   threads,
+  allThreads = threads,
   selectedId,
+  selectedMessageId,
   mailbox,
   spam,
   checkedIds,
@@ -96,6 +100,14 @@ export function ThreadList({
         ? otherLabel
         : focusedLabel
     : t(QUEUE_LABEL[filter])
+
+  const seen = new Set<string>()
+  const conversations = threads.filter(thread => {
+    const key = thread.messageIds?.join(',') ?? thread.id
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 
   return (
     <section className="list" aria-label={t('list.queue', { name: activeLabel })}>
@@ -201,12 +213,20 @@ export function ThreadList({
           </div>
         )}
 
-        {threads.map((thread) => {
+        {conversations.map((thread) => {
           const sender = thread.participants[0]
-          const active = thread.id === selectedId
+          const members = thread.messageIds
+            ? allThreads.filter(item => thread.messageIds!.includes(Number(item.id.slice(5))))
+                .sort((a, b) => thread.messageIds!.indexOf(Number(a.id.slice(5))) - thread.messageIds!.indexOf(Number(b.id.slice(5))))
+                .map(item => ({ id: item.id, messageId: item.id, sender: item.participants[0], date: item.receivedAt, unread: item.unread }))
+            : thread.messages.map(message => ({ id: thread.id, messageId: message.id, sender: message.from, date: message.sentAt, unread: thread.unread }))
+          const hasFiles = allThreads.some(item =>
+            (item.id === thread.id || thread.messageIds?.includes(Number(item.id.slice(5)))) &&
+            (item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
+          const active = thread.id === selectedId || members.some(member => member.id === selectedId)
           return (
+            <div className="thread-group" key={thread.id}>
             <article
-              key={thread.id}
               className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread')}
             >
               <label className="thread__select">
@@ -240,6 +260,7 @@ export function ThreadList({
                 </div>
 
                 <div className="thread__meta">
+                  {hasFiles && <span role="img" aria-label={t('thread.attachments')} title={t('thread.attachments')}><Icon name="attach_file" size={15} /></span>}
                   {thread.unread && (
                     <span className="thread__unread" role="img" aria-label={t('list.unread')} title={t('list.unread')}>
                       <Icon name="mark_email_unread" size={16} />
@@ -251,7 +272,7 @@ export function ThreadList({
 
               <div className="thread__subject">
                 <span>{thread.subject}</span>
-                {thread.messageCount > 1 && <span className="thread__count">{thread.messageCount}</span>}
+                {thread.messageCount > 1 && members.length < 2 && <span className="thread__count">{thread.messageCount}</span>}
               </div>
 
               {thread.preview !== '' && <p className="thread__preview">{thread.preview}</p>}
@@ -266,6 +287,34 @@ export function ThreadList({
               </div>
               </div>
             </article>
+            {members.length > 1 && (
+              <details className="thread-group__messages">
+                <summary aria-label={t('list.conversationMessages', { count: members.length })} title={t('list.conversationMessages', { count: members.length })}>
+                  <Icon name="expand_more" size={18} className="thread-group__chevron" />
+                  <span>{members.length}</span>
+                </summary>
+                <div className="thread-group__items">
+                  {members.map(member => (
+                    <div className="thread-group__item" key={member.messageId}>
+                    {live && <input type="checkbox" checked={checkedIds.includes(member.id)} disabled={bulkBusy}
+                      onChange={() => onCheck(member.id)} aria-label={t('list.selectMessage', { subject: `${thread.subject} · ${member.sender?.name ?? ''}` })} />}
+                    <button type="button"
+                      aria-current={member.messageId === selectedMessageId ? 'true' : undefined}
+                      className={cx('thread-group__message', member.messageId === selectedMessageId && 'thread-group__message--active', member.unread && 'thread-group__message--unread')}
+                      onClick={() => onSelect(member.id, member.messageId)}>
+                      <Icon name={member.unread ? 'mark_email_unread' : 'mail'} size={15} />
+                      <span className="thread-group__sender">
+                        <strong title={member.sender?.name}>{member.sender?.name}</strong>
+                        <span title={member.sender?.email}>{member.sender?.email}</span>
+                      </span>
+                      <span className="thread__time">{member.date}</span>
+                    </button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+            </div>
           )
         })}
 

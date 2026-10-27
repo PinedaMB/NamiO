@@ -171,6 +171,9 @@ export interface EnvelopeAddress {
 }
 
 export interface Envelope {
+  hasAttachments?: boolean
+  messageId?: string
+  inReplyTo?: string
   uid: number
   subject: string
   from: EnvelopeAddress | null

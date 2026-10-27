@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { ImapFlow } from 'imapflow'
+import { ImapFlow, type MessageStructureObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import type {
   AccountConfig,
@@ -28,6 +28,7 @@ import {
   getMailboxMeta,
   getMeta,
   messagesByUids,
+  missingEnvelopeMetadata,
   openAccountCache,
   readBody,
   readEnvelope,
@@ -41,7 +42,6 @@ import {
   setFlagged as cacheFlagged,
   setMeta,
   setUnread as cacheUnread,
-  updateFlags,
   upsertEnvelopes,
 } from './db'
 import { authorize, getAccessToken } from './oauth'
@@ -247,17 +247,25 @@ function toAddress(entry: { name?: string; address?: string } | undefined): Enve
    Sincronización
    ------------------------------------------------------------------------- */
 
+function hasAttachments(part: MessageStructureObject | undefined): boolean {
+  if (!part) return false
+  return part.disposition?.toLowerCase() === 'attachment' || Boolean(part.dispositionParameters?.filename || part.parameters?.name) || (part.childNodes?.some(hasAttachments) ?? false)
+}
+
 async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Promise<Envelope[]> {
   const envelopes: Envelope[] = []
   const options = byUid ? { uid: true } : undefined
 
   for await (const message of client.fetch(
     range,
-    { envelope: true, flags: true, uid: true, size: true, internalDate: true },
+    { envelope: true, bodyStructure: true, flags: true, uid: true, size: true, internalDate: true },
     options
   )) {
     envelopes.push({
       uid: message.uid,
+      hasAttachments: hasAttachments(message.bodyStructure),
+      messageId: message.envelope?.messageId,
+      inReplyTo: message.envelope?.inReplyTo,
       subject: message.envelope?.subject ?? '',
       from: toAddress(message.envelope?.from?.[0]),
       date: toDate(message.internalDate).toISOString(),
@@ -372,18 +380,10 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     // Si el servidor tiene más de lo cacheado, se sigue bajando en segundo plano.
     ensureFullSync(path)
 
-    // Los flags cambian desde otros clientes: se refresca el tramo visible.
+    // Refresca flags y cabeceras del tramo visible, también para cachés anteriores.
     if (exists > 0) {
-      const recentStart = Math.max(1, exists - 19)
-      const flags: { uid: number; unread: boolean; flagged: boolean }[] = []
-      for await (const message of client.fetch(`${recentStart}:*`, { uid: true, flags: true })) {
-        flags.push({
-          uid: message.uid,
-          unread: !message.flags?.has('\\Seen'),
-          flagged: message.flags?.has('\\Flagged') ?? false
-        })
-      }
-      updateFlags(path, flags)
+      const recentStart = Math.max(1, exists - limit + 1)
+      nuevos.push(...upsertEnvelopes(path, await fetchRange(client, `${recentStart}:*`, false)))
     }
 
     // Reconciliación: si el servidor cuenta más mensajes de los que tenemos, el
@@ -463,13 +463,14 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       }
     })
 
+    const pendingMetadata = new Set(missingEnvelopeMetadata(path))
     for (let end = uids.length; end > 0; end -= chunk) {
       if (generation !== syncGeneration) return
       const batch = uids.slice(Math.max(0, end - chunk), end)
       await serial(async () => {
         if (generation !== syncGeneration) return
         const cached = new Set(messagesByUids(path, batch).map((message) => message.uid))
-        const missing = batch.filter((uid) => !cached.has(uid))
+        const missing = batch.filter((uid) => !cached.has(uid) || pendingMetadata.has(uid))
         if (missing.length === 0) return
         const client = await ensureClient()
         const lock = await client.getMailboxLock(path)
@@ -508,7 +509,7 @@ function ensureFullSync(path: string): void {
     return
   }
   const meta = getMailboxMeta(path)
-  if (!meta || meta.messages <= countMessages(path)) return
+  if (!meta || (meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0)) return
   void fullSyncMailbox(path, 100)
 }
 

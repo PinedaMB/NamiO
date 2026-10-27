@@ -12,7 +12,7 @@ import type {
   SyncProgress
 } from '@shared/ipc'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
-import { detailToMessage, envelopeToThread, mailboxToFolder, type FolderView } from './data/live'
+import { detailToMessage, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ThreadList } from './components/ThreadList'
@@ -76,7 +76,7 @@ function mergeLoaded(previous: readonly Thread[], next: readonly Thread[]): Thre
   const known = new Map(previous.map((thread) => [thread.id, thread]))
   return next.map((thread) => {
     const old = known.get(thread.id)
-    if (!old || old.messages.length === 0) return thread
+    if (!old || old.messages.length === 0 || old.messageIds?.join(',') !== thread.messageIds?.join(',')) return thread
     return { ...thread, messages: old.messages }
   })
 }
@@ -102,9 +102,11 @@ export function App(): React.JSX.Element {
   const [view, setView] = useState<View>('mailbox')
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
+  const [individualMessageId, setIndividualMessageId] = useState<string | null>(null)
   const [checkedIds, setCheckedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
   const bulkRunning = useRef(false)
+  const togglingRead = useRef(false)
   const [filter, setFilter] = useState<FilterId>('focused')
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -185,11 +187,12 @@ export function App(): React.JSX.Element {
       accountGeneration.current += 1
       setThreads([])
       setSelectedId(null)
+      setIndividualMessageId(null)
       setMailboxes([])
       setQuery('')
       setHits([])
       setSearching(false)
-      setLoadingFolder(false)
+      setLoadingFolder(state.configured)
       setFolder('inbox')
       activeFolderRef.current = 'inbox'
       folderRequest.current += 1
@@ -207,7 +210,7 @@ export function App(): React.JSX.Element {
       // del filtro, la selección saltaría al siguiente y lo marcaría leído
       // también (cascada de mensajes "leídos" sin abrir).
       if (filter === 'focused') return threads.filter((thread) => thread.unread || thread.id === selectedId)
-      if (filter === 'other') return threads.filter((thread) => !thread.unread)
+      if (filter === 'other') return threads.filter((thread) => !thread.unread || thread.id === selectedId)
       if (filter === 'all') return threads
       return threads
     }
@@ -291,6 +294,7 @@ export function App(): React.JSX.Element {
       activeFolderRef.current = path
       setThreads([])
       setSelectedId(null)
+      setIndividualMessageId(null)
       setLoadingFolder(true)
       setFolder(path)
       setListLimit(PAGE_SIZE)
@@ -306,7 +310,7 @@ export function App(): React.JSX.Element {
       }
 
       setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
-      const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
+      const mapped = envelopesToThreads(result.data, locale)
       setThreads(mapped)
       userNavigated.current = false
       setSelectedId(focusUid !== undefined ? `live:${focusUid}` : (mapped[0]?.id ?? null))
@@ -386,7 +390,7 @@ export function App(): React.JSX.Element {
     if (generation !== accountGeneration.current || request !== folderRequest.current || !list?.ok) return
 
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
-    const mapped = list.data.map((envelope) => envelopeToThread(envelope, locale))
+    const mapped = envelopesToThreads(list.data, locale)
     setThreads((previous) => mergeLoaded(previous, mapped))
     setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
   }, [folder, locale, listLimit])
@@ -430,7 +434,7 @@ export function App(): React.JSX.Element {
       const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
       if (generation !== accountGeneration.current || request !== folderRequest.current || !result?.ok) return
 
-      const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
+      const mapped = envelopesToThreads(result.data, locale)
       setThreads((previous) => mergeLoaded(previous, mapped))
       setSelectedId((current) =>
         mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)
@@ -460,19 +464,22 @@ export function App(): React.JSX.Element {
   const loadMailboxes = useCallback(
     async (state: AccountState): Promise<void> => {
       const generation = accountGeneration.current
-      const result = await window.api.listMailboxes(true).catch(() => null)
-      if (generation !== accountGeneration.current || !result) return
-      if (!result.ok) {
-        setLiveError({ code: result.code, detail: result.detail })
-        return
+      setLoadingFolder(true)
+      try {
+        const result = await window.api.listMailboxes(true).catch(() => null)
+        if (generation !== accountGeneration.current || !result) return
+        if (!result.ok) {
+          setLiveError({ code: result.code, detail: result.detail })
+          return
+        }
+        setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
+        setMailboxes(result.data)
+        const inbox = result.data.find(box => box.specialUse === '\\Inbox' || box.path.toUpperCase() === 'INBOX') ?? result.data[0]
+        if (inbox) await loadFolder(inbox.path)
+        void state
+      } finally {
+        if (generation === accountGeneration.current) setLoadingFolder(false)
       }
-
-      setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
-      setMailboxes(result.data)
-      const inbox =
-        result.data.find((box) => box.specialUse === '\\Inbox' || box.path.toUpperCase() === 'INBOX') ?? result.data[0]
-      if (inbox) await loadFolder(inbox.path)
-      void state
     },
     [loadFolder]
   )
@@ -609,19 +616,17 @@ export function App(): React.JSX.Element {
 
     let cancelled = false
     const generation = accountGeneration.current
-    window.api
-      .getMessage(folder, uid)
-      .then((result) => {
+    Promise.all((selected.messageIds ?? [uid]).map(messageUid => window.api.getMessage(folder, messageUid)))
+      .then((results) => {
         if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
-        if (!result.ok) {
-          setLiveError({ code: result.code, detail: result.detail })
-          return
+        const failure = results.find(result => !result.ok)
+        if (failure && !failure.ok) {
+          setLiveError({ code: failure.code, detail: failure.detail })
         }
-        if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
-        const message = detailToMessage(result.data, locale, result.meta.partial === true)
-        setThreads((current) =>
-          current.map((thread) => (thread.id === selected.id ? { ...thread, messages: [message] } : thread))
-        )
+        const messages = results.flatMap(result => result.ok ? [detailToMessage(result.data, locale, result.meta.partial === true)] : [])
+        if (messages.length === 0) return
+        if (results.some(result => result.ok && result.meta.partial)) setToast(t('offline.bodyUnavailable'))
+        setThreads(current => current.map(thread => thread.id === selected.id ? { ...thread, messages } : thread))
       })
       .catch(() => undefined)
 
@@ -630,7 +635,8 @@ export function App(): React.JSX.Element {
     }
   }, [live, selected, folder, locale])
 
-  const select = (id: string): void => {
+  const select = (id: string, messageId?: string): void => {
+    setIndividualMessageId(messageId ?? null)
     userNavigated.current = true
     setSelectedId(id)
 
@@ -661,13 +667,13 @@ export function App(): React.JSX.Element {
   }
 
   /** Descarga un adjunto y lo guarda donde el usuario elija. */
-  const openAttachment = (index: number): void => {
+  const openAttachment = (index: number, messageId?: string): void => {
     if (!selected) return
     if (!live) {
       setToast(t('toast.attachmentOffline'))
       return
     }
-    const uid = uidOf(selected.id)
+    const uid = uidOf(messageId ?? selected.id)
     if (uid === null) return
 
     void window.api
@@ -681,26 +687,29 @@ export function App(): React.JSX.Element {
   }
 
   /** Alterna leído/no leído; en modo real escribe `\Seen` en el servidor. */
-  const toggleRead = (): void => {
-    if (!selected) return
-    const next = !selected.unread
-    setThreads((current) =>
-      current.map((thread) => (thread.id === selected.id ? { ...thread, unread: next } : thread))
-    )
-    setToast(next ? t('toast.markedRead') : t('toast.markedUnread'))
-
-    if (!live) return
-    const uid = uidOf(selected.id)
-    if (uid === null) return
-
-    void window.api.setSeen(folder, uid, next).then((result) => {
-      if (result.ok) return
-      // Si el servidor rechaza, se revierte para no mentir en pantalla.
-      setThreads((current) =>
-        current.map((thread) => (thread.id === selected.id ? { ...thread, unread: !next } : thread))
-      )
-      setToast(t('toast.actionFailed', { error: result.detail }))
-    })
+  const toggleRead = async (): Promise<void> => {
+    if (!selected || togglingRead.current) return
+    const nextUnread = !selected.unread
+    const generation = accountGeneration.current
+    const request = folderRequest.current
+    togglingRead.current = true
+    try {
+      if (live) {
+        const uid = uidOf(selected.id)
+        if (uid === null) return
+        const result = await window.api.setSeen(folder, uid, !nextUnread)
+        if (generation !== accountGeneration.current || request !== folderRequest.current) return
+        if (!result.ok) throw new Error(result.detail)
+      }
+      setThreads(current => current.map(thread => thread.id === selected.id ? { ...thread, unread: nextUnread } : thread))
+      setToast(nextUnread ? t('toast.markedUnread') : t('toast.markedRead'))
+    } catch (error) {
+      if (generation === accountGeneration.current && request === folderRequest.current) {
+        setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+      }
+    } finally {
+      togglingRead.current = false
+    }
   }
 
   const archive = (): void => {
@@ -755,7 +764,7 @@ export function App(): React.JSX.Element {
   const openReply = (body = ''): void => {
     if (!selected) return
     const sender = selected.participants[0]
-    const message = selected.messages[0]
+    const message = selected.messages.find(item => item.id === (individualMessageId ?? selected.id)) ?? selected.messages.at(-1)
     const quoted = (message?.body ?? []).map((line) => `> ${line}`).join('\n')
     const attribution = message ? `${message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
     const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
@@ -802,7 +811,7 @@ export function App(): React.JSX.Element {
         return
       }
       applyAccount(result.data)
-      await refreshAccounts()
+      void refreshAccounts()
       await loadMailboxes(result.data)
       setToast(t('account.switched'))
     } finally {
@@ -998,6 +1007,7 @@ export function App(): React.JSX.Element {
               ) : (
                 <ThreadList
                 threads={visible}
+                allThreads={threads}
                 mailbox={folder}
                 spam={folderViews.some((item) => item.id === folder && item.spam)}
                 checkedIds={checkedIds}
@@ -1007,6 +1017,7 @@ export function App(): React.JSX.Element {
                 onBulkAction={(action) => void bulkAction(action)}
                 bulkBusy={bulkBusy}
                 selectedId={selected?.id ?? null}
+                selectedMessageId={individualMessageId}
                 filter={filter}
                 unreadCount={unreadCount}
                 otherCount={otherCount}
@@ -1033,7 +1044,7 @@ export function App(): React.JSX.Element {
 
               {selected ? (
                 <ThreadPane
-                  thread={selected}
+                  thread={individualMessageId && selected.messages.some(message => message.id === individualMessageId) ? { ...selected, messages: selected.messages.filter(message => message.id === individualMessageId) } : selected}
                   mailbox={folder}
                   spam={folderViews.some((item) => item.id === folder && item.spam)}
                   position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
@@ -1081,7 +1092,7 @@ export function App(): React.JSX.Element {
                   onNext={() => step(1)}
                 />
               ) : (
-                <ThreadPaneEmpty label={live ? t('account.liveEmpty') : undefined} />
+                <ThreadPaneEmpty loading={loadingFolder} label={live ? t('account.liveEmpty') : undefined} />
               )}
 
               {!live && (

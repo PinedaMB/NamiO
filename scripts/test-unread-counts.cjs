@@ -37,7 +37,7 @@ async function main() {
         getMailboxLock: async () => ({ release() {} }), fetch: async function* () {}
       }),
       getMailboxMeta: () => ({ uidValidity: 1, uidNext: 501, unseen: 300 }), countMessages: () => 500,
-      countUnread: () => 1, saveMailboxSync: (_path, meta) => { saved = meta }, setMeta() {}, ensureFullSync() {}, updateFlags() {}
+      countUnread: () => 1, saveMailboxSync: (_path, meta) => { saved = meta }, setMeta() {}, ensureFullSync() {}, fetchRange: async () => [], upsertEnvelopes: () => []
     })
     await sync('INBOX', 50)
     assert.equal(saved.unseen, unseen, 'large mailboxes use the fresh server count, including zero')

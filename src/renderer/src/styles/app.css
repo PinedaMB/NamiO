@@ -1210,7 +1210,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-lg);
-  max-width: 760px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -3282,8 +3282,8 @@
 .account-modal {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-md);
-  width: min(560px, 100%);
+  gap: var(--sp-lg);
+  width: min(600px, 100%);
   /* Con OAuth2 el formulario crece: el modal scrollea, no se sale de la ventana. */
   max-height: min(calc(100vh - 56px), 900px);
   overflow-y: auto;
@@ -3324,9 +3324,9 @@
 
 .account-preset {
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 5px 9px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 8px 12px;
 }
 
 .settings-accounts {
@@ -3362,7 +3362,7 @@
 .account-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--sp-md);
 }
 
 .account-advanced {
@@ -3385,16 +3385,15 @@
 .account-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
 .account-field > span {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--outline);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
 }
 
 .account-field__hint {
@@ -3405,7 +3404,7 @@
 }
 
 .account-field input {
-  height: 34px;
+  height: 38px;
   padding: 0 10px;
   border-radius: var(--r-lg);
   border: 1px solid var(--surface-container-highest);
@@ -3463,17 +3462,36 @@
 .account-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 4px;
-  border-top: 1px solid var(--surface-container-highest);
+  gap: var(--sp-md);
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-md);
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-lg);
 }
 
 .account-section__title {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--tertiary);
+  padding: 0 6px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.account-modal .seg {
+  min-height: 36px;
+  flex-wrap: wrap;
+}
+
+.account-modal .seg__btn {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.account-modal .seg__btn--active {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
 }
 
 .account-row--host {
@@ -4471,3 +4489,348 @@
 .account-menu__count--active {
   background: color-mix(in srgb, var(--primary) 30%, transparent);
 }
+
+/* Un correo por tarjeta; el último mensaje del hilo inicia expandido. */
+.thread-message {
+  min-width: 0;
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-xl);
+}
+
+.thread-message > summary {
+  cursor: pointer;
+  list-style: none;
+  margin: 0;
+}
+
+.thread-message > summary::-webkit-details-marker {
+  display: none;
+}
+
+.thread-message > summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.thread-message > summary {
+  padding: var(--sp-lg);
+  border-radius: var(--r-xl);
+}
+
+.thread-message > summary:hover {
+  background: var(--surface-container);
+}
+
+.thread-message[open] > summary {
+  border-bottom: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+}
+
+.thread-message .participants__top,
+.thread-message .participants__who {
+  align-items: center;
+}
+
+.thread-message .participants__name {
+  gap: 2px 8px;
+  overflow-wrap: anywhere;
+}
+
+.thread-message .participants__to {
+  margin-top: var(--sp-xs);
+  flex-wrap: nowrap;
+  align-items: baseline;
+}
+
+.participants__recipients {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-message__chevron {
+  flex-shrink: 0;
+  color: var(--on-surface-variant);
+}
+
+.thread-message[open] .thread-message__chevron {
+  transform: rotate(180deg);
+}
+
+.thread-message__files {
+  display: block;
+  padding: var(--sp-md) var(--sp-lg);
+  border-bottom: 1px solid var(--surface-container-highest);
+}
+
+.thread-message__files-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+}
+
+.thread-message > .email-body,
+.thread-message > .email-body .email-body__frame {
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+}
+
+@media (max-width: 720px) {
+  .thread-message .participants__top {
+    flex-wrap: wrap;
+  }
+
+  .thread-message .participants__who {
+    flex-basis: calc(100% - 40px);
+  }
+
+  .thread-message .participants__right {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--sp-md);
+    align-items: baseline;
+    white-space: normal;
+    flex-basis: 100%;
+    order: 1;
+  }
+}
+
+.thread-message__files-label::-webkit-details-marker {
+  display: none;
+}
+
+.thread-message__files-label:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  border-radius: var(--r-sm);
+}
+
+.thread-message__files-chevron {
+  margin-left: auto;
+}
+
+.thread-message__files[open] > summary .thread-message__files-chevron {
+  transform: rotate(180deg);
+}
+
+.thread-message__files > .attachments {
+  padding-top: var(--sp-sm);
+}
+
+.thread-message__chevron,
+.thread-message__files-chevron {
+  transition: transform var(--normal) var(--ease);
+}
+
+@supports (interpolate-size: allow-keywords) {
+  .thread-message,
+  .thread-message__files {
+    interpolate-size: allow-keywords;
+  }
+
+  .thread-message::details-content,
+  .thread-message__files::details-content {
+    height: 0;
+    overflow: hidden;
+    transition:
+      height var(--normal) var(--ease),
+      content-visibility var(--normal) allow-discrete;
+  }
+
+  .thread-message[open]::details-content,
+  .thread-message__files[open]::details-content {
+    height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-message::details-content,
+  .thread-message__files::details-content,
+  .thread-message__chevron,
+  .thread-message__files-chevron {
+    transition: none;
+  }
+}
+
+.thread-group {
+  position: relative;
+  min-width: 0;
+}
+
+.thread-group__messages > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  padding: var(--sp-md);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.thread-group__messages > summary::-webkit-details-marker {
+  display: none;
+}
+
+.thread-group__chevron {
+  transition: transform var(--normal) var(--ease);
+}
+
+.thread-group__messages[open] > summary .thread-group__chevron {
+  transform: rotate(180deg);
+}
+
+.thread-group__items {
+  margin: 0 0 var(--sp-sm) var(--sp-lg);
+  border-left: 1px solid var(--surface-container-highest);
+  padding-left: var(--sp-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+}
+
+.thread-group__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 0 var(--sp-sm);
+  border-radius: var(--r-lg);
+  transition: background var(--fast) var(--ease);
+}
+
+.thread-group__item > input {
+  accent-color: var(--primary);
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.thread-group__message {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  min-width: 0;
+  width: 100%;
+  min-height: 54px;
+  padding: var(--sp-sm);
+  border-radius: var(--r-md);
+  text-align: left;
+  color: var(--on-surface);
+}
+
+.thread-group__item:hover {
+  background: var(--surface-container);
+}
+
+.thread-group__item:has(.thread-group__message--active) {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface-container-lowest));
+  outline: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  outline-offset: -1px;
+}
+
+.thread-group__message--active > .icon {
+  color: var(--primary);
+}
+
+.thread-group__message > .icon {
+  flex-shrink: 0;
+}
+
+.thread-group__message .thread__time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--on-surface-variant);
+}
+
+.thread-group__sender {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.thread-group__sender > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-group__sender > strong {
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.thread-group__message--unread .thread-group__sender > strong {
+  font-weight: 650;
+}
+
+.thread-group__sender > span {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+
+.thread-group__messages > summary:focus-visible,
+.thread-group__message:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+@supports (interpolate-size: allow-keywords) {
+  .thread-group__messages {
+    interpolate-size: allow-keywords;
+  }
+
+  .thread-group__messages::details-content {
+    height: 0;
+    overflow: hidden;
+    transition: height var(--normal) var(--ease), content-visibility var(--normal) allow-discrete;
+  }
+
+  .thread-group__messages[open]::details-content {
+    height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-group__messages::details-content,
+  .thread-group__chevron {
+    transition: none;
+  }
+}
+
+/* El desplegable comparte la fila del asunto, sin agregar una fila a la tarjeta. */
+.thread-group:has(> .thread-group__messages) > .thread .thread__subject {
+  padding-right: 52px;
+}
+
+.thread-group__messages > summary {
+  position: absolute;
+  top: 42px;
+  right: var(--sp-md);
+  padding: 2px 6px;
+  min-height: 24px;
+  border-radius: var(--r-md);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.thread-group__messages > summary:hover {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.thread-group__messages .thread-group__items {
+  margin-top: var(--sp-sm);
+  margin-left: var(--sp-sm);
+}
+
