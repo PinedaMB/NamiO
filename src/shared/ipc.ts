@@ -8,6 +8,7 @@
 export const IPC = {
   coreStatus: 'core:status',
   cacheClear: 'cache:clear',
+  recipientSuggestions: 'recipients:suggest',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   accountStatus: 'account:status',
@@ -239,6 +240,9 @@ export interface OutboxItem {
 }
 
 export interface SendMailPayload {
+  bcc?: string
+  inReplyTo?: string
+  references?: string[]
   to: string
   cc: string
   subject: string
@@ -248,6 +252,10 @@ export interface SendMailPayload {
 }
 
 export interface Draft {
+  bcc?: string
+  attachments?: PickedAttachment[]
+  inReplyTo?: string
+  references?: string[]
   to: string
   cc: string
   subject: string
@@ -256,6 +264,11 @@ export interface Draft {
 }
 
 /** Archivo elegido para adjuntar (el contenido no viaja al renderer). */
+export interface RecipientSuggestion {
+  email: string
+  name: string
+}
+
 export interface PickedAttachment {
   id: string
   name: string
@@ -324,6 +337,7 @@ export interface MailAction {
 }
 
 export interface MailApi {
+  suggestRecipients(query: string): Promise<RecipientSuggestion[]>
   getCoreStatus(): Promise<CoreStatus>
   clearMailCache(accountId: string): Promise<{ canceled: boolean }>
   /** Devuelve solo lo que el usuario ya configuró (puede venir vacío). */

@@ -1,9 +1,11 @@
 import { TooltipButton } from './Tooltip'
-import { useEffect, useState } from 'react'
-import type { PickedAttachment } from '@shared/ipc'
+import { useEffect, useRef, useState } from 'react'
+import { validRecipients } from '@shared/mailAddresses'
+import type { Draft, PickedAttachment } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
+import { RecipientInput } from './RecipientInput'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -12,10 +14,14 @@ interface ComposeOverlayProps {
   to: string
   subject: string
   body: string
+  cc?: string
+  bcc?: string
+  initialAttachments?: PickedAttachment[]
+  onDiscard: () => Promise<void>
   /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
   copilot?: boolean
-  onClose: (values?: { to: string; subject: string; body: string }) => void
-  onSend: (payload: { to: string; subject: string; body: string; attachments: PickedAttachment[] }) => void
+  onClose: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
+  onSend: (payload: Omit<Draft, 'updatedAt'>) => Promise<void>
   /** Abre el diálogo del sistema; solo existe con cuenta real. */
   onPickAttachments?: () => Promise<PickedAttachment[]>
 }
@@ -35,6 +41,10 @@ export function ComposeOverlay({
   to,
   subject,
   body,
+  cc = '',
+  bcc = '',
+  initialAttachments,
+  onDiscard,
   copilot = true,
   onClose,
   onSend,
@@ -42,10 +52,16 @@ export function ComposeOverlay({
 }: ComposeOverlayProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
-  const [recipients, setRecipients] = useState<readonly string[]>(to ? [to] : [])
-  const [draftRecipient, setDraftRecipient] = useState('')
+  const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
   const [bodyValue, setBodyValue] = useState(body)
+  const [ccValue, setCcValue] = useState(cc)
+  const [bccValue, setBccValue] = useState(bcc)
+  const [bccOpen, setBccOpen] = useState(Boolean(bcc))
+  const sendingRef = useRef(false)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
   const [tone, setTone] = useState<TranslationKey>('compose.toneDirect')
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
@@ -63,13 +79,17 @@ export function ComposeOverlay({
 
   useEffect(() => {
     if (!open) return
-    setRecipients(to ? [to] : [])
-    setDraftRecipient('')
+    setToValue(to)
     setSubjectValue(subject)
     setBodyValue(body)
     setApplied(false)
     setGenerating(false)
-    setPicked([])
+    setPicked(initialAttachments ?? [])
+    setCcValue(cc)
+    setBccValue(bcc)
+    setCcOpen(Boolean(cc))
+    setBccOpen(Boolean(bcc))
+    setError(null)
     // Los adjuntos de ejemplo solo existen en la demo.
     setAttachments(
       copilot
@@ -79,30 +99,49 @@ export function ComposeOverlay({
           ]
         : []
     )
-  }, [open, to, subject, body, copilot])
+  }, [open, to, subject, body, copilot, cc, bcc, initialAttachments])
 
-  const addRecipient = (): void => {
-    const value = draftRecipient.trim().replace(/,$/, '')
-    if (value === '' || recipients.includes(value)) {
-      setDraftRecipient('')
-      return
-    }
-    setRecipients((current) => [...current, value])
-    setDraftRecipient('')
+  const values = (): Omit<Draft, 'updatedAt'> => ({
+    to: toValue, cc: ccValue, bcc: bccValue,
+    subject: subjectValue, body: bodyValue, attachments: picked
+  })
+
+  const closeWithDraft = async (): Promise<void> => {
+    if (sendingRef.current) return
+    setError(null)
+    try { await onClose(values()) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+  }
+
+  const send = async (): Promise<void> => {
+    if (sendingRef.current) return
+    const payload = values()
+    if (!validRecipients(payload.to, payload.cc, payload.bcc ?? '')) { setError(t('compose.invalidRecipients')); return }
+    sendingRef.current = true
+    setSending(true)
+    setError(null)
+    try { await onSend(payload) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { sendingRef.current = false; setSending(false) }
+  }
+
+  const discard = async (): Promise<void> => {
+    if (sendingRef.current) return
+    try { await onDiscard() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
   }
 
   // Escape cierra guardando el borrador; en captura para adelantarse al atajo global.
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void send(); return }
       if (event.key !== 'Escape') return
+      if ((event.target as HTMLElement | null)?.closest?.('[data-recipient-popup="true"]')) return
       event.stopPropagation()
       event.preventDefault()
-      onClose({ to: recipients.join(', '), subject: subjectValue, body: bodyValue })
+      void closeWithDraft()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, recipients, subjectValue, bodyValue, onClose])
+  }, [open, toValue, ccValue, bccValue, subjectValue, bodyValue, picked, sending, onClose])
 
   if (!mounted) return null
 
@@ -115,9 +154,6 @@ export function ComposeOverlay({
     }, 650)
   }
 
-  const closeWithDraft = (): void => {
-    onClose({ to: recipients.join(', '), subject: subjectValue, body: bodyValue })
-  }
 
   return (
     <div
@@ -126,7 +162,7 @@ export function ComposeOverlay({
         if (event.target === event.currentTarget) closeWithDraft()
       }}
     >
-      <div className="composer" role="dialog" aria-modal="true" aria-label={t('compose.newMessage')}>
+      <div className={cx('composer', expanded && 'composer--expanded')} aria-busy={sending} role="dialog" aria-modal="true" aria-label={t('compose.newMessage')}>
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
@@ -136,74 +172,40 @@ export function ComposeOverlay({
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
-            <TooltipButton className="icon-btn" type="button" title={t('compose.minimize')}>
+            <TooltipButton className="icon-btn" type="button" title={t('compose.minimize')} disabled>
               <Icon name="remove" size={16} />
             </TooltipButton>
-            <TooltipButton className="icon-btn" type="button" title={t('compose.expand')}>
+            <TooltipButton className="icon-btn" type="button" title={t('compose.expand')} onClick={() => setExpanded(value => !value)} disabled={sending}>
               <Icon name="open_in_full" size={16} />
             </TooltipButton>
-            <TooltipButton className="icon-btn" type="button" onClick={closeWithDraft} title={t('common.close')}>
+            <TooltipButton className="icon-btn" type="button" onClick={() => void closeWithDraft()} disabled={sending} title={t('common.close')}>
               <Icon name="close" size={16} />
             </TooltipButton>
           </div>
         </div>
 
-        <div className="composer__fields">
+        <div className="composer__fields" inert={sending}>
           <div className="field-row">
             <span className="field-label">{t('compose.to')}</span>
-            <div className="field-values">
-              {recipients.map((address) => (
-                <span key={address} className="recipient">
-                  <span className="avatar" style={{ width: 16, height: 16, fontSize: 9 }}>
-                    {address.slice(0, 2).toUpperCase()}
-                  </span>
-                  <strong>{address}</strong>
-                  <TooltipButton
-                    type="button"
-                    title={t('compose.removeRecipient')}
-                    onClick={() => setRecipients((current) => current.filter((item) => item !== address))}
-                  >
-                    <Icon name="close" size={12} />
-                  </TooltipButton>
-                </span>
-              ))}
-              <input
-                className="input-bare"
-                value={draftRecipient}
-                onChange={(event) => setDraftRecipient(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ',') {
-                    event.preventDefault()
-                    addRecipient()
-                  }
-                }}
-                onBlur={addRecipient}
-                placeholder={recipients.length === 0 ? t('compose.addRecipient') : t('compose.addAnother')}
-                aria-label={t('compose.to')}
-              />
-            </div>
+            <RecipientInput key={`${open}:${to}`} field="to" initialValue={to} onChange={setToValue} suggest={!copilot} />
             <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
               <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
                 {t('compose.cc')}
               </button>
-              <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
+              <button className="tool-btn" type="button" onClick={() => setBccOpen((value) => !value)}>
                 {t('compose.bcc')}
               </button>
             </div>
           </div>
 
-          {ccOpen && (
-            <div className="field-row">
-              <span className="field-label">{t('compose.cc')}</span>
-              <div className="field-values">
-                <span className="recipient">
-                  <strong>David Sterling</strong>
-                  <span>&lt;dsterling@gunderson.com&gt;</span>
-                </span>
-                <input className="input-bare" placeholder={t('compose.addRecipient')} aria-label={t('compose.cc')} />
-              </div>
-            </div>
-          )}
+          {ccOpen && <div className="field-row">
+            <span className="field-label">{t('compose.cc')}</span>
+            <RecipientInput key={`${open}:${cc}`} field="cc" initialValue={ccValue} onChange={setCcValue} suggest={!copilot} />
+          </div>}
+          {bccOpen && <div className="field-row">
+            <span className="field-label">{t('compose.bcc')}</span>
+            <RecipientInput key={`${open}:${bcc}`} field="bcc" initialValue={bccValue} onChange={setBccValue} suggest={!copilot} />
+          </div>}
 
           <div className="field-row">
             <span className="field-label">{t('compose.subject')}</span>
@@ -216,27 +218,27 @@ export function ComposeOverlay({
           </div>
         </div>
 
-        <div className={cx('composer__split', !copilot && 'composer__split--solo')}>
+        <div className={cx('composer__split', !copilot && 'composer__split--solo')} inert={sending}>
           <div className="editor">
             <div className="formatbar">
               <div className="formatbar__tools">
-                <TooltipButton className="icon-btn" type="button" title="Bold (⌘B)">
+                <TooltipButton className="icon-btn" type="button" title="Bold (⌘B)" disabled>
                   <Icon name="format_bold" size={16} />
                 </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Italic (⌘I)">
+                <TooltipButton className="icon-btn" type="button" title="Italic (⌘I)" disabled>
                   <Icon name="format_italic" size={16} />
                 </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Insert link (⌘K)">
+                <TooltipButton className="icon-btn" type="button" title="Insert link (⌘K)" disabled>
                   <Icon name="link" size={16} />
                 </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Code block">
+                <TooltipButton className="icon-btn" type="button" title="Code block" disabled>
                   <Icon name="code" size={16} />
                 </TooltipButton>
                 <span className="formatbar__sep" />
-                <TooltipButton className="icon-btn" type="button" title="Bullet list">
+                <TooltipButton className="icon-btn" type="button" title="Bullet list" disabled>
                   <Icon name="format_list_bulleted" size={16} />
                 </TooltipButton>
-                <TooltipButton className="icon-btn" type="button" title="Numbered list">
+                <TooltipButton className="icon-btn" type="button" title="Numbered list" disabled>
                   <Icon name="format_list_numbered" size={16} />
                 </TooltipButton>
                 <TooltipButton
@@ -247,14 +249,14 @@ export function ComposeOverlay({
                     if (!onPickAttachments) return
                     void onPickAttachments().then((files) => {
                       if (files.length > 0) setPicked((current) => [...current, ...files])
-                    })
+                    }).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))
                   }}
                   disabled={!onPickAttachments}
                 >
                   <Icon name="attach_file" size={16} />
                 </TooltipButton>
                 <span className="formatbar__sep" />
-                <button className="snippet-btn" type="button">
+                <button className="snippet-btn" type="button" disabled>
                   <Icon name="auto_stories" size={14} />
                   {t('compose.snippets')}
                 </button>
@@ -435,26 +437,22 @@ export function ComposeOverlay({
           </div>
         </div>
 
+        {error && <p className="account-error" role="alert">{error}</p>}
         <div className="composer__foot">
           <div className="send-group">
             <div className="send-split">
               <button
                 className="send-btn"
                 type="button"
-                onClick={() =>
-                  onSend({
-                    to: recipients.join(', '),
-                    subject: subjectValue,
-                    body: bodyValue,
-                    attachments: picked
-                  })
-                }
+                onClick={() => void send()}
+                disabled={sending}
               >
                 <Icon name="send" size={16} />
-                {t('compose.sendNow')}
+                {sending && <Icon name="progress_activity" size={16} className="spin" />}
+                {t(sending ? 'compose.sending' : 'compose.sendNow')}
                 <kbd className="kbd">⌘↵</kbd>
               </button>
-              <TooltipButton className="send-caret" type="button" title={t('compose.sendingOptions')}>
+              <TooltipButton className="send-caret" type="button" title={t('compose.sendingOptions')} disabled>
                 <Icon name="arrow_drop_down" size={16} />
               </TooltipButton>
             </div>
@@ -476,10 +474,9 @@ export function ComposeOverlay({
                 <span className="vsep" />
               </>
             )}
-            <button className="tool-btn btn--danger" type="button" onClick={closeWithDraft}>
+            <button className="tool-btn btn--danger" type="button" onClick={() => void discard()} disabled={sending}>
               <Icon name="delete" size={16} />
               {t('common.discard')}
-              <kbd className="kbd">Esc</kbd>
             </button>
           </div>
         </div>

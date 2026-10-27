@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { app } from 'electron'
-import type { CacheUsage, Envelope, MailboxInfo } from '@shared/ipc'
+import type { CacheUsage, Draft, Envelope, MailboxInfo, RecipientSuggestion } from '@shared/ipc'
 
 /**
  * Caché local. Es la fuente de verdad para la UI: la red solo la actualiza.
@@ -151,6 +151,11 @@ export function openAccountCache(accountId: string): void {
       tokenize = 'unicode61 remove_diacritics 2'
     );
   `)
+
+  db.exec('CREATE TABLE IF NOT EXISTS recipient_cache (email TEXT PRIMARY KEY, uses INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)')
+  db.exec('CREATE TABLE IF NOT EXISTS picked_attachments (id TEXT PRIMARY KEY, name TEXT NOT NULL, data BLOB NOT NULL)')
+  const draftColumns = db.prepare('PRAGMA table_info(drafts)').all() as unknown as { name: string }[]
+  if (!draftColumns.some(column => column.name === 'metadata_json')) db.exec('ALTER TABLE drafts ADD COLUMN metadata_json TEXT')
 
   const columns = db.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
   for (const column of ['message_id', 'in_reply_to', 'has_attachments']) {
@@ -447,39 +452,35 @@ export function pruneExcept(mailbox: string, uids: readonly number[]): void {
    Borrador del compositor
    ------------------------------------------------------------------------- */
 
-export interface DraftRow {
-  to: string
-  cc: string
-  subject: string
-  body: string
-  updatedAt: number
-}
+export type DraftRow = Draft
 
 export function saveDraft(draft: DraftRow): void {
   handle()
     .prepare(
-      `INSERT INTO drafts (id, to_field, cc, subject, body, updated_at)
-       VALUES ('current', ?, ?, ?, ?, ?)
+      `INSERT INTO drafts (id, to_field, cc, subject, body, updated_at, metadata_json)
+       VALUES ('current', ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          to_field = excluded.to_field, cc = excluded.cc, subject = excluded.subject,
-         body = excluded.body, updated_at = excluded.updated_at`
+         body = excluded.body, updated_at = excluded.updated_at, metadata_json = excluded.metadata_json`
     )
-    .run(draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt)
+    .run(draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt, JSON.stringify({ bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo, references: draft.references }))
+  prunePickedAttachments()
 }
 
 export function readDraft(): DraftRow | null {
   const row = handle()
-    .prepare('SELECT to_field, cc, subject, body, updated_at FROM drafts WHERE id = ?')
+    .prepare('SELECT to_field, cc, subject, body, updated_at, metadata_json FROM drafts WHERE id = ?')
     .get('current') as unknown as
-    | { to_field: string; cc: string; subject: string; body: string; updated_at: number }
+    | { to_field: string; cc: string; subject: string; body: string; updated_at: number; metadata_json: string | null }
     | undefined
 
   if (!row) return null
-  return { to: row.to_field, cc: row.cc, subject: row.subject, body: row.body, updatedAt: row.updated_at }
+  return { ...(row.metadata_json ? JSON.parse(row.metadata_json) : {}), to: row.to_field, cc: row.cc, subject: row.subject, body: row.body, updatedAt: row.updated_at }
 }
 
 export function clearDraft(): void {
   handle().prepare('DELETE FROM drafts WHERE id = ?').run('current')
+  prunePickedAttachments()
 }
 
 /* ---------------------------------------------------------------------------
@@ -1033,4 +1034,51 @@ export async function clearAccountCache(accountId: string): Promise<void> {
   } finally {
     database.close()
   }
+}
+
+export function storePickedAttachment(id: string, name: string, data: Buffer): void {
+  handle().prepare('INSERT INTO picked_attachments (id, name, data) VALUES (?, ?, ?)').run(id, name, data)
+}
+
+export function readPickedAttachment(id: string): { name: string; data: Uint8Array } | undefined {
+  return handle().prepare('SELECT name, data FROM picked_attachments WHERE id = ?').get(id) as unknown as { name: string; data: Uint8Array } | undefined
+}
+
+export function prunePickedAttachments(): void {
+  const database = handle()
+  const references = new Set<string>()
+  const rows = database.prepare('SELECT metadata_json AS payload FROM drafts UNION ALL SELECT payload FROM outbox').all() as unknown as { payload: string | null }[]
+  try {
+    for (const row of rows) {
+      const data = row.payload ? JSON.parse(row.payload) : null
+      if (Array.isArray(data?.attachments)) for (const file of data.attachments) {
+        const id = typeof file === 'string' ? file : file?.id
+        if (typeof id === 'string') references.add(id)
+      }
+    }
+  } catch {
+    return // Un borrador dañado no debe provocar la eliminación de sus archivos.
+  }
+  const files = database.prepare('SELECT id FROM picked_attachments').all() as unknown as { id: string }[]
+  const remove = database.prepare('DELETE FROM picked_attachments WHERE id = ?')
+  for (const file of files) if (!references.has(file.id)) remove.run(file.id)
+}
+
+/** Solo direcciones de envíos aceptados; cada cuenta tiene su propia tabla. */
+export function rememberRecipients(addresses: string[]): void {
+  const insert = handle().prepare(`INSERT INTO recipient_cache (email, uses, updated_at) VALUES (?, 1, ?)
+    ON CONFLICT(email) DO UPDATE SET uses = uses + 1, updated_at = excluded.updated_at`)
+  for (const email of new Set(addresses.map(address => address.toLowerCase()))) insert.run(email, Date.now())
+}
+
+export function suggestRecipients(query: string): RecipientSuggestion[] {
+  return handle().prepare(`
+    SELECT email, MAX(name) AS name FROM (
+      SELECT email, '' AS name, uses AS score, updated_at AS recent FROM recipient_cache
+      UNION ALL
+      SELECT lower(from_addr) AS email, from_name AS name, 0 AS score, MAX(date) AS recent
+      FROM messages WHERE from_addr != '' GROUP BY lower(from_addr), from_name
+    ) WHERE instr(lower(email || ' ' || name), ?) > 0
+    GROUP BY email ORDER BY MAX(score) DESC, MAX(recent) DESC, email LIMIT 8
+  `).all(query.trim().toLowerCase()) as unknown as RecipientSuggestion[]
 }

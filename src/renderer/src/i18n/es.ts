@@ -195,6 +195,8 @@ export const es = {
   'toast.draftSaved': 'Guardado como borrador',
   'compose.snippets': ';plantillas',
   'compose.signatureRole': 'Fundador y CEO, NamiO',
+  'compose.invalidRecipients': 'Escribe al menos una dirección válida en Para, CC o CCO.',
+  'compose.sending': 'Enviando…',
   'compose.sendNow': 'Enviar ahora',
   'compose.sendTomorrow': 'Enviar mañana 8:00',
   'compose.zeroKnowledge': 'Retención cero activa',

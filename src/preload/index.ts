@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type AccountConfig,
+  type RecipientSuggestion,
   type AccountActivity,
   type AccountState,
   type AccountSummary,
@@ -29,6 +30,7 @@ import {
  * de seguridad, no un detalle de implementación.
  */
 const api: MailApi = {
+  suggestRecipients: (query: string): Promise<RecipientSuggestion[]> => ipcRenderer.invoke(IPC.recipientSuggestions, query),
   clearMailCache: (accountId: string): Promise<{ canceled: boolean }> => ipcRenderer.invoke(IPC.cacheClear, accountId),
   getCoreStatus: (): Promise<CoreStatus> => ipcRenderer.invoke(IPC.coreStatus),
   getSettings: (): Promise<Partial<AppSettings>> => ipcRenderer.invoke(IPC.settingsGet),

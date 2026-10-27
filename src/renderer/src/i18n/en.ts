@@ -192,6 +192,8 @@ export const en: Dictionary = {
   'toast.draftSaved': 'Saved as draft',
   'compose.snippets': ';snippets',
   'compose.signatureRole': 'Founder & CEO, NamiO',
+  'compose.invalidRecipients': 'Enter at least one valid address in To, CC or BCC.',
+  'compose.sending': 'Sending…',
   'compose.sendNow': 'Send Now',
   'compose.sendTomorrow': 'Send Tomorrow 8:00 AM',
   'compose.zeroKnowledge': 'Zero-Knowledge Retention Active',

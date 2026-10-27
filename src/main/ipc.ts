@@ -35,7 +35,7 @@ import {
   setSeen
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
-import { cacheUsage, clearDraft, readDraft, saveDraft } from './db'
+import { suggestRecipients, cacheUsage, clearDraft, readDraft, saveDraft } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
 
@@ -95,6 +95,11 @@ export function registerIpcHandlers(): void {
     if (!(await readAccounts()).accounts.some(item => item.id === accountId)) throw new Error('Cuenta inválida')
     await clearCachedMail(accountId)
     return { canceled: false }
+  })
+
+  ipcMain.handle(IPC.recipientSuggestions, (_event, query: string) => {
+    if (typeof query !== 'string' || query.length > 320) return []
+    return suggestRecipients(query)
   })
 
   ipcMain.handle(IPC.settingsGet, (): Promise<Partial<AppSettings>> => readSettings())

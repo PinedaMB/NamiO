@@ -1,10 +1,12 @@
+import { splitRecipients, validRecipients } from '@shared/mailAddresses'
 import { randomUUID } from 'node:crypto'
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { createTransport } from 'nodemailer'
 import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
-import { deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
+import { rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
+import { readActiveAccount } from './settings'
 import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, setSeen, syncInbox } from './imap'
 
 /**
@@ -79,9 +81,9 @@ interface PendingAttachment {
   size: number
 }
 
-const pendingAttachments = new Map<string, PendingAttachment>()
-
 export async function registerAttachments(window: BrowserWindow | null): Promise<PickedAttachment[]> {
+  const accountId = (await readActiveAccount())?.id
+  if (!accountId) throw new Error('No hay cuenta activa')
   const options: OpenDialogOptions = {
     properties: ['openFile', 'multiSelections'],
     title: 'Adjuntar archivos'
@@ -98,7 +100,9 @@ export async function registerAttachments(window: BrowserWindow | null): Promise
       name: basename(filePath),
       size: info.size
     }
-    pendingAttachments.set(entry.id, entry)
+    const data = await readFile(filePath)
+    if ((await readActiveAccount())?.id !== accountId) throw new Error('La cuenta activa cambió')
+    storePickedAttachment(entry.id, entry.name, data)
     picked.push({ id: entry.id, name: entry.name, size: entry.size })
   }
 
@@ -115,8 +119,11 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
   const sender = account.user.includes('@') ? account.user : `${account.user}@${account.host || 'localhost'}`
 
   const files = (payload.attachments ?? [])
-    .map((id) => pendingAttachments.get(id))
-    .filter((entry): entry is PendingAttachment => entry !== undefined)
+    .map((id) => {
+      const file = readPickedAttachment(id)
+      if (!file) throw new Error('Falta un adjunto. Vuelve a adjuntarlo antes de enviar.')
+      return { name: file.name, data: Buffer.from(file.data) }
+    })
 
   // Se compila con nodemailer (multipart si hay adjuntos) y se envía el crudo:
   // así la copia en Enviados es byte a byte el mensaje que salió.
@@ -125,9 +132,11 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     from: sender,
     to: payload.to,
     cc: payload.cc === '' ? undefined : payload.cc,
+    inReplyTo: payload.inReplyTo,
+    references: payload.references,
     subject: payload.subject,
     text: payload.text,
-    attachments: files.map((file) => ({ filename: file.name, path: file.path }))
+    attachments: files.map((file) => ({ filename: file.name, content: file.data }))
   })
 
   const raw = Buffer.isBuffer(compiled.message)
@@ -145,10 +154,7 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     tls: { rejectUnauthorized: true }
   })
 
-  const recipients = [payload.to, payload.cc]
-    .flatMap((value) => value.split(','))
-    .map((value) => value.trim())
-    .filter((value) => value !== '')
+  const recipients = [payload.to, payload.cc, payload.bcc ?? ''].flatMap(splitRecipients)
 
   try {
     await transport.sendMail({
@@ -161,7 +167,6 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
       console.error('[sent-copy]', error)
     })
 
-    for (const file of files) pendingAttachments.delete(file.id)
 
     // Un servidor puede devolvernos la copia (o escribir a nosotros mismos):
     // se sondea la bandeja unas cuantas veces para que aparezca sin esperar al
@@ -194,6 +199,7 @@ async function runOne(row: OutboxRow): Promise<void> {
   }
 
   deleteOutbox(row.id)
+  prunePickedAttachments()
 }
 
 /** Procesa la cola en orden. Es idempotente y no corre en paralelo consigo misma. */
@@ -221,15 +227,26 @@ function remaining(kind: OutboxKind, match?: (row: OutboxRow) => boolean): Outbo
 }
 
 export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
-  enqueueOutbox({ kind: 'send', payload })
+  if (!payload || typeof payload.to !== 'string' || typeof payload.cc !== 'string' || typeof payload.subject !== 'string' || typeof payload.text !== 'string' || (payload.bcc !== undefined && typeof payload.bcc !== 'string') || !validRecipients(payload.to, payload.cc, payload.bcc ?? '')) {
+    return { ok: false, queued: false, error: 'Destinatarios inválidos' }
+  }
+  if (payload.attachments !== undefined && (!Array.isArray(payload.attachments) || payload.attachments.some(id => typeof id !== 'string' || !readPickedAttachment(id)))) {
+    return { ok: false, queued: false, error: 'Falta un adjunto. Vuelve a adjuntarlo antes de enviar.' }
+  }
+  if ((payload.inReplyTo !== undefined && (typeof payload.inReplyTo !== 'string' || /[\r\n]/.test(payload.inReplyTo))) || (payload.references !== undefined && (!Array.isArray(payload.references) || payload.references.some(id => typeof id !== 'string' || /[\r\n]/.test(id))))) {
+    return { ok: false, queued: false, error: 'Cabeceras de respuesta inválidas' }
+  }
+  payload = { ...payload, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
+  const id = enqueueOutbox({ kind: 'send', payload })
+  try {
+    rememberRecipients([payload.to, payload.cc, payload.bcc ?? ''].flatMap(splitRecipients))
+  } catch (cause) {
+    console.error('[recipient-cache]', cause)
+  }
   notify()
   await processOutbox()
 
-  const pending = remaining('send')
-  if (pending?.status === 'failed') {
-    return { ok: false, queued: true, error: pending.lastError ?? 'No se pudo enviar' }
-  }
-  return { ok: true, queued: Boolean(pending) }
+  return { ok: true, queued: listOutbox().some(row => row.id === id) }
 }
 
 export async function archiveMessage(path: string, uid: number): Promise<MailAction> {

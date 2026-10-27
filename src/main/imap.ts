@@ -616,6 +616,8 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
 
     return {
       uid,
+      messageId: parsed.messageId ?? envelope?.messageId,
+      inReplyTo: parsed.inReplyTo ?? envelope?.inReplyTo,
       subject: parsed.subject ?? envelope?.subject ?? '',
       from: parsed.from ? toAddress(parsed.from.value[0]) : (envelope?.from ?? null),
       to,

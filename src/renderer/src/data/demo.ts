@@ -33,6 +33,8 @@ export interface Person {
 }
 
 export interface Message {
+  messageId?: string
+  inReplyTo?: string
   id: string
   from: Person
   to: Person[]

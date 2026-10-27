@@ -110,6 +110,8 @@ export function detailToMessage(detail: MessageDetail, locale: string, partial =
 
   return {
     id: `live:${detail.uid}`,
+    messageId: detail.messageId,
+    inReplyTo: detail.inReplyTo,
     from: personFrom(detail.from),
     to: detail.to.map((address) => personFrom(address)),
     sentAt: new Intl.DateTimeFormat(locale, {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  Draft,
   AccountState,
   AccountActivity,
   AccountSummary,
@@ -32,11 +33,7 @@ import { useI18n } from './i18n'
 import { useShortcuts } from './settings/ShortcutsProvider'
 import { actionForCombo, comboFromEvent } from './settings/shortcuts'
 
-interface ComposeState {
-  to: string
-  subject: string
-  body: string
-}
+type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string }
 
 type View = 'mailbox' | 'settings'
 
@@ -763,8 +760,8 @@ export function App(): React.JSX.Element {
 
   const openReply = (body = ''): void => {
     if (!selected) return
-    const sender = selected.participants[0]
     const message = selected.messages.find(item => item.id === (individualMessageId ?? selected.id)) ?? selected.messages.at(-1)
+    const sender = message?.from ?? selected.participants[0]
     const quoted = (message?.body ?? []).map((line) => `> ${line}`).join('\n')
     const attribution = message ? `${message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
     const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
@@ -772,24 +769,19 @@ export function App(): React.JSX.Element {
     setCompose({
       to: sender?.email ?? '',
       subject: prefix,
+      inReplyTo: message?.messageId,
+      references: [message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)),
       body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n')
     })
   }
 
-  const openCompose = (): void => {
-    setCompose({ to: '', subject: '', body: '' })
-
-    // Si quedó un borrador guardado, se retoma en vez de empezar en blanco.
-    void window.api
-      .getDraft()
-      .then((draft) => {
-        if (!draft) return
-        const empty = draft.to === '' && draft.subject === '' && draft.body === ''
-        if (empty) return
-        setCompose({ to: draft.to, subject: draft.subject, body: draft.body })
-        setToast(t('draft.restored'))
-      })
-      .catch(() => undefined)
+  const openCompose = async (): Promise<void> => {
+    const generation = accountGeneration.current
+    const draft = live ? await window.api.getDraft().catch(() => null) : null
+    if (generation !== accountGeneration.current) return
+    const hasDraft = draft && (draft.to || draft.cc || draft.bcc || draft.subject || draft.body || draft.attachments?.length)
+    setCompose(hasDraft ? draft : { to: '', subject: '', body: '' })
+    if (hasDraft) setToast(t('draft.restored'))
   }
 
   const onConnected = (state: AccountState): void => {
@@ -1141,36 +1133,35 @@ export function App(): React.JSX.Element {
       />
 
       <ComposeOverlay
+        key={accountIdentity.current ?? 'demo'}
         open={compose !== null}
         to={compose?.to ?? ''}
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
+        cc={compose?.cc ?? ''}
+        bcc={compose?.bcc ?? ''}
+        initialAttachments={compose?.attachments}
         copilot={!live}
-        onClose={(values) => {
+        onClose={async values => {
+          if (live) await window.api.saveDraft({ ...values, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
           setCompose(null)
-          if (!live || !values) return
-          const hasContent = values.to.trim() !== '' || values.subject.trim() !== '' || values.body.trim() !== ''
-          if (!hasContent) return
-          void window.api
-            .saveDraft({ ...values, cc: '', updatedAt: Date.now() })
-            .then(() => setToast(t('toast.draftSaved')))
-            .catch(() => undefined)
+          if (live) setToast(t('toast.draftSaved'))
+        }}
+        onDiscard={async () => {
+          if (live) await window.api.clearDraft()
+          setCompose(null)
         }}
         onPickAttachments={live ? () => window.api.pickAttachments() : undefined}
-        onSend={({ to, subject, body, attachments }) => {
+        onSend={async ({ to, cc, bcc, subject, body, attachments }) => {
+          if (!live) { setCompose(null); setToast(t('toast.sent')); return }
+          const generation = accountGeneration.current
+          const result = await window.api.sendMail({ to, cc, bcc, subject, text: body, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
+          if (!result.ok) throw new Error(result.error ?? 'SMTP')
+          if (generation !== accountGeneration.current) return
           setCompose(null)
-          void window.api
-            .sendMail({ to, cc: '', subject, text: body, attachments: attachments.map((file) => file.id) })
-            .then((result) => {
-              if (result.ok) {
-                void window.api.clearDraft().catch(() => undefined)
-                setToast(result.queued ? t('toast.queued') : t('toast.sent'))
-              } else {
-                setToast(t('toast.sendFailed', { error: result.error ?? '' }))
-              }
-              void refreshOutbox()
-            })
-            .catch(() => setToast(t('toast.sendFailed', { error: 'IPC' })))
+          await window.api.clearDraft().catch(() => undefined)
+          setToast(result.queued ? t('toast.queued') : t('toast.sent'))
+          void refreshOutbox()
         }}
       />
 
