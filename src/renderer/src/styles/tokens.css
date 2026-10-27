@@ -204,8 +204,11 @@ a {
    Primitivas
    ------------------------------------------------------------------------- */
 
-/* Iconos: Material Symbols Outlined por ligadura. */
-.icon {
+/* Iconos: Material Symbols Outlined por ligadura.
+   Doble clase a propósito: si una regla de texto de un contenedor (`.algo span`)
+   pisa `font-family`, el icono se convierte en la palabra ("error") y se pierde.
+   Con (0,2,0) gana a cualquier selector de contenedor + span. */
+.icon.icon {
   font-family: 'Material Symbols Outlined';
   font-weight: normal;
   font-style: normal;

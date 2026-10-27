@@ -3155,7 +3155,9 @@
   min-width: 0;
 }
 
-.account-error span {
+/* Solo el texto del detalle: antes era `.account-error span` y le pisaba la
+   fuente al icono (se veía la palabra "error" en lugar del símbolo). */
+.account-error__detail {
   color: color-mix(in srgb, var(--on-error-container) 75%, transparent);
   font-family: var(--font-mono);
   font-size: 11px;

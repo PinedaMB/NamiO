@@ -106,6 +106,9 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
   const portNumber = Number(port)
   const smtpPortNumber = Number(smtpPort)
+  // Google y Microsoft desactivaron el IMAP con contraseña (ni la de aplicación):
+  // con esos hosts el único método que funciona es OAuth2.
+  const needsOAuth = /^(imap\.gmail\.com|outlook\.office365\.com)$/i.test(host.trim())
   const endpointsOk =
     provider !== 'custom' || (authUrl.trim() !== '' && tokenUrl.trim() !== '' && scope.trim() !== '')
   // Espacios o comas en el usuario son error de tipeo; falta de @ solo avisa.
@@ -132,6 +135,15 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setSmtpHost(preset.smtp.host)
     setSmtpPort(String(preset.smtp.port))
     setSmtpSecure(preset.smtp.secure)
+
+    // Google y Microsoft no aceptan contraseña para IMAP: el preset deja el
+    // método correcto elegido en vez de ofrecer un camino que va a fallar.
+    if (preset.id === 'gmail' || preset.id === 'outlook') {
+      setAuth('oauth2')
+      setProvider(preset.id === 'gmail' ? 'google' : 'microsoft')
+    } else {
+      setAuth('password')
+    }
   }
 
   const submit = async (): Promise<void> => {
@@ -290,6 +302,8 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 className={cx('seg__btn', auth === 'password' && 'seg__btn--active')}
                 onClick={() => setAuth('password')}
                 aria-pressed={auth === 'password'}
+                disabled={needsOAuth}
+                title={needsOAuth ? t('account.oauthRequired') : undefined}
               >
                 {t('account.authPassword')}
               </button>
@@ -306,6 +320,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 {t('account.authOAuth')}
               </button>
             </div>
+            {needsOAuth && <em className="account-field__hint">{t('account.oauthRequired')}</em>}
           </label>
 
           {auth === 'oauth2' && (
@@ -470,7 +485,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               <Icon name="error" size={16} />
               <div>
                 <strong>{t(ERROR_KEYS[error.code])}</strong>
-                <span>{error.detail}</span>
+                <span className="account-error__detail">{error.detail}</span>
                 {error.code === 'auth' && (
                   <span className="account-error__hint">
                     {t('account.authUser')} <b className="mono">{user}</b>

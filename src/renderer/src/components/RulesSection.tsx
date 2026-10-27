@@ -144,7 +144,7 @@ export function RulesSection(): React.JSX.Element {
         {error && (
           <p className="account-error" role="alert">
             <Icon name="error" size={15} />
-            <span>{error}</span>
+            <span className="account-error__detail">{error}</span>
           </p>
         )}
 

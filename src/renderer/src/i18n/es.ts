@@ -398,6 +398,8 @@ export const es = {
   'account.emailWarning': 'No tiene «@». Si tu servidor usa solo el usuario está bien; si no, revisá el correo.',
   'account.emailInvalid': 'El correo no puede tener espacios ni comas.',
   'account.hidePassword': 'Ocultar contraseña',
+  'account.oauthRequired':
+    'Google y Microsoft desactivaron el IMAP con contraseña (ni la de aplicación): esta cuenta solo entra con OAuth2.',
   'account.authHint':
     'Si el servidor rechaza el usuario, probá con el correo completo (incluye @) y confirmá que IMAP esté habilitado. Gmail y Outlook necesitan OAuth2.',
   'account.oauthHint':

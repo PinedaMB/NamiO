@@ -385,6 +385,9 @@ escritorio completo, sin backend:
 - **El refresh token se guarda cifrado** con `safeStorage` (DPAPI, libsecret o Keychain); el access
   token vive en memoria y se renueva solo. Al reabrir la app se reconecta sin tocar el navegador.
 - **IMAP por XOAUTH2** (`imapflow`) y **SMTP por XOAUTH2** (`nodemailer`) con el mismo token.
+- En el diálogo, con Gmail u Outlook el método **Contraseña queda deshabilitado** y se explica por qué:
+  Google y Microsoft cerraron la autenticación básica para IMAP (las contraseñas de aplicación
+  incluidas). Elegir el preset ya deja OAuth2 seleccionado, así no hay un camino que sepamos que falla.
 - Necesitás **tu propio cliente OAuth de escritorio**; no se puede embeber uno en el binario:
   - Google Cloud → *Credentials* → *OAuth client ID* → **Desktop app**.
   - Microsoft Entra → *App registrations* → plataforma **Mobile and desktop** → redirect
@@ -590,7 +593,8 @@ El tag tiene que apuntar al commit que querés publicar (`git describe --tags` l
 
 | Versión | Qué trae |
 | --- | --- |
-| [v0.2.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.2.0) | Actual: reglas locales, varias cuentas y avisos de la cuenta inactiva |
+| [v0.2.1](https://github.com/PinedaMB/NamiO/releases/tag/v0.2.1) | Corrección: icono del error y Outlook sin contraseña |
+| [v0.2.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.2.0) | Reglas locales, varias cuentas y avisos de la cuenta inactiva |
 | [v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | Primera entrega: cuenta, OAuth2, bienvenida, sync completa y reglas no |
 
 El primer release (v0.1.0) salió del workflow `release-linux` en **2 min 15 s** y trajo
