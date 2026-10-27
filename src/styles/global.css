@@ -1,0 +1,69 @@
+@import "tailwindcss";
+@config "../../tailwind.config.mjs";
+
+@font-face { font-family: Inter; src: url('/NamiO/fonts/inter.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('/NamiO/fonts/jetbrains-mono.woff2') format('woff2'); font-weight: 100 800; font-display: swap; }
+@font-face { font-family: 'Material Symbols Outlined'; src: url('/NamiO/fonts/material-symbols.woff2') format('woff2'); font-display: block; font-weight: 100 700; }
+.material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+:root { color-scheme: dark; scroll-behavior: smooth; scroll-padding-top: 88px; }
+body { margin: 0; font-family: Inter, sans-serif; }
+a, button, summary { -webkit-tap-highlight-color: transparent; }
+a { text-underline-offset: 4px; }
+::selection { background: #c0c1ff; color: #1000a9; }
+:focus-visible { outline: 2px solid #c0c1ff; outline-offset: 5px; }
+img { height: auto; }
+header img { filter: drop-shadow(0 0 6px rgba(192,193,255,.22)); }
+header .rounded-full { border-radius: 0; }
+h1, h2 { text-wrap: balance; }
+p { text-wrap: pretty; }
+.skip-link { position: fixed; left: 16px; top: -100px; z-index: 100; background: #c0c1ff; color: #1000a9; padding: 12px 20px; border-radius: 8px; }
+.skip-link:focus { top: 12px; }
+.preview-caption { color: #c7c4d7; font-size: 12px; text-align: center; margin-bottom: 20px; }
+.app-preview { box-shadow: 0 30px 90px -35px rgba(0,0,0,.85); }
+.release-note { margin: 28px auto 0; max-width: 65ch; text-align: center; color: #c7c4d7; font-size: 13px; line-height: 1.7; }
+.offline-section { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; }
+.offline-icon { color: #c0c1ff; font-size: 32px; margin-bottom: 22px; }
+.offline-section h2 { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.2; font-weight: 600; letter-spacing: -.025em; margin-bottom: 22px; }
+.offline-section h2 span { color: #c0c1ff; }
+.offline-section p { color: #c7c4d7; font-size: 14px; line-height: 1.8; }
+.offline-details { display: grid; gap: 24px; }
+.offline-details > div + div { border-top: 1px solid #31353e; padding-top: 24px; }
+.offline-details strong { font-size: 15px; font-weight: 600; }
+.offline-details p { margin-top: 7px; }
+.mobile-menu { display: none; }
+@media (min-width: 768px) { .app-preview > .grid { min-height: 580px; } }
+@media (max-width: 1100px) {
+  header nav.hidden { gap: 14px; }
+  header nav.hidden a { font-size: 12px; }
+  header .header-cta a { font-size: 12px; }
+}
+@media (max-width: 900px) {
+  header nav.hidden { display: none; }
+  .mobile-menu { display: block; margin-left: auto; margin-right: 20px; }
+  .mobile-menu summary { list-style: none; cursor: pointer; padding: 12px; }
+  .mobile-menu summary::-webkit-details-marker { display: none; }
+  .mobile-menu summary span { display: block; width: 20px; height: 1px; background: #dfe2ee; margin: 5px 0; }
+  .mobile-menu nav { position: absolute; top: 64px; left: 0; right: 0; background: #181c24; padding: 16px 24px; border-bottom: 1px solid #464554; display: grid; gap: 4px; }
+  .mobile-menu nav a { padding: 12px 0; font-size: 14px; }
+  .offline-section { gap: 36px; }
+}
+@media (max-width: 640px) {
+  header .header-cta { display: none; }
+  .mobile-menu { margin-right: 0; }
+  .offline-section { grid-template-columns: 1fr; gap: 32px; }
+  .preview-caption { max-width: 28ch; margin-left: auto; margin-right: auto; }
+  #contenido > div > div > section:first-of-type { padding-top: 40px; }
+  #contenido > div > div > section:first-of-type > div:first-child span { font-size: 9px; letter-spacing: .03em; }
+  .app-preview > div:first-child { padding-left: 8px; padding-right: 8px; }
+  .app-preview > div:first-child > div:first-child .ml-4 { margin-left: 8px; }
+  .app-preview > div:first-child > div:last-child { display: none; }
+  #privacidad > div, main > div > section:last-child > div { padding: 28px 22px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  h1 { animation: hero-arrive .7s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes hero-arrive { from { opacity: .4; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
