@@ -1,0 +1,35 @@
+name: ci-linux
+
+# Validación en cada push y PR: no empaqueta. El empaquetado vive en
+# release-linux.yml, que solo corre con un tag v* (o a mano).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Auditar el CSS
+        run: pnpm run css:audit
+
+      # build = typecheck + electron-vite build
+      - name: Compilar
+        run: pnpm run build

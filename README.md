@@ -476,9 +476,15 @@ pnpm install
 pnpm run build:linux     # → release/NamiO-0.1.0.AppImage + release/namio_0.1.0_amd64.deb
 ```
 
-La CI está en [`.github/workflows/release-linux.yml`](.github/workflows/release-linux.yml): corre en
-`ubuntu-latest` con Node 22 y pnpm 12, audita el CSS, compila y sube los dos instalables como
-artefactos (se dispara con un tag `v*` o a mano).
+La CI está en dos workflows, y se reparten el trabajo para no empaquetar de más:
+
+| Workflow | Cuándo | Qué hace |
+| --- | --- | --- |
+| [`ci-linux.yml`](.github/workflows/ci-linux.yml) | push a `main`/`master` y PRs | instala, audita el CSS y compila (`pnpm build` incluye typecheck) |
+| [`release-linux.yml`](.github/workflows/release-linux.yml) | tag `v*` o a mano | lo anterior + `electron-builder --linux` y publica `.AppImage` y `.deb` |
+
+En un tag, además del artefacto del run, la Release de GitHub queda con los instalables adjuntos
+(`softprops/action-gh-release`), así se descargan sin pasar por Actions.
 
 ### Marca y asociación de ventana
 
