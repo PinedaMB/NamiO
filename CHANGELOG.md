@@ -1,5 +1,21 @@
 # Cambios
 
+## 0.4.0 — 2026-10-27
+
+- Redacción con editor Tiptap: formato enriquecido, enlaces, listas, citas, deshacer/rehacer y envío en HTML o texto plano.
+- Campos Para, CC y CCO con validación, chips y autocompletado de destinatarios persistente por cuenta.
+- Borradores múltiples por cuenta, con formato y adjuntos, sincronizados con la carpeta de borradores del servidor; limpieza de la copia al enviar o descartar.
+- Redactor con controles para minimizar, restaurar, ampliar, guardar, descartar y adjuntar, con animaciones que respetan la preferencia de movimiento reducido.
+- Correcciones para conservar el contenido ante errores, evitar envíos duplicados, persistir adjuntos y mantener las cabeceras de respuesta de las conversaciones.
+- Gestión de caché en Cuentas: tamaño total y por cuenta y vaciado con confirmación, conservando credenciales, borradores, reglas y operaciones pendientes.
+- Menús contextuales para correos, carpetas y borradores, accesibles con teclado.
+- Correcciones del tema inicial y del tamaño del lector para evitar destellos claros y contenido cortado; conservación del contenido visible al sincronizar.
+- Indicadores de «Eliminando…» para acciones individuales y múltiples, con bloqueo de acciones repetidas mientras se procesan.
+- Mejoras de carga de cuentas, formularios de conexión, conversaciones y estados de lectura; ocultación de carpetas spam redundantes vacías.
+- Configuración abre en General y velocidad; las reglas se reinician al cambiar de cuenta y los errores de guardado de preferencias y reglas se muestran al usuario.
+- Sección «Acerca de» con información del proyecto como cliente multiplataforma.
+- Easter egg en «Acerca de»: al teclear consecutivamente `100825`, se abre una dedicatoria para Naomi Aké con ilustración, emojis, resplandor y animaciones de entrada y salida; cierre con Escape o botón y restauración del foco.
+
 ## 0.3.0 — 2026-10-27
 
 - Conexión con Microsoft integrada; Gmail admite OAuth2 o contraseña de aplicación y Yahoo muestra sus opciones de conexión simplificadas.
