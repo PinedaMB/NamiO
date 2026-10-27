@@ -105,6 +105,10 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 
 Podés consultar las novedades en el [historial de cambios](CHANGELOG.md).
 
+## 📄 Licencia
+
+NamiO se distribuye bajo la [licencia MIT](LICENSE). Las bibliotecas, fuentes e iconos de terceros conservan sus propias [licencias y atribuciones](THIRD_PARTY_NOTICES.md), también incluidas con la aplicación.
+
 ## 💬 ¿Encontraste algo que mejorar?
 
 [Reportá un problema o proponé una mejora](https://github.com/PinedaMB/NamiO/issues). Incluí la versión de NamiO, tu sistema operativo y los pasos para reproducirlo. Si adjuntás una captura, ocultá direcciones y contenido privado.
@@ -112,5 +116,5 @@ Podés consultar las novedades en el [historial de cambios](CHANGELOG.md).
 ---
 
 <div align="center">
-  <p><strong>NamiO</strong> · Creado por <a href="https://github.com/PinedaMB">PinedaMB</a> · Licencia MIT</p>
+  <p><strong>NamiO</strong> · Creado por <a href="https://github.com/PinedaMB">PinedaMB</a> · <a href="LICENSE">Licencia MIT</a></p>
 </div>

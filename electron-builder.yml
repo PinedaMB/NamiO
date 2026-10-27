@@ -12,6 +12,13 @@ files:
   - out/**
   - package.json
 
+# Avisos accesibles junto a los recursos de la aplicación, fuera del asar.
+extraResources:
+  - from: LICENSE
+    to: licenses/LICENSE
+  - from: THIRD_PARTY_NOTICES.md
+    to: licenses/THIRD_PARTY_NOTICES.md
+
 asar: true
 asarUnpack:
   # Nada nativo por ahora: node:sqlite viene en Electron, no hay .node que extraer.
