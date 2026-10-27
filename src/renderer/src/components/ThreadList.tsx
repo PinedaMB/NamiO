@@ -1,3 +1,4 @@
+import type { ContextAnchor } from './ContextMenu'
 import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Tag, Thread } from '../data/demo'
@@ -18,6 +19,7 @@ interface ThreadListProps {
   onCheckAll: () => void
   onClearChecked: () => void
   onBulkAction: (action: 'read' | 'archive' | 'delete') => void
+  deletingId?: string | null
   bulkBusy: boolean
   filter: FilterId
   unreadCount: number
@@ -35,6 +37,7 @@ interface ThreadListProps {
   hasMore?: boolean
   onLoadMore?: () => void
   onFilter: (filter: FilterId) => void
+  onContextMenu?: (anchor: ContextAnchor, id: string, messageId?: string) => void
   onSelect: (id: string, messageId?: string) => void
 }
 
@@ -74,6 +77,7 @@ export function ThreadList({
   onClearChecked,
   onBulkAction,
   bulkBusy,
+  deletingId,
   filter,
   unreadCount,
   otherCount,
@@ -86,6 +90,7 @@ export function ThreadList({
   hasMore = false,
   onLoadMore,
   onFilter,
+  onContextMenu,
   onSelect
 }: ThreadListProps): React.JSX.Element {
   const { t } = useI18n()
@@ -224,9 +229,12 @@ export function ThreadList({
             (item.id === thread.id || thread.messageIds?.includes(Number(item.id.slice(5)))) &&
             (item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
           const active = thread.id === selectedId || members.some(member => member.id === selectedId)
+          const deleting = deletingId === thread.id || members.some(member => member.id === deletingId)
           return (
             <div className="thread-group" key={thread.id}>
             <article
+              onContextMenu={event => { if (!onContextMenu) return; event.preventDefault(); onContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLElement>('.thread__content')! }, thread.id) }}
+              aria-busy={deleting}
               className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread')}
             >
               <label className="thread__select">
@@ -237,6 +245,9 @@ export function ThreadList({
               <div className="thread__content"
               onClick={() => onSelect(thread.id)}
               onKeyDown={(event) => {
+                if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                  event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, thread.id); return
+                }
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
                   onSelect(thread.id)
@@ -260,6 +271,7 @@ export function ThreadList({
                 </div>
 
                 <div className="thread__meta">
+                  {deleting && <span className="thread__processing" role="status"><Icon name="progress_activity" size={15} className="spin" />{t('common.deleting')}</span>}
                   {hasFiles && <span role="img" aria-label={t('thread.attachments')} title={t('thread.attachments')}><Icon name="attach_file" size={15} /></span>}
                   {thread.unread && (
                     <span className="thread__unread" role="img" aria-label={t('list.unread')} title={t('list.unread')}>
@@ -299,10 +311,13 @@ export function ThreadList({
                     {live && <input type="checkbox" checked={checkedIds.includes(member.id)} disabled={bulkBusy}
                       onChange={() => onCheck(member.id)} aria-label={t('list.selectMessage', { subject: `${thread.subject} · ${member.sender?.name ?? ''}` })} />}
                     <button type="button"
+                      aria-busy={deletingId === member.id}
                       aria-current={member.messageId === selectedMessageId ? 'true' : undefined}
                       className={cx('thread-group__message', member.messageId === selectedMessageId && 'thread-group__message--active', member.unread && 'thread-group__message--unread')}
+                      onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onContextMenu?.({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, member.id, member.messageId) }}
+                      onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, member.id, member.messageId) } }}
                       onClick={() => onSelect(member.id, member.messageId)}>
-                      <Icon name={member.unread ? 'mark_email_unread' : 'mail'} size={15} />
+                      <Icon className={deletingId === member.id ? 'spin' : undefined} name={deletingId === member.id ? 'progress_activity' : member.unread ? 'mark_email_unread' : 'mail'} size={15} />
                       <span className="thread-group__sender">
                         <strong title={member.sender?.name}>{member.sender?.name}</strong>
                         <span title={member.sender?.email}>{member.sender?.email}</span>

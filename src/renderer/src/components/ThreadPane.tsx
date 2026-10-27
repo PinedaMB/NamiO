@@ -26,6 +26,7 @@ interface ThreadPaneProps {
   onArchive: () => void
   onToggleRead: () => void
   onSnooze: () => void
+  deleting?: boolean
   onDelete: () => void
   onStar: () => void
   onReply: () => void
@@ -112,6 +113,7 @@ export function ThreadPane({
   onToggleRead,
   onSnooze,
   onDelete,
+  deleting = false,
   onStar,
   onReply,
   onQuickDraft,
@@ -175,9 +177,11 @@ export function ThreadPane({
             type="button"
             onClick={onDelete}
             disabled={!canMutate}
-            title={t('common.delete')}
+            title={t(deleting ? 'common.deleting' : 'common.delete')}
+            aria-busy={deleting}
           >
-            <Icon name="delete" size={15} />
+            <Icon name={deleting ? 'progress_activity' : 'delete'} size={15} className={deleting ? 'spin' : undefined} />
+            {deleting && <span role="status">{t('common.deleting')}</span>}
           </TooltipButton>
         </div>
 

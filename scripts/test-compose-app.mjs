@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('api',{
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'drafts-preload.cjs'), `
-const {contextBridge}=require('electron');const listeners=[];const meta={offline:false,syncedAt:1};
+const {contextBridge}=require('electron');const listeners=[];const syncs=[];let inboxPresent=true,finishDelete,deleteCalls=0;const meta={offline:false,syncedAt:1};
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
 let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
@@ -28,8 +28,10 @@ contextBridge.exposeInMainWorld('api',{
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
  accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>[],syncProgress:async()=>null,senderLogo:async()=>null,
- listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>({ok:true,data:path==='Drafts'?[envelope]:[],meta}),
- getMessage:async()=>({ok:true,data:{...envelope,to:[{name:'Recipient',address:remote.to}],cc:[],text:remote.body,html:remote.html,attachments:[]},meta}),
+ listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>({ok:true,data:path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[],meta}),
+ getMessage:async(path,uid)=>({ok:true,data:{...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[],text:remote.body,html:remote.html,attachments:[]},meta}),
+ deleteMessage:async(path,uid)=>{if(path!=='INBOX'||uid!==11)throw new Error('Wrong delete target');deleteCalls++;return new Promise(resolve=>{finishDelete=()=>{inboxPresent=false;notify();resolve({ok:true,queued:false})}})},finishTestDelete:async()=>finishDelete(),inspectTestDeleteCalls:async()=>deleteCalls,
+ syncMailbox:async path=>{syncs.push(path);return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
  saveDraft:async input=>{const previous=drafts.find(item=>item.id===input.id);drafts=drafts.filter(item=>item.id!==input.id);drafts.push({...previous,...input,id:input.id??'new-draft'});notify();return{id:input.id??'new-draft',queued:true}},
@@ -52,6 +54,32 @@ app.whenReady().then(async()=>{
  const settle=async()=>{await new Promise(requestAnimationFrame);await Promise.all(document.querySelector('.composer').getAnimations().map(animation=>animation.finished.catch(()=>{})))};
  const compose=()=>[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Redactar'));
  await until(compose,'Application did not load');
+ document.querySelector('.filter-chip:last-child').click();await wait();
+ const menu=()=>document.querySelector('.context-menu');
+ const menuAction=label=>[...menu().querySelectorAll('button')].find(button=>button.textContent.endsWith(label));
+ let target=document.querySelector('.thread__content');
+ const targetSubject=target.querySelector('.thread__subject span').textContent;
+ const findTarget=()=>[...document.querySelectorAll('.thread__content')].find(item=>item.querySelector('.thread__subject span').textContent===targetSubject);
+ const openMenu=async()=>{target=findTarget();target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:innerWidth-2,clientY:innerHeight-2}));await until(menu,'Message context menu missing')};
+ const unreadBefore=target.closest('.thread').classList.contains('thread--unread');
+ await openMenu();
+ if(target.closest('.thread').classList.contains('thread--unread')!==unreadBefore)throw new Error('Right click must not mark mail read');
+ const rect=menu().getBoundingClientRect();if(rect.right>innerWidth||rect.bottom>innerHeight)throw new Error('Context menu escaped viewport');
+ menuAction(unreadBefore?'Marcar como leído':'Marcar como no leído').click();await until(()=>!menu(),'Message action did not dismiss menu');
+ await wait();target=findTarget();if(target.closest('.thread').classList.contains('thread--unread')===unreadBefore)throw new Error('Read action did not affect target: '+JSON.stringify({before:unreadBefore,connected:target.isConnected,subject:target.textContent,menu:menu()?.textContent}));
+ await openMenu();const star=menuAction('Destacar')??menuAction('Quitar destacado');const starLabel=star.textContent.endsWith('Quitar destacado')?'Quitar destacado':'Destacar';star.click();await wait();await openMenu();
+ if(menuAction(starLabel))throw new Error('Star action did not toggle target');
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await until(()=>!menu(),'Escape did not dismiss context menu');
+ if(document.activeElement!==target)throw new Error('Escape must return focus');
+ target.dispatchEvent(new KeyboardEvent('keydown',{key:'F10',shiftKey:true,bubbles:true,cancelable:true}));await until(menu,'Keyboard context menu missing');
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));
+ if(document.activeElement!==menu().querySelector('button:last-child'))throw new Error('End must focus last action');
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await wait();
+ const folderButton=document.querySelector('.nav-item');folderButton.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:200}));await until(menu,'Folder context menu missing');
+ if(!menuAction('Sincronizar').disabled)throw new Error('Demo folder sync must be disabled');
+ menuAction('Abrir carpeta').click();await until(()=>!menu(),'Folder open did not dismiss menu');
+ console.log('Context menus: target read/star actions, folder opening, viewport placement, keyboard navigation and focus restoration passed');
+
  for(let cycle=0;cycle<4;cycle++){
   compose().click();
   await until(()=>document.querySelector('.tiptap')?.editor,'Editor did not mount / blank screen');
@@ -79,9 +107,14 @@ app.whenReady().then(async()=>{
   if(!document.querySelector('.thread-list'))throw new Error('Mailbox unmounted while composing');
   document.querySelector('.composer__head [aria-label="Minimizar"]').click();
   await until(()=>document.querySelector('.composer-dock'),'Minimize did not dock');
+  await until(()=>document.getAnimations().some(animation=>animation.effect?.pseudoElement==='::view-transition-group(composer)'),'Minimize must animate between the open window and dock');
+  const motion=document.getAnimations().find(animation=>animation.effect?.pseudoElement==='::view-transition-group(composer)');
+  if(motion.effect.getTiming().duration<250)throw new Error('Minimize transition is too short');
+  await motion.finished.catch(()=>{});
   if(document.querySelector('.composer').getAttribute('aria-modal')!=='false')throw new Error('Minimized composer remains modal');
   if(getComputedStyle(document.querySelector('.composer__fields')).display!=='none')throw new Error('Fields still visible while minimized');
   compose().click();await until(()=>!document.querySelector('.composer-dock'),'Compose did not restore existing message');
+  await Promise.all(document.getAnimations().filter(animation=>animation.effect?.pseudoElement).map(animation=>animation.finished.catch(()=>{})));
   if(document.querySelector('.tiptap').editor!==editor||!editor.getHTML().includes('<strong>'))throw new Error('Minimize lost editor content or instance');
   document.querySelector('.send-caret').click();await until(()=>document.querySelector('.composer-send-options'),'Send options missing');
   document.querySelector('.composer-send-options button:last-child').click();
@@ -90,6 +123,7 @@ app.whenReady().then(async()=>{
   if(!compose()||!document.querySelector('.thread-list'))throw new Error('Mailbox disappeared after closing');
  }
 })()`)});
+ console.log('Context menus: read/star target actions, keyboard navigation, focus restoration and viewport placement passed');
  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('[aria-label="Redactar"]').click();
@@ -98,6 +132,7 @@ app.whenReady().then(async()=>{
  if(getComputedStyle(composer).transitionDuration.split(',').some(value=>parseFloat(value)>0.01))throw new Error('Reduced motion must suppress resizing transitions');
  document.querySelector('.composer__head [aria-label="Cerrar"]').click();
 })()`)});
+ console.log('Compose motion: minimize/restore snapshots, 300ms spatial transition, content preservation and reduced motion passed');
  const live=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{preload:${JSON.stringify(join(folder,'drafts-preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
  live.webContents.on('console-message',event=>{if(event.level==='error')errors.push('live: '+event.message+' ['+event.sourceId+':'+event.lineNumber+']')});
  await live.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
@@ -108,7 +143,31 @@ app.whenReady().then(async()=>{
  const until=async(predicate,message)=>{for(let i=0;i<100;i++){if(predicate())return;await wait()}throw new Error(message)};
  const settle=async()=>{await new Promise(requestAnimationFrame);await Promise.all(document.querySelector('.composer').getAnimations().map(animation=>animation.finished.catch(()=>{})))};
  const card=title=>[...document.querySelectorAll('.thread__content')].find(item=>item.textContent.includes(title));
- await until(()=>document.querySelector('[aria-label="Drafts"]'),'Drafts folder missing');document.querySelector('[aria-label="Drafts"]').click();
+ await until(()=>document.querySelector('[aria-label="Drafts"]'),'Drafts folder missing');
+ await until(()=>!document.querySelector('.list-loading'),'Initial folder still loading');await wait();
+ await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body not ready');
+ const bodyFrame=document.querySelector('.email-body iframe'), bodyDocument=bodyFrame.contentDocument;
+ const detail=document.querySelector('.thread-message');detail.open=false;
+ document.querySelector('[aria-label="Sincronizar"]').click();await wait();
+ if((await window.api.inspectTestSyncs()).join(',')!=='INBOX')throw new Error('Inbox synchronization did not run');
+ await until(()=>document.querySelector('[aria-label="Sincronizar"]').getAttribute('aria-busy')==='false','Inbox synchronization not finished');
+ if(document.querySelector('.email-body iframe')!==bodyFrame||bodyFrame.contentDocument!==bodyDocument)throw new Error('Synchronization reloaded the open email');
+ if(detail.open)throw new Error('Synchronization reset message expansion');
+ document.querySelector('.reading__toolbar [aria-label="Eliminar"]').click();
+ await until(()=>document.querySelector('.thread__processing'),'Delete feedback missing from mail card');
+ const deleteButton=document.querySelector('.reading__toolbar [aria-label="Eliminando…"]');
+ if(!deleteButton?.disabled||deleteButton.getAttribute('aria-busy')!=='true')throw new Error('Delete button must show progress and block repeated clicks');
+ if((await window.api.inspectTestDeleteCalls())!==1)throw new Error('Delete started more than once');
+ await window.api.finishTestDelete();await until(()=>!document.querySelector('.thread__processing'),'Delete feedback did not clear');
+ await until(()=>![...document.querySelectorAll('.thread__content')].some(item=>item.textContent.includes('Inbox sample')),'Deleted mail remained visible');
+ console.log('Sync/delete UI: stable iframe/document and expansion, pending card/button feedback, duplicate prevention and completed deletion passed');
+
+ document.querySelector('[aria-label="Drafts"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:200}));
+ await until(()=>document.querySelector('.context-menu'),'Live folder menu missing');
+ [...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.endsWith('Sincronizar')).click();
+ await until(()=>!document.querySelector('.context-menu'),'Sync did not dismiss menu');await wait();
+ if((await window.api.inspectTestSyncs()).join(',')!=='INBOX,Drafts')throw new Error('Folder context sync targeted the selected folder instead of the clicked one');
+ document.querySelector('[aria-label="Drafts"]').click();
  await until(()=>card('Pendiente local')&&card('Borrador servidor'),'Drafts list did not combine remote and pending drafts');
  card('Borrador servidor').click();await until(()=>document.querySelector('.tiptap')?.editor,'Server draft did not open');
  let editor=document.querySelector('.tiptap').editor;
@@ -137,6 +196,7 @@ app.whenReady().then(async()=>{
  document.querySelector('.composer__head [aria-label="Cerrar"]').click();await until(()=>!document.querySelector('.composer'),'New draft did not save');
  saved=await window.api.inspectTestDrafts();if(saved.length!==2||!saved.some(item=>item.id==='new-draft'))throw new Error('Multiple drafts not preserved');
 })()`)});
+ console.log('Folder context sync: clicked folder is synchronized without changing the open folder');
  if(errors.length)throw new Error(errors.join('\\n'));
  console.log('Drafts folder: remote editing, local pending drafts, independent discard and multiple saved drafts passed');
  console.log('Full app compose regression: lazy load, typing, formatting and four close/reopen cycles preserve the mailbox without renderer errors');app.exit(0);

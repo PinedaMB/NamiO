@@ -2,11 +2,17 @@ import type { Dictionary } from './es'
 
 /** English copy. Typed as a complete Dictionary: una clave faltante rompe el build. */
 export const en: Dictionary = {
+  'context.openFolder': 'Open folder',
+  'context.openMessage': 'Open message',
+  'context.editDraft': 'Edit draft',
+  'context.star': 'Star',
+  'context.unstar': 'Unstar',
   'common.archive': 'Archive',
   'common.markRead': 'Mark as read',
   'common.markUnread': 'Mark as unread',
   'common.snooze': 'Snooze',
   'common.move': 'Move',
+  'common.deleting': 'Deleting…',
   'common.delete': 'Delete',
   'common.spam': 'Mark as spam',
   'common.reply': 'Reply',

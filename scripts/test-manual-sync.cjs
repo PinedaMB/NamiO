@@ -35,7 +35,7 @@ async function main() {
   let busy = false
   let error = null
   const ui = {
-    live: true, manualSyncBusy: { current: false }, accountGeneration: { current: 0 }, folder: 'Archive',
+    live: true, manualSyncBusy: { current: false }, accountGeneration: { current: 0 }, folderRequest: { current: 0 }, folder: 'Archive',
     setManualSyncing: value => { busy = value }, setLiveError: value => { error = value },
     refreshFromCache: async () => { refreshed++ }, refreshAccounts: async () => {},
     window: { api: { syncMailbox: path => {
@@ -65,6 +65,9 @@ async function main() {
   await stale
   assert.equal(error, null, 'results from the previous account are ignored')
   assert.equal(refreshed, 1)
+  ui.window.api.syncMailbox = async path => { assert.equal(path, 'Other'); return {ok:true,data:true} }
+  await click('Other')
+  assert.equal(refreshed, 1, 'syncing another folder must not replace the displayed messages')
   ui.live = false
   await click()
   assert.equal(requests, 3, 'demo mode does not synchronize')

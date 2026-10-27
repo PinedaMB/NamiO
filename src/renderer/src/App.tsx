@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   Draft,
@@ -17,6 +18,7 @@ import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Threa
 import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
+import { ContextMenu, type ContextAnchor, type ContextAction } from './components/ContextMenu'
 import { ThreadList } from './components/ThreadList'
 import { SearchResults } from './components/SearchResults'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
@@ -74,8 +76,11 @@ function mergeLoaded(previous: readonly Thread[], next: readonly Thread[]): Thre
   const known = new Map(previous.map((thread) => [thread.id, thread]))
   return next.map((thread) => {
     const old = known.get(thread.id)
-    if (!old || old.messages.length === 0 || old.messageIds?.join(',') !== thread.messageIds?.join(',')) return thread
-    return { ...thread, messages: old.messages }
+    if (!old || old.messages.length === 0) return thread
+    const ids = thread.messageIds ?? [uidOf(thread.id)]
+    const messages = old.messages.filter(message => ids.includes(uidOf(message.id)))
+    if (JSON.stringify({ ...old, messages: [] }) === JSON.stringify({ ...thread, messages: [] })) return old
+    return { ...thread, messages }
   })
 }
 
@@ -99,6 +104,8 @@ export function App(): React.JSX.Element {
 
   const [view, setView] = useState<View>('mailbox')
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
+  const [contextMenu, setContextMenu] = useState<(ContextAnchor & { kind: 'message' | 'folder'; id: string; messageId?: string }) | null>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
   const [individualMessageId, setIndividualMessageId] = useState<string | null>(null)
   const [checkedIds, setCheckedIds] = useState<string[]>([])
@@ -109,7 +116,21 @@ export function App(): React.JSX.Element {
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [localDrafts, setLocalDrafts] = useState<Draft[]>([])
-  const [composeMinimized, setComposeMinimized] = useState(false)
+  const [composeMinimized, updateComposeMinimized] = useState(false)
+  const composeTransition = useRef<ViewTransition | null>(null)
+  const setComposeMinimized = (minimized: boolean): void => {
+    if (minimized === composeMinimized) return
+    composeTransition.current?.skipTransition()
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      updateComposeMinimized(minimized)
+      return
+    }
+    composeTransition.current = document.startViewTransition(() => {
+      flushSync(() => updateComposeMinimized(minimized))
+    })
+    // Una restauración rápida interrumpe la captura anterior sin cancelar el cambio.
+    void composeTransition.current.ready.catch(() => {})
+  }
   const [composeSession, setComposeSession] = useState(0)
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -139,6 +160,7 @@ export function App(): React.JSX.Element {
   const busySwitch = useRef(false)
   const manualSyncBusy = useRef(false)
   const deletingMessage = useRef(false)
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; path: string; generation: number } | null>(null)
   const [manualSyncing, setManualSyncing] = useState(false)
 
   /** Guarda los no leídos por cuenta y avisa cuando llegó correo a otra cuenta. */
@@ -226,6 +248,7 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     setCheckedIds([])
+    setContextMenu(null)
   }, [folder, filter, query, account?.account?.host, account?.account?.port, account?.account?.user])
 
   useEffect(() => {
@@ -245,6 +268,7 @@ export function App(): React.JSX.Element {
         if (live) {
           const uid = uidOf(id)
           if (uid === null) continue
+          if (action === 'delete') setPendingDelete({ id, path: folder, generation })
           const result = action === 'read'
             ? await window.api.setSeen(folder, uid, true)
             : action === 'archive'
@@ -268,6 +292,7 @@ export function App(): React.JSX.Element {
       if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
     } finally {
       bulkRunning.current = false
+      setPendingDelete(null)
       setBulkBusy(false)
       void refreshOutbox()
     }
@@ -415,20 +440,21 @@ export function App(): React.JSX.Element {
     setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
   }, [folder, locale, listLimit])
 
-  const handleSync = async (): Promise<void> => {
+  const handleSync = async (path = folder): Promise<void> => {
     if (!live || manualSyncBusy.current) return
     manualSyncBusy.current = true
     setManualSyncing(true)
     const generation = accountGeneration.current
+    const request = folderRequest.current
     try {
-      const result = await window.api.syncMailbox(folder)
+      const result = await window.api.syncMailbox(path)
       if (generation !== accountGeneration.current) return
       if (!result.ok) {
         setLiveError({ code: result.code, detail: result.detail })
         return
       }
       setLiveError(null)
-      await refreshFromCache()
+      if (path === folder && request === folderRequest.current) await refreshFromCache()
       void refreshAccounts()
     } catch (error) {
       if (generation === accountGeneration.current) {
@@ -631,14 +657,16 @@ export function App(): React.JSX.Element {
 
   /** En modo real, abrir un hilo dispara una descarga de la fuente del mensaje. */
   useEffect(() => {
-    if (view === 'settings' || !live || !selected || selected.messages.length > 0 || folder !== activeFolderRef.current) return
+    if (view === 'settings' || !live || !selected || folder !== activeFolderRef.current) return
     const request = folderRequest.current
     const uid = uidOf(selected.id)
     if (uid === null) return
 
+    const missing = (selected.messageIds ?? [uid]).filter(messageUid => !selected.messages.some(message => message.id === `live:${messageUid}`))
+    if (missing.length === 0) return
     let cancelled = false
     const generation = accountGeneration.current
-    Promise.all((selected.messageIds ?? [uid]).map(messageUid => window.api.getMessage(folder, messageUid)))
+    Promise.all(missing.map(messageUid => window.api.getMessage(folder, messageUid)))
       .then((results) => {
         if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
         const failure = results.find(result => !result.ok)
@@ -648,7 +676,11 @@ export function App(): React.JSX.Element {
         const messages = results.flatMap(result => result.ok ? [detailToMessage(result.data, locale, result.meta.partial === true)] : [])
         if (messages.length === 0) return
         if (results.some(result => result.ok && result.meta.partial)) setToast(t('offline.bodyUnavailable'))
-        setThreads(current => current.map(thread => thread.id === selected.id ? { ...thread, messages } : thread))
+        setThreads(current => current.map(thread => {
+          if (thread.id !== selected.id) return thread
+          const loaded = new Map([...thread.messages, ...messages].map(message => [message.id, message]))
+          return { ...thread, messages: (thread.messageIds ?? [uid]).flatMap(messageUid => loaded.get(`live:${messageUid}`) ?? []) }
+        }))
       })
       .catch(() => undefined)
 
@@ -691,6 +723,7 @@ export function App(): React.JSX.Element {
 
   const openSettings = (): void => {
     setPaletteOpen(false)
+    setContextMenu(null)
     setView('settings')
   }
 
@@ -768,6 +801,35 @@ export function App(): React.JSX.Element {
     setThreads((current) => current.filter((thread) => thread.id !== selected.id))
     setSelectedId(next?.id ?? null)
     setToast(t('toast.archived'))
+  }
+
+  const deleteSelected = (): void => {
+    if (!selected || deletingMessage.current || bulkRunning.current) return
+    if (live) {
+      const uid = uidOf(selected.id)
+      if (uid === null) return
+      deletingMessage.current = true
+      const id = selected.id
+      const generation = accountGeneration.current
+      const request = folderRequest.current
+      setPendingDelete({ id, path: folder, generation })
+      const permanent = mailboxes.some((box) => box.path === folder && (box.specialUse === '\\Trash' || /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(box.name)))
+      void window.api.deleteMessage(folder, uid).then((result) => {
+        if (generation !== accountGeneration.current || request !== folderRequest.current || result.canceled) return
+        if (!result.ok) setToast(t('toast.actionFailed', { error: result.error ?? '' }))
+        else if (result.queued) setToast(t('toast.queued'))
+        else {
+          setThreads((current) => current.filter((thread) => thread.id !== id))
+          setToast(t(permanent ? 'toast.deleted' : 'toast.trashed'))
+        }
+        void refreshOutbox()
+      }).catch((error: unknown) => {
+        if (generation === accountGeneration.current && request === folderRequest.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+      }).finally(() => { deletingMessage.current = false; setPendingDelete(null) })
+      return
+    }
+    setThreads((current) => current.filter((thread) => thread.id !== selected.id))
+    setToast(t('toast.trashed'))
   }
 
   const toggleStar = (): void => {
@@ -956,6 +1018,24 @@ export function App(): React.JSX.Element {
 
   const outboxFailed = outbox.find((item) => item.status === 'failed') ?? null
 
+  const deletingId = pendingDelete?.path === folder && pendingDelete.generation === accountGeneration.current ? pendingDelete.id : null
+
+  const contextActions: ContextAction[] = contextMenu?.kind === 'folder'
+    ? [
+      { label: t('context.openFolder'), icon: 'folder_open', run: () => selectFolder(contextMenu.id) },
+      { label: t('topbar.sync'), icon: 'sync', run: () => { void handleSync(contextMenu.id) }, disabled: !live || manualSyncing }
+    ]
+    : selected && selected.id === contextMenu?.id
+      ? [
+        { label: t(draftsFolder ? 'context.editDraft' : 'context.openMessage'), icon: draftsFolder ? 'edit_square' : 'mail', run: () => select(selected.id, contextMenu.messageId) },
+        ...(!draftsFolder ? [
+          { label: t(selected.unread ? 'common.markRead' : 'common.markUnread'), icon: selected.unread ? 'drafts' : 'mark_email_unread', run: () => { void toggleRead() }, disabled: bulkBusy || pendingDelete !== null },
+          { label: t(selected.starred ? 'context.unstar' : 'context.star'), icon: selected.starred ? 'star' : 'star_outline', run: toggleStar, disabled: bulkBusy || pendingDelete !== null },
+          { label: t('common.archive'), icon: 'archive', run: archive, disabled: bulkBusy || pendingDelete !== null },
+          { label: t('common.delete'), icon: 'delete', run: deleteSelected, danger: true, disabled: bulkBusy || pendingDelete !== null }
+        ] : [])
+      ] : []
+
   // Mientras no sepamos si hay cuenta ni si ya pasó por la bienvenida, no se
   // pinta la bandeja: sin este corte, la demo aparece y el onboarding encima.
   const booting = account === null || !settingsLoaded
@@ -975,6 +1055,7 @@ export function App(): React.JSX.Element {
         showTags={!live}
         syncLabel={syncLabel}
         offline={live && sync.offline}
+        onFolderContextMenu={(anchor, id) => setContextMenu({ ...anchor, kind: 'folder', id })}
         onSelectFolder={selectFolder}
         onCompose={openCompose}
         onOpenSettings={openSettings}
@@ -1065,7 +1146,8 @@ export function App(): React.JSX.Element {
                 onCheckAll={() => setCheckedIds(visible.every((thread) => checkedIds.includes(thread.id)) ? [] : visible.map((thread) => thread.id))}
                 onClearChecked={() => setCheckedIds([])}
                 onBulkAction={(action) => void bulkAction(action)}
-                bulkBusy={bulkBusy}
+                bulkBusy={bulkBusy || pendingDelete !== null}
+                deletingId={deletingId}
                 selectedId={selected?.id ?? null}
                 selectedMessageId={individualMessageId}
                 filter={filter}
@@ -1084,6 +1166,12 @@ export function App(): React.JSX.Element {
                     : undefined
                 }
                 onFilter={setFilter}
+                onContextMenu={(anchor, id, messageId) => {
+                  setSelectedId(id)
+                  setIndividualMessageId(messageId ?? null)
+                  userNavigated.current = true
+                  setContextMenu({ ...anchor, kind: 'message', id, messageId })
+                }}
                 onSelect={select}
                 showVip={!live}
                 live={live}
@@ -1102,38 +1190,14 @@ export function App(): React.JSX.Element {
                   bindings={bindings}
                   contextOpen={contextOpen}
                   canToggleContext={!live}
-                  canMutate={!selected.id.startsWith('draft:')}
+                  canMutate={!selected.id.startsWith('draft:') && !bulkBusy && pendingDelete === null}
+                  deleting={deletingId === selected.id}
                   unread={selected.unread}
                   onToggleContext={toggleContext}
                   onArchive={archive}
                   onToggleRead={toggleRead}
                   onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
-                  onDelete={() => {
-                    if (!selected || deletingMessage.current || bulkRunning.current) return
-                    if (live) {
-                      const uid = uidOf(selected.id)
-                      if (uid === null) return
-                      deletingMessage.current = true
-                      const id = selected.id
-                      const generation = accountGeneration.current
-                      const permanent = mailboxes.some((box) => box.path === folder && (box.specialUse === '\\Trash' || /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(box.name)))
-                      void window.api.deleteMessage(folder, uid).then((result) => {
-                        if (generation !== accountGeneration.current || result.canceled) return
-                        if (!result.ok) setToast(t('toast.actionFailed', { error: result.error ?? '' }))
-                        else if (result.queued) setToast(t('toast.queued'))
-                        else {
-                          setThreads((current) => current.filter((thread) => thread.id !== id))
-                          setToast(t(permanent ? 'toast.deleted' : 'toast.trashed'))
-                        }
-                        void refreshOutbox()
-                      }).catch((error: unknown) => {
-                        if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
-                      }).finally(() => { deletingMessage.current = false })
-                      return
-                    }
-                    setThreads((current) => current.filter((thread) => thread.id !== selected.id))
-                    setToast(t('toast.trashed'))
-                  }}
+                  onDelete={deleteSelected}
                   onStar={toggleStar}
                   onReply={() => openReply()}
                   onOpenAttachment={openAttachment}
@@ -1182,6 +1246,8 @@ export function App(): React.JSX.Element {
         onSelectFolder={selectFolder}
         onOpenSettings={openSettings}
       />
+
+      {contextMenu && contextActions.length > 0 && <ContextMenu anchor={contextMenu} label={contextMenu.kind === 'folder' ? folderViews.find(item => item.id === contextMenu.id)?.label ?? contextMenu.id : selected?.subject ?? ''} actions={contextActions} onClose={closeContextMenu} />}
 
       <ComposeOverlay
         key={`${accountIdentity.current ?? 'demo'}:${composeSession}`}

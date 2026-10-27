@@ -5,11 +5,17 @@
  * Interpolación: `{nombre}` se reemplaza con las variables de `t(key, vars)`.
  */
 export const es = {
+  'context.openFolder': 'Abrir carpeta',
+  'context.openMessage': 'Abrir correo',
+  'context.editDraft': 'Editar borrador',
+  'context.star': 'Destacar',
+  'context.unstar': 'Quitar destacado',
   'common.archive': 'Archivar',
   'common.markRead': 'Marcar como leído',
   'common.markUnread': 'Marcar como no leído',
   'common.snooze': 'Posponer',
   'common.move': 'Mover',
+  'common.deleting': 'Eliminando…',
   'common.delete': 'Eliminar',
   'common.spam': 'Marcar como spam',
   'common.reply': 'Responder',

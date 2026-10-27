@@ -14,7 +14,7 @@ async function check(action, behavior = 'success') {
   const calls = []
   const context = {
     live: behavior !== 'demo', checkedIds: ['live:1', 'live:2'], threads: [{ id: 'live:1', unread: true }, { id: 'live:2', unread: true }],
-    bulkRunning: { current: false }, deletingMessage: { current: false }, accountGeneration: { current: 0 }, folderRequest: { current: 0 }, folder: 'INBOX',
+    setPendingDelete() {}, bulkRunning: { current: false }, deletingMessage: { current: false }, accountGeneration: { current: 0 }, folderRequest: { current: 0 }, folder: 'INBOX',
     uidOf: id => Number(id.slice(5)), t: key => key, refreshOutbox: async () => {},
     setBulkBusy() {}, setToast() {},
     setThreads: update => { context.threads = update(context.threads) },

@@ -1,3 +1,4 @@
+import type { ContextAnchor } from './ContextMenu'
 import { TooltipButton } from './Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import type { AccountActivity, AccountSummary } from '@shared/ipc'
@@ -22,6 +23,7 @@ interface SidebarProps {
   showTags: boolean
   syncLabel: string
   offline: boolean
+  onFolderContextMenu?: (anchor: ContextAnchor, id: string) => void
   onSelectFolder: (id: string) => void
   onCompose: () => void
   onOpenSettings: () => void
@@ -46,6 +48,7 @@ export function Sidebar({
   syncLabel,
   offline,
   onSelectFolder,
+  onFolderContextMenu,
   onCompose,
   onOpenSettings,
   onOpenAccount,
@@ -217,6 +220,8 @@ export function Sidebar({
               aria-label={folder.spam ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
               type="button"
               className={cx('nav-item', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
+              onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
+              onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}
               onClick={() => onSelectFolder(folder.id)}
               aria-current={activeFolder === folder.id ? 'page' : undefined}
             >

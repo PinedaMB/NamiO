@@ -5206,15 +5206,82 @@
   min-height: 36px;
 }
 
-.composer-dock:not(.overlay--closing) .composer {
-  animation: composer-dock-in 220ms var(--ease) both;
-}
+@media (prefers-reduced-motion: no-preference) {
+  .composer {
+    view-transition-name: composer;
+  }
 
-@keyframes composer-dock-in {
-  from { opacity: 0.5; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
+  ::view-transition-group(composer) {
+    animation-duration: 300ms;
+    animation-timing-function: var(--ease);
+  }
+
+  ::view-transition-old(composer),
+  ::view-transition-new(composer) {
+    height: 100%;
+    animation-duration: 180ms;
+  }
 }
 
 .composer-send-options {
   animation: content-in 140ms var(--ease) both;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  width: min(260px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: var(--sp-xs);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-high);
+  box-shadow: var(--shadow-lg);
+  animation: content-in 120ms var(--ease) both;
+}
+
+.context-menu__title {
+  padding: var(--sp-sm) var(--sp-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  min-height: 36px;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu__item:hover,
+.context-menu__item:focus-visible {
+  background: var(--surface-container-highest);
+}
+
+.context-menu__item--danger {
+  color: var(--error);
+}
+
+.context-menu__item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.thread__processing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  color: var(--primary);
 }
