@@ -7,6 +7,8 @@ const project = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 // Estas dependencias de desarrollo se incluyen en el renderer y sus assets.
 const renderer = ['react', 'react-dom', 'dompurify', '@tiptap/pm', '@tiptap/react', '@tiptap/starter-kit',
   '@fontsource-variable/inter', '@fontsource-variable/jetbrains-mono', 'material-symbols']
+// Paquetes que declaran licencia pero no incluyen archivo de licencia en su tarball.
+const withoutLicenseFile = new Set(['lazy-val'])
 const packages = new Map()
 function locate(name, from) {
   for (let directory = from; ; directory = dirname(directory)) {
@@ -22,9 +24,13 @@ function collect(name, from, optional = false) {
   if (packages.has(directory)) return
   const metadata = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
   assert.equal(typeof metadata.license, 'string', `Falta licencia declarada: ${metadata.name}`)
-  const notices = readdirSync(directory, { withFileTypes: true })
+  let notices = readdirSync(directory, { withFileTypes: true })
     .filter(entry => entry.isFile() && /^(licen[sc]e|notice|copying|ofl|third.?party.*(?:licen[sc]e|notice))/i.test(entry.name))
     .map(entry => ({ name: entry.name, text: readFileSync(join(directory, entry.name), 'utf8').trim() }))
+  if (!notices.length && withoutLicenseFile.has(metadata.name)) {
+    const author = typeof metadata.author === 'string' ? metadata.author : metadata.author?.name
+    notices = [{ name: 'package.json', text: `Licencia declarada: ${metadata.license}\nAutor: ${author}\nRepositorio: ${metadata.repository}` }]
+  }
   assert.ok(notices.length, `Falta texto de licencia: ${metadata.name}@${metadata.version}`)
   packages.set(directory, { metadata, notices })
   for (const dependency of Object.keys(metadata.dependencies ?? {})) {
