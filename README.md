@@ -486,6 +486,16 @@ La CI está en dos workflows, y se reparten el trabajo para no empaquetar de má
 En un tag, además del artefacto del run, la Release de GitHub queda con los instalables adjuntos
 (`softprops/action-gh-release`), así se descargan sin pasar por Actions.
 
+Para disparar un release, con el remoto ya configurado:
+
+```bash
+git remote add origin <url-del-repo>
+git push -u origin master
+git push origin v0.1.0     # tag anotado: dispara release-linux.yml
+```
+
+El tag tiene que apuntar al commit que querés publicar (`git describe --tags` lo confirma).
+
 ### Marca y asociación de ventana
 
 - `build/icon.png` (512×512) y `build/icon-1024.png`: el **mapache índigo** de la app, con fondo
