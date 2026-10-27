@@ -3,6 +3,7 @@ import { simpleParser } from 'mailparser'
 import type {
   AccountConfig,
   AccountState,
+  AccountSummary,
   CachedResult,
   Envelope,
   EnvelopeAddress,
@@ -25,6 +26,7 @@ import {
   getMailboxMeta,
   getMeta,
   lowestUid,
+  openAccountCache,
   readBody,
   readEnvelope,
   readEnvelopes,
@@ -42,7 +44,7 @@ import {
 } from './db'
 import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
-import { decryptSecret, encryptSecret, readSettings, writeSettings, type StoredAccount } from './settings'
+import { decryptSecret, encryptSecret, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, type StoredAccount } from './settings'
 
 interface Session {
   client: ImapFlow
@@ -138,7 +140,7 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
     if (token.refreshToken) {
       // Microsoft rota el refresh token: se persiste el nuevo.
       const encrypted = await encryptSecret(token.refreshToken)
-      if (encrypted) await writeSettings({ account: { ...account, refreshToken: encrypted } })
+      if (encrypted) await saveAccount({ ...account, refreshToken: encrypted })
     }
     return { accessToken: token.accessToken }
   }
@@ -148,27 +150,55 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
   return { password }
 }
 
-/** Conecta con la cuenta guardada si hace falta. Lanza si no hay credenciales usables. */
+/** Conecta con la cuenta activa si hace falta. Lanza si no hay credenciales usables. */
 async function ensureClient(): Promise<ImapFlow> {
   if (session?.client.usable) return session.client
 
-  const stored = await readSettings()
-  if (!stored.account) throw new Error('No account configured')
+  const stored = await readActiveAccount()
+  if (!stored) throw new Error('No account configured')
 
-  const auth = await authFor(stored.account)
+  const auth = await authFor(stored)
 
   await openSession(
     {
-      host: stored.account.host,
-      port: stored.account.port,
-      secure: stored.account.secure,
-      user: stored.account.user
+      host: stored.host,
+      port: stored.port,
+      secure: stored.secure,
+      user: stored.user
     },
     auth
   )
 
   if (!session) throw new Error('Connection failed')
   return session.client
+}
+
+/* ---------------------------------------------------------------------------
+   Cuentas
+   ------------------------------------------------------------------------- */
+
+/** Id estable: la primera cuenta es `default`; las demás se numeran. */
+export async function accountIdFor(host: string, port: number, user: string): Promise<string> {
+  const { accounts } = await readAccounts()
+  const existing = accounts.find(
+    (item) => item.user === user && item.host === host && (item.port ?? 993) === port
+  )
+  if (existing) return existing.id
+  if (accounts.length === 0) return 'default'
+  const slug = user.replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'mail'
+  return `acc-${accounts.length + 1}-${slug}`
+}
+
+/**
+ * Guarda la cuenta y la deja activa: cierra la sesión anterior y reapunta la
+ * caché a la cuenta nueva, así no se mezclan carpetas de dos cuentas.
+ */
+export async function activateAccount(account: StoredAccount): Promise<void> {
+  await saveAccount(account)
+  await setActiveAccount(account.id)
+  await serial(closeSession)
+  openAccountCache(account.id)
+  notify('*')
 }
 
 function classify(error: unknown): ImapErrorCode {
@@ -786,8 +816,7 @@ export function deleteMessage(path: string, uid: number): Promise<void> {
    ------------------------------------------------------------------------- */
 
 export async function getAccountState(): Promise<AccountState> {
-  const stored = await readSettings()
-  const account = stored.account ?? null
+  const account = await readActiveAccount()
   return {
     configured: account !== null,
     connected: session !== null && session.client.usable,
@@ -806,25 +835,57 @@ export async function getAccountState(): Promise<AccountState> {
   }
 }
 
-/** Credenciales descifradas para el motor de envío. */
+/** Todas las cuentas guardadas, con la activa marcada. */
+export async function listAccounts(): Promise<AccountSummary[]> {
+  const { accounts, active } = await readAccounts()
+  return accounts.map((account) => ({
+    id: account.id,
+    label: account.label ?? account.user,
+    user: account.user,
+    host: account.host,
+    port: account.port,
+    auth: account.auth ?? 'password',
+    active: account.id === active
+  }))
+}
+
+/**
+ * Cambia de cuenta: corta la sesión, reapunta la caché a la cuenta elegida y
+ * avisa a la UI para que relea todo. No hay dos conexiones abiertas a la vez.
+ */
+export async function selectAccount(id: string): Promise<ImapResult<AccountState>> {
+  try {
+    const ok = await setActiveAccount(id)
+    if (!ok) return { ok: false, code: 'unknown', detail: 'Esa cuenta no existe' }
+
+    await serial(closeSession)
+    openAccountCache(id)
+    notify('*')
+
+    return { ok: true, data: await getAccountState() }
+  } catch (error) {
+    return { ok: false, code: classify(error), detail: describe(error) }
+  }
+}
+
 /** Credenciales para el motor de envío (contraseña o access token OAuth). */
 export async function getCredentials(): Promise<
   { account: AccountConfig; password: string | null; accessToken: string | null } | null
 > {
-  const stored = await readSettings()
-  if (!stored.account) return null
+  const stored = await readActiveAccount()
+  if (!stored) return null
 
   const account: AccountConfig = {
-    host: stored.account.host,
-    port: stored.account.port,
-    secure: stored.account.secure,
-    user: stored.account.user,
-    smtp: stored.account.smtp,
-    auth: stored.account.auth ?? 'password',
-    oauth: stored.account.oauth
+    host: stored.host,
+    port: stored.port,
+    secure: stored.secure,
+    user: stored.user,
+    smtp: stored.smtp,
+    auth: stored.auth ?? 'password',
+    oauth: stored.oauth
   }
 
-  const auth = await authFor(stored.account)
+  const auth = await authFor(stored)
   return {
     account,
     password: 'password' in auth ? auth.password : null,
@@ -872,17 +933,16 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
 
     // El refresh token es lo único que permite reconectar sin volver al navegador.
     const encrypted = tokens.refreshToken ? await encryptSecret(tokens.refreshToken) : null
-    await writeSettings({
-      account: {
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        user,
-        smtp: config.smtp,
-        auth: 'oauth2',
-        oauth: config.oauth,
-        ...(encrypted ? { refreshToken: encrypted } : {})
-      }
+    await activateAccount({
+      id: await accountIdFor(config.host, config.port, user),
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      user,
+      smtp: config.smtp,
+      auth: 'oauth2',
+      oauth: config.oauth,
+      ...(encrypted ? { refreshToken: encrypted } : {})
     })
 
     return { ok: true, data: await getAccountState() }
@@ -892,5 +952,13 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
 }
 
 export async function disconnectAccount(): Promise<void> {
+  const { active } = await readAccounts()
   await serial(closeSession)
+  if (!active) return
+
+  // Sin contraseña guardada, mantener la cuenta sería un estado a medias: se
+  // olvida y la app vuelve a la siguiente cuenta (o a la demo).
+  const { active: next } = await removeAccount(active)
+  openAccountCache(next ?? 'default')
+  notify('*')
 }

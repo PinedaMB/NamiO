@@ -69,7 +69,7 @@ const checks = [
   ['la barra de estado muestra atajos', result.legend > 0],
   ['el puente IPC existe', result.bridge === 'function'],
   ['Node no está expuesto a la UI', result.nodeLeaked === 'undefined'],
-  ['el núcleo responde por IPC', ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].includes(result.status?.stage)]
+  ['el núcleo responde por IPC', ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8'].includes(result.status?.stage)]
 ]
 
 let failed = 0

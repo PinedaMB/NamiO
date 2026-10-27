@@ -10,6 +10,8 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   accountStatus: 'account:status',
+  accountsList: 'accounts:list',
+  accountSelect: 'accounts:select',
   accountConnect: 'account:connect',
   accountConnectOAuth: 'account:connect-oauth',
   accountDisconnect: 'account:disconnect',
@@ -43,7 +45,7 @@ export const IPC = {
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 
 /** Etapa actual del desarrollo; el núcleo la reporta para que la UI no mienta. */
-export type Milestone = 'M0' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7'
+export type Milestone = 'M0' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8'
 
 export interface CoreStatus {
   appVersion: string
@@ -124,6 +126,17 @@ export interface AccountState {
   account: AccountConfig | null
   /** `false` cuando el SO no ofrece cifrado y la contraseña no se persiste. */
   passwordStored: boolean
+}
+
+/** Cuenta para el conmutador del rail (sin secretos). */
+export interface AccountSummary {
+  id: string
+  label: string
+  user: string
+  host: string
+  port: number
+  auth: AuthMethod
+  active: boolean
 }
 
 export interface MailboxInfo {
@@ -287,6 +300,10 @@ export interface MailApi {
   setSettings(settings: Partial<AppSettings>): Promise<void>
 
   accountStatus(): Promise<AccountState>
+  /** Cuentas guardadas para el conmutador (la activa viene marcada). */
+  accounts(): Promise<AccountSummary[]>
+  /** Cambia la cuenta activa: corta la sesión y reapunta la caché. */
+  selectAccount(id: string): Promise<ImapResult<AccountState>>
   accountConnect(config: AccountConfig, password: string): Promise<ImapResult<AccountState>>
   /** OAuth2: abre el navegador, espera el redirect y guarda el refresh token. */
   accountConnectOAuth(config: AccountConfig): Promise<ImapResult<AccountState>>

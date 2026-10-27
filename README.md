@@ -1,9 +1,9 @@
 # NamiO — cliente de email para Linux
 
 NamiO es un cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y
-desarrollado en Windows. Estado actual: **M7 en curso** — conectar cuenta (contraseña u OAuth2), leer
-HTML, caché offline, enviar con cola, buscar en local, sincronizar el buzón completo, bienvenida
-guiada y **reglas locales**; falta multi-cuenta. Los instalables de Linux se generan en CI.
+desarrollado en Windows. Estado actual: **M8 en curso** — cuenta (contraseña u OAuth2), HTML, caché
+offline, envío con cola, búsqueda local, sync completa, bienvenida guiada, reglas locales y **varias
+cuentas conmutables** (una activa a la vez, sin bandeja unificada). Los instalables se generan en CI.
 
 ## Stack y por qué
 
@@ -310,6 +310,28 @@ Verificado con un buzón de 11 mensajes y la regla *de contiene «boletin» → 
 existentes movió **6**, en el servidor INBOX quedó en 5 y Archive en 6, la regla marcó `hits = 6`,
 la cola de salida quedó vacía y el badge de no leídos bajó de 9 a 3 sin recargar.
 
+## Varias cuentas (M8)
+
+![Conmutador de cuentas en el rail](docs/accounts.png)
+
+El rail permite tener **varias cuentas guardadas** y cambiar entre ellas sin reiniciar.
+
+- **Cómo se agrega**: menú de la cuenta → *Agregar cuenta* (el mismo diálogo, con IMAP, SMTP y OAuth2).
+  Conectar una cuenta nueva la deja activa.
+- **Cómo se cambia**: se elige del menú; cada entrada muestra usuario, `host:puerto` y una marca en la
+  activa. Al cambiar se corta la sesión, se reapunta la caché y la bandeja se relee sola.
+- **Una caché por cuenta** (`cache-<id>.db`, y `cache.db` para la primera): carpetas, mensajes,
+  búsqueda, cola de salida y **reglas** quedan separadas sin cambiar el esquema. Eso también evita el
+  bug clásico de enviar con las credenciales de la cuenta equivocada, porque la cola vive en la caché
+  de su cuenta.
+- **Una conexión a la vez**: al cambiar de cuenta se cierra la sesión anterior. No hay bandeja
+  unificada todavía.
+
+Verificado con dos servidores de prueba (1143 con 11 mensajes, 2143 con 8): conectar el primero dejó
+la caché `cache.db`; agregar el segundo creó `cache-acc-2-testuser.db` y lo dejó activo; desde el menú
+se volvió al primero y la lista mostró sus **11** hilos (el segundo conserva los **8**). Las reglas y
+la cola no se mezclan porque cada cuenta tiene su base.
+
 ## Integridad del CSS
 
 `pnpm run css:audit` cruza el CSS con el JSX y verifica cuatro cosas: que toda variable usada esté
@@ -583,6 +605,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Sync completa en segundo plano con progreso, badge de no leídos y scroll | ✅ |
 | Tema del cuerpo del correo, un solo scroll y estrella alineada | ✅ |
 | Reglas locales: alta, activar/desactivar, aplicar a la caché y `hits` | ✅ |
+| Varias cuentas conmutables con caché separada por cuenta | ✅ |
 | Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
 | App empaquetada (`isPackaged: true`): CSP, fuentes del asar, bienvenida y cero errores | ✅ |
 | AppImage 126.3 MB + `.deb` 101.8 MB en la [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | ✅ |
@@ -625,7 +648,7 @@ node scripts/smoke.mjs
 ```
 
 Valida que React montó, que el puente IPC existe, que `window.require` **no** está expuesto y que el
-núcleo responde con un `stage` válido (M0–M7).
+núcleo responde con un `stage` válido (M0–M8).
 
 ## Roadmap
 
@@ -640,7 +663,7 @@ núcleo responde con un `stage` válido (M0–M7).
 | ✅ M5 | Búsqueda FTS5 sobre la caché | Encuentro un correo por una palabra del cuerpo |
 | ✅ M6 | OAuth2 (Gmail/Outlook) + empaquetado en CI | Instalable en Linux vía `.deb` |
 | ✅ M7 | Reglas locales: archivar, mover, marcar leído o eliminar al llegar | Un remitente molesto se archiva solo |
-| M8 | Multi-cuenta | Dos cuentas a la vez, cada una con su bandeja |
+| ✅ M8 | Multi-cuenta conmutables, con caché y cola por cuenta | Dos cuentas a la vez, cada una con su bandeja |
 
 ## Los problemas que hay que respetar desde el día uno
 

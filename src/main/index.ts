@@ -3,6 +3,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
 import { setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
+import { readActiveAccount } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 
@@ -114,7 +115,12 @@ app.on('second-instance', () => {
 
 void app.whenReady().then(() => {
   hardenSession()
-  initCache()
+
+  // La caché es por cuenta: se abre la de la cuenta activa antes de todo.
+  void readActiveAccount()
+    .then((account) => initCache(account?.id ?? 'default'))
+    .catch(() => initCache('default'))
+
   registerIpcHandlers()
 
   // El motor avisa cuando terminó de sincronizar; la UI recarga desde la caché.

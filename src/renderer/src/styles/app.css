@@ -3989,3 +3989,92 @@
   margin: 4px 0 0;
   font-size: 11px;
 }
+﻿
+/* ==========================================================================
+   Conmutador de cuentas (rail)
+   ========================================================================== */
+
+.rail__block {
+  position: relative;
+}
+
+.account-menu {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-low);
+  box-shadow: var(--shadow-lg, 0 18px 40px rgba(0, 0, 0, 0.45));
+}
+
+.account-menu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--surface-container-highest);
+}
+
+.account-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-md);
+  color: var(--on-surface);
+  text-align: left;
+}
+
+.account-menu__item:hover {
+  background: var(--surface-container-high);
+}
+
+.account-menu__item--active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.account-menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.account-menu__label {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__host {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--outline);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-md);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  text-align: left;
+}
+
+.account-menu__action:hover {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}

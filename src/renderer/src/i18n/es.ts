@@ -366,6 +366,11 @@ export const es = {
   'rules.describe': '{field} {op} «{value}» → {action}',
 
   'account.connect': 'Conectar cuenta',
+  'account.switch': 'Cambiar de cuenta',
+  'account.add': 'Agregar cuenta',
+  'account.manage': 'Ajustes de esta cuenta',
+  'account.switched': 'Cuenta cambiada.',
+  'account.switchFailed': 'No se pudo cambiar de cuenta.',
   'account.title': 'Conectar cuenta IMAP',
   'account.subtitle': 'Las credenciales quedan en este equipo; la contraseña se guarda cifrada por el sistema.',
   'account.provider': 'Proveedor',

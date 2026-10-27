@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AccountState,
+  AccountSummary,
   AppSettings,
   CoreStatus,
   ImapErrorCode,
@@ -108,6 +109,7 @@ export function App(): React.JSX.Element {
   const [contextOpen, setContextOpen] = useState(true)
 
   const [account, setAccount] = useState<AccountState | null>(null)
+  const [accounts, setAccounts] = useState<readonly AccountSummary[]>([])
   const [accountOpen, setAccountOpen] = useState(false)
   const [settings, setSettings] = useState<Partial<AppSettings>>({})
   const [settingsLoaded, setSettingsLoaded] = useState(false)
@@ -123,6 +125,12 @@ export function App(): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
+  const busySwitch = useRef(false)
+
+  const refreshAccounts = useCallback(async (): Promise<void> => {
+    const list = await window.api?.accounts?.().catch(() => null)
+    if (list) setAccounts(list)
+  }, [])
   /** Cuántos mensajes se piden a la caché (crece al llegar al final de la lista). */
   const [listLimit, setListLimit] = useState(PAGE_SIZE)
   const loadingMoreRef = useRef(false)
@@ -320,6 +328,7 @@ export function App(): React.JSX.Element {
     const state = await window.api.accountStatus().catch(() => null)
     if (!state) return
     setAccount(state)
+    void refreshAccounts()
     if (state.configured) {
       await loadMailboxes(state)
       return
@@ -618,7 +627,30 @@ export function App(): React.JSX.Element {
     setAccount(state)
     setAccountOpen(false)
     markOnboarded()
+    void refreshAccounts()
     void loadMailboxes(state)
+  }
+
+  /** Cambia la cuenta activa: el núcleo reapunta la caché y acá se relee todo. */
+  const handleSelectAccount = async (id: string): Promise<void> => {
+    if (busySwitch.current) return
+    busySwitch.current = true
+    try {
+      const result = await window.api.selectAccount(id).catch(() => null)
+      if (!result?.ok) {
+        setToast(t('account.switchFailed'))
+        return
+      }
+      setAccount(result.data)
+      setThreads([])
+      setSelectedId(null)
+      setQuery('')
+      await refreshAccounts()
+      await loadMailboxes(result.data)
+      setToast(t('account.switched'))
+    } finally {
+      busySwitch.current = false
+    }
   }
 
   useEffect(() => {
@@ -727,6 +759,7 @@ export function App(): React.JSX.Element {
         folders={folderViews}
         accountLabel={accountLabel}
         accountConnected={live}
+        accounts={accounts}
         showTags={!live}
         syncLabel={syncLabel}
         offline={live && sync.offline}
@@ -734,6 +767,9 @@ export function App(): React.JSX.Element {
         onCompose={openCompose}
         onOpenSettings={openSettings}
         onOpenAccount={() => setAccountOpen(true)}
+        onAddAccount={() => setAccountOpen(true)}
+        onSelectAccount={(id) => void handleSelectAccount(id)}
+        onRefreshAccounts={() => void refreshAccounts()}
       />
 
       <div className="shell">

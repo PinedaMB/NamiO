@@ -5,6 +5,10 @@ import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/i
 
 /** Cuenta guardada: las credenciales solo se persisten cifradas por el SO. */
 export interface StoredAccount {
+  /** Identidad estable de la cuenta (la primera es `default`). */
+  id: string
+  /** Nombre corto para el rail; si falta se usa el usuario. */
+  label?: string
   host: string
   port: number
   secure: boolean
@@ -20,6 +24,11 @@ export interface StoredAccount {
 }
 
 export interface StoredSettings extends Partial<AppSettings> {
+  /** Una o más cuentas. Una instalación vieja migra `account` a esta lista. */
+  accounts?: StoredAccount[]
+  /** Id de la cuenta activa: hay una sola conexión a la vez. */
+  activeAccount?: string
+  /** Formato anterior (una sola cuenta): solo se lee para migrar. */
   account?: StoredAccount
 }
 
@@ -56,4 +65,69 @@ export async function decryptSecret(secret: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Varias cuentas
+   ------------------------------------------------------------------------- */
+
+function accountsContain(accounts: readonly StoredAccount[], id: string | null): boolean {
+  return id !== null && accounts.some((account) => account.id === id)
+}
+
+/**
+ * Lista de cuentas y la activa, migrando el formato de una sola cuenta la
+ * primera vez (y persistiendo esa migración).
+ */
+export async function readAccounts(): Promise<{ accounts: StoredAccount[]; active: string | null }> {
+  const settings = await readSettings()
+  const stored = Array.isArray(settings.accounts) ? settings.accounts : []
+
+  if (stored.length > 0) {
+    const active = settings.activeAccount ?? stored[0]?.id ?? null
+    return { accounts: stored, active: accountsContain(stored, active) ? active : (stored[0]?.id ?? null) }
+  }
+
+  if (settings.account) {
+    const migrated: StoredAccount = { ...settings.account, id: settings.account.id ?? 'default' }
+    await writeSettings({ accounts: [migrated], activeAccount: migrated.id, account: undefined })
+    return { accounts: [migrated], active: migrated.id }
+  }
+
+  return { accounts: [], active: null }
+}
+
+export async function writeAccounts(accounts: readonly StoredAccount[], active: string | null): Promise<void> {
+  await writeSettings({ accounts: [...accounts], activeAccount: active ?? undefined })
+}
+
+export async function readActiveAccount(): Promise<StoredAccount | null> {
+  const { accounts, active } = await readAccounts()
+  return accounts.find((account) => account.id === active) ?? null
+}
+
+export async function setActiveAccount(id: string): Promise<boolean> {
+  const { accounts } = await readAccounts()
+  if (!accountsContain(accounts, id)) return false
+  await writeSettings({ activeAccount: id })
+  return true
+}
+
+/** Inserta o actualiza una cuenta por id; devuelve la lista resultante. */
+export async function saveAccount(account: StoredAccount): Promise<StoredAccount[]> {
+  const { accounts, active } = await readAccounts()
+  const exists = accounts.some((item) => item.id === account.id)
+  const next = exists
+    ? accounts.map((item) => (item.id === account.id ? account : item))
+    : [...accounts, account]
+  await writeAccounts(next, active ?? account.id)
+  return next
+}
+
+export async function removeAccount(id: string): Promise<{ accounts: StoredAccount[]; active: string | null }> {
+  const { accounts, active } = await readAccounts()
+  const rest = accounts.filter((account) => account.id !== id)
+  const nextActive = active === id ? (rest[0]?.id ?? null) : active
+  await writeAccounts(rest, nextActive)
+  return { accounts: rest, active: nextActive }
 }

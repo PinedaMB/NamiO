@@ -363,6 +363,11 @@ export const en: Dictionary = {
   'rules.describe': '{field} {op} “{value}” → {action}',
 
   'account.connect': 'Connect account',
+  'account.switch': 'Switch account',
+  'account.add': 'Add account',
+  'account.manage': 'This account’s settings',
+  'account.switched': 'Account switched.',
+  'account.switchFailed': 'Could not switch accounts.',
   'account.title': 'Connect IMAP account',
   'account.subtitle': 'Credentials stay on this machine; the password is stored encrypted by the system.',
   'account.provider': 'Provider',

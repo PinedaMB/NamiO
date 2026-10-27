@@ -12,16 +12,20 @@ import {
   type SendMailPayload
 } from '@shared/ipc'
 import {
+  accountIdFor,
+  activateAccount,
   connectAccount,
   connectAccountOAuth,
   disconnectAccount,
   getAccountState,
   getMessage,
   getSyncProgress,
+  listAccounts,
   listEnvelopes,
   listMailboxes,
   readAttachment,
   searchMail,
+  selectAccount,
   setFlagged,
   setSeen
 } from './imap'
@@ -56,7 +60,7 @@ export function registerIpcHandlers(): void {
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
-      stage: 'M7',
+      stage: 'M8',
       accountCount: 0
     }
   })
@@ -68,6 +72,10 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IPC.accountStatus, () => getAccountState())
+
+  ipcMain.handle(IPC.accountsList, () => listAccounts())
+
+  ipcMain.handle(IPC.accountSelect, (_event, id: string) => selectAccount(String(id)))
 
   ipcMain.handle(
     IPC.accountConnect,
@@ -93,8 +101,10 @@ export function registerIpcHandlers(): void {
 
       // La contraseña solo se persiste si el SO ofrece cifrado (DPAPI, libsecret, Keychain).
       const secret = await encryptSecret(password)
-      await writeSettings({
-        account: { ...normalized, ...(secret ? { secret } : {}) }
+      await activateAccount({
+        id: await accountIdFor(normalized.host, normalized.port, normalized.user),
+        ...normalized,
+        ...(secret ? { secret } : {})
       })
 
       // Al recuperar la cuenta, se drena lo que haya quedado en la cola.
@@ -139,9 +149,6 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.accountDisconnect, async (): Promise<void> => {
     await disconnectAccount()
-    // Desconectar olvida la cuenta: sin contraseña guardada, mantenerla sería un
-    // estado a medias que confunde más de lo que ayuda.
-    await writeSettings({ account: undefined })
   })
 
   ipcMain.handle(IPC.mailboxesList, (_event, sync: boolean = true) => listMailboxes(sync))

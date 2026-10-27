@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import type { AccountSummary } from '@shared/ipc'
 import logo from '../assets/logo.png'
 import { TAGS } from '../data/demo'
 import type { FolderView } from '../data/live'
@@ -10,6 +12,8 @@ interface SidebarProps {
   folders: readonly FolderView[]
   accountLabel: string
   accountConnected: boolean
+  /** Cuentas guardadas: con más de una aparece el conmutador. */
+  accounts: readonly AccountSummary[]
   showTags: boolean
   syncLabel: string
   offline: boolean
@@ -17,6 +21,10 @@ interface SidebarProps {
   onCompose: () => void
   onOpenSettings: () => void
   onOpenAccount: () => void
+  onAddAccount: () => void
+  onSelectAccount: (id: string) => void
+  /** Se llama al abrir el menú: la lista de cuentas puede haber cambiado. */
+  onRefreshAccounts?: () => void
 }
 
 export function Sidebar({
@@ -24,15 +32,33 @@ export function Sidebar({
   folders,
   accountLabel,
   accountConnected,
+  accounts = [],
   showTags,
   syncLabel,
   offline,
   onSelectFolder,
   onCompose,
   onOpenSettings,
-  onOpenAccount
+  onOpenAccount,
+  onAddAccount,
+  onSelectAccount,
+  onRefreshAccounts
 }: SidebarProps): React.JSX.Element {
   const { t } = useI18n()
+  const [menuOpen, setMenuOpen] = useState(false)
+  /** El rail tiene `overflow-y`, así que el menú se posiciona contra la ventana. */
+  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  const toggleMenu = (element: HTMLElement): void => {
+    if (menuOpen) {
+      setMenuOpen(false)
+      return
+    }
+    const rect = element.getBoundingClientRect()
+    setAnchor({ top: rect.bottom + 6, left: rect.left, width: rect.width })
+    setMenuOpen(true)
+    onRefreshAccounts?.()
+  }
 
   return (
     <aside className="rail">
@@ -48,13 +74,79 @@ export function Sidebar({
         </div>
 
         <div className="rail__block">
-          <button className="account" type="button" onClick={onOpenAccount} title={t('account.connect')}>
+          <button
+            className="account"
+            type="button"
+            onClick={(event) => toggleMenu(event.currentTarget)}
+            title={t('account.switch')}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+          >
             <span className="account__id">
               <span className={cx('dot', !accountConnected && 'dot--idle')} />
               <span className="account__mail">{accountLabel}</span>
             </span>
-            <Icon name={accountConnected ? 'tune' : 'add'} size={16} />
+            <Icon name={accounts.length > 1 ? 'expand_more' : accountConnected ? 'tune' : 'add'} size={16} />
           </button>
+
+          {menuOpen && anchor && (
+            <div
+              className="account-menu"
+              role="menu"
+              style={{ position: 'fixed', top: anchor.top, left: anchor.left, width: anchor.width }}
+            >
+              {accounts.length > 0 && (
+                <div className="account-menu__list">
+                  {accounts.map((item) => (
+                    <button
+                      key={item.id}
+                      className={cx('account-menu__item', item.active && 'account-menu__item--active')}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={item.active}
+                      onClick={() => {
+                        setMenuOpen(false)
+                        onSelectAccount(item.id)
+                      }}
+                    >
+                      <span className="account-menu__text">
+                        <span className="account-menu__label">{item.label}</span>
+                        <span className="account-menu__host">
+                          {item.host}:{item.port}
+                        </span>
+                      </span>
+                      {item.active && <Icon name="check" size={15} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <button
+                className="account-menu__action"
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onAddAccount()
+                }}
+              >
+                <Icon name="add" size={15} />
+                {t('account.add')}
+              </button>
+              <button
+                className="account-menu__action"
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onOpenAccount()
+                }}
+              >
+                <Icon name="tune" size={15} />
+                {t('account.manage')}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="rail__block">

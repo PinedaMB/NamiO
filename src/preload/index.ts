@@ -3,6 +3,7 @@ import {
   IPC,
   type AccountConfig,
   type AccountState,
+  type AccountSummary,
   type AppSettings,
   type CachedResult,
   type CoreStatus,
@@ -32,6 +33,8 @@ const api: MailApi = {
   setSettings: (settings: Partial<AppSettings>): Promise<void> => ipcRenderer.invoke(IPC.settingsSet, settings),
 
   accountStatus: (): Promise<AccountState> => ipcRenderer.invoke(IPC.accountStatus),
+  accounts: (): Promise<AccountSummary[]> => ipcRenderer.invoke(IPC.accountsList),
+  selectAccount: (id: string): Promise<ImapResult<AccountState>> => ipcRenderer.invoke(IPC.accountSelect, id),
   accountConnect: (config: AccountConfig, password: string): Promise<ImapResult<AccountState>> =>
     ipcRenderer.invoke(IPC.accountConnect, config, password),
   accountConnectOAuth: (config: AccountConfig): Promise<ImapResult<AccountState>> =>

@@ -47,10 +47,23 @@ export interface MailboxMeta {
 
 let db: DatabaseSync | null = null
 
-export function initCache(): void {
+export function initCache(accountId: string = 'default'): void {
   if (db) return
+  openAccountCache(accountId)
+}
 
-  db = new DatabaseSync(join(app.getPath('userData'), 'cache.db'))
+/**
+ * Abre la caché de una cuenta. Cada cuenta tiene su propio archivo
+ * (`cache-<id>.db`): carpetas, búsqueda, cola y reglas quedan separadas sin
+ * cambiar el esquema. La cuenta `default` conserva `cache.db` (compatibilidad).
+ */
+export function openAccountCache(accountId: string): void {
+  if (db) closeCache()
+
+  const safe = accountId.replace(/[^a-z0-9_-]/gi, '')
+  const file = accountId === 'default' || safe === '' ? 'cache.db' : `cache-${safe}.db`
+
+  db = new DatabaseSync(join(app.getPath('userData'), file))
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA synchronous = NORMAL')
   db.exec(`
