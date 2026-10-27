@@ -505,9 +505,8 @@ El tag tiene que apuntar al commit que querés publicar (`git describe --tags` l
   30 px junto al wordmark.
 - `desktopName: namio.desktop` en `package.json` + `linux.syncDesktopName` en `electron-builder.yml`
   para que GNOME/KDE asocien la ventana con el lanzador.
-- **Antes de publicar**: reemplazar `homepage` (hoy `https://example.com/namio`) por el repo real.
-  El maintainer ya está puesto: `PinedaMB <mendez-pineda@outlook.es>`.
-
+- Metadatos listos: `author`/`maintainer` `PinedaMB <mendez-pineda@outlook.es>`, y `homepage` +
+  `repository` apuntando a [github.com/PinedaMB/NamiO](https://github.com/PinedaMB/NamiO).
 ### La CSP en producción va por meta, no por cabecera
 
 La app empaquetada carga `file://`, donde no existen cabeceras de respuesta: una CSP puesta con
@@ -618,5 +617,5 @@ núcleo responde con un `stage` válido (M0–M6).
   [`.github/workflows/release-linux.yml`](.github/workflows/release-linux.yml) (Ubuntu), no desde Windows.
 - El icono ya está: `build/icon.png` (512²) y `build/icon-1024.png`, ambos desde `build/logo-source.png`.
 - Autor y maintainer ya son **PinedaMB <mendez-pineda@outlook.es>** (el `.deb` usa el maintainer).
-- Queda reemplazar `homepage` (hoy `https://example.com/namio`) por el repo real cuando exista.
+- `homepage` y `repository` apuntan a <https://github.com/PinedaMB/NamiO>.
 - Flatpak queda para después; el canal natural es Flathub con el runtime de Electron.
