@@ -72,7 +72,7 @@ export function StatusBar({ appVersion, bindings, pending, progress = null }: St
 
       <div className="statusbar__right">
         {progress && (
-          <span className="sync-progress" title={t('sync.progress', { cached: progress.cached, total: progress.total })}>
+          <span className="sync-progress" data-tooltip={t('sync.progress', { cached: progress.cached, total: progress.total })} tabIndex={0}>
             <Icon name="cloud_download" size={12} />
             <span className="sync-progress__label">
               {t('sync.progress', { cached: progress.cached, total: progress.total })}

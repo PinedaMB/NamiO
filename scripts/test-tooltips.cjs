@@ -8,6 +8,7 @@ const { renderToStaticMarkup } = require('react-dom/server')
 const listeners = new Map()
 const timers = new Map()
 let anchor = null
+let retainedAnchor = null
 let stateIndex = 0
 let timerId = 0
 let cleanup
@@ -29,9 +30,14 @@ vm.runInNewContext(code, {
   window: { addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) },
   setTimeout: fn => { timers.set(++timerId, fn); return timerId },
   clearTimeout: id => timers.delete(id),
-  require: name => name === 'react' ? {
+  require: name => name === '../lib/usePresence' ? { usePresence: () => ({ mounted: false, closing: false }) } : name === '../lib/cx' ? { cx: (...values) => values.filter(Boolean).join(' ') } : name === 'react' ? {
     useId: () => 'tooltip-test', useRef: () => ({ current: null }),
-    useState: initial => stateIndex++ === 0 ? [anchor, value => { anchor = value }] : [initial, () => {}],
+    useState: initial => {
+      const index = stateIndex++
+      if (index === 0) return [retainedAnchor, value => { retainedAnchor = value }]
+      if (index === 2) return [false, value => { anchor = value ? retainedAnchor : null }]
+      return [initial, () => {}]
+    },
     useEffect: fn => { cleanup = fn() }, useLayoutEffect: () => {}
   } : require(name)
 })
@@ -44,6 +50,7 @@ flush()
 assert.equal(anchor, button)
 listeners.get('keydown')({ key: 'Escape' })
 assert.equal(anchor, null)
+assert.equal(retainedAnchor, button, 'closing keeps the tooltip content available for the exit animation')
 listeners.get('focusin')({ type: 'focusin', target: button })
 flush()
 assert.equal(anchor, button, 'keyboard focus shows the tooltip')

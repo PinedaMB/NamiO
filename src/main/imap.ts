@@ -27,7 +27,7 @@ import {
   deleteMessageRow,
   getMailboxMeta,
   getMeta,
-  lowestUid,
+  messagesByUids,
   openAccountCache,
   readBody,
   readEnvelope,
@@ -46,7 +46,7 @@ import {
 } from './db'
 import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
-import { decryptSecret, encryptSecret, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, writeSettings, type StoredAccount } from './settings'
+import { decryptSecret, encryptSecret, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, updateAccount, writeSettings, type StoredAccount } from './settings'
 
 interface Session {
   client: ImapFlow
@@ -142,7 +142,7 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
     if (token.refreshToken) {
       // Microsoft rota el refresh token: se persiste el nuevo.
       const encrypted = await encryptSecret(token.refreshToken)
-      if (encrypted) await saveAccount({ ...account, refreshToken: encrypted })
+      if (encrypted) await updateAccount(account.id, { refreshToken: encrypted })
     }
     return { accessToken: token.accessToken }
   }
@@ -194,6 +194,9 @@ export async function accountIdFor(host: string, port: number, user: string): Pr
  * caché a la cuenta nueva, así no se mezclan carpetas de dos cuentas.
  */
 export async function activateAccount(account: StoredAccount): Promise<void> {
+  syncGeneration += 1
+  pendingFullSync.clear()
+  publishProgress(null)
   await saveAccount(account)
   await setActiveAccount(account.id)
   await serial(closeSession)
@@ -306,12 +309,14 @@ async function syncMessages(path: string, limit: number): Promise<void> {
   // STATUS fresco: si el buzón ya estaba seleccionado, `client.mailbox` puede
   // tener EXISTS/UIDNEXT viejos y el sync se quedaría dormido.
   let exists = 0
+  let unseen: number | null = null
   let uidNext: number | null = null
   let uidValidity: number | null = null
   try {
-    const status = await client.status(path, { messages: true, uidNext: true, uidValidity: true })
+    const status = await client.status(path, { messages: true, unseen: true, uidNext: true, uidValidity: true })
     if (status) {
       exists = status.messages ?? 0
+      unseen = status.unseen ?? null
       uidNext = status.uidNext != null ? Number(status.uidNext) : null
       uidValidity = status.uidValidity != null ? Number(status.uidValidity) : null
     }
@@ -359,7 +364,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       messages: exists,
       // Con la carpeta entera cacheada se cuenta local; si no, manda el STATUS
       // del servidor (la ventana cacheada no representa al total).
-      unseen: exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path))
+      unseen: unseen ?? (exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path)))
     })
     setMeta('lastSync', String(Date.now()))
     offline = false
@@ -394,7 +399,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
         uidValidity,
         uidNext,
         messages: exists,
-        unseen: exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path))
+        unseen: unseen ?? (exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path)))
       })
     }
 
@@ -415,6 +420,8 @@ async function syncMessages(path: string, limit: number): Promise<void> {
 
 let progress: SyncProgress | null = null
 let fullSyncRunning = false
+let syncGeneration = 0
+const pendingFullSync = new Set<string>()
 let progressListener: ((progress: SyncProgress | null) => void) | null = null
 let rulesListener: (() => void) | null = null
 
@@ -438,49 +445,68 @@ function publishProgress(next: SyncProgress | null): void {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-/**
- * Baja el buzón completo por tramos, del más viejo al más nuevo, para que la
- * caché (y la búsqueda) cubran todo sin bloquear la lectura. Un tramo a la vez.
- */
+/** Descarga los UID existentes por tandas; los huecos no detienen la sincronización. */
 async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
   fullSyncRunning = true
+  const generation = syncGeneration
   try {
-    const total = getMailboxMeta(path)?.messages ?? 0
-    let lowest = lowestUid(path)
+    const uids = await serial(async () => {
+      if (generation !== syncGeneration) return []
+      const client = await ensureClient()
+      const lock = await client.getMailboxLock(path)
+      try {
+        const found = await client.search({ all: true }, { uid: true })
+        if (!found) throw new Error('No se pudo listar el buzón para sincronizar')
+        return found.sort((a, b) => a - b)
+      } finally {
+        lock.release()
+      }
+    })
 
-    while (lowest !== null && lowest > 1) {
-      const from = Math.max(1, lowest - chunk)
-      const to = lowest - 1
-
-      publishProgress({ mailbox: path, cached: countMessages(path), total, running: true })
-
+    for (let end = uids.length; end > 0; end -= chunk) {
+      if (generation !== syncGeneration) return
+      const batch = uids.slice(Math.max(0, end - chunk), end)
       await serial(async () => {
+        if (generation !== syncGeneration) return
+        const cached = new Set(messagesByUids(path, batch).map((message) => message.uid))
+        const missing = batch.filter((uid) => !cached.has(uid))
+        if (missing.length === 0) return
         const client = await ensureClient()
         const lock = await client.getMailboxLock(path)
         try {
-          upsertEnvelopes(path, await fetchRange(client, `${from}:${to}`, true))
+          const envelopes = await fetchRange(client, missing.join(','), true)
+          if (generation === syncGeneration) upsertEnvelopes(path, envelopes)
         } finally {
           lock.release()
         }
       })
-
-      const next = lowestUid(path)
-      if (next === null || next >= lowest) break
-      lowest = next
+      if (generation !== syncGeneration) return
+      publishProgress({ mailbox: path, cached: countMessages(path), total: uids.length, running: true })
+      notify(path)
       await sleep(120)
     }
-  } catch {
-    // Sin red: lo ya cacheado queda y se retoma en el próximo arranque.
+  } catch (error) {
+    console.error('[imap] background sync failed:', describe(error))
   } finally {
     fullSyncRunning = false
-    publishProgress(null)
-    notify(path)
+    if (generation === syncGeneration) {
+      publishProgress(null)
+      notify(path)
+    }
+    const next = pendingFullSync.values().next().value
+    if (next !== undefined) {
+      pendingFullSync.delete(next)
+      ensureFullSync(next)
+    }
   }
 }
 
 /** Arranca (si hace falta) la descarga completa del buzón en segundo plano. */
 function ensureFullSync(path: string): void {
-  if (fullSyncRunning) return
+  if (fullSyncRunning) {
+    pendingFullSync.add(path)
+    return
+  }
   const meta = getMailboxMeta(path)
   if (!meta || meta.messages <= countMessages(path)) return
   void fullSyncMailbox(path, 100)
@@ -698,6 +724,23 @@ export function searchMail(query: string, limit = 60): SearchHit[] {
   }
 }
 
+/** Actualización manual: espera a la red y devuelve el error al usuario. */
+export function syncMailbox(path: string): Promise<ImapResult<boolean>> {
+  const generation = syncGeneration
+  return serial(async () => {
+    try {
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      await syncMailboxes()
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      await syncMessages(path, 50)
+      notify('*')
+      return { ok: true, data: true }
+    } catch (error) {
+      return { ok: false, code: classify(error), detail: describe(error) }
+    }
+  })
+}
+
 /** Sincroniza la bandeja de entrada y avisa a la UI. Silencioso ante errores. */
 export async function syncInbox(limit = 50): Promise<void> {
   const inbox = readMailboxes().find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path
@@ -826,6 +869,7 @@ export async function getAccountState(): Promise<AccountState> {
           port: account.port,
           secure: account.secure,
           user: account.user,
+          label: account.label,
           smtp: account.smtp,
           auth: account.auth ?? 'password',
           oauth: account.oauth
@@ -839,7 +883,7 @@ export async function getAccountState(): Promise<AccountState> {
 export async function listAccounts(): Promise<AccountSummary[]> {  const { accounts, active } = await readAccounts()
   return accounts.map((account) => ({
     id: account.id,
-    label: account.label ?? account.user,
+    label: account.label || account.user,
     user: account.user,
     host: account.host,
     port: account.port,
@@ -863,7 +907,7 @@ export async function checkAccountsActivity(): Promise<AccountActivity[]> {
 
     if (isActive) {
       // La cuenta activa ya se sincroniza sola: su contador sale de la caché.
-      unseen = countUnread('INBOX')
+      unseen = readMailboxes().find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.unseen ?? 0
     } else {
       try {
         const auth = await authFor(account)
@@ -896,7 +940,7 @@ export async function checkAccountsActivity(): Promise<AccountActivity[]> {
 
     activity.push({
       id: account.id,
-      label: account.label ?? account.user,
+      label: account.label || account.user,
       host: account.host,
       port: account.port,
       unseen,
@@ -916,6 +960,9 @@ const lastUnseen = new Map<string, number>()
  * avisa a la UI para que relea todo. No hay dos conexiones abiertas a la vez.
  */
 export async function selectAccount(id: string): Promise<ImapResult<AccountState>> {
+  syncGeneration += 1
+  pendingFullSync.clear()
+  publishProgress(null)
   try {
     const ok = await setActiveAccount(id)
     if (!ok) return { ok: false, code: 'unknown', detail: 'Esa cuenta no existe' }
@@ -1001,6 +1048,7 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
       port: config.port,
       secure: config.secure,
       user,
+      label: config.label,
       smtp: config.smtp,
       auth: 'oauth2',
       oauth: config.oauth,
@@ -1014,6 +1062,9 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
 }
 
 export async function disconnectAccount(): Promise<void> {
+  syncGeneration += 1
+  pendingFullSync.clear()
+  publishProgress(null)
   const { active } = await readAccounts()
   await serial(closeSession)
   if (!active) return

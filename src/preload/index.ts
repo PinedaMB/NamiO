@@ -46,6 +46,7 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.accountConnect, config, password),
   accountConnectOAuth: (config: AccountConfig): Promise<ImapResult<AccountState>> =>
     ipcRenderer.invoke(IPC.accountConnectOAuth, config),
+  accountRename: (label: string): Promise<ImapResult<AccountState>> => ipcRenderer.invoke(IPC.accountRename, label),
   accountDisconnect: (): Promise<void> => ipcRenderer.invoke(IPC.accountDisconnect),
 
   listMailboxes: (sync = true): Promise<CachedResult<MailboxInfo[]>> => ipcRenderer.invoke(IPC.mailboxesList, sync),
@@ -72,6 +73,7 @@ const api: MailApi = {
   retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
   search: (query: string, limit = 60): Promise<SearchHit[]> => ipcRenderer.invoke(IPC.searchQuery, query, limit),
+  syncMailbox: (path: string): Promise<ImapResult<boolean>> => ipcRenderer.invoke(IPC.syncMailbox, path),
   syncProgress: (): Promise<SyncProgress | null> => ipcRenderer.invoke(IPC.syncProgress),
   onSyncProgress: (listener: (progress: SyncProgress | null) => void): (() => void) => {
     const handler = (_event: unknown, progress: SyncProgress | null): void => listener(progress)

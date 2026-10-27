@@ -8,6 +8,7 @@ export interface FolderView {
   label: string
   count?: number
   accent?: boolean
+  spam?: boolean
 }
 
 function initialsOf(name: string, address: string): string {
@@ -107,12 +108,21 @@ const SPECIAL_USE_ICON: Record<string, string> = {
   '\\Flagged': 'star'
 }
 
+export function isSpamMailbox(mailbox: { path: string; name?: string; specialUse?: string | null }): boolean {
+  if (mailbox.specialUse === '\\Junk') return true
+  return [mailbox.name ?? '', ...mailbox.path.split(/[\/\\]/)].some((name) =>
+    /^(spam|junk|junk e-?mail|correo no deseado|correo basura|bulk mail)$/i.test(name.trim())
+  )
+}
+
 export function mailboxToFolder(mailbox: MailboxInfo): FolderView {
   // El contador de la carpeta es de NO LEÍDOS (como en cualquier cliente):
   // el total de mensajes no dice nada accionable.
+  const spam = isSpamMailbox(mailbox)
   return {
     id: mailbox.path,
-    icon: (mailbox.specialUse && SPECIAL_USE_ICON[mailbox.specialUse]) ?? 'folder',
+    spam,
+    icon: spam ? 'report' : (mailbox.specialUse && SPECIAL_USE_ICON[mailbox.specialUse]) ?? 'folder',
     label: mailbox.name,
     count: mailbox.unseen > 0 ? mailbox.unseen : undefined,
     accent: mailbox.specialUse === '\\Inbox' || mailbox.path.toUpperCase() === 'INBOX'

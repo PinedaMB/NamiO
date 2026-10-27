@@ -17,6 +17,7 @@ export const IPC = {
   accountConnect: 'account:connect',
   accountConnectOAuth: 'account:connect-oauth',
   accountDisconnect: 'account:disconnect',
+  accountRename: 'account:rename',
   mailboxesList: 'mailboxes:list',
   messagesList: 'messages:list',
   messageGet: 'message:get',
@@ -38,6 +39,7 @@ export const IPC = {
   outboxChanged: 'outbox:changed',
   searchQuery: 'search:query',
   syncProgress: 'sync:progress',
+  syncMailbox: 'sync:mailbox',
   rulesList: 'rules:list',
   rulesSave: 'rules:save',
   rulesDelete: 'rules:delete',
@@ -99,6 +101,7 @@ export interface SmtpConfig {
 
 /** Cuenta completa: recepción (IMAP) y envío (SMTP). */
 export interface AccountConfig extends ImapAccountConfig {
+  label?: string
   smtp: SmtpConfig
   /** `password` (usuario + contraseña) u `oauth2` (XOAUTH2 con token). */
   auth?: AuthMethod
@@ -324,6 +327,7 @@ export interface MailApi {
   accountConnect(config: AccountConfig, password: string): Promise<ImapResult<AccountState>>
   /** OAuth2: abre el navegador, espera el redirect y guarda el refresh token. */
   accountConnectOAuth(config: AccountConfig): Promise<ImapResult<AccountState>>
+  accountRename(label: string): Promise<ImapResult<AccountState>>
   accountDisconnect(): Promise<void>
 
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
@@ -354,6 +358,7 @@ export interface MailApi {
   /** Búsqueda de texto completo sobre la caché local. */
   search(query: string, limit?: number): Promise<SearchHit[]>
   /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
+  syncMailbox(path: string): Promise<ImapResult<boolean>>
   syncProgress(): Promise<SyncProgress | null>
   onSyncProgress(listener: (progress: SyncProgress | null) => void): () => void
 

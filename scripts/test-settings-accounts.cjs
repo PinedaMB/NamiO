@@ -1,0 +1,52 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const vm = require('node:vm')
+const ts = require('typescript')
+const React = require('react')
+const { renderToStaticMarkup } = require('react-dom/server')
+const source = fs.readFileSync('src/renderer/src/components/Settings.tsx', 'utf8')
+function settings(accounts, events) {
+  let stateIndex = 0
+  const exports = {}
+  const requireMock = id => {
+    if (id === 'react') return { ...React, useEffect: () => {}, useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? 'accounts' : initial, () => {}] }
+    if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
+    if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }) }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({}) }
+    if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
+    if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
+    if (id === './Icon') return { Icon: () => null }
+    if (id === './Tooltip') return { TooltipButton: props => React.createElement('button', props) }
+    if (id === './RulesSection') return { RulesSection: () => null }
+    return require(id)
+  }
+  vm.runInNewContext(ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }), { exports, require: requireMock })
+  return exports.Settings({ accounts, onBack() {}, onAddAccount: () => events.push('add'), onManageAccount: () => events.push('manage'), onSelectAccount: id => events.push(id) })
+}
+const accounts = [
+  { id: 'one', label: 'Personal', user: 'personal@example.com', host: 'imap.example.com', port: 993, auth: 'oauth2', active: true },
+  { id: 'two', label: 'Work', user: 'work@example.com', host: 'imap.work.com', port: 993, auth: 'password', active: false }
+]
+const events = []
+const tree = settings(accounts, events)
+const html = renderToStaticMarkup(tree)
+assert.ok(html.includes('personal@example.com'))
+assert.ok(html.includes('work@example.com'))
+assert.ok(html.includes('settings.accounts.active'))
+assert.ok(!html.includes('settings.accounts.empty'))
+assert.ok(!html.includes('Alex Rivera'))
+function visit(node) {
+  if (!React.isValidElement(node)) return
+  if (node.type === 'button') {
+    const children = React.Children.toArray(node.props.children)
+    if (children.includes('account.add') || children.includes('account.manage') || children.includes('settings.accounts.select')) node.props.onClick()
+  }
+  React.Children.forEach(node.props.children, visit)
+}
+visit(tree)
+assert.deepEqual(events, ['add', 'manage', 'two'])
+const empty = renderToStaticMarkup(settings([], []))
+assert.ok(empty.includes('settings.accounts.empty'))
+assert.ok(empty.includes('account.add'))
+assert.ok(!empty.includes('Alex Rivera'))
+console.log('Settings accounts: saved accounts, active profile, empty state and actions passed')

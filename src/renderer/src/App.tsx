@@ -108,12 +108,14 @@ export function App(): React.JSX.Element {
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [contextOpen, setContextOpen] = useState(true)
 
   const [account, setAccount] = useState<AccountState | null>(null)
   const [accounts, setAccounts] = useState<readonly AccountSummary[]>([])
   const [activity, setActivity] = useState<readonly AccountActivity[]>([])
   const [accountOpen, setAccountOpen] = useState(false)
+  const [addingAccount, setAddingAccount] = useState(false)
   const [settings, setSettings] = useState<Partial<AppSettings>>({})
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
@@ -129,6 +131,8 @@ export function App(): React.JSX.Element {
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
   const busySwitch = useRef(false)
+  const manualSyncBusy = useRef(false)
+  const [manualSyncing, setManualSyncing] = useState(false)
 
   /** Guarda los no leídos por cuenta y avisa cuando llegó correo a otra cuenta. */
   const applyActivity = useCallback(
@@ -166,6 +170,8 @@ export function App(): React.JSX.Element {
 
   const accountIdentity = useRef<string | null>(null)
   const accountGeneration = useRef(0)
+  const folderRequest = useRef(0)
+  const activeFolderRef = useRef('inbox')
   const applyAccount = useCallback((state: AccountState): void => {
     const identity = state.account
       ? JSON.stringify([state.account.host, state.account.port, state.account.user])
@@ -181,6 +187,8 @@ export function App(): React.JSX.Element {
       setSearching(false)
       setLoadingFolder(false)
       setFolder('inbox')
+      activeFolderRef.current = 'inbox'
+      folderRequest.current += 1
       setLiveError(null)
       setSync({ offline: false, syncedAt: null })
       setSyncProgress(null)
@@ -226,12 +234,16 @@ export function App(): React.JSX.Element {
   const loadFolder = useCallback(
     async (path: string, focusUid?: number): Promise<void> => {
       const generation = accountGeneration.current
+      const request = ++folderRequest.current
+      activeFolderRef.current = path
+      setThreads([])
+      setSelectedId(null)
       setLoadingFolder(true)
       setFolder(path)
       setListLimit(PAGE_SIZE)
       if (focusUid === undefined) setSelectedId(null)
       const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
-      if (generation !== accountGeneration.current) return
+      if (generation !== accountGeneration.current || request !== folderRequest.current) return
       setLoadingFolder(false)
 
       if (!result) return
@@ -310,13 +322,15 @@ export function App(): React.JSX.Element {
 
   /** Relee la caché sin tocar la red: lo usa el aviso de "buzón sincronizado". */
   const refreshFromCache = useCallback(async (): Promise<void> => {
+    if (folder !== activeFolderRef.current) return
+    const request = folderRequest.current
     const generation = accountGeneration.current
     const boxes = await window.api.listMailboxes(false).catch(() => null)
-    if (generation !== accountGeneration.current) return
+    if (generation !== accountGeneration.current || request !== folderRequest.current) return
     if (boxes?.ok) setMailboxes(boxes.data)
 
     const list = await window.api.listEnvelopes(folder, listLimit, false).catch(() => null)
-    if (generation !== accountGeneration.current || !list?.ok) return
+    if (generation !== accountGeneration.current || request !== folderRequest.current || !list?.ok) return
 
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = list.data.map((envelope) => envelopeToThread(envelope, locale))
@@ -324,9 +338,35 @@ export function App(): React.JSX.Element {
     setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
   }, [folder, locale, listLimit])
 
+  const handleSync = async (): Promise<void> => {
+    if (!live || manualSyncBusy.current) return
+    manualSyncBusy.current = true
+    setManualSyncing(true)
+    const generation = accountGeneration.current
+    try {
+      const result = await window.api.syncMailbox(folder)
+      if (generation !== accountGeneration.current) return
+      if (!result.ok) {
+        setLiveError({ code: result.code, detail: result.detail })
+        return
+      }
+      setLiveError(null)
+      await refreshFromCache()
+      void refreshAccounts()
+    } catch (error) {
+      if (generation === accountGeneration.current) {
+        setLiveError({ code: 'unknown', detail: error instanceof Error ? error.message : 'IPC' })
+      }
+    } finally {
+      manualSyncBusy.current = false
+      setManualSyncing(false)
+    }
+  }
+
   /** Trae otra tanda de la caché (la descarga completa ya está en disco). */
   const loadMore = useCallback(async (): Promise<void> => {
-    if (!live || loadingFolder || loadingMoreRef.current) return
+    if (!live || loadingFolder || loadingMoreRef.current || folder !== activeFolderRef.current) return
+    const request = folderRequest.current
     const next = Math.min(listLimit + 100, 2000)
     if (next === listLimit) return
 
@@ -335,7 +375,7 @@ export function App(): React.JSX.Element {
     setListLimit(next)
     try {
       const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
-      if (generation !== accountGeneration.current || !result?.ok) return
+      if (generation !== accountGeneration.current || request !== folderRequest.current || !result?.ok) return
 
       const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
       setThreads((previous) => mergeLoaded(previous, mapped))
@@ -509,7 +549,8 @@ export function App(): React.JSX.Element {
 
   /** En modo real, abrir un hilo dispara una descarga de la fuente del mensaje. */
   useEffect(() => {
-    if (!live || !selected || selected.messages.length > 0) return
+    if (!live || !selected || selected.messages.length > 0 || folder !== activeFolderRef.current) return
+    const request = folderRequest.current
     const uid = uidOf(selected.id)
     if (uid === null) return
 
@@ -518,7 +559,7 @@ export function App(): React.JSX.Element {
     window.api
       .getMessage(folder, uid)
       .then((result) => {
-        if (cancelled || generation !== accountGeneration.current) return
+        if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
         if (!result.ok) {
           setLiveError({ code: result.code, detail: result.detail })
           return
@@ -795,7 +836,7 @@ export function App(): React.JSX.Element {
   })
 
   const accountLabel = live
-    ? account?.account?.user ?? ''
+    ? account?.account?.label || account?.account?.user || ''
     : account?.configured
       ? t('account.connect')
       : t('account.demo')
@@ -816,8 +857,10 @@ export function App(): React.JSX.Element {
   if (booting) return <BootSplash />
 
   return (
-    <div className="app">
+    <div className={sidebarCollapsed ? 'app app--rail-collapsed' : 'app'}>
       <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         activeFolder={folder}
         folders={folderViews}
         accountLabel={accountLabel}
@@ -830,7 +873,7 @@ export function App(): React.JSX.Element {
         onSelectFolder={selectFolder}
         onCompose={openCompose}
         onOpenSettings={openSettings}
-        onOpenAccount={() => setAccountOpen(true)}
+        onOpenAccount={() => { setAddingAccount(false); setAccountOpen(true) }}
         onExitDemo={() => {
           void window.api.setSettings({ onboarded: false }).then(() => {
             setSettings((current) => ({ ...current, onboarded: false }))
@@ -843,7 +886,7 @@ export function App(): React.JSX.Element {
             setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
           })
         }}
-        onAddAccount={() => setAccountOpen(true)}
+        onAddAccount={() => { setAddingAccount(true); setAccountOpen(true) }}
         onSelectAccount={(id) => void handleSelectAccount(id)}
         onRefreshAccounts={() => void refreshAccounts()}
       />
@@ -851,6 +894,8 @@ export function App(): React.JSX.Element {
       <div className="shell">
         <Topbar
           unreadCount={unreadCount}
+          onSync={() => void handleSync()}
+          syncing={manualSyncing}
           filter={filter}
           live={live}
           query={query}
@@ -880,7 +925,13 @@ export function App(): React.JSX.Element {
 
         <div className="panes">
           {view === 'settings' ? (
-            <Settings onBack={() => setView('mailbox')} />
+            <Settings
+              onBack={() => setView('mailbox')}
+              accounts={accounts}
+              onAddAccount={() => { setAddingAccount(true); setAccountOpen(true) }}
+              onManageAccount={() => { setAddingAccount(false); setAccountOpen(true) }}
+              onSelectAccount={(id) => void handleSelectAccount(id)}
+            />
           ) : (
             <>
               {query.trim().length >= 2 ? (
@@ -922,6 +973,7 @@ export function App(): React.JSX.Element {
               {selected ? (
                 <ThreadPane
                   thread={selected}
+                  spam={folderViews.some((item) => item.id === folder && item.spam)}
                   position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
                   total={visible.length}
                   bindings={bindings}
@@ -1034,7 +1086,7 @@ export function App(): React.JSX.Element {
 
       <AccountDialog
         open={accountOpen}
-        account={account}
+        account={addingAccount ? null : account}
         onClose={() => {
           setAccountOpen(false)
           void refreshAccount()

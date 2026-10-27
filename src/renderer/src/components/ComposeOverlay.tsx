@@ -135,7 +135,7 @@ export function ComposeOverlay({
               <span className="chip">{t('compose.threadId')}</span>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
             <TooltipButton className="icon-btn" type="button" title={t('compose.minimize')}>
               <Icon name="remove" size={16} />
             </TooltipButton>
@@ -182,7 +182,7 @@ export function ComposeOverlay({
                 aria-label={t('compose.to')}
               />
             </div>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
               <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
                 {t('compose.cc')}
               </button>

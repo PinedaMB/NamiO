@@ -7,6 +7,7 @@ import { Icon } from './Icon'
 
 interface EmailBodyProps {
   html: string
+  blockRemote?: boolean
 }
 
 /** GIF transparente de 1×1: conserva el layout cuando se bloquea una imagen remota. */
@@ -86,7 +87,7 @@ function buildDocument(body: string, allowImages: boolean, theme: BodyTheme): st
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${style}</style></head><body>${body}</body></html>`
 }
 
-export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
+export function EmailBody({ html, blockRemote = false }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
   const { remoteImages, bodyTheme } = usePreferences()
   const frameRef = useRef<HTMLIFrameElement>(null)
@@ -100,7 +101,7 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
     setAllowOverride(null)
   }, [remoteImages, html])
 
-  const allowImages = allowOverride ?? remoteImages === 'allow'
+  const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
   const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
   const documentHtml = useMemo(
     () => buildDocument(prepared.body, allowImages, bodyTheme),
@@ -142,13 +143,13 @@ export function EmailBody({ html }: EmailBodyProps): React.JSX.Element {
 
   return (
     <div className="email-body">
-      {prepared.blocked > 0 && (
+      {(blockRemote || prepared.blocked > 0) && (
         <div className="email-banner">
           <Icon name="image_not_supported" size={15} />
-          <span>{t('mail.imagesBlocked', { count: prepared.blocked })}</span>
-          <button className="btn btn--primary" type="button" onClick={() => setAllowOverride(true)}>
+          <span>{blockRemote ? t('mail.spamRemoteBlocked') : t('mail.imagesBlocked', { count: prepared.blocked })}</span>
+          {!blockRemote && <button className="btn btn--primary" type="button" onClick={() => setAllowOverride(true)}>
             {t('mail.showImages')}
-          </button>
+          </button>}
         </div>
       )}
 

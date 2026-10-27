@@ -1,7 +1,6 @@
 import { TooltipButton } from './Tooltip'
 import { useEffect, useMemo, useState } from 'react'
-import type { CoreStatus } from '@shared/ipc'
-import { ACCOUNT } from '../data/demo'
+import type { AccountSummary, CoreStatus } from '@shared/ipc'
 import { LOCALES, useI18n, type TranslationKey } from '../i18n'
 import { useShortcuts } from '../settings/ShortcutsProvider'
 import { usePreferences } from '../settings/PreferencesProvider'
@@ -20,6 +19,10 @@ import { cx } from '../lib/cx'
 
 interface SettingsProps {
   onBack: () => void
+  accounts: readonly AccountSummary[]
+  onAddAccount: () => void
+  onManageAccount: () => void
+  onSelectAccount: (id: string) => void
 }
 
 type Section = 'general' | 'shortcuts' | 'accounts' | 'copilot' | 'rules'
@@ -32,10 +35,11 @@ const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }
   { id: 'rules', icon: 'filter_alt', labelKey: 'settings.nav.rules' }
 ]
 
-export function Settings({ onBack }: SettingsProps): React.JSX.Element {
+export function Settings({ onBack, accounts, onAddAccount, onManageAccount, onSelectAccount }: SettingsProps): React.JSX.Element {
   const { t, locale, setLocale } = useI18n()
   const { bindings, save, reset } = useShortcuts()
   const { remoteImages, setRemoteImages, bodyTheme, setBodyTheme } = usePreferences()
+  const activeAccount = accounts.find((account) => account.active)
   const [section, setSection] = useState<Section>('shortcuts')
   const [query, setQuery] = useState('')
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
@@ -294,31 +298,49 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
       )
     }
 
-    const empty: Record<'accounts' | 'copilot' | 'rules', { icon: string; title: TranslationKey; text: TranslationKey }> = {
-      accounts: { icon: 'alternate_email', title: 'settings.accounts.title', text: 'settings.accounts.empty' },
-      copilot: { icon: 'neurology', title: 'settings.copilot.title', text: 'settings.copilot.empty' },
-      rules: { icon: 'filter_alt', title: 'settings.rules.title', text: 'settings.rules.empty' }
+    if (section === 'accounts') {
+      return (
+        <div className="settings-card">
+          <div className="settings-card__head">
+            <div>
+              <h2 className="settings-card__title">{t('settings.accounts.title')}</h2>
+              <p className="settings-card__subtitle">{t('settings.accounts.hint')}</p>
+            </div>
+            <button className="btn btn--primary" type="button" onClick={onAddAccount}>
+              <Icon name="add" size={15} />
+              {t('account.add')}
+            </button>
+          </div>
+          {accounts.length === 0 ? (
+            <p className="muted">{t('settings.accounts.empty')}</p>
+          ) : (
+            <ul className="settings-accounts">
+              {accounts.map((account) => (
+                <li className="settings-accounts__row" key={account.id}>
+                  <div className="settings-accounts__identity">
+                    <strong>{account.label || account.user}</strong>
+                    <span>{account.user}</span>
+                    <span className="mono">{account.host}:{account.port} · {account.auth === 'oauth2' ? 'OAuth2' : t('account.authPassword')}</span>
+                    {account.active && <span className="settings-accounts__active">{t('settings.accounts.active')}</span>}
+                  </div>
+                  <button className="tool-btn" type="button" onClick={() => account.active ? onManageAccount() : onSelectAccount(account.id)}>
+                    <Icon name={account.active ? 'tune' : 'swap_horiz'} size={15} />
+                    {t(account.active ? 'account.manage' : 'settings.accounts.select')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )
     }
-    const current = empty[section]
 
     return (
       <div className="settings-card settings-card--empty">
-        <span className="empty-state__icon">
-          <Icon name={current.icon} size={26} />
-        </span>
-        <h2 className="settings-card__title">{t(current.title)}</h2>
-        <p className="settings-card__subtitle">{t(current.text)}</p>
-        {section === 'accounts' && (
-          <>
-            <p className="muted" style={{ maxWidth: '52ch' }}>
-              {t('settings.accounts.hint')}
-            </p>
-            <button className="btn btn--primary" type="button" disabled>
-              {t('settings.accounts.cta')}
-            </button>
-          </>
-        )}
-        {section !== 'accounts' && <span className="chip chip--outline">{t('settings.soon')}</span>}
+        <span className="empty-state__icon"><Icon name="neurology" size={26} /></span>
+        <h2 className="settings-card__title">{t('settings.copilot.title')}</h2>
+        <p className="settings-card__subtitle">{t('settings.copilot.empty')}</p>
+        <span className="chip chip--outline">{t('settings.soon')}</span>
       </div>
     )
   }
@@ -354,7 +376,7 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
                 <Icon name={item.icon} size={18} />
                 <span className="settings-nav__label">{t(item.labelKey)}</span>
                 {item.id === 'accounts' ? (
-                  <span className="settings-nav__meta">{t('settings.nav.empty')}</span>
+                  <span className="settings-nav__meta">{accounts.length}</span>
                 ) : item.id === 'shortcuts' ? (
                   <span className="settings-nav__meta">{SHORTCUTS.length}</span>
                 ) : null}
@@ -365,10 +387,10 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
           <div className="settings-card settings-card--profile">
             <span className="card__label">{t('settings.profile.title')}</span>
             <div className="profile-row">
-              <span className="avatar avatar--lg avatar--accent">{ACCOUNT.initials}</span>
+              <span className="avatar avatar--lg avatar--accent">{activeAccount ? activeAccount.user.slice(0, 2).toUpperCase() : 'N'}</span>
               <div style={{ minWidth: 0 }}>
-                <div className="profile-row__name">{ACCOUNT.name}</div>
-                <div className="profile-row__mail">{ACCOUNT.email}</div>
+                <div className="profile-row__name">{activeAccount?.label || activeAccount?.user || t('account.demo')}</div>
+                <div className="profile-row__mail">{activeAccount?.user ?? t('sidebar.demo')}</div>
               </div>
             </div>
             <div className="profile-fact">

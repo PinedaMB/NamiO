@@ -16,6 +16,7 @@ interface ThreadPaneProps {
   canToggleContext: boolean
   /** Hay cuenta real: archivar, eliminar y leído aplican sobre el servidor. */
   canMutate: boolean
+  spam: boolean
   unread: boolean
   onToggleContext: () => void
   onArchive: () => void
@@ -99,6 +100,7 @@ export function ThreadPane({
   contextOpen,
   canToggleContext,
   canMutate,
+  spam,
   unread,
   onToggleContext,
   onArchive,
@@ -291,7 +293,7 @@ export function ThreadPane({
                 )}
               </div>
 
-              {message.html ? <EmailBody html={message.html} /> : <Body message={message} />}
+              {message.html ? <EmailBody html={message.html} blockRemote={spam} /> : <Body message={message} />}
             </>
           )}
 

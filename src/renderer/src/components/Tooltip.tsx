@@ -1,5 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
 import { createPortal } from 'react-dom'
+import { usePresence } from '../lib/usePresence'
+import { cx } from '../lib/cx'
 
 export function TooltipButton({ title, ...props }: ComponentProps<'button'>): React.JSX.Element {
   return <button {...props} data-tooltip={title} aria-label={props['aria-label'] ?? title} />
@@ -10,6 +12,8 @@ export function Tooltips(): React.JSX.Element | null {
   const tip = useRef<HTMLDivElement>(null)
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
+  const [open, setOpen] = useState(false)
+  const { mounted, closing } = usePresence(open, 120)
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -18,11 +22,11 @@ export function Tooltips(): React.JSX.Element | null {
     const clear = (): void => clearTimeout(timer)
     const hide = (): void => {
       clear()
-      setAnchor(null)
+      setOpen(false)
     }
     const leave = (): void => {
       clear()
-      timer = setTimeout(() => setAnchor(null), 100)
+      timer = setTimeout(hide, 100)
     }
     const enter = (event: Event): void => {
       const target = event.target instanceof Element ? event.target : null
@@ -35,7 +39,10 @@ export function Tooltips(): React.JSX.Element | null {
       if (button === dismissed || (event.type === 'focusin' && !keyboardFocus)) return
       clear()
       timer = setTimeout(() => {
-        if (button.isConnected) setAnchor(button)
+        if (button.isConnected) {
+          setAnchor(button)
+          setOpen(true)
+        }
       }, event.type === 'focusin' ? 0 : 350)
     }
     const exit = (event: Event): void => {
@@ -87,7 +94,7 @@ export function Tooltips(): React.JSX.Element | null {
   }, [])
 
   useLayoutEffect(() => {
-    if (!anchor || !tip.current) return
+    if (!open || !anchor || !tip.current) return
     const rect = anchor.getBoundingClientRect()
     const { width, height } = tip.current.getBoundingClientRect()
     setPosition({
@@ -99,7 +106,7 @@ export function Tooltips(): React.JSX.Element | null {
     const previous = anchor.getAttribute('aria-describedby')
     anchor.setAttribute('aria-describedby', [previous, id].filter(Boolean).join(' '))
     const observer = new MutationObserver(() => {
-      if (!anchor.isConnected) setAnchor(null)
+      if (!anchor.isConnected) setOpen(false)
     })
     observer.observe(document.body, { childList: true, subtree: true })
     return () => {
@@ -107,10 +114,10 @@ export function Tooltips(): React.JSX.Element | null {
       if (previous === null) anchor.removeAttribute('aria-describedby')
       else anchor.setAttribute('aria-describedby', previous)
     }
-  }, [anchor, id])
+  }, [anchor, id, open, mounted])
 
-  return anchor ? createPortal(
-    <div className="tooltip" id={id} role="tooltip" ref={tip} style={position}>
+  return mounted && anchor ? createPortal(
+    <div className={cx('tooltip', closing && 'tooltip--closing')} id={id} role="tooltip" aria-hidden={!open || undefined} ref={tip} style={position}>
       {anchor.dataset.tooltip}
     </div>,
     document.body

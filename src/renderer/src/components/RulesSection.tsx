@@ -1,4 +1,5 @@
 import { TooltipButton } from './Tooltip'
+import { Select } from './Select'
 import { useCallback, useEffect, useState } from 'react'
 import type { MailboxInfo, Rule, RuleAction, RuleDraft, RuleField, RuleOp } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
@@ -151,11 +152,10 @@ export function RulesSection(): React.JSX.Element {
 
         {creating && (
           <div className="rules__form">
-            <div className="account-row account-row--host">
+            <div className="rules__row">
               <label className="account-field">
                 <span>{t('rules.field.label')}</span>
-                <select
-                  className="rules__select"
+                <Select
                   value={draft.field}
                   onChange={(event) => setDraft({ ...draft, field: event.target.value as RuleField })}
                 >
@@ -164,12 +164,11 @@ export function RulesSection(): React.JSX.Element {
                       {t(item.labelKey)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="account-field">
                 <span>{t('rules.op.label')}</span>
-                <select
-                  className="rules__select"
+                <Select
                   value={draft.op}
                   onChange={(event) => setDraft({ ...draft, op: event.target.value as RuleOp })}
                 >
@@ -178,7 +177,7 @@ export function RulesSection(): React.JSX.Element {
                       {t(item.labelKey)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
 
@@ -192,11 +191,10 @@ export function RulesSection(): React.JSX.Element {
               />
             </label>
 
-            <div className="account-row account-row--host">
+            <div className="rules__row">
               <label className="account-field">
                 <span>{t('rules.action.label')}</span>
-                <select
-                  className="rules__select"
+                <Select
                   value={draft.action}
                   onChange={(event) => setDraft({ ...draft, action: event.target.value as RuleAction })}
                 >
@@ -205,13 +203,12 @@ export function RulesSection(): React.JSX.Element {
                       {t(item.labelKey)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {draft.action === 'move' && (
                 <label className="account-field">
                   <span>{t('rules.target.label')}</span>
-                  <select
-                    className="rules__select"
+                  <Select
                     value={draft.target ?? ''}
                     onChange={(event) => setDraft({ ...draft, target: event.target.value || null })}
                   >
@@ -221,7 +218,7 @@ export function RulesSection(): React.JSX.Element {
                         {box.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               )}
             </div>

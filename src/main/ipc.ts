@@ -27,17 +27,19 @@ import {
   readAttachment,
   searchMail,
   selectAccount,
+  syncMailbox,
   setFlagged,
   setSeen
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
 import { clearDraft, readDraft, saveDraft } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
-import { encryptSecret, readSettings, writeSettings } from './settings'
+import { encryptSecret, readActiveAccount, updateAccount, readSettings, writeSettings } from './settings'
 
 function validConfig(config: AccountConfig): boolean {
   const smtp = config.smtp
   return (
+    (config.label === undefined || (typeof config.label === 'string' && config.label.trim().length <= 80)) &&
     typeof config.host === 'string' &&
     config.host.trim() !== '' &&
     Number.isInteger(config.port) &&
@@ -92,6 +94,7 @@ export function registerIpcHandlers(): void {
         port: config.port,
         secure: config.secure,
         user: config.user.trim(),
+        label: config.label?.trim(),
         smtp: {
           host: config.smtp.host.trim(),
           port: config.smtp.port,
@@ -135,6 +138,7 @@ export function registerIpcHandlers(): void {
         port: config.port,
         secure: config.secure,
         user: config.user.trim(),
+        label: config.label?.trim(),
         auth: 'oauth2',
         oauth: { ...config.oauth, clientId: config.oauth.clientId.trim() },
         smtp: {
@@ -149,6 +153,16 @@ export function registerIpcHandlers(): void {
       return result
     }
   )
+
+  ipcMain.handle(IPC.accountRename, async (_event, label: string) => {
+    if (typeof label !== 'string' || label.trim().length > 80) {
+      return { ok: false, code: 'unknown', detail: 'Nombre de cuenta inválido' }
+    }
+    const account = await readActiveAccount()
+    if (!account) return { ok: false, code: 'unknown', detail: 'No hay una cuenta activa' }
+    await updateAccount(account.id, { label: label.trim() })
+    return { ok: true, data: await getAccountState() }
+  })
 
   ipcMain.handle(IPC.accountDisconnect, async (): Promise<void> => {
     await disconnectAccount()
@@ -194,6 +208,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.outboxRetry, (_event, id: string) => retryOutbox(id))
   ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
 
+  ipcMain.handle(IPC.syncMailbox, (_event, path: string) => {
+    if (typeof path !== 'string' || path.trim() === '') {
+      return { ok: false, code: 'unknown', detail: 'Carpeta inválida' }
+    }
+    return syncMailbox(path)
+  })
   ipcMain.handle(IPC.syncProgress, () => getSyncProgress())
 
   ipcMain.handle(IPC.rulesList, () => readRules())

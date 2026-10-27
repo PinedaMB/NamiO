@@ -36,7 +36,7 @@ async function main() {
 
   const state = { threads: ['old mail'], selectedId: 'live:1', hits: ['old result'] }
   const context = {
-    folder: 'INBOX', locale: 'es', listLimit: 50, useCallback: fn => fn, accountIdentity: { current: 'previous' }, accountGeneration: { current: 0 }
+    folder: 'inbox', folderRequest: { current: 0 }, activeFolderRef: { current: 'inbox' }, locale: 'es', listLimit: 50, useCallback: fn => fn, accountIdentity: { current: 'previous' }, accountGeneration: { current: 0 }
   }
   for (const name of ['Threads', 'SelectedId', 'Mailboxes', 'Query', 'Hits', 'Searching', 'LoadingFolder', 'Folder', 'LiveError', 'Sync', 'SyncProgress', 'Outbox', 'Account']) {
     context[`set${name}`] = value => { state[name[0].toLowerCase() + name.slice(1)] = value }
@@ -70,6 +70,14 @@ async function main() {
   finishMessages({ ok: true, data: ['old message with reused UID'] })
   await messages
   assert.equal(state.threads.length, 0, 'old messages cannot repopulate a new account')
-  console.log('Account isolation checks passed')
+  let finishFolder
+  context.window.api.listMailboxes = () => new Promise(resolve => { finishFolder = resolve })
+  const oldFolder = refresh()
+  context.folderRequest.current++
+  context.activeFolderRef.current = 'Archive'
+  finishFolder({ ok: true, data: ['Spam'] })
+  await oldFolder
+  assert.equal(state.mailboxes.length, 0, 'late responses from another folder are discarded')
+  console.log('Account and folder isolation checks passed')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

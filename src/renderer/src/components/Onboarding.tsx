@@ -89,6 +89,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
 
   // Campos del alta
   const [user, setUser] = useState('')
+  const [label, setLabel] = useState('')
   const [password, setPassword] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -149,6 +150,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
       port: portNumber,
       secure,
       user: user.trim(),
+      label: label.trim(),
       smtp: { host: smtpHost.trim(), port: smtpPortNumber, secure: smtpSecure },
       auth: preset.oauth ? 'oauth2' : 'password',
       ...(preset.oauth && preset.provider
@@ -260,6 +262,10 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 void connect()
               }}
             >
+              <label className="account-field">
+                <span>{t('account.label')}</span>
+                <input value={label} onChange={(event) => setLabel(event.target.value)} maxLength={80} placeholder={t('account.labelPlaceholder')} />
+              </label>
               <label className="account-field">
                 <span>{preset?.oauth ? t('onboarding.email') : t('onboarding.emailOrUser')}</span>
                 <input

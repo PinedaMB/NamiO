@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/ipc'
@@ -47,9 +47,24 @@ export async function readSettings(): Promise<StoredSettings> {
   }
 }
 
-export async function writeSettings(patch: Partial<StoredSettings>): Promise<void> {
-  const current = await readSettings()
-  await writeFile(settingsPath(), `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, 'utf8')
+let settingsWrites: Promise<void> = Promise.resolve()
+
+export function writeSettings(patch: Partial<StoredSettings> | ((current: StoredSettings) => Partial<StoredSettings>)): Promise<void> {
+  const next = settingsWrites.then(async () => {
+    const current = await readSettings()
+    const updates = typeof patch === 'function' ? patch(current) : patch
+    const path = settingsPath()
+    await writeFile(`${path}.tmp`, `${JSON.stringify({ ...current, ...updates }, null, 2)}\n`, 'utf8')
+    await rename(`${path}.tmp`, path)
+  })
+  settingsWrites = next.catch(() => undefined)
+  return next
+}
+
+export async function updateAccount(id: string, patch: Partial<StoredAccount>): Promise<void> {
+  await writeSettings((current) => ({
+    accounts: (current.accounts ?? []).map((account) => account.id === id ? { ...account, ...patch } : account)
+  }))
 }
 
 export async function encryptSecret(password: string): Promise<string | null> {
@@ -115,12 +130,15 @@ export async function setActiveAccount(id: string): Promise<boolean> {
 
 /** Inserta o actualiza una cuenta por id; devuelve la lista resultante. */
 export async function saveAccount(account: StoredAccount): Promise<StoredAccount[]> {
-  const { accounts, active } = await readAccounts()
-  const exists = accounts.some((item) => item.id === account.id)
-  const next = exists
-    ? accounts.map((item) => (item.id === account.id ? account : item))
-    : [...accounts, account]
-  await writeAccounts(next, active ?? account.id)
+  await readAccounts()
+  let next: StoredAccount[] = []
+  await writeSettings((current) => {
+    const accounts = current.accounts ?? []
+    next = accounts.some((item) => item.id === account.id)
+      ? accounts.map((item) => item.id === account.id ? { ...account, label: account.label ?? item.label } : item)
+      : [...accounts, account]
+    return { accounts: next, activeAccount: current.activeAccount ?? account.id }
+  })
   return next
 }
 

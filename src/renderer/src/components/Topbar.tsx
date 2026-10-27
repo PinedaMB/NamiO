@@ -1,5 +1,4 @@
 import { TooltipButton } from './Tooltip'
-import { ACCOUNT } from '../data/demo'
 import { LOCALES, useI18n } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
@@ -16,6 +15,8 @@ interface TopbarProps {
   onQuery: (value: string) => void
   onOpenPalette: () => void
   onOpenSettings: () => void
+  onSync: () => void
+  syncing: boolean
 }
 
 const FILTERS: ReadonlyArray<{ id: FilterId; labelKey: 'topbar.unread' | 'topbar.needsReply' | 'topbar.vips' | 'topbar.files'; icon?: string }> = [
@@ -33,7 +34,9 @@ export function Topbar({
   query,
   onQuery,
   onOpenPalette,
-  onOpenSettings
+  onOpenSettings,
+  onSync,
+  syncing
 }: TopbarProps): React.JSX.Element {
   const { t, locale, setLocale } = useI18n()
 
@@ -134,8 +137,8 @@ export function Topbar({
             </TooltipButton>
           ))}
         </div>
-        <TooltipButton className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')}>
-          <Icon name="sync" size={18} />
+        <TooltipButton className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')} onClick={onSync} disabled={!live || syncing} aria-busy={syncing}>
+          <Icon name="sync" size={18} className={syncing ? 'spin spin--reverse' : undefined} />
         </TooltipButton>
         <TooltipButton
           className="icon-btn"
@@ -145,10 +148,6 @@ export function Topbar({
           onClick={onOpenSettings}
         >
           <Icon name="tune" size={18} />
-        </TooltipButton>
-        <div className="vsep" />
-        <TooltipButton className="avatar avatar--accent" type="button" title={ACCOUNT.name}>
-          {ACCOUNT.initials}
         </TooltipButton>
       </div>
     </header>

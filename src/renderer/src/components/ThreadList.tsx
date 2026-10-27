@@ -128,7 +128,7 @@ export function ThreadList({
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
             <TooltipButton className="icon-btn" type="button" title={t('list.sort')} aria-label={t('list.sort')}>
               <Icon name="swap_vert" size={15} />
             </TooltipButton>

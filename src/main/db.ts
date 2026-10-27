@@ -338,9 +338,18 @@ export function setFlagged(mailbox: string, uid: number, flagged: boolean): void
 }
 
 export function setUnread(mailbox: string, uid: number, unread: boolean): void {
-  handle()
-    .prepare('UPDATE messages SET unread = ? WHERE mailbox = ? AND uid = ?')
-    .run(unread ? 1 : 0, mailbox, uid)
+  const database = handle()
+  database.exec('BEGIN')
+  try {
+    const previous = readEnvelope(mailbox, uid)
+    database.prepare('UPDATE messages SET unread = ? WHERE mailbox = ? AND uid = ?')
+      .run(unread ? 1 : 0, mailbox, uid)
+    if (previous && previous.unread !== unread) adjustMailboxUnseen(mailbox, unread ? 1 : -1)
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 /** Refresca solo los flags del tramo reciente (no toca asunto ni cuerpo). */

@@ -63,6 +63,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const [port, setPort] = useState('993')
   const [secure, setSecure] = useState(true)
   const [user, setUser] = useState('')
+  const [label, setLabel] = useState('')
   const [password, setPassword] = useState('')
   const [smtpHost, setSmtpHost] = useState('')
   const [smtpPort, setSmtpPort] = useState('465')
@@ -89,6 +90,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setPort(String(current.port))
     setSecure(current.secure)
     setUser(current.user)
+    setLabel(current.label ?? '')
     setSmtpHost(current.smtp.host)
     setSmtpPort(String(current.smtp.port))
     setSmtpSecure(current.smtp.secure)
@@ -161,6 +163,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
       port: portNumber,
       secure,
       user: user.trim(),
+      label: label.trim(),
       smtp: { host: smtpHost.trim(), port: smtpPortNumber, secure: smtpSecure },
       auth
     }
@@ -238,6 +241,28 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             void submit()
           }}
         >
+          <label className="account-field">
+            <span>{t('account.label')}</span>
+            <input value={label} onChange={(event) => setLabel(event.target.value)} maxLength={80} placeholder={t('account.labelPlaceholder')} />
+          </label>
+          {account?.configured && label.trim() !== (account.account?.label ?? '') && (
+            <button className="tool-btn" type="button" disabled={busy} onClick={async () => {
+              setBusy(true)
+              setError(null)
+              try {
+                const result = await window.api.accountRename(label)
+                if (result.ok) onConnected(result.data)
+                else setError({ code: result.code, detail: result.detail })
+              } catch {
+                setError({ code: 'unknown', detail: 'IPC' })
+              } finally {
+                setBusy(false)
+              }
+            }}>
+              {t('account.saveName')}
+            </button>
+          )}
+
           <label className="account-field">
             <span>{t(microsoft ? 'onboarding.email' : 'account.user')}</span>
             <input

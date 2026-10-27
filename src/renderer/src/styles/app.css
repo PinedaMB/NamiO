@@ -1,3 +1,85 @@
+.select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 var(--sp-md);
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+
+.select:hover {
+  border-color: var(--outline-variant);
+  background: var(--surface-container-low);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.select option {
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+@supports (appearance: base-select) {
+  .select,
+  .select::picker(select) {
+    appearance: base-select;
+  }
+
+  .select {
+    align-items: center;
+  }
+
+  .select::picker-icon {
+    color: var(--outline);
+    transition: transform var(--fast) var(--ease);
+  }
+
+  .select:open::picker-icon {
+    color: var(--primary);
+    transform: rotate(180deg);
+  }
+
+  .select::picker(select) {
+    margin-block: var(--sp-xs);
+    padding: var(--sp-xs);
+    border: 0;
+    border-radius: var(--r-lg);
+    background: var(--surface-container-high);
+    color: var(--on-surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .select option {
+    min-height: 34px;
+    padding: var(--sp-sm) var(--sp-md);
+    gap: var(--sp-sm);
+    border-radius: var(--r-md);
+    background: transparent;
+    font-family: var(--font-sans);
+    font-size: 13px;
+  }
+
+  .select option:hover,
+  .select option:focus-visible {
+    background: var(--surface-container-highest);
+    outline: none;
+  }
+
+  .select option:checked {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+}
+
 /* ============================================================================
    Estructura y componentes de la interfaz "Veloce"
    Layout: rail (224) · lista (380) · lectura (flex) · contexto (320)
@@ -5,6 +87,7 @@
 
 .tooltip {
   position: fixed;
+  pointer-events: none;
   z-index: 100;
   max-width: min(280px, calc(100vw - 16px));
   padding: var(--sp-sm) var(--sp-md);
@@ -15,6 +98,21 @@
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+  animation: tooltip-in var(--fast) var(--ease) both;
+}
+
+.tooltip--closing {
+  animation: tooltip-out var(--fast) var(--ease) forwards;
+}
+
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tooltip-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(4px); }
 }
 
 .app {
@@ -48,6 +146,51 @@
   user-select: none;
   overflow-y: auto;
   min-height: 0;
+}
+
+.app--rail-collapsed {
+  --rail-w: 64px;
+}
+
+.app--rail-collapsed .rail__brand-left,
+.app--rail-collapsed .account__id,
+.app--rail-collapsed .account__alert,
+.app--rail-collapsed .compose-btn__text,
+.app--rail-collapsed .compose-btn .kbd,
+.app--rail-collapsed .nav-item__text,
+.app--rail-collapsed .rail__tags,
+.app--rail-collapsed .rail__foot > .account-menu__action > span:not(.icon),
+.app--rail-collapsed .sync-pill__state {
+  display: none;
+}
+
+.app--rail-collapsed .rail__brand,
+.app--rail-collapsed .account,
+.app--rail-collapsed .compose-btn,
+.app--rail-collapsed .nav-item,
+.app--rail-collapsed .sync-pill {
+  justify-content: center;
+}
+
+.app--rail-collapsed .compose-btn,
+.app--rail-collapsed .nav-item {
+  padding-inline: var(--sp-sm);
+}
+
+.app--rail-collapsed .nav-item {
+  position: relative;
+}
+
+.app--rail-collapsed .sync-pill {
+  padding: var(--sp-xs);
+}
+
+.app--rail-collapsed .nav-item__count {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 9px;
+  padding: 1px 3px;
 }
 
 .rail__brand {
@@ -197,6 +340,12 @@
   color: var(--on-surface);
 }
 
+.nav-item--spam .nav-item__label,
+.nav-item--spam .nav-item__count {
+  color: var(--error);
+  font-weight: 650;
+}
+
 .nav-item--active {
   background: var(--surface-container-high);
   color: var(--primary);
@@ -285,11 +434,25 @@
 
 .sync-pill__state {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--on-surface-variant);
+}
+
+.sync-pill__text {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.sync-pill > .icon-btn,
+.sync-pill__state > .dot {
+  flex-shrink: 0;
 }
 
 .pulse {
@@ -361,7 +524,7 @@
 .filter-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-sm);
 }
 
 .filter-chip {
@@ -862,8 +1025,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-sm);
-  height: 44px;
-  padding: 0 12px;
+  flex-wrap: wrap;
+  min-height: 44px;
+  padding: var(--sp-sm) var(--sp-md);
   background: color-mix(in srgb, var(--surface-container-low) 70%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--surface-container-highest) 40%, transparent);
   flex-shrink: 0;
@@ -872,14 +1036,14 @@
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-sm);
+  flex-wrap: wrap;
   min-width: 0;
   flex-shrink: 0;
 }
 
 .toolbar-group:first-child {
   flex-shrink: 1;
-  overflow: hidden;
 }
 
 .tool-btn {
@@ -1214,6 +1378,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
@@ -1972,7 +2137,7 @@
 .formatbar__tools {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--sp-sm);
   color: var(--on-surface-variant);
 }
 
@@ -2074,8 +2239,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-md);
-  height: 56px;
-  padding: 0 var(--sp-lg);
+  flex-wrap: wrap;
+  min-height: 56px;
+  padding: var(--sp-sm) var(--sp-lg);
   background: var(--surface-container-high);
   flex-shrink: 0;
 }
@@ -2539,6 +2705,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-md);
+  flex-wrap: wrap;
 }
 
 .settings-card__title {
@@ -2880,6 +3047,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-md);
+  flex-wrap: wrap;
 }
 
 @media (max-width: 1180px) {
@@ -3029,6 +3197,36 @@
   font-family: var(--font-mono);
   font-size: 11px;
   padding: 5px 9px;
+}
+
+.settings-accounts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.settings-accounts__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-md);
+  padding: var(--sp-md) 0;
+  border-top: 1px solid var(--surface-container-highest);
+}
+
+.settings-accounts__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--sp-xs);
+  color: var(--on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+.settings-accounts__active {
+  color: var(--primary);
+  font-size: 12px;
 }
 
 .account-form {
@@ -3212,6 +3410,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-md);
+  flex-wrap: wrap;
   padding-top: 6px;
 }
 
@@ -3219,6 +3418,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* Cuerpo HTML del correo (iframe aislado) */
@@ -3713,6 +3913,10 @@
   animation: spin 900ms linear infinite;
 }
 
+.spin--reverse {
+  animation-direction: reverse;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -3909,15 +4113,11 @@
   background: var(--surface-container-low);
 }
 
-.rules__select {
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--surface-container-highest);
-  border-radius: var(--r-lg);
-  background: var(--surface-container-lowest);
-  color: var(--on-surface);
-  font-family: var(--font-mono);
-  font-size: 12px;
+.rules__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  align-items: end;
+  gap: var(--sp-md);
 }
 
 .rules__form-actions {
