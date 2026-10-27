@@ -1,7 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import type { BodyTheme, RemoteImagePolicy } from '@shared/ipc'
+import type { AppSettings, BodyTheme, RemoteImagePolicy } from '@shared/ipc'
+
+type NotificationPreferences = Required<Pick<AppSettings, 'notifications' | 'notificationSound' | 'notificationPrivate' | 'keepInBackground'>>
 
 interface PreferencesValue {
+  notificationPreferences: NotificationPreferences
+  setNotificationPreference: (key: keyof NotificationPreferences, value: boolean) => Promise<void>
   saveError: string | null
   remoteImages: RemoteImagePolicy
   setRemoteImages: (policy: RemoteImagePolicy) => void
@@ -20,10 +24,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const [remoteImages, setRemoteImagesState] = useState<RemoteImagePolicy>('block')
   const [bodyTheme, setBodyThemeState] = useState<BodyTheme>('light')
 
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({ notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false })
+
   useEffect(() => {
     window.api
       ?.getSettings?.()
       .then((settings) => {
+        setNotificationPreferences({ notifications: settings?.notifications !== false, notificationSound: settings?.notificationSound !== false, notificationPrivate: settings?.notificationPrivate !== false, keepInBackground: settings?.keepInBackground === true })
         if (settings?.remoteImages === 'allow' || settings?.remoteImages === 'block') {
           setRemoteImagesState(settings.remoteImages)
         }
@@ -56,9 +63,19 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
   }, [])
 
+  const setNotificationPreference = useCallback(async (key: keyof NotificationPreferences, value: boolean) => {
+    setSaveError(null)
+    try {
+      await window.api.setSettings({ [key]: value })
+      setNotificationPreferences(current => ({ ...current, [key]: value }))
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }, [])
+
   const value = useMemo<PreferencesValue>(
-    () => ({ saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme }),
-    [saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme]
+    () => ({ notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme }),
+    [notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme]
   )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

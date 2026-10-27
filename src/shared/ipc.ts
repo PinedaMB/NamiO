@@ -9,6 +9,8 @@ export const IPC = {
   coreStatus: 'core:status',
   cacheClear: 'cache:clear',
   recipientSuggestions: 'recipients:suggest',
+  notificationTest: 'notifications:test',
+  notificationOpen: 'notifications:open',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   accountStatus: 'account:status',
@@ -79,6 +81,10 @@ export type Language = 'es' | 'en'
 export type BodyTheme = 'light' | 'dark'
 
 export interface AppSettings {
+  keepInBackground?: boolean
+  notifications?: boolean
+  notificationSound?: boolean
+  notificationPrivate?: boolean
   language: Language
   /** Acción → combinación normalizada (`j`, `mod+k`). */
   shortcuts?: Record<string, string>
@@ -352,7 +358,16 @@ export interface MailAction {
   error?: string
 }
 
+export interface NotificationTarget {
+  accountId: string
+  identity: string
+  path: string
+  uid: number
+}
+
 export interface MailApi {
+  testNotification(): Promise<void>
+  onNotificationOpen(listener: (target: NotificationTarget) => void): () => void
   suggestRecipients(query: string): Promise<RecipientSuggestion[]>
   getCoreStatus(): Promise<CoreStatus>
   clearMailCache(accountId: string): Promise<{ canceled: boolean }>

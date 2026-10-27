@@ -1,6 +1,7 @@
 import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  NotificationTarget,
   Draft,
   AccountState,
   AccountActivity,
@@ -102,6 +103,9 @@ export function App(): React.JSX.Element {
   const { t, locale } = useI18n()
   const { bindings } = useShortcuts()
 
+  const [openingNotification, setOpeningNotification] = useState(false)
+  const [switchingAccount, setSwitchingAccount] = useState(false)
+  const [notificationTarget, setNotificationTarget] = useState<NotificationTarget | null>(null)
   const [view, setView] = useState<View>('mailbox')
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [contextMenu, setContextMenu] = useState<(ContextAnchor & { kind: 'message' | 'folder'; id: string; messageId?: string }) | null>(null)
@@ -345,7 +349,17 @@ export function App(): React.JSX.Element {
       }
 
       setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
-      const mapped = envelopesToThreads(result.data, locale)
+      let envelopes = result.data
+      if (focusUid !== undefined && !envelopes.some(envelope => envelope.uid === focusUid)) {
+        const message = await window.api.getMessage(path, focusUid).catch(() => null)
+        if (generation !== accountGeneration.current || request !== folderRequest.current) return
+        if (!message?.ok) {
+          setLiveError({ code: message && !message.ok ? message.code : 'unknown', detail: message && !message.ok ? message.detail : 'IPC' })
+          return
+        }
+        envelopes = [...envelopes, message.data]
+      }
+      const mapped = envelopesToThreads(envelopes, locale)
       setThreads(mapped)
       userNavigated.current = false
       setSelectedId(focusUid !== undefined ? `live:${focusUid}` : (mapped[0]?.id ?? null))
@@ -909,6 +923,7 @@ export function App(): React.JSX.Element {
     if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
     if (busySwitch.current) return
     busySwitch.current = true
+    setSwitchingAccount(true)
     try {
       const result = await window.api.selectAccount(id).catch(() => null)
       if (!result?.ok) {
@@ -921,8 +936,40 @@ export function App(): React.JSX.Element {
       setToast(t('account.switched'))
     } finally {
       busySwitch.current = false
+      setSwitchingAccount(false)
     }
   }
+
+  useEffect(() => window.api?.onNotificationOpen?.((target) => {
+    setNotificationTarget(target)
+    if (compose && target.identity !== accountIdentity.current) {
+      setComposeMinimized(false)
+      setToast(t('compose.finishFirst'))
+    }
+  }), [compose, t])
+
+  useEffect(() => {
+    if (!notificationTarget || switchingAccount || openingNotification) return
+    if (compose && notificationTarget.identity !== accountIdentity.current) return
+    setOpeningNotification(true)
+    const open = async (): Promise<void> => {
+      try {
+        if (notificationTarget.identity !== accountIdentity.current) {
+          await handleSelectAccount(notificationTarget.accountId)
+        }
+        if (notificationTarget.identity === accountIdentity.current) {
+          setView('mailbox')
+          setFilter('all')
+          setQuery('')
+          await loadFolder(notificationTarget.path, notificationTarget.uid)
+        }
+      } finally {
+        setNotificationTarget(current => current === notificationTarget ? null : current)
+        setOpeningNotification(false)
+      }
+    }
+    void open()
+  }, [notificationTarget, compose, switchingAccount, openingNotification, loadFolder])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {

@@ -1,6 +1,7 @@
 import { readFile, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import type { MailNotificationCursor } from './notificationCursor'
 import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/ipc'
 
 /** Cuenta guardada: las credenciales solo se persisten cifradas por el SO. */
@@ -24,6 +25,7 @@ export interface StoredAccount {
 }
 
 export interface StoredSettings extends Partial<AppSettings> {
+  mailNotificationCursors?: Record<string, MailNotificationCursor>
   /** Una o más cuentas. Una instalación vieja migra `account` a esta lista. */
   accounts?: StoredAccount[]
   /** Id de la cuenta activa: hay una sola conexión a la vez. */

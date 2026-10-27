@@ -1,4 +1,6 @@
 import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
+import { setBackgroundMode } from './background'
+import { testNotification } from './notifications'
 import { senderLogo } from './senderLogo'
 import { writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
@@ -103,10 +105,16 @@ export function registerIpcHandlers(): void {
     return suggestRecipients(query)
   })
 
+  ipcMain.handle(IPC.notificationTest, () => testNotification())
+
   ipcMain.handle(IPC.settingsGet, (): Promise<Partial<AppSettings>> => readSettings())
 
   ipcMain.handle(IPC.settingsSet, async (_event, patch: Partial<AppSettings>): Promise<void> => {
+    for (const key of ['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground'] as const) {
+      if (patch[key] !== undefined && typeof patch[key] !== 'boolean') throw new Error('Invalid notification setting')
+    }
     await writeSettings(patch)
+    if (typeof patch.keepInBackground === 'boolean') setBackgroundMode(patch.keepInBackground)
   })
 
   ipcMain.handle(IPC.accountStatus, () => getAccountState())

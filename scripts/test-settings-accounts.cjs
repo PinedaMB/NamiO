@@ -9,11 +9,11 @@ function settings(accounts, events, section = 'accounts') {
   let stateIndex = 0
   const exports = {}
   const requireMock = id => {
-    if (id === '../assets/logo.png') return { default: '/logo.png' }
-    if (id === 'react') return { ...React, useEffect: () => {}, useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
+    if (id.endsWith('.png')) return { default: '/image.png' }
+    if (id === 'react') return { ...React, useEffect: () => {}, useRef: () => ({ current: null }), useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }) }
-    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({}) }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === './Icon') return { Icon: () => null }
@@ -66,3 +66,9 @@ function inspectAbout(node) {
 inspectAbout(about)
 assert.deepEqual(aboutEvents, ['https://github.com/PinedaMB/NamiO', 'https://github.com/PinedaMB/NamiO/issues'])
 console.log('About: project identity, license and external project/support actions passed')
+
+const generalHtml = renderToStaticMarkup(settings(accounts, [], 'general'))
+assert.ok(generalHtml.includes('settings.notifications.title'))
+assert.equal((generalHtml.match(/role="switch"/g) || []).length, 4)
+assert.ok(generalHtml.includes('settings.notifications.test'))
+console.log('Notification settings: labeled preferences and test action render')

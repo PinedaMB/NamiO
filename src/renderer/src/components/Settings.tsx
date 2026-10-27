@@ -45,7 +45,7 @@ const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }
 export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAccount, onManageAccount, onSelectAccount }: SettingsProps): React.JSX.Element {
   const { t, locale, setLocale, saveError: localeError } = useI18n()
   const { bindings, save, reset, saveError: shortcutsError } = useShortcuts()
-  const { remoteImages, setRemoteImages, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
+  const { notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
   const saveError = localeError || shortcutsError || preferencesError
   const activeAccount = accounts.find((account) => account.active)
   const formatSize = (bytes: number): string => bytes < 1024 * 1024
@@ -58,6 +58,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     null
   )
   const [clearingCache, setClearingCache] = useState<string | null>(null)
+  const [notificationStatus, setNotificationStatus] = useState<string | null>(null)
   const [cacheError, setCacheError] = useState<string | null>(null)
   const [cacheCleared, setCacheCleared] = useState(false)
   const [status, setStatus] = useState<CoreStatus | null>(null)
@@ -273,6 +274,45 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     if (section === 'general') {
       return (
         <div className="settings-stack">
+          <div className="settings-card">
+            <div className="settings-card__head">
+              <div>
+                <h2 className="settings-card__title">{t('settings.notifications.title')}</h2>
+                <p className="settings-card__subtitle">{t('settings.notifications.hint')}</p>
+              </div>
+            </div>
+            <div className="notification-options">
+              {(['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground'] as const).map(key => (
+                <div className="notification-option" key={key}>
+                  <div className="notification-option__text">
+                    <span id={`notification-${key}`}>{t(`settings.notifications.${key}`)}</span>
+                    <p id={`notification-${key}-hint`}>{t(`settings.notifications.${key}Hint`)}</p>
+                  </div>
+                  <button type="button" role="switch" aria-checked={notificationPreferences[key]}
+                    aria-labelledby={`notification-${key}`} aria-describedby={`notification-${key}-hint`}
+                    className={cx('rules__switch', notificationPreferences[key] && 'rules__switch--on')}
+                    onClick={() => void setNotificationPreference(key, !notificationPreferences[key])}>
+                    <span className="rules__knob" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="notification-actions">
+            <button type="button" className="tool-btn" onClick={async () => {
+              setNotificationStatus(null)
+              try {
+                await window.api.testNotification()
+                setNotificationStatus(t('settings.notifications.sent'))
+              } catch {
+                setNotificationStatus(t('settings.notifications.failed'))
+              }
+            }}>
+              <Icon name="notifications" size={16} />{t('settings.notifications.test')}
+            </button>
+            </div>
+            {notificationStatus && <p role="status" className="settings-card__note">{notificationStatus}</p>}
+          </div>
+
           <div className="settings-card">
             <div className="settings-card__head">
               <div>

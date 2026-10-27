@@ -1,8 +1,10 @@
 import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
+import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
-import { checkAccountsActivity, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
+import { checkAccountsActivity, setNewMailListener, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
+import { showNewMail } from './notifications'
 import { readActiveAccount } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
@@ -26,6 +28,13 @@ if (!app.requestSingleInstanceLock()) {
 
 let mainWindow: BrowserWindow | null = null
 
+function openWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -48,6 +57,8 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+  void setupBackground(() => mainWindow, openWindow)
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -106,14 +117,10 @@ function hardenSession(): void {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
 }
 
-app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  }
-})
+app.on('second-instance', openWindow)
 
 void app.whenReady().then(() => {
+  app.setAppUserModelId('dev.namio.app')
   hardenSession()
 
   // La caché es por cuenta: se abre la de la cuenta activa antes de todo.
@@ -122,6 +129,9 @@ void app.whenReady().then(() => {
     .catch(() => initCache('default'))
 
   registerIpcHandlers()
+  setNewMailListener((account, path, messages) => {
+    void showNewMail(account, path, messages, () => mainWindow).catch(() => undefined)
+  })
 
   // El motor avisa cuando terminó de sincronizar; la UI recarga desde la caché.
   setCacheListener((mailbox) => {
@@ -163,7 +173,7 @@ void app.whenReady().then(() => {
     void syncInbox()
   }, 60_000)
 
-  // Avisos de las cuentas inactivas: STATUS del INBOX cada 3 minutos.
+  // Avisos de las cuentas inactivas: INBOX cada 3 minutos.
   const pushActivity = async (): Promise<void> => {
     try {
       const activity = await checkAccountsActivity()
@@ -180,7 +190,7 @@ void app.whenReady().then(() => {
   createWindow()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    openWindow()
   })
 })
 

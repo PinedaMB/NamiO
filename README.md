@@ -744,3 +744,7 @@ núcleo responde con un `stage` válido (M0–M8).
 - Autor y maintainer ya son **PinedaMB <mendez-pineda@outlook.es>** (el `.deb` usa el maintainer).
 - `homepage` y `repository` apuntan a <https://github.com/PinedaMB/NamiO>.
 - Flatpak queda para después; el canal natural es Flathub con el runtime de Electron.
+
+En Linux, el sonido de las notificaciones usa `canberra-gtk-play` (paquete `libcanberra-gtk3-module` en Debian/Ubuntu). Sin ese reproductor, los avisos visuales siguen funcionando. El volumen de efectos y el tema de sonido del escritorio controlan su reproducción.
+
+Las notificaciones revisan la cuenta activa cada minuto y las demás cada tres minutos. La primera revisión de una cuenta inactiva establece el punto de partida sin avisar del historial. En Configuración → General y velocidad podés activar **Mantener en segundo plano al cerrar** (desactivado inicialmente). El icono de bandeja permite abrir NamiO o salir por completo; sin bandeja disponible se conserva el cierre normal. Si estás redactando, la apertura de un aviso de otra cuenta espera a que cierres el redactor.

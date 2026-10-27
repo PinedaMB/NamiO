@@ -5367,3 +5367,40 @@
     }
   }
 }
+
+/* Preferencias de notificaciones: filas y controles compartidos con Reglas. */
+.notification-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.notification-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-lg);
+  padding: var(--sp-md) 0;
+}
+
+.notification-option + .notification-option {
+  border-top: 1px solid var(--surface-container-high);
+}
+
+.notification-option__text {
+  min-width: 0;
+  font-weight: 500;
+}
+
+.notification-option__text p {
+  margin: var(--sp-xs) 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--on-surface-variant);
+}
+
+.notification-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: var(--sp-xs);
+}

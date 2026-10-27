@@ -1,3 +1,4 @@
+import { trackNewMail } from './notificationCursor'
 import { isDraftMailbox } from '@shared/mailboxes'
 import { createHash } from 'node:crypto'
 import { ImapFlow, type MessageStructureObject } from 'imapflow'
@@ -53,7 +54,7 @@ import {
 } from './db'
 import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
-import { decryptSecret, encryptSecret, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, updateAccount, writeSettings, type StoredAccount } from './settings'
+import { decryptSecret, encryptSecret, readSettings, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, updateAccount, writeSettings, type StoredAccount } from './settings'
 
 interface Session {
   client: ImapFlow
@@ -61,6 +62,11 @@ interface Session {
 }
 
 let session: Session | null = null
+let newMailListener: ((account: StoredAccount, path: string, messages: Envelope[]) => void) | null = null
+export function setNewMailListener(listener: NonNullable<typeof newMailListener>): void {
+  newMailListener = listener
+}
+
 let offline = false
 let cacheListener: ((mailbox: string) => void) | null = null
 
@@ -320,6 +326,7 @@ async function syncMailboxes(): Promise<MailboxInfo[]> {
 
 async function syncMessages(path: string, limit: number): Promise<void> {
   const client = await ensureClient()
+  const account = await readActiveAccount()
 
   // STATUS fresco: si el buzón ya estaba seleccionado, `client.mailbox` puede
   // tener EXISTS/UIDNEXT viejos y el sync se quedaría dormido.
@@ -408,6 +415,16 @@ async function syncMessages(path: string, limit: number): Promise<void> {
         messages: exists,
         unseen: unseen ?? (exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path)))
       })
+    }
+
+    if (account && uidValidity !== null && uidNext !== null && /^inbox$/i.test(path)) {
+      const messages = [...new Set(nuevos)]
+        .map(uid => readEnvelope(path, uid))
+        .filter((message): message is Envelope => message !== null)
+      const baseline = cached?.uidValidity != null && cached.uidNext != null
+        ? { uidValidity: cached.uidValidity, uidNext: cached.uidNext } : undefined
+      const fresh = await trackNewMail(account.id, { uidValidity, uidNext }, messages, baseline, fullSync)
+      if (fresh.length) newMailListener?.(account, path, fresh)
     }
 
     // Las reglas actúan sobre lo que acaba de llegar. Las acciones se encolan
@@ -923,11 +940,17 @@ export async function listAccounts(): Promise<AccountSummary[]> {  const { accou
 }
 
 /**
- * Revisa el INBOX de todas las cuentas con una sesión corta (solo STATUS) y
+ * Revisa el INBOX de todas las cuentas con una sesión corta y
  * marca cuáles sumaron no leídos desde la revisión anterior. Es lo que permite
  * avisar de correo en las cuentas que no están activas sin abrir la bandeja.
  */
-export async function checkAccountsActivity(): Promise<AccountActivity[]> {
+let activityCheck: Promise<AccountActivity[]> | null = null
+export function checkAccountsActivity(): Promise<AccountActivity[]> {
+  if (!activityCheck) activityCheck = pollAccountsActivity().finally(() => { activityCheck = null })
+  return activityCheck
+}
+
+async function pollAccountsActivity(): Promise<AccountActivity[]> {
   const { accounts, active } = await readAccounts()
 
   const activity: AccountActivity[] = []
@@ -941,21 +964,23 @@ export async function checkAccountsActivity(): Promise<AccountActivity[]> {
     } else {
       try {
         const auth = await authFor(account)
-        const client = new ImapFlow({
-          host: account.host,
-          port: account.port,
-          secure: account.secure,
-          auth:
-            'accessToken' in auth
-              ? { user: account.user, accessToken: auth.accessToken }
-              : { user: account.user, pass: auth.password },
-          logger: false,
-          emitLogs: false
-        })
+        const client = createClient(account, auth)
         await client.connect()
         try {
-          const status = await client.status('INBOX', { unseen: true })
+          const status = await client.status('INBOX', { unseen: true, uidNext: true, uidValidity: true })
           unseen = status !== false ? Number(status.unseen ?? 0) : 0
+          if (status && status.uidValidity != null && status.uidNext != null) {
+            const cursor = { uidValidity: Number(status.uidValidity), uidNext: Number(status.uidNext) }
+            const previous = (await readSettings()).mailNotificationCursors?.[account.id]
+            let messages: Envelope[] = []
+            if (previous?.uidValidity === cursor.uidValidity && cursor.uidNext > previous.uidNext) {
+              const lock = await client.getMailboxLock('INBOX')
+              try { messages = await fetchRange(client, `${previous.uidNext}:*`, true) }
+              finally { lock.release() }
+            }
+            const fresh = await trackNewMail(account.id, cursor, messages)
+            if (fresh.length) newMailListener?.(account, 'INBOX', fresh)
+          }
         } finally {
           await client.logout().catch(() => undefined)
         }

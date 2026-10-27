@@ -2,6 +2,10 @@
 
 ## 0.4.0 — 2026-10-27
 
+- Icono de bandeja con Abrir y Salir y preferencia para mantener NamiO en segundo plano al cerrar la ventana. Los avisos de otras cuentas permiten cambiar a la cuenta y abrir el mensaje, esperando si hay una redacción activa.
+
+- Notificaciones nativas de correo nuevo en Recibidos para todas las cuentas, con agrupación por sincronización, sonido y privacidad configurables, botón de prueba y apertura del mensaje al pulsar el aviso. Seguimiento persistente por cuenta para evitar duplicados al cambiar de cuenta o reiniciar.
+
 - Redacción con editor Tiptap: formato enriquecido, enlaces, listas, citas, deshacer/rehacer y envío en HTML o texto plano.
 - Campos Para, CC y CCO con validación, chips y autocompletado de destinatarios persistente por cuenta.
 - Borradores múltiples por cuenta, con formato y adjuntos, sincronizados con la carpeta de borradores del servidor; limpieza de la copia al enviar o descartar.

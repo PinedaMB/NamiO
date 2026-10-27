@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
+  type NotificationTarget,
   type AccountConfig,
   type RecipientSuggestion,
   type AccountActivity,
@@ -30,6 +31,12 @@ import {
  * de seguridad, no un detalle de implementación.
  */
 const api: MailApi = {
+  testNotification: () => ipcRenderer.invoke(IPC.notificationTest),
+  onNotificationOpen: (listener) => {
+    const handler = (_event: unknown, target: NotificationTarget): void => listener(target)
+    ipcRenderer.on(IPC.notificationOpen, handler)
+    return () => ipcRenderer.removeListener(IPC.notificationOpen, handler)
+  },
   suggestRecipients: (query: string): Promise<RecipientSuggestion[]> => ipcRenderer.invoke(IPC.recipientSuggestions, query),
   clearMailCache: (accountId: string): Promise<{ canceled: boolean }> => ipcRenderer.invoke(IPC.cacheClear, accountId),
   getCoreStatus: (): Promise<CoreStatus> => ipcRenderer.invoke(IPC.coreStatus),
