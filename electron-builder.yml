@@ -19,6 +19,11 @@ extraResources:
   - from: THIRD_PARTY_NOTICES.md
     to: licenses/THIRD_PARTY_NOTICES.md
 
+publish:
+  provider: github
+  owner: PinedaMB
+  repo: NamiO
+
 asar: true
 asarUnpack:
   # Nada nativo por ahora: node:sqlite viene en Electron, no hay .node que extraer.

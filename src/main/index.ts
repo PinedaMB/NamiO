@@ -8,6 +8,7 @@ import { showNewMail } from './notifications'
 import { readActiveAccount } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
+import { setupAutoUpdate } from './updater'
 
 const isDev = !app.isPackaged
 
@@ -122,6 +123,7 @@ app.on('second-instance', openWindow)
 void app.whenReady().then(() => {
   app.setAppUserModelId('dev.namio.app')
   hardenSession()
+  setupAutoUpdate()
 
   // La caché es por cuenta: se abre la de la cuenta activa antes de todo.
   void readActiveAccount()

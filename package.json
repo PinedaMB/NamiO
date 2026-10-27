@@ -35,6 +35,7 @@
     "pack:inspect": "node scripts/asar-inspect.cjs release/linux-unpacked/resources/app.asar"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "imapflow": "^2.9.1",
     "mailparser": "^3.12.4",
     "nodemailer": "^10.2.1"

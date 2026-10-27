@@ -59,4 +59,5 @@ jobs:
           files: |
             release/*.AppImage
             release/*.deb
+            release/latest-linux.yml
           generate_release_notes: true
