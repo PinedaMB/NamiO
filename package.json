@@ -29,7 +29,9 @@
     "css:audit": "node scripts/css-audit.mjs",
     "build": "pnpm run typecheck && electron-vite build",
     "build:linux": "pnpm run build && electron-builder --linux",
-    "build:win": "pnpm run build && electron-builder --win"
+    "build:win": "pnpm run build && electron-builder --win",
+    "pack:dir": "pnpm run build && electron-builder --linux dir --publish never",
+    "pack:inspect": "node scripts/asar-inspect.cjs release/linux-unpacked/resources/app.asar"
   },
   "dependencies": {
     "imapflow": "^2.9.1",

@@ -432,21 +432,27 @@ Los artefactos quedan en `release/`.
 | Comando | Resultado | Sirve para |
 | --- | --- | --- |
 | `pnpm build` | `out/` (main, preload, renderer) | desarrollo y empaquetado |
-| `pnpm exec electron-builder --win dir` | `release/win-unpacked` | **probar el runtime empaquetado** |
-| `pnpm exec electron-builder --linux dir` | `release/linux-unpacked` | validar el contenido del paquete |
+| `pnpm run pack:dir` | `release/linux-unpacked` | validar el contenido del paquete |
+| `pnpm run pack:inspect` | resumen del asar | comprobar deps, fuentes y entrypoints |
+| `pnpm exec electron-builder --win dir` | `release/win-unpacked` | probar el wrapper en Windows |
 
-El paquete de Linux quedó verificado así: `app.asar` de **12.55 MB / 855 archivos** con las
+El paquete de Linux quedó verificado así: `app.asar` de **12.68 MB / 856 archivos** con las
 dependencias de runtime (`imapflow`, `mailparser`, `nodemailer` y sus transitivas), **13 fuentes
 woff2 (4.1 MB)** incluidas las de Material Symbols, y `out/main`, `out/preload` y `out/renderer`
-completos.
+completos. Se comprueba con `pnpm run pack:inspect`.
 
-Y sobre la app ya empaquetada (`isPackaged: true`, cargando desde `app.asar`):
+Y sobre ese mismo `app.asar`, ejecutado como aplicación:
 
 - Inter Variable, JetBrains Mono y Material Symbols **cargan desde el asar** (`document.fonts.check`).
-- La **CSP se aplica de verdad**: un script inline y un `fetch` remoto fueron bloqueados.
-- El **correo HTML renderiza** en su iframe (`frame-src 'self' about:`) con imágenes bloqueadas.
-- IPC, modo demo y conexión IMAP funcionan igual que en desarrollo.
-- Cero errores de consola propios.
+- La **CSP se aplica de verdad**: un `<script>` inline inyectado **no se ejecuta**.
+- **Perfil nuevo → bienvenida**; "Explorar la demo" entra a la bandeja (3 hilos) con el botón de
+  tema del cuerpo presente.
+- Cero errores de consola y cero excepciones.
+
+> Nota de transparencia: en esta ronda el ejecutable empaquetado de Windows (`release/win-unpacked`,
+> construido solo para probar el runtime) **no llega a abrirse en esta máquina**: sale con código 0 y
+> crashpad reporta `not connected`, así que no pude re-afirmar `isPackaged: true` (sí se verificó en
+> una ronda anterior). El objetivo es Linux, y ahí el binario es Electron + este mismo `app.asar`.
 
 ### Por qué AppImage y .deb necesitan Linux
 
@@ -506,6 +512,9 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Bienvenida guiada: proveedor → conexión → bandeja | ✅ |
 | Ojo para ver la contraseña y detalle del rechazo del servidor | ✅ |
 | Sync completa en segundo plano con progreso, badge de no leídos y scroll | ✅ |
+| Tema del cuerpo del correo, un solo scroll y estrella alineada | ✅ |
+| Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
+| AppImage / .deb | ⏳ CI (necesita Linux) |
 | Icono, metadatos y paquete linux-unpacked (12.6 MB de asar) | ✅ |
 | CSP activa en la app empaquetada | ✅ |
 
