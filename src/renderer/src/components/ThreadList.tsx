@@ -169,7 +169,7 @@ export function ThreadList({
           return (
             <article
               key={thread.id}
-              className={cx('thread', active && 'thread--active')}
+              className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread')}
               onClick={() => onSelect(thread.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -187,7 +187,6 @@ export function ThreadList({
                     <span className={cx('avatar', active ? 'avatar--accent' : 'avatar--tertiary')}>
                       {sender?.initials ?? '??'}
                     </span>
-                    {thread.unread && <span className="thread__presence" />}
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -198,6 +197,11 @@ export function ThreadList({
                 </div>
 
                 <div className="thread__meta">
+                  {thread.unread && (
+                    <span className="thread__unread" role="img" aria-label={t('list.unread')} title={t('list.unread')}>
+                      <Icon name="mark_email_unread" size={16} />
+                    </span>
+                  )}
                   <span className="thread__time">{thread.receivedAt}</span>
                 </div>
               </div>

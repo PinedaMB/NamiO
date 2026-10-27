@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AccountConfig, AccountState, SmtpConfig } from '@shared/ipc'
+import { MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import logo from '../assets/logo.png'
 import { useI18n, type TranslationKey } from '../i18n'
 import { cx } from '../lib/cx'
@@ -134,7 +135,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
     Number.isInteger(smtpPortNumber) &&
     smtpPortNumber > 0 &&
     smtpPortNumber < 65536 &&
-    (preset.oauth ? clientId.trim() !== '' : password !== '')
+    (preset.oauth ? preset.provider === 'microsoft' || clientId.trim() !== '' : password !== '')
 
   const connect = async (): Promise<void> => {
     if (!preset || !valid || busy) return
@@ -149,7 +150,13 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
       smtp: { host: smtpHost.trim(), port: smtpPortNumber, secure: smtpSecure },
       auth: preset.oauth ? 'oauth2' : 'password',
       ...(preset.oauth && preset.provider
-        ? { oauth: { provider: preset.provider, clientId: clientId.trim(), clientSecret } }
+        ? {
+            oauth: {
+              provider: preset.provider,
+              clientId: preset.provider === 'microsoft' ? MICROSOFT_CLIENT_ID : clientId.trim(),
+              clientSecret: preset.provider === 'microsoft' ? '' : clientSecret
+            }
+          }
         : {})
     }
 
@@ -238,7 +245,9 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 )}
               </h1>
               <p className="onboarding__subtitle onboarding__subtitle--sm">
-                {preset?.oauth ? t('onboarding.oauthFormHint') : t('onboarding.passwordFormHint')}
+                {t(choice === 'outlook'
+                  ? 'account.microsoftHint'
+                  : preset?.oauth ? 'onboarding.oauthFormHint' : 'onboarding.passwordFormHint')}
               </p>
             </div>
 
@@ -265,7 +274,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 <p className="onboarding__field-hint">{t('account.emailWarning')}</p>
               )}
 
-              {preset?.oauth ? (
+              {preset?.oauth ? (choice !== 'outlook' && (
                 <>
                   <label className="account-field">
                     <span>{t('account.clientId')}</span>
@@ -288,7 +297,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                     />
                   </label>
                 </>
-              ) : (
+              )) : (
                 <>
                   <label className="account-field">
                     <span>{t('account.password')}</span>

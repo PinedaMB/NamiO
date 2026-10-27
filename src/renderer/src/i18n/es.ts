@@ -35,7 +35,7 @@ export const es = {
   'onboarding.gmail': 'Gmail',
   'onboarding.gmailHint': 'Con OAuth2, sin contraseñas de aplicación',
   'onboarding.outlook': 'Outlook / Microsoft 365',
-  'onboarding.outlookHint': 'OAuth2 con tu propio registro de app',
+  'onboarding.outlookHint': 'Iniciá sesión con tu cuenta de Microsoft',
   'onboarding.custom': 'Otro correo (IMAP)',
   'onboarding.customHint': 'Fastmail, iCloud, Proton o tu servidor',
   'onboarding.local': 'Servidor local',
@@ -44,6 +44,7 @@ export const es = {
   'onboarding.note':
     'La contraseña o el refresh token se guardan cifrados por el sistema operativo; la interfaz nunca abre conexiones.',
   'onboarding.demo': 'Explorar la demo',
+  'onboarding.exitDemo': 'Salir del modo demostración',
   'onboarding.demoHint': 'Datos de ejemplo, sin conectar nada.',
   'onboarding.demoStarted': 'Modo demo: podés conectar tu cuenta cuando quieras desde el rail.',
   'onboarding.change': 'Cambiar',
@@ -402,6 +403,7 @@ export const es = {
     'Google y Microsoft desactivaron el IMAP con contraseña (ni la de aplicación): esta cuenta solo entra con OAuth2.',
   'account.authHint':
     'Si el servidor rechaza el usuario, probá con el correo completo (incluye @) y confirmá que IMAP esté habilitado. Gmail y Outlook necesitan OAuth2.',
+  'account.microsoftHint': 'Iniciá sesión en Microsoft desde el navegador y autorizá a NamiO. No necesitás configurar Azure ni introducir tu contraseña en la app.',
   'account.oauthHint':
     'Necesitás un cliente OAuth de escritorio del proveedor. La app abre el navegador y guarda el refresh token cifrado por el sistema.',
   'account.tlsOn': 'SSL/TLS',

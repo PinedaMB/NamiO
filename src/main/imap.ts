@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import type {
@@ -45,7 +46,7 @@ import {
 } from './db'
 import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
-import { decryptSecret, encryptSecret, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, type StoredAccount } from './settings'
+import { decryptSecret, encryptSecret, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, writeSettings, type StoredAccount } from './settings'
 
 interface Session {
   client: ImapFlow
@@ -95,7 +96,7 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
     // XOAUTH2 cuando la cuenta es OAuth2; si no, SASL PLAIN con la contraseña.
     auth: 'accessToken' in auth ? { user: config.user, accessToken: auth.accessToken } : { user: config.user, pass: auth.password },
     logger: false,
-    tls: { rejectUnauthorized: config.secure }
+    tls: { rejectUnauthorized: true }
   })
 
   // Sin listener, un error de socket tira abajo el proceso principal.
@@ -178,16 +179,14 @@ async function ensureClient(): Promise<ImapFlow> {
    Cuentas
    ------------------------------------------------------------------------- */
 
-/** Id estable: la primera cuenta es `default`; las demás se numeran. */
+/** Conserva ids existentes; las cuentas nuevas tienen una caché propia por identidad. */
 export async function accountIdFor(host: string, port: number, user: string): Promise<string> {
   const { accounts } = await readAccounts()
   const existing = accounts.find(
     (item) => item.user === user && item.host === host && (item.port ?? 993) === port
   )
   if (existing) return existing.id
-  if (accounts.length === 0) return 'default'
-  const slug = user.replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'mail'
-  return `acc-${accounts.length + 1}-${slug}`
+  return `acc-${createHash('sha256').update(JSON.stringify([host, port, user])).digest('hex')}`
 }
 
 /**
@@ -1022,6 +1021,7 @@ export async function disconnectAccount(): Promise<void> {
   // Sin contraseña guardada, mantener la cuenta sería un estado a medias: se
   // olvida y la app vuelve a la siguiente cuenta (o a la demo).
   const { active: next } = await removeAccount(active)
+  if (!next) await writeSettings({ onboarded: false })
   openAccountCache(next ?? 'default')
   notify('*')
 }

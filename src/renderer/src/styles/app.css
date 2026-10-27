@@ -701,19 +701,13 @@
 }
 
 .thread--active {
-  background: var(--surface-container);
-  box-shadow: var(--shadow-md);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface-container-lowest));
+  outline: 1px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  outline-offset: -1px;
 }
 
-.thread--active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  border-radius: 0 var(--r-full) var(--r-full) 0;
-  background: var(--primary);
+.thread--active:hover {
+  background: color-mix(in srgb, var(--primary) 16%, var(--surface-container-lowest));
 }
 
 .thread__row {
@@ -725,6 +719,7 @@
 
 .thread__who {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -736,20 +731,15 @@
   flex-shrink: 0;
 }
 
-.thread__presence {
-  position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-full);
-  background: var(--primary);
-  box-shadow: 0 0 0 2px var(--surface-container);
+.thread__unread {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--primary);
 }
 
 .thread__name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -761,6 +751,9 @@
   font-size: 11px;
   color: var(--outline);
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .thread__meta {
@@ -787,9 +780,19 @@
   gap: 6px;
   padding-left: 2px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--on-surface);
+  font-weight: 500;
+  color: var(--on-surface-variant);
   min-width: 0;
+}
+
+.thread--unread .thread__name,
+.thread--unread .thread__subject {
+  font-weight: 650;
+  color: var(--on-surface);
+}
+
+.thread--unread .thread__time {
+  color: var(--primary);
 }
 
 .thread__subject span:first-child {

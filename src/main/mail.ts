@@ -142,7 +142,7 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     auth: accessToken
       ? { type: 'OAuth2' as const, user: account.user, accessToken }
       : { user: account.user, pass: password ?? '' },
-    tls: { rejectUnauthorized: account.smtp.secure }
+    tls: { rejectUnauthorized: true }
   })
 
   const recipients = [payload.to, payload.cc]

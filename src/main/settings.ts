@@ -5,7 +5,7 @@ import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/i
 
 /** Cuenta guardada: las credenciales solo se persisten cifradas por el SO. */
 export interface StoredAccount {
-  /** Identidad estable de la cuenta (la primera es `default`). */
+  /** Identidad estable de la cuenta; `default` se conserva para cuentas antiguas. */
   id: string
   /** Nombre corto para el rail; si falta se usa el usuario. */
   label?: string

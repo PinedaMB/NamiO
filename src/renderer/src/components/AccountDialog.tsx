@@ -8,6 +8,7 @@ import type {
   OAuthProvider,
   SmtpConfig
 } from '@shared/ipc'
+import { MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import { useI18n } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { configFromAccount } from '../data/live'
@@ -125,7 +126,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     Number.isInteger(smtpPortNumber) &&
     smtpPortNumber > 0 &&
     smtpPortNumber < 65536 &&
-    (auth === 'oauth2' ? clientId.trim() !== '' && endpointsOk : password !== '')
+    (auth === 'oauth2' ? (provider === 'microsoft' || clientId.trim() !== '') && endpointsOk : password !== '')
 
   const applyPreset = (preset: (typeof PRESETS)[number]): void => {
     if (preset.id === 'custom') return
@@ -167,8 +168,8 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               ...config,
               oauth: {
                 provider,
-                clientId: clientId.trim(),
-                clientSecret,
+                clientId: provider === 'microsoft' ? MICROSOFT_CLIENT_ID : clientId.trim(),
+                clientSecret: provider === 'microsoft' ? '' : clientSecret,
                 ...(provider === 'custom'
                   ? { authUrl: authUrl.trim(), tokenUrl: tokenUrl.trim(), scope: scope.trim() }
                   : {})
@@ -346,27 +347,31 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 </div>
               </label>
 
-              <label className="account-field">
-                <span>{t('account.clientId')}</span>
-                <input
-                  value={clientId}
-                  onChange={(event) => setClientId(event.target.value)}
-                  placeholder="1234-abc.apps.googleusercontent.com"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </label>
+              {provider !== 'microsoft' && (
+                <>
+                  <label className="account-field">
+                    <span>{t('account.clientId')}</span>
+                    <input
+                      value={clientId}
+                      onChange={(event) => setClientId(event.target.value)}
+                      placeholder="1234-abc.apps.googleusercontent.com"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
 
-              <label className="account-field">
-                <span>{t('account.clientSecret')}</span>
-                <input
-                  value={clientSecret}
-                  onChange={(event) => setClientSecret(event.target.value)}
-                  placeholder="GOCSPX-…"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </label>
+                  <label className="account-field">
+                    <span>{t('account.clientSecret')}</span>
+                    <input
+                      value={clientSecret}
+                      onChange={(event) => setClientSecret(event.target.value)}
+                      placeholder="GOCSPX-…"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                </>
+              )}
 
               {provider === 'custom' && (
                 <>
@@ -405,7 +410,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
               <p className="account-hint">
                 <Icon name="info" size={14} />
-                {t('account.oauthHint')}
+                {t(provider === 'microsoft' ? 'account.microsoftHint' : 'account.oauthHint')}
               </p>
             </>
           )}

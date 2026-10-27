@@ -235,8 +235,9 @@ Fondo `--surface-container-low`, radio 12, padding `--sp-xl`, título 16/600 y s
 ### Lista de mensajes
 
 Fila de 76 px: avatar, remitente (16/600), hora en mono, asunto (14/500) y preview de una línea.
-No leído = texto `--on-surface` + punto índigo; leído = `--on-surface-variant`. Fila activa =
-`--surface-container` + barra índigo de 2 px a la izquierda.
+No leído = remitente y asunto en peso 650 y `--on-surface`, sobre índigo junto a la hora;
+leído = peso 500 y asunto en `--on-surface-variant`. Fila activa = fondo con índigo al 12 %
+sobre `--surface-container-lowest` y contorno interior de 1 px con índigo al 55 %.
 
 ### Lector
 

@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "src/renderer/src/styles/app.css"
+        ],
+        "createdAt": "2026-10-27T05:20:27.545Z",
+        "reason": "Agent review: the only layout transition is the existing 90px synchronization progress bar; its width represents actual progress."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/renderer/src/styles/app.css"
+        ],
+        "createdAt": "2026-10-27T05:20:27.783Z",
+        "reason": "Agent review: DESIGN.md section 7 explicitly specifies a left indigo bar for the selected mail row; preserve the existing selection indicator."
+      }
+    ]
+  }
+}

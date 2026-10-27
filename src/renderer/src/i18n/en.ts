@@ -32,7 +32,7 @@ export const en: Dictionary = {
   'onboarding.gmail': 'Gmail',
   'onboarding.gmailHint': 'OAuth2, no app passwords',
   'onboarding.outlook': 'Outlook / Microsoft 365',
-  'onboarding.outlookHint': 'OAuth2 with your own app registration',
+  'onboarding.outlookHint': 'Sign in with your Microsoft account',
   'onboarding.custom': 'Other mail (IMAP)',
   'onboarding.customHint': 'Fastmail, iCloud, Proton or your own server',
   'onboarding.local': 'Local server',
@@ -41,6 +41,7 @@ export const en: Dictionary = {
   'onboarding.note':
     'The password or refresh token is stored encrypted by the operating system; the UI never opens connections.',
   'onboarding.demo': 'Explore the demo',
+  'onboarding.exitDemo': 'Exit demo mode',
   'onboarding.demoHint': 'Sample data, nothing connected.',
   'onboarding.demoStarted': 'Demo mode: connect your account any time from the rail.',
   'onboarding.change': 'Change',
@@ -399,6 +400,7 @@ export const en: Dictionary = {
     'Google and Microsoft disabled IMAP with a password (app passwords included): this account only works with OAuth2.',
   'account.authHint':
     'If the server rejects the user, try the full email (including @) and confirm IMAP is enabled. Gmail and Outlook need OAuth2.',
+  'account.microsoftHint': 'Sign in to Microsoft in your browser and authorize NamiO. You do not need to configure Azure or enter your password in the app.',
   'account.oauthHint':
     'You need a desktop OAuth client from the provider. The app opens the browser and stores the refresh token encrypted by the OS.',
   'account.tlsOn': 'SSL/TLS',

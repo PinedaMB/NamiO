@@ -163,6 +163,31 @@ export function App(): React.JSX.Element {
   // sirve la caché local (modo offline), no los datos de demostración.
   const live = account?.configured === true
 
+  const accountIdentity = useRef<string | null>(null)
+  const accountGeneration = useRef(0)
+  const applyAccount = useCallback((state: AccountState): void => {
+    const identity = state.account
+      ? JSON.stringify([state.account.host, state.account.port, state.account.user])
+      : null
+    if (identity !== accountIdentity.current) {
+      accountIdentity.current = identity
+      accountGeneration.current += 1
+      setThreads([])
+      setSelectedId(null)
+      setMailboxes([])
+      setQuery('')
+      setHits([])
+      setSearching(false)
+      setLoadingFolder(false)
+      setFolder('inbox')
+      setLiveError(null)
+      setSync({ offline: false, syncedAt: null })
+      setSyncProgress(null)
+      setOutbox([])
+    }
+    setAccount(state)
+  }, [])
+
   const visible = useMemo(() => {
     if (live) {
       // El hilo abierto sigue visible aunque se marque leído: si desapareciera
@@ -199,11 +224,13 @@ export function App(): React.JSX.Element {
 
   const loadFolder = useCallback(
     async (path: string, focusUid?: number): Promise<void> => {
+      const generation = accountGeneration.current
       setLoadingFolder(true)
       setFolder(path)
       setListLimit(PAGE_SIZE)
       if (focusUid === undefined) setSelectedId(null)
       const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
+      if (generation !== accountGeneration.current) return
       setLoadingFolder(false)
 
       if (!result) return
@@ -259,17 +286,18 @@ export function App(): React.JSX.Element {
     }
 
     let cancelled = false
+    const generation = accountGeneration.current
     setSearching(true)
     const timer = window.setTimeout(() => {
       void window.api
         .search(trimmed, 60)
         .then((result) => {
-          if (cancelled) return
+          if (cancelled || generation !== accountGeneration.current) return
           setHits(result)
           setSearching(false)
         })
         .catch(() => {
-          if (!cancelled) setSearching(false)
+          if (!cancelled && generation === accountGeneration.current) setSearching(false)
         })
     }, 200)
 
@@ -281,11 +309,13 @@ export function App(): React.JSX.Element {
 
   /** Relee la caché sin tocar la red: lo usa el aviso de "buzón sincronizado". */
   const refreshFromCache = useCallback(async (): Promise<void> => {
+    const generation = accountGeneration.current
     const boxes = await window.api.listMailboxes(false).catch(() => null)
+    if (generation !== accountGeneration.current) return
     if (boxes?.ok) setMailboxes(boxes.data)
 
     const list = await window.api.listEnvelopes(folder, listLimit, false).catch(() => null)
-    if (!list?.ok) return
+    if (generation !== accountGeneration.current || !list?.ok) return
 
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = list.data.map((envelope) => envelopeToThread(envelope, locale))
@@ -299,11 +329,12 @@ export function App(): React.JSX.Element {
     const next = Math.min(listLimit + 100, 2000)
     if (next === listLimit) return
 
+    const generation = accountGeneration.current
     loadingMoreRef.current = true
     setListLimit(next)
     try {
       const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
-      if (!result?.ok) return
+      if (generation !== accountGeneration.current || !result?.ok) return
 
       const mapped = result.data.map((envelope) => envelopeToThread(envelope, locale))
       setThreads((previous) => mergeLoaded(previous, mapped))
@@ -334,8 +365,9 @@ export function App(): React.JSX.Element {
 
   const loadMailboxes = useCallback(
     async (state: AccountState): Promise<void> => {
+      const generation = accountGeneration.current
       const result = await window.api.listMailboxes(true).catch(() => null)
-      if (!result) return
+      if (generation !== accountGeneration.current || !result) return
       if (!result.ok) {
         setLiveError({ code: result.code, detail: result.detail })
         return
@@ -352,22 +384,25 @@ export function App(): React.JSX.Element {
   )
 
   const refreshAccount = useCallback(async (): Promise<void> => {
+    const generation = accountGeneration.current
     const state = await window.api.accountStatus().catch(() => null)
-    if (!state) return
-    setAccount(state)
+    if (generation !== accountGeneration.current || !state) return
+    applyAccount(state)
     void refreshAccounts()
     if (state.configured) {
       await loadMailboxes(state)
       return
     }
 
-    // Sin conexión se vuelve al modo demostración y se limpia el estado real.
+    const preferences = await window.api.getSettings()
+    setSettings(preferences ?? {})
+    // Sin cuenta se limpia el estado real y se recupera la bienvenida.
     setThreads(THREADS)
     setSelectedId(THREADS[0]?.id ?? null)
     setMailboxes([])
     setFolder('inbox')
     setLiveError(null)
-  }, [loadMailboxes])
+  }, [loadMailboxes, applyAccount])
 
   /** El núcleo reporta su versión; en un navegador (sin preload) simplemente no hay dato. */
   useEffect(() => {
@@ -415,7 +450,9 @@ export function App(): React.JSX.Element {
     settingsLoaded && account !== null && !account.configured && settings.onboarded !== true
 
   const refreshOutbox = useCallback(async (): Promise<void> => {
+    const generation = accountGeneration.current
     const items = await window.api.listOutbox().catch(() => null)
+    if (generation !== accountGeneration.current) return
     if (items) setOutbox(items)
   }, [])
 
@@ -476,10 +513,11 @@ export function App(): React.JSX.Element {
     if (uid === null) return
 
     let cancelled = false
+    const generation = accountGeneration.current
     window.api
       .getMessage(folder, uid)
       .then((result) => {
-        if (cancelled) return
+        if (cancelled || generation !== accountGeneration.current) return
         if (!result.ok) {
           setLiveError({ code: result.code, detail: result.detail })
           return
@@ -651,7 +689,7 @@ export function App(): React.JSX.Element {
   }
 
   const onConnected = (state: AccountState): void => {
-    setAccount(state)
+    applyAccount(state)
     setAccountOpen(false)
     markOnboarded()
     void refreshAccounts()
@@ -668,10 +706,7 @@ export function App(): React.JSX.Element {
         setToast(t('account.switchFailed'))
         return
       }
-      setAccount(result.data)
-      setThreads([])
-      setSelectedId(null)
-      setQuery('')
+      applyAccount(result.data)
       await refreshAccounts()
       await loadMailboxes(result.data)
       setToast(t('account.switched'))
@@ -795,6 +830,18 @@ export function App(): React.JSX.Element {
         onCompose={openCompose}
         onOpenSettings={openSettings}
         onOpenAccount={() => setAccountOpen(true)}
+        onExitDemo={() => {
+          void window.api.setSettings({ onboarded: false }).then(() => {
+            setSettings((current) => ({ ...current, onboarded: false }))
+            setAccountOpen(false)
+            setPaletteOpen(false)
+            setCompose(null)
+            setToast(null)
+            setView('mailbox')
+          }).catch((error: unknown) => {
+            setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+          })
+        }}
         onAddAccount={() => setAccountOpen(true)}
         onSelectAccount={(id) => void handleSelectAccount(id)}
         onRefreshAccounts={() => void refreshAccounts()}

@@ -75,7 +75,7 @@ export function SearchResults({
             return (
               <article
                 key={key}
-                className={cx('thread', 'search-hit', selectedKey === key && 'thread--active')}
+                className={cx('thread', 'search-hit', selectedKey === key && 'thread--active', hit.unread && 'thread--unread')}
                 onClick={() => onOpen(hit)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -85,10 +85,16 @@ export function SearchResults({
                 }}
                 tabIndex={0}
                 role="button"
+                aria-current={selectedKey === key ? 'true' : undefined}
               >
                 <div className="search-hit__head">
                   <span className="thread__name">{hit.from?.name || hit.from?.address || '—'}</span>
                   <span className="search-hit__folder">{hit.mailboxName}</span>
+                  {hit.unread && (
+                    <span className="thread__unread" role="img" aria-label={t('list.unread')} title={t('list.unread')}>
+                      <Icon name="mark_email_unread" size={16} />
+                    </span>
+                  )}
                   <span className="thread__time">{formatWhen(hit.date, locale)}</span>
                 </div>
                 <div className="thread__subject">{hit.subject}</div>

@@ -23,6 +23,7 @@ interface SidebarProps {
   onCompose: () => void
   onOpenSettings: () => void
   onOpenAccount: () => void
+  onExitDemo: () => void
   onAddAccount: () => void
   onSelectAccount: (id: string) => void
   /** Se llama al abrir el menú: la lista de cuentas puede haber cambiado. */
@@ -43,6 +44,7 @@ export function Sidebar({
   onCompose,
   onOpenSettings,
   onOpenAccount,
+  onExitDemo,
   onAddAccount,
   onSelectAccount,
   onRefreshAccounts
@@ -220,6 +222,12 @@ export function Sidebar({
       </div>
 
       <div className="rail__foot">
+        {!accountConnected && (
+          <button className="account-menu__action" type="button" onClick={onExitDemo}>
+            <Icon name="logout" size={15} />
+            {t('onboarding.exitDemo')}
+          </button>
+        )}
         <div className="sync-pill">
           <span className="sync-pill__state">
             <span
