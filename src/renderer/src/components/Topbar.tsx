@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { ACCOUNT } from '../data/demo'
 import { LOCALES, useI18n } from '../i18n'
 import { Icon } from './Icon'
@@ -103,14 +104,14 @@ export function Topbar({
             <kbd className="kbd">K</kbd>
           </span>
         ) : (
-          <button className="search__clear" type="button" onClick={() => onQuery('')} title={t('common.close')}>
+          <TooltipButton className="search__clear" type="button" onClick={() => onQuery('')} title={t('common.close')}>
             <Icon name="close" size={14} />
-          </button>
+          </TooltipButton>
         )}
       </div>
 
       <div className="topbar__right">
-        <button
+        <TooltipButton
           className="icon-btn"
           type="button"
           title={t('status.actions')}
@@ -118,10 +119,10 @@ export function Topbar({
           onClick={onOpenPalette}
         >
           <Icon name="keyboard_command_key" size={18} />
-        </button>
+        </TooltipButton>
         <div className="lang-switch" role="group" aria-label={t('topbar.language')}>
           {LOCALES.map((item) => (
-            <button
+            <TooltipButton
               key={item.id}
               type="button"
               className={cx('lang-switch__btn', locale === item.id && 'lang-switch__btn--active')}
@@ -130,13 +131,13 @@ export function Topbar({
               title={t('topbar.language')}
             >
               {item.label}
-            </button>
+            </TooltipButton>
           ))}
         </div>
-        <button className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')}>
+        <TooltipButton className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')}>
           <Icon name="sync" size={18} />
-        </button>
-        <button
+        </TooltipButton>
+        <TooltipButton
           className="icon-btn"
           type="button"
           title={t('topbar.preferences')}
@@ -144,11 +145,11 @@ export function Topbar({
           onClick={onOpenSettings}
         >
           <Icon name="tune" size={18} />
-        </button>
+        </TooltipButton>
         <div className="vsep" />
-        <button className="avatar avatar--accent" type="button" title={ACCOUNT.name}>
+        <TooltipButton className="avatar avatar--accent" type="button" title={ACCOUNT.name}>
           {ACCOUNT.initials}
-        </button>
+        </TooltipButton>
       </div>
     </header>
   )

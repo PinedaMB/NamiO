@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useState } from 'react'
 import type { AccountActivity, AccountSummary } from '@shared/ipc'
 import logo from '../assets/logo.png'
@@ -78,13 +79,13 @@ export function Sidebar({
             <img className="rail__logo" src={logo} alt="" aria-hidden="true" />
             <span className="rail__wordmark">NamiO</span>
           </div>
-          <button className="icon-btn" type="button" title={t('sidebar.collapse')} aria-label={t('sidebar.collapse')}>
+          <TooltipButton className="icon-btn" type="button" title={t('sidebar.collapse')} aria-label={t('sidebar.collapse')}>
             <Icon name="dock_to_left" size={16} />
-          </button>
+          </TooltipButton>
         </div>
 
         <div className="rail__block">
-          <button
+          <TooltipButton
             className="account"
             type="button"
             onClick={(event) => toggleMenu(event.currentTarget)}
@@ -102,7 +103,7 @@ export function Sidebar({
               </span>
             )}
             <Icon name={accounts.length > 1 ? 'expand_more' : accountConnected ? 'tune' : 'add'} size={16} />
-          </button>
+          </TooltipButton>
 
           {menuOpen && anchor && (
             <div
@@ -205,9 +206,9 @@ export function Sidebar({
           <div className="rail__tags">
             <div className="rail__section-head">
               <span>{t('common.tags')}</span>
-              <button className="icon-btn" type="button" title={t('sidebar.newTag')} aria-label={t('sidebar.newTag')}>
+              <TooltipButton className="icon-btn" type="button" title={t('sidebar.newTag')} aria-label={t('sidebar.newTag')}>
                 <Icon name="add" size={14} />
-              </button>
+              </TooltipButton>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
               {TAGS.map((tag) => (
@@ -235,9 +236,9 @@ export function Sidebar({
             />
             {syncLabel}
           </span>
-          <button className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
+          <TooltipButton className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
             <Icon name="settings" size={16} />
-          </button>
+          </TooltipButton>
         </div>
       </div>
     </aside>

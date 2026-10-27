@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import type { Tag, Thread } from '../data/demo'
 import type { FilterId } from './Topbar'
 import { useI18n, type TranslationKey } from '../i18n'
@@ -128,12 +129,12 @@ export function ThreadList({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button className="icon-btn" type="button" title={t('list.sort')} aria-label={t('list.sort')}>
+            <TooltipButton className="icon-btn" type="button" title={t('list.sort')} aria-label={t('list.sort')}>
               <Icon name="swap_vert" size={15} />
-            </button>
-            <button className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')}>
+            </TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')}>
               <Icon name="filter_list" size={15} />
-            </button>
+            </TooltipButton>
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import type { MailboxInfo, Rule, RuleAction, RuleDraft, RuleField, RuleOp } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
@@ -257,7 +258,7 @@ export function RulesSection(): React.JSX.Element {
           <ul className="rules__list">
             {rules.map((rule) => (
               <li key={rule.id} className={cx('rules__item', !rule.enabled && 'rules__item--off')}>
-                <button
+                <TooltipButton
                   className={cx('rules__switch', rule.enabled && 'rules__switch--on')}
                   type="button"
                   role="switch"
@@ -267,7 +268,7 @@ export function RulesSection(): React.JSX.Element {
                   title={rule.enabled ? t('rules.disable') : t('rules.enable')}
                 >
                   <span className="rules__knob" />
-                </button>
+                </TooltipButton>
 
                 <div className="rules__text">
                   <span className="rules__name">{rule.name}</span>
@@ -285,7 +286,7 @@ export function RulesSection(): React.JSX.Element {
                 <span className="rules__hits" title={t('rules.hits', { count: rule.hits })}>
                   {rule.hits}
                 </span>
-                <button
+                <TooltipButton
                   className="icon-btn"
                   type="button"
                   onClick={() => void remove(rule.id)}
@@ -294,7 +295,7 @@ export function RulesSection(): React.JSX.Element {
                   aria-label={t('rules.delete')}
                 >
                   <Icon name="delete" size={16} />
-                </button>
+                </TooltipButton>
               </li>
             ))}
           </ul>

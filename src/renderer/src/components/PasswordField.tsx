@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useState } from 'react'
 import { useI18n } from '../i18n'
 import { Icon } from './Icon'
@@ -32,7 +33,7 @@ export function PasswordField({
         aria-label={ariaLabel}
         spellCheck={false}
       />
-      <button
+      <TooltipButton
         type="button"
         className="password-field__toggle"
         onClick={() => setVisible((current) => !current)}
@@ -41,7 +42,7 @@ export function PasswordField({
         aria-pressed={visible}
       >
         <Icon name={visible ? 'visibility_off' : 'visibility'} size={16} />
-      </button>
+      </TooltipButton>
     </span>
   )
 }

@@ -27,6 +27,7 @@ import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
 import { BootSplash } from './components/BootSplash'
 import { Onboarding } from './components/Onboarding'
 import { Icon } from './components/Icon'
+import { TooltipButton } from './components/Tooltip'
 import { useI18n } from './i18n'
 import { useShortcuts } from './settings/ShortcutsProvider'
 import { actionForCombo, comboFromEvent } from './settings/shortcuts'
@@ -1058,9 +1059,9 @@ export function App(): React.JSX.Element {
             <strong>{t(ERROR_KEYS[liveError.code])}</strong>
             <span>{liveError.detail}</span>
           </div>
-          <button className="icon-btn" type="button" onClick={() => setLiveError(null)} title={t('common.close')}>
+          <TooltipButton className="icon-btn" type="button" onClick={() => setLiveError(null)} title={t('common.close')}>
             <Icon name="close" size={14} />
-          </button>
+          </TooltipButton>
         </div>
       )}
 
@@ -1074,14 +1075,14 @@ export function App(): React.JSX.Element {
           <button className="btn btn--primary" type="button" onClick={() => void window.api.retryOutbox(outboxFailed.id)}>
             {t('offline.retry')}
           </button>
-          <button
+          <TooltipButton
             className="icon-btn"
             type="button"
             onClick={() => void window.api.cancelOutbox(outboxFailed.id)}
             title={t('common.close')}
           >
             <Icon name="close" size={14} />
-          </button>
+          </TooltipButton>
         </div>
       )}
 

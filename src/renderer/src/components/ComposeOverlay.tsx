@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useEffect, useState } from 'react'
 import type { PickedAttachment } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
@@ -135,15 +136,15 @@ export function ComposeOverlay({
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button className="icon-btn" type="button" title={t('compose.minimize')}>
+            <TooltipButton className="icon-btn" type="button" title={t('compose.minimize')}>
               <Icon name="remove" size={16} />
-            </button>
-            <button className="icon-btn" type="button" title={t('compose.expand')}>
+            </TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t('compose.expand')}>
               <Icon name="open_in_full" size={16} />
-            </button>
-            <button className="icon-btn" type="button" onClick={closeWithDraft} title={t('common.close')}>
+            </TooltipButton>
+            <TooltipButton className="icon-btn" type="button" onClick={closeWithDraft} title={t('common.close')}>
               <Icon name="close" size={16} />
-            </button>
+            </TooltipButton>
           </div>
         </div>
 
@@ -157,13 +158,13 @@ export function ComposeOverlay({
                     {address.slice(0, 2).toUpperCase()}
                   </span>
                   <strong>{address}</strong>
-                  <button
+                  <TooltipButton
                     type="button"
                     title={t('compose.removeRecipient')}
                     onClick={() => setRecipients((current) => current.filter((item) => item !== address))}
                   >
                     <Icon name="close" size={12} />
-                  </button>
+                  </TooltipButton>
                 </span>
               ))}
               <input
@@ -219,26 +220,26 @@ export function ComposeOverlay({
           <div className="editor">
             <div className="formatbar">
               <div className="formatbar__tools">
-                <button className="icon-btn" type="button" title="Bold (⌘B)">
+                <TooltipButton className="icon-btn" type="button" title="Bold (⌘B)">
                   <Icon name="format_bold" size={16} />
-                </button>
-                <button className="icon-btn" type="button" title="Italic (⌘I)">
+                </TooltipButton>
+                <TooltipButton className="icon-btn" type="button" title="Italic (⌘I)">
                   <Icon name="format_italic" size={16} />
-                </button>
-                <button className="icon-btn" type="button" title="Insert link (⌘K)">
+                </TooltipButton>
+                <TooltipButton className="icon-btn" type="button" title="Insert link (⌘K)">
                   <Icon name="link" size={16} />
-                </button>
-                <button className="icon-btn" type="button" title="Code block">
+                </TooltipButton>
+                <TooltipButton className="icon-btn" type="button" title="Code block">
                   <Icon name="code" size={16} />
-                </button>
+                </TooltipButton>
                 <span className="formatbar__sep" />
-                <button className="icon-btn" type="button" title="Bullet list">
+                <TooltipButton className="icon-btn" type="button" title="Bullet list">
                   <Icon name="format_list_bulleted" size={16} />
-                </button>
-                <button className="icon-btn" type="button" title="Numbered list">
+                </TooltipButton>
+                <TooltipButton className="icon-btn" type="button" title="Numbered list">
                   <Icon name="format_list_numbered" size={16} />
-                </button>
-                <button
+                </TooltipButton>
+                <TooltipButton
                   className="icon-btn"
                   type="button"
                   title={t('compose.attach')}
@@ -251,7 +252,7 @@ export function ComposeOverlay({
                   disabled={!onPickAttachments}
                 >
                   <Icon name="attach_file" size={16} />
-                </button>
+                </TooltipButton>
                 <span className="formatbar__sep" />
                 <button className="snippet-btn" type="button">
                   <Icon name="auto_stories" size={14} />
@@ -295,13 +296,13 @@ export function ComposeOverlay({
                         {Math.max(1, Math.round(file.size / 1024))} KB
                       </span>
                     </span>
-                    <button
+                    <TooltipButton
                       type="button"
                       title={t('compose.removeAttachment')}
                       onClick={() => setPicked((list) => list.filter((item) => item.id !== file.id))}
                     >
                       <Icon name="close" size={14} />
-                    </button>
+                    </TooltipButton>
                   </span>
                 ))}
                 {attachments.map((attachment) => (
@@ -311,13 +312,13 @@ export function ComposeOverlay({
                       <span className="attach-pill__name">{attachment.name}</span>
                       <span className="attach-pill__detail">{attachment.detail}</span>
                     </span>
-                    <button
+                    <TooltipButton
                       type="button"
                       title={t('compose.removeAttachment')}
                       onClick={() => setAttachments((list) => list.filter((item) => item.name !== attachment.name))}
                     >
                       <Icon name="close" size={14} />
-                    </button>
+                    </TooltipButton>
                   </span>
                 ))}
               </div>
@@ -453,9 +454,9 @@ export function ComposeOverlay({
                 {t('compose.sendNow')}
                 <kbd className="kbd">⌘↵</kbd>
               </button>
-              <button className="send-caret" type="button" title={t('compose.sendingOptions')}>
+              <TooltipButton className="send-caret" type="button" title={t('compose.sendingOptions')}>
                 <Icon name="arrow_drop_down" size={16} />
-              </button>
+              </TooltipButton>
             </div>
             {copilot && (
               <button className="tool-btn" type="button">

@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useState } from 'react'
 import type { ActionItem, BriefPoint, Slot } from '../data/demo'
 import { DOSSIER } from '../data/demo'
@@ -69,9 +70,9 @@ export function ContextRail({ brief, actions, slots, onInsertSlot }: ContextRail
       <div className="card">
         <div className="card__head">
           <span className="card__label">{t('context.dossier')}</span>
-          <button className="icon-btn" type="button" title={t('context.dossier')} aria-label={t('context.dossier')}>
+          <TooltipButton className="icon-btn" type="button" title={t('context.dossier')} aria-label={t('context.dossier')}>
             <Icon name="open_in_new" size={16} />
-          </button>
+          </TooltipButton>
         </div>
 
         <div className="dossier__id">

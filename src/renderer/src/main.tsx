@@ -9,6 +9,7 @@ import 'material-symbols/outlined.css'
 import './styles/tokens.css'
 import './styles/app.css'
 import App from './App'
+import { Tooltips } from './components/Tooltip'
 import { I18nProvider } from './i18n'
 import { ShortcutsProvider } from './settings/ShortcutsProvider'
 import { PreferencesProvider } from './settings/PreferencesProvider'
@@ -22,6 +23,7 @@ createRoot(container).render(
       <ShortcutsProvider>
         <PreferencesProvider>
           <App />
+          <Tooltips />
         </PreferencesProvider>
       </ShortcutsProvider>
     </I18nProvider>

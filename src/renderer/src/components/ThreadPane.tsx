@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import type { Attachment, Message, Thread } from '../data/demo'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
@@ -122,7 +123,7 @@ export function ThreadPane({
     <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
-          <button
+          <TooltipButton
             className="tool-btn tool-btn--icon"
             type="button"
             onClick={onToggleRead}
@@ -130,8 +131,8 @@ export function ThreadPane({
             title={`${unread ? t('common.markRead') : t('common.markUnread')} (${formatCombo(bindings.read)})`}
           >
             <Icon name={unread ? 'mark_email_read' : 'mark_email_unread'} size={15} />
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             className="tool-btn"
             type="button"
             onClick={onArchive}
@@ -141,8 +142,8 @@ export function ThreadPane({
             <Icon name="archive" size={15} />
             {t('common.archive')}
             <kbd className="kbd">{formatCombo(bindings.archive)}</kbd>
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             className="tool-btn"
             type="button"
             onClick={onSnooze}
@@ -152,15 +153,15 @@ export function ThreadPane({
             <Icon name="schedule" size={15} />
             {t('common.snooze')}
             <kbd className="kbd">{formatCombo(bindings.snooze)}</kbd>
-          </button>
-          <button className="tool-btn" type="button" disabled title={t('common.move')}>
+          </TooltipButton>
+          <TooltipButton className="tool-btn" type="button" disabled title={t('common.move')}>
             <Icon name="drive_file_move" size={15} />
             {t('common.move')}
-          </button>
-          <button className="tool-btn tool-btn--icon btn--danger" type="button" disabled title={t('common.spam')}>
+          </TooltipButton>
+          <TooltipButton className="tool-btn tool-btn--icon btn--danger" type="button" disabled title={t('common.spam')}>
             <Icon name="report" size={15} />
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             className="tool-btn tool-btn--icon btn--danger"
             type="button"
             onClick={onDelete}
@@ -168,21 +169,21 @@ export function ThreadPane({
             title={t('common.delete')}
           >
             <Icon name="delete" size={15} />
-          </button>
+          </TooltipButton>
         </div>
 
         <div className="toolbar-group">
           <span className="reading__count">{t('thread.threadOf', { n: position, total })}</span>
-          <button className="tool-btn tool-btn--icon" type="button" onClick={onPrev} title={t('thread.previous')}>
+          <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onPrev} title={t('thread.previous')}>
             <Icon name="chevron_left" size={16} />
-          </button>
-          <button className="tool-btn tool-btn--icon" type="button" onClick={onNext} title={t('thread.next')}>
+          </TooltipButton>
+          <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onNext} title={t('thread.next')}>
             <Icon name="chevron_right" size={16} />
-          </button>
+          </TooltipButton>
           {canToggleContext && (
             <>
               <span className="vsep ctx-toggle" style={{ margin: '0 4px' }} />
-              <button
+              <TooltipButton
                 className={cx('tool-btn tool-btn--icon', 'ctx-toggle', !contextOpen && 'tool-btn--active')}
                 type="button"
                 onClick={onToggleContext}
@@ -191,7 +192,7 @@ export function ThreadPane({
                 aria-controls="context-rail"
               >
                 <Icon name={contextOpen ? 'right_panel_close' : 'right_panel_open'} size={16} />
-              </button>
+              </TooltipButton>
             </>
           )}
         </div>
@@ -208,7 +209,7 @@ export function ThreadPane({
                   {from?.org ?? 'VIP'}
                 </span>
               )}
-              <button
+              <TooltipButton
                 className="icon-btn"
                 type="button"
                 onClick={() => setBodyTheme(bodyTheme === 'dark' ? 'light' : 'dark')}
@@ -217,8 +218,8 @@ export function ThreadPane({
                 aria-pressed={bodyTheme === 'dark'}
               >
                 <Icon name={bodyTheme === 'dark' ? 'light_mode' : 'dark_mode'} size={16} />
-              </button>
-              <button
+              </TooltipButton>
+              <TooltipButton
                 className="icon-btn"
                 type="button"
                 onClick={onStar}
@@ -227,7 +228,7 @@ export function ThreadPane({
                 aria-pressed={thread.starred}
               >
                 <Icon name="star" size={16} fill={thread.starred} />
-              </button>
+              </TooltipButton>
             </div>
           </div>
 
@@ -268,7 +269,7 @@ export function ThreadPane({
                     {message.attachments.map((attachment, index) => {
                       const meta = ATTACHMENT_ICON[attachment.kind]
                       return (
-                        <button
+                        <TooltipButton
                           key={`${attachment.name}-${index}`}
                           className="attachment"
                           type="button"
@@ -283,7 +284,7 @@ export function ThreadPane({
                             </span>
                           </span>
                           <Icon name="download" size={15} />
-                        </button>
+                        </TooltipButton>
                       )
                     })}
                   </div>

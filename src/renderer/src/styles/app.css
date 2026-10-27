@@ -3,6 +3,20 @@
    Layout: rail (224) · lista (380) · lectura (flex) · contexto (320)
    ========================================================================== */
 
+.tooltip {
+  position: fixed;
+  z-index: 100;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .app {
   display: grid;
   grid-template-columns: var(--rail-w) minmax(0, 1fr);

@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import type {
   AccountConfig,
@@ -209,9 +210,9 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             <h2 className="account-modal__title">{t('account.title')}</h2>
             <p className="account-modal__subtitle">{t('account.subtitle')}</p>
           </div>
-          <button className="icon-btn" type="button" onClick={onClose} title={t('common.close')}>
+          <TooltipButton className="icon-btn" type="button" onClick={onClose} title={t('common.close')}>
             <Icon name="close" size={16} />
-          </button>
+          </TooltipButton>
         </div>
 
         <div className="account-presets">
@@ -298,7 +299,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
           <label className="account-field">
             <span>{t('account.auth')}</span>
             <div className="seg" role="group" aria-label={t('account.auth')}>
-              <button
+              <TooltipButton
                 type="button"
                 className={cx('seg__btn', auth === 'password' && 'seg__btn--active')}
                 onClick={() => setAuth('password')}
@@ -307,7 +308,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 title={needsOAuth ? t('account.oauthRequired') : undefined}
               >
                 {t('account.authPassword')}
-              </button>
+              </TooltipButton>
               <button
                 type="button"
                 className={cx('seg__btn', auth === 'oauth2' && 'seg__btn--active')}

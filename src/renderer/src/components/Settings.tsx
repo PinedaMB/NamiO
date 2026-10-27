@@ -1,3 +1,4 @@
+import { TooltipButton } from './Tooltip'
 import { useEffect, useMemo, useState } from 'react'
 import type { CoreStatus } from '@shared/ipc'
 import { ACCOUNT } from '../data/demo'
@@ -127,9 +128,9 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
               aria-label={t('settings.shortcuts.search')}
             />
             {query !== '' && (
-              <button className="icon-btn" type="button" onClick={() => setQuery('')} title={t('common.close')}>
+              <TooltipButton className="icon-btn" type="button" onClick={() => setQuery('')} title={t('common.close')}>
                 <Icon name="close" size={14} />
-              </button>
+              </TooltipButton>
             )}
           </div>
 
@@ -398,9 +399,9 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
                 <span className="dot pulse" />
                 {t('settings.shortcuts.pressKey')}
               </span>
-              <button className="icon-btn" type="button" onClick={() => setRemap(null)} title={t('common.close')}>
+              <TooltipButton className="icon-btn" type="button" onClick={() => setRemap(null)} title={t('common.close')}>
                 <Icon name="close" size={16} />
-              </button>
+              </TooltipButton>
             </div>
 
             <span className="remap__action">{t(SHORTCUTS.find((item) => item.id === remap.action)?.labelKey ?? 'shortcut.next')}</span>
