@@ -46,3 +46,7 @@ win:
   target:
     - nsis
   icon: icon.png
+
+nsis:
+  perMachine: false
+  allowElevation: false

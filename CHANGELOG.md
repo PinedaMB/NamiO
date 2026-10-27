@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.4.1 — 2026-10-27
+
+- Corregida la carga de imágenes remotas en mensajes cuando están permitidas en Windows y Linux.
+- El instalador de Windows se instala en el perfil del usuario y no solicita privilegios de administrador.
+
 ## 0.4.0 — 2026-10-27
 
 - Icono de bandeja con Abrir y Salir y preferencia para mantener NamiO en segundo plano al cerrar la ventana. Los avisos de otras cuentas permiten cambiar a la cuenta y abrir el mensaje, esperando si hay una redacción activa.

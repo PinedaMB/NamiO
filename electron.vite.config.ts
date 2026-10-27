@@ -13,7 +13,7 @@ function cspMeta(): Plugin {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https: http:",
     "font-src 'self' data:",
     "connect-src 'self'",
     // El cuerpo del correo va en un iframe con srcdoc: `about:` es su URL.

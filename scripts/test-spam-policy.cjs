@@ -4,6 +4,9 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
+for (const path of ['electron.vite.config.ts', 'src/main/index.ts']) {
+  assert.match(fs.readFileSync(path, 'utf8'), /"img-src 'self' data: blob: https: http:"/)
+}
 function compile(file) { return ts.transpile(fs.readFileSync(file, 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }) }
 const live = {}
 const mailboxes = {}
