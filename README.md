@@ -496,6 +496,28 @@ git push origin v0.1.0     # tag anotado: dispara release-linux.yml
 
 El tag tiene que apuntar al commit que querés publicar (`git describe --tags` lo confirma).
 
+### El primer release (v0.1.0)
+
+La [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) salió del workflow
+`release-linux` en **2 min 15 s** y trae dos archivos:
+
+| Archivo | Tamaño |
+| --- | --- |
+| `NamiO-0.1.0.AppImage` | 126.3 MB |
+| `namio_0.1.0_amd64.deb` | 101.8 MB |
+
+El `.deb` se verificó abriéndolo (sin `dpkg`): `control` dice `Package: namio`, `Version: 0.1.0`,
+`Maintainer: PinedaMB <mendez-pineda@outlook.es>`, `Homepage: https://github.com/PinedaMB/NamiO` y
+`Depends` con GTK3/NSS/libsecret; instala **91 archivos**, con el icono de 512², el `.desktop` y el
+binario en `/opt/NamiO/namio`.
+
+Dos cosas que costaron el primer intento:
+
+- **No declares `version` en `pnpm/action-setup` si `package.json` ya tiene `packageManager`**: el
+  action aborta con *Multiple versions of pnpm specified*. Se declara en un solo lugar.
+- **Los assets de una Release privada no se bajan por `browser_download_url`** con un token de
+  acciones: hay que pedirlos por la API (`/releases/assets/{id}` con `Accept: application/octet-stream`).
+
 ### Marca y asociación de ventana
 
 - `build/icon.png` (512×512) y `build/icon-1024.png`: el **mapache índigo** de la app, con fondo
@@ -540,7 +562,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Tema del cuerpo del correo, un solo scroll y estrella alineada | ✅ |
 | Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
 | App empaquetada (`isPackaged: true`): CSP, fuentes del asar, bienvenida y cero errores | ✅ |
-| AppImage / .deb | ⏳ CI (necesita Linux) |
+| AppImage 126.3 MB + `.deb` 101.8 MB en la [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | ✅ |
 
 ### Si `pnpm dev` muere con `-2147483645` o `0xc0000005`
 
