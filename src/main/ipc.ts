@@ -8,6 +8,7 @@ import {
   type CoreStatus,
   type Draft,
   type ImapResult,
+  type RuleDraft,
   type SendMailPayload
 } from '@shared/ipc'
 import {
@@ -26,6 +27,7 @@ import {
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
 import { clearDraft, readDraft, saveDraft } from './db'
+import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
 import { encryptSecret, readSettings, writeSettings } from './settings'
 
 function validConfig(config: AccountConfig): boolean {
@@ -54,7 +56,7 @@ export function registerIpcHandlers(): void {
       platform: process.platform,
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
-      stage: 'M6',
+      stage: 'M7',
       accountCount: 0
     }
   })
@@ -183,6 +185,40 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
 
   ipcMain.handle(IPC.syncProgress, () => getSyncProgress())
+
+  ipcMain.handle(IPC.rulesList, () => readRules())
+
+  ipcMain.handle(IPC.rulesSave, (_event, draft: RuleDraft & { id?: number }) => {
+    // El renderer no manda basura al motor: se validan los enums y el largo.
+    const fields = ['from', 'subject', 'to', 'any']
+    const ops = ['contains', 'equals', 'starts']
+    const actions = ['archive', 'delete', 'move', 'read']
+    if (!draft || typeof draft.value !== 'string' || draft.value.trim() === '') {
+      throw new Error('La regla necesita un valor')
+    }
+    if (!fields.includes(draft.field) || !ops.includes(draft.op) || !actions.includes(draft.action)) {
+      throw new Error('Regla inválida')
+    }
+    if (draft.action === 'move' && (typeof draft.target !== 'string' || draft.target === '')) {
+      throw new Error('Elegí el buzón destino')
+    }
+
+    return saveRule({
+      ...draft,
+      name: String(draft.name ?? '').slice(0, 80),
+      value: draft.value.slice(0, 200),
+      target: typeof draft.target === 'string' ? draft.target.slice(0, 200) : null,
+      enabled: draft.enabled !== false
+    })
+  })
+
+  ipcMain.handle(IPC.rulesDelete, (_event, id: number) => removeRule(Number(id)))
+
+  ipcMain.handle(IPC.rulesApply, async () => {
+    const matched = applyRulesToCache()
+    if (matched > 0) await processOutbox()
+    return { matched }
+  })
 
   ipcMain.handle(IPC.searchQuery, (_event, query: string, limit: number = 60) =>
     searchMail(String(query ?? '').slice(0, 200), Math.min(Math.max(limit, 1), 100))

@@ -20,6 +20,7 @@ import {
   clearMailbox,
   countMessages,
   countUnread,
+  adjustMailboxUnseen,
   deleteMessageRow,
   getMailboxMeta,
   getMeta,
@@ -40,6 +41,7 @@ import {
   upsertMailboxes
 } from './db'
 import { authorize, getAccessToken } from './oauth'
+import { applyRulesToNew } from './rules'
 import { decryptSecret, encryptSecret, readSettings, writeSettings, type StoredAccount } from './settings'
 
 interface Session {
@@ -294,6 +296,10 @@ async function syncMessages(path: string, limit: number): Promise<void> {
 
   const lock = await client.getMailboxLock(path)
 
+  // Mensajes que aparecen por primera vez: sobre esos se evalúan las reglas.
+  // El relleno histórico de la sync completa no cuenta (no son "nuevos").
+  const nuevos: number[] = []
+
   try {
     const cached = getMailboxMeta(path)
     // Resync completo si cambió UIDVALIDITY, o si el servidor "encogió" (pocos
@@ -308,12 +314,12 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       clearMailbox(path)
       const start = Math.max(1, exists - limit + 1)
       const envelopes = await fetchRange(client, `${start}:*`, false)
-      upsertEnvelopes(path, envelopes)
+      nuevos.push(...upsertEnvelopes(path, envelopes))
       if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
     } else {
       const fromUid = cached.uidNext ?? 1
       if (uidNext != null && uidNext > fromUid) {
-        upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true))
+        nuevos.push(...upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true)))
       }
     }
 
@@ -351,7 +357,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     if (countMessages(path) < exists) {
       const start = Math.max(1, exists - limit + 1)
       const envelopes = await fetchRange(client, `${start}:*`, false)
-      upsertEnvelopes(path, envelopes)
+      nuevos.push(...upsertEnvelopes(path, envelopes))
       // Si el tramo cubre todo el buzón, también se poda lo que ya no existe.
       if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
       saveMailboxSync(path, {
@@ -360,6 +366,13 @@ async function syncMessages(path: string, limit: number): Promise<void> {
         messages: exists,
         unseen: exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path))
       })
+    }
+
+    // Las reglas actúan sobre lo que acaba de llegar. Las acciones se encolan
+    // y el listener las aplica en el servidor.
+    if (nuevos.length > 0) {
+      const matched = applyRulesToNew(path, nuevos)
+      if (matched > 0) rulesListener?.()
     }
   } finally {
     lock.release()
@@ -373,6 +386,12 @@ async function syncMessages(path: string, limit: number): Promise<void> {
 let progress: SyncProgress | null = null
 let fullSyncRunning = false
 let progressListener: ((progress: SyncProgress | null) => void) | null = null
+let rulesListener: (() => void) | null = null
+
+/** Avisa que una regla encoló algo: el dueño del proceso drena la cola. */
+export function setRulesListener(listener: () => void): void {
+  rulesListener = listener
+}
 
 export function setSyncProgressListener(listener: (progress: SyncProgress | null) => void): void {
   progressListener = listener
@@ -676,6 +695,7 @@ export function setSeen(path: string, uid: number, seen: boolean): Promise<ImapR
       }
       cacheUnread(path, uid, !seen)
       offline = false
+      notify(path)
       return { ok: true as const, data: seen }
     } catch (error) {
       return { ok: false as const, code: classify(error), detail: describe(error) }
@@ -739,7 +759,10 @@ export function moveMessage(path: string, uid: number, target: string): Promise<
     } finally {
       lock.release()
     }
-    deleteMessageRow(path, uid)
+    const removed = deleteMessageRow(path, uid)
+    if (removed?.unread) adjustMailboxUnseen(path, -1)
+    // El mensaje ya no está en la carpeta de origen: la lista tiene que releer.
+    notify(path)
   })
 }
 
@@ -752,7 +775,9 @@ export function deleteMessage(path: string, uid: number): Promise<void> {
     } finally {
       lock.release()
     }
-    deleteMessageRow(path, uid)
+    const removed = deleteMessageRow(path, uid)
+    if (removed?.unread) adjustMailboxUnseen(path, -1)
+    notify(path)
   })
 }
 

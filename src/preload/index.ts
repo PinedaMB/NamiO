@@ -15,6 +15,8 @@ import {
   type OutboxItem,
   type PickedAttachment,
   type Draft,
+  type Rule,
+  type RuleDraft,
   type SearchHit,
   type SyncProgress,
   type SendMailPayload
@@ -71,6 +73,11 @@ const api: MailApi = {
     ipcRenderer.on(IPC.outboxChanged, handler)
     return () => ipcRenderer.removeListener(IPC.outboxChanged, handler)
   },
+
+  rules: (): Promise<Rule[]> => ipcRenderer.invoke(IPC.rulesList),
+  saveRule: (rule: RuleDraft & { id?: number }): Promise<Rule[]> => ipcRenderer.invoke(IPC.rulesSave, rule),
+  deleteRule: (id: number): Promise<Rule[]> => ipcRenderer.invoke(IPC.rulesDelete, id),
+  applyRules: (): Promise<{ matched: number }> => ipcRenderer.invoke(IPC.rulesApply),
 
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC.shellOpen, url),
   onCacheChanged: (listener: (mailbox: string) => void): (() => void) => {

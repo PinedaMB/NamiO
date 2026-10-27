@@ -5,7 +5,7 @@ import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { createTransport } from 'nodemailer'
 import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
 import { deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
-import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, syncInbox } from './imap'
+import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, setSeen, syncInbox } from './imap'
 
 /**
  * Cola de salida: todo lo que modifica el servidor (enviar, archivar, eliminar)
@@ -185,6 +185,12 @@ async function runOne(row: OutboxRow): Promise<void> {
     await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target)
   } else if (row.kind === 'delete') {
     await deleteMessage(row.mailbox ?? 'INBOX', row.uid ?? 0)
+  } else if (row.kind === 'move') {
+    const target = payloadOf(row).target
+    if (typeof target !== 'string' || target === '') throw new Error('La regla no tiene buzón destino')
+    await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target)
+  } else if (row.kind === 'seen') {
+    await setSeen(row.mailbox ?? 'INBOX', row.uid ?? 0, true)
   }
 
   deleteOutbox(row.id)

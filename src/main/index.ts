@@ -2,7 +2,7 @@ import { join, resolve } from 'node:path'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
-import { setCacheListener, setSyncProgressListener, syncInbox } from './imap'
+import { setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 
@@ -129,6 +129,11 @@ void app.whenReady().then(() => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send(IPC.syncProgress, progress)
     }
+  })
+
+  // Una regla encoló una acción (archivar, mover, marcar leído): drenar ya.
+  setRulesListener(() => {
+    void processOutbox()
   })
 
   // La cola de salida también avisa a la UI cuando cambia.

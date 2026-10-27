@@ -1,9 +1,9 @@
 # NamiO — cliente de email para Linux
 
 NamiO es un cliente de correo de escritorio (IMAP/SMTP) con caché local, pensado para Linux y
-desarrollado en Windows. Estado actual: **M6 cerrado** — conectar cuenta (contraseña u OAuth2), leer
-HTML, caché offline, enviar con cola, buscar en local y sincronizar el buzón completo, con bienvenida
-guiada en el primer arranque. Los instalables de Linux se generan en CI.
+desarrollado en Windows. Estado actual: **M7 en curso** — conectar cuenta (contraseña u OAuth2), leer
+HTML, caché offline, enviar con cola, buscar en local, sincronizar el buzón completo, bienvenida
+guiada y **reglas locales**; falta multi-cuenta. Los instalables de Linux se generan en CI.
 
 ## Stack y por qué
 
@@ -288,6 +288,28 @@ Antes de empaquetar se cerraron los huecos que hacían ruido al usar la app de v
 Limitaciones conocidas: hay **un solo borrador** (el último compositor, sin lista de borradores) y el
 envió no permite aún elegir remitente alternativo.
 
+## Reglas locales (M7)
+
+![Reglas y filtros](docs/rules.png)
+
+En **Ajustes → Reglas y filtros** se define qué pasa solo cuando llega correo.
+
+- **Cuándo actúan**: por su cuenta con los mensajes **nuevos** (los que aparecen por primera vez en
+  la caché; el relleno histórico de la sync completa no las dispara, para no archivar años de correo
+  de golpe) y, a pedido, con **Aplicar a los existentes** sobre todo lo cacheado.
+- **Cómo deciden**: la **primera regla habilitada que coincide gana**, así un mensaje no recibe dos
+  acciones contradictorias. Campos: De, Asunto, Para o cualquiera; condiciones: contiene, empieza con
+  o es igual a; la comparación ignora mayúsculas y acentos (`Boletín` encuentra `boletin`).
+- **Qué hacen**: archivar, mover a un buzón, marcar leído o eliminar. Todas pasan por la **cola de
+  salida**, o sea que se ejecutan en el servidor y se reintentan si fallan. Mover a la carpeta donde
+  el mensaje ya está no hace nada.
+- **Contadores honestos**: cuando una regla saca un mensaje no leído, el badge de la carpeta baja en
+  el acto (no espera al sondeo de un minuto). Cada regla acumula sus `hits`.
+
+Verificado con un buzón de 11 mensajes y la regla *de contiene «boletin» → archivar*: aplicada a los
+existentes movió **6**, en el servidor INBOX quedó en 5 y Archive en 6, la regla marcó `hits = 6`,
+la cola de salida quedó vacía y el badge de no leídos bajó de 9 a 3 sin recargar.
+
 ## Integridad del CSS
 
 `pnpm run css:audit` cruza el CSS con el JSX y verifica cuatro cosas: que toda variable usada esté
@@ -560,6 +582,7 @@ solo en build (`electron.vite.config.ts`); en desarrollo la relaja Vite para el 
 | Ojo para ver la contraseña y detalle del rechazo del servidor | ✅ |
 | Sync completa en segundo plano con progreso, badge de no leídos y scroll | ✅ |
 | Tema del cuerpo del correo, un solo scroll y estrella alineada | ✅ |
+| Reglas locales: alta, activar/desactivar, aplicar a la caché y `hits` | ✅ |
 | Paquete Linux (`linux-unpacked`) inspeccionado y ejecutado desde su asar | ✅ |
 | App empaquetada (`isPackaged: true`): CSP, fuentes del asar, bienvenida y cero errores | ✅ |
 | AppImage 126.3 MB + `.deb` 101.8 MB en la [Release v0.1.0](https://github.com/PinedaMB/NamiO/releases/tag/v0.1.0) | ✅ |
@@ -602,7 +625,7 @@ node scripts/smoke.mjs
 ```
 
 Valida que React montó, que el puente IPC existe, que `window.require` **no** está expuesto y que el
-núcleo responde con un `stage` válido (M0–M6).
+núcleo responde con un `stage` válido (M0–M7).
 
 ## Roadmap
 
@@ -616,7 +639,8 @@ núcleo responde con un `stage` válido (M0–M6).
 | ✅ M4 | Envío SMTP + cola de salida + archivar/eliminar | Me envío un correo y me llega |
 | ✅ M5 | Búsqueda FTS5 sobre la caché | Encuentro un correo por una palabra del cuerpo |
 | ✅ M6 | OAuth2 (Gmail/Outlook) + empaquetado en CI | Instalable en Linux vía `.deb` |
-| M7 | Multi-cuenta y reglas locales | Un remitente molesto se archiva solo |
+| ✅ M7 | Reglas locales: archivar, mover, marcar leído o eliminar al llegar | Un remitente molesto se archiva solo |
+| M8 | Multi-cuenta | Dos cuentas a la vez, cada una con su bandeja |
 
 ## Los problemas que hay que respetar desde el día uno
 

@@ -33,13 +33,17 @@ export const IPC = {
   outboxCancel: 'outbox:cancel',
   outboxChanged: 'outbox:changed',
   searchQuery: 'search:query',
-  syncProgress: 'sync:progress'
+  syncProgress: 'sync:progress',
+  rulesList: 'rules:list',
+  rulesSave: 'rules:save',
+  rulesDelete: 'rules:delete',
+  rulesApply: 'rules:apply'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 
 /** Etapa actual del desarrollo; el núcleo la reporta para que la UI no mienta. */
-export type Milestone = 'M0' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6'
+export type Milestone = 'M0' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7'
 
 export interface CoreStatus {
   appVersion: string
@@ -178,7 +182,7 @@ export type CachedResult<T> = { ok: true; data: T; meta: SyncMeta } | { ok: fals
    Cola de salida
    ------------------------------------------------------------------------- */
 
-export type OutboxKind = 'send' | 'archive' | 'delete'
+export type OutboxKind = 'send' | 'archive' | 'delete' | 'move' | 'seen'
 export type OutboxStatus = 'queued' | 'failed'
 
 export interface OutboxItem {
@@ -222,6 +226,39 @@ export interface SyncProgress {
   cached: number
   total: number
   running: boolean
+}
+
+/* ---------------------------------------------------------------------------
+   Reglas locales
+   ------------------------------------------------------------------------- */
+
+export type RuleField = 'from' | 'subject' | 'to' | 'any'
+export type RuleOp = 'contains' | 'equals' | 'starts'
+export type RuleAction = 'archive' | 'delete' | 'move' | 'read'
+
+export interface Rule {
+  id: number
+  name: string
+  enabled: boolean
+  field: RuleField
+  op: RuleOp
+  value: string
+  action: RuleAction
+  /** Buzón destino cuando `action` es `move`. */
+  target: string | null
+  /** Veces que la regla actuó sobre un mensaje. */
+  hits: number
+  createdAt: number
+}
+
+export interface RuleDraft {
+  name: string
+  enabled: boolean
+  field: RuleField
+  op: RuleOp
+  value: string
+  action: RuleAction
+  target: string | null
 }
 
 export interface SearchHit {  mailbox: string
@@ -285,6 +322,13 @@ export interface MailApi {
   /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
   syncProgress(): Promise<SyncProgress | null>
   onSyncProgress(listener: (progress: SyncProgress | null) => void): () => void
+
+  /** Reglas locales: se aplican a los mensajes nuevos y a pedido a los existentes. */
+  rules(): Promise<Rule[]>
+  saveRule(rule: RuleDraft & { id?: number }): Promise<Rule[]>
+  deleteRule(id: number): Promise<Rule[]>
+  /** Repasa la caché y devuelve cuántos mensajes quedaron afectados. */
+  applyRules(): Promise<{ matched: number }>
 
   /** Abre un enlace en el navegador del sistema. Solo http(s) y mailto. */
   openExternal(url: string): Promise<boolean>

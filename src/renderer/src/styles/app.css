@@ -3845,3 +3845,147 @@
     display: none;
   }
 }
+﻿
+/* ==========================================================================
+   Reglas locales (Ajustes → Reglas y filtros)
+   ========================================================================== */
+
+.rules__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rules__status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tertiary);
+}
+
+.rules__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-low);
+}
+
+.rules__select {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.rules__form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rules__preview {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--outline);
+}
+
+.rules__empty {
+  border: 0;
+  padding: 6px 0;
+}
+
+.rules__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rules__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--surface-container-highest) 55%, transparent);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-low);
+}
+
+.rules__item--off {
+  opacity: 0.55;
+}
+
+.rules__switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--r-full);
+  background: var(--surface-container-highest);
+  transition: background var(--fast) var(--ease);
+}
+
+.rules__switch--on {
+  background: var(--primary);
+}
+
+.rules__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-full);
+  background: var(--on-surface);
+  transition:
+    transform var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.rules__switch--on .rules__knob {
+  transform: translateX(14px);
+  background: var(--on-primary);
+}
+
+.rules__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rules__name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rules__detail {
+  font-size: 11px;
+  color: var(--outline);
+  overflow-wrap: anywhere;
+}
+
+.rules__hits {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--tertiary);
+}
+
+.rules__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 11px;
+}

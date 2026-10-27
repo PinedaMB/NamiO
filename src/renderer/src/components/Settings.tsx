@@ -14,6 +14,7 @@ import {
   type ShortcutAction
 } from '../settings/shortcuts'
 import { Icon } from './Icon'
+import { RulesSection } from './RulesSection'
 import { cx } from '../lib/cx'
 
 interface SettingsProps {
@@ -100,6 +101,8 @@ export function Settings({ onBack }: SettingsProps): React.JSX.Element {
   }
 
   const renderSection = (): React.JSX.Element => {
+    if (section === 'rules') return <RulesSection />
+
     if (section === 'shortcuts') {
       return (
         <div className="settings-card">

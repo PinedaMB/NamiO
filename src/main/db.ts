@@ -110,6 +110,20 @@ export function initCache(): void {
       created_at INTEGER NOT NULL
     );
 
+    -- Reglas locales: la primera que coincide gana, en orden de creación.
+    CREATE TABLE IF NOT EXISTS rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      field TEXT NOT NULL,
+      op TEXT NOT NULL,
+      value TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target TEXT,
+      hits INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
     -- Búsqueda de texto completo. remove_diacritics permite encontrar
     -- "valoración" buscando "valoracion"; el índice vive en la caché local.
     CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(
@@ -214,8 +228,19 @@ export function saveMailboxSync(
     .run(path, path, sync.uidValidity, sync.uidNext, sync.messages, sync.unseen, Date.now())
 }
 
-export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[]): void {
+/** Inserta/actualiza sobres y devuelve los UID que **no** estaban en la caché. */
+export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[]): number[] {
   const database = handle()
+
+  const previos = new Set<number>()
+  if (envelopes.length > 0) {
+    const placeholders = envelopes.map(() => '?').join(',')
+    const rows = database
+      .prepare(`SELECT uid FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`)
+      .all(mailbox, ...envelopes.map((envelope) => envelope.uid)) as unknown as { uid: number }[]
+    for (const row of rows) previos.add(row.uid)
+  }
+
   const statement = database.prepare(`
     INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -250,6 +275,8 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
     database.exec('ROLLBACK')
     throw error
   }
+
+  return envelopes.map((envelope) => envelope.uid).filter((uid) => !previos.has(uid))
 }
 
 export function readEnvelopes(mailbox: string, limit: number): Envelope[] {
@@ -323,8 +350,22 @@ export function updateFlags(
   }
 }
 
-export function deleteMessageRow(mailbox: string, uid: number): void {
+export function deleteMessageRow(mailbox: string, uid: number): { unread: boolean } | null {
+  const row = handle()
+    .prepare('SELECT unread FROM messages WHERE mailbox = ? AND uid = ?')
+    .get(mailbox, uid) as unknown as { unread: number } | undefined
   handle().prepare('DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+  return row ? { unread: row.unread === 1 } : null
+}
+
+/**
+ * Ajusta el contador de no leídos de la carpeta sin inventar el total: cuando
+ * una acción (o una regla) saca un mensaje sin leer, el badge baja en el acto.
+ */
+export function adjustMailboxUnseen(mailbox: string, delta: number): void {
+  handle()
+    .prepare('UPDATE mailboxes SET unseen = MAX(0, unseen + ?) WHERE path = ?')
+    .run(delta, mailbox)
 }
 
 /** Borra de la caché lo que ya no existe en el servidor (solo si la lista es completa). */
@@ -663,4 +704,197 @@ export function setMeta(key: string, value: string): void {
   handle()
     .prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
     .run(key, value)
+}
+
+/* ---------------------------------------------------------------------------
+   Reglas locales
+   ------------------------------------------------------------------------- */
+
+export interface RuleRow {
+  id: number
+  name: string
+  enabled: number
+  field: string
+  op: string
+  value: string
+  action: string
+  target: string | null
+  hits: number
+  createdAt: number
+}
+
+interface RuleDbRow {
+  id: number
+  name: string
+  enabled: number
+  field: string
+  op: string
+  value: string
+  action: string
+  target: string | null
+  hits: number
+  created_at: number
+}
+
+function mapRule(row: RuleDbRow): RuleRow {
+  return {
+    id: row.id,
+    name: row.name,
+    enabled: row.enabled,
+    field: row.field,
+    op: row.op,
+    value: row.value,
+    action: row.action,
+    target: row.target,
+    hits: row.hits,
+    createdAt: row.created_at
+  }
+}
+
+export function listRules(): RuleRow[] {
+  const rows = handle()
+    .prepare('SELECT * FROM rules ORDER BY id ASC')
+    .all() as unknown as RuleDbRow[]
+  return rows.map(mapRule)
+}
+
+export function insertRule(input: {
+  name: string
+  enabled: boolean
+  field: string
+  op: string
+  value: string
+  action: string
+  target: string | null
+}): void {
+  handle()
+    .prepare(
+      `INSERT INTO rules (name, enabled, field, op, value, action, target, hits, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`
+    )
+    .run(
+      input.name,
+      input.enabled ? 1 : 0,
+      input.field,
+      input.op,
+      input.value,
+      input.action,
+      input.target,
+      Date.now()
+    )
+}
+
+export function updateRule(
+  id: number,
+  input: {
+    name: string
+    enabled: boolean
+    field: string
+    op: string
+    value: string
+    action: string
+    target: string | null
+  }
+): void {
+  handle()
+    .prepare(
+      `UPDATE rules SET name = ?, enabled = ?, field = ?, op = ?, value = ?, action = ?, target = ?
+       WHERE id = ?`
+    )
+    .run(
+      input.name,
+      input.enabled ? 1 : 0,
+      input.field,
+      input.op,
+      input.value,
+      input.action,
+      input.target,
+      id
+    )
+}
+
+export function deleteRuleRow(id: number): void {
+  handle().prepare('DELETE FROM rules WHERE id = ?').run(id)
+}
+
+export function bumpRuleHits(id: number, count: number = 1): void {
+  handle().prepare('UPDATE rules SET hits = hits + ? WHERE id = ?').run(count, id)
+}
+
+/** Buzón de archivo según lo que reportó el servidor (o "Archive" como respaldo). */
+export function archiveMailboxPath(): string | null {
+  const row = handle()
+    .prepare(
+      "SELECT path FROM mailboxes WHERE special_use = '\\Archive' ORDER BY path LIMIT 1"
+    )
+    .get() as unknown as { path: string } | undefined
+  if (row?.path) return row.path
+  const fallback = handle()
+    .prepare("SELECT path FROM mailboxes WHERE LOWER(path) = 'archive' LIMIT 1")
+    .get() as unknown as { path: string } | undefined
+  return fallback?.path ?? null
+}
+
+export interface CachedMessage {
+  mailbox: string
+  uid: number
+  subject: string
+  fromName: string
+  fromAddr: string
+  to: string
+}
+
+function mapMessage(row: {
+  mailbox: string
+  uid: number
+  subject: string
+  from_name: string
+  from_addr: string
+  to_json: string | null
+}): CachedMessage {
+  return {
+    mailbox: row.mailbox,
+    uid: row.uid,
+    subject: row.subject,
+    fromName: row.from_name,
+    fromAddr: row.from_addr,
+    to: row.to_json ?? ''
+  }
+}
+
+export function messagesByUids(mailbox: string, uids: readonly number[]): CachedMessage[] {
+  if (uids.length === 0) return []
+  const placeholders = uids.map(() => '?').join(',')
+  const rows = handle()
+    .prepare(
+      `SELECT mailbox, uid, subject, from_name, from_addr, to_json
+       FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`
+    )
+    .all(mailbox, ...uids) as unknown as {
+    mailbox: string
+    uid: number
+    subject: string
+    from_name: string
+    from_addr: string
+    to_json: string | null
+  }[]
+  return rows.map(mapMessage)
+}
+
+export function allCachedMessages(limit: number = 5000): CachedMessage[] {
+  const rows = handle()
+    .prepare(
+      `SELECT mailbox, uid, subject, from_name, from_addr, to_json
+       FROM messages WHERE mailbox NOT IN (SELECT path FROM mailboxes WHERE special_use = '\\Sent')
+       ORDER BY date DESC LIMIT ?`
+    )
+    .all(limit) as unknown as {
+    mailbox: string
+    uid: number
+    subject: string
+    from_name: string
+    from_addr: string
+    to_json: string | null
+  }[]
+  return rows.map(mapMessage)
 }
