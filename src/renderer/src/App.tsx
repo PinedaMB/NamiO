@@ -726,28 +726,35 @@ export function App(): React.JSX.Element {
     if (missing.length === 0) return
     let cancelled = false
     const generation = accountGeneration.current
-    Promise.all(missing.map(messageUid => window.api.getMessage(folder, messageUid)))
-      .then((results) => {
+    const firstUid = individualMessageId ? uidOf(individualMessageId) : selected.messageIds?.at(-1) ?? uid
+    const ordered = [...missing].reverse()
+    if (firstUid !== null && ordered.includes(firstUid)) {
+      ordered.splice(ordered.indexOf(firstUid), 1)
+      ordered.unshift(firstUid)
+    }
+    void (async () => {
+      for (const messageUid of ordered) {
+        if (cancelled) return
+        const result = await window.api.getMessage(folder, messageUid).catch(() => null)
         if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
-        const failure = results.find(result => !result.ok)
-        if (failure && !failure.ok) {
-          setLiveError({ code: failure.code, detail: failure.detail })
+        if (!result?.ok) {
+          setLiveError({ code: result && !result.ok ? result.code : 'unknown', detail: result && !result.ok ? result.detail : 'IPC' })
+          continue
         }
-        const messages = results.flatMap(result => result.ok ? [detailToMessage(result.data, locale, result.meta.partial === true)] : [])
-        if (messages.length === 0) return
-        if (results.some(result => result.ok && result.meta.partial)) setToast(t('offline.bodyUnavailable'))
+        const message = detailToMessage(result.data, locale, result.meta.partial === true)
+        if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
         setThreads(current => current.map(thread => {
           if (thread.id !== selected.id) return thread
-          const loaded = new Map([...thread.messages, ...messages].map(message => [message.id, message]))
+          const loaded = new Map([...thread.messages, message].map(item => [item.id, item]))
           return { ...thread, messages: (thread.messageIds ?? [uid]).flatMap(messageUid => loaded.get(`live:${messageUid}`) ?? []) }
         }))
-      })
-      .catch(() => undefined)
+      }
+    })()
 
     return () => {
       cancelled = true
     }
-  }, [live, selected, folder, locale, view])
+  }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view])
 
   const select = (id: string, messageId?: string): void => {
     if (!draftsFolder) setMessageOpen(true)

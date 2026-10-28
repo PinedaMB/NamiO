@@ -165,7 +165,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   }, [])
 
   return (
-    <div className="email-body" style={{ background: readyDocument === documentHtml ? background : undefined, borderRadius: 'var(--r-xl)' }}>
+    <div className="email-body" style={{ background: readyDocument === documentHtml ? background : undefined }}>
       {(blockRemote || prepared.blocked > 0) && (
         <div className="email-banner">
           <Icon name="image_not_supported" size={15} />

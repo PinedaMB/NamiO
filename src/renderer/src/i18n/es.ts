@@ -541,7 +541,7 @@ export const es = {
     'Con OAuth2 la app abre tu navegador y nunca ve tu contraseña. Con contraseña, conviene usar una de aplicación si el proveedor la exige.',
   'account.test': 'Conectar',
   'account.testing': 'Conectando…',
-  'account.disconnect': 'Desconectar',
+  'account.disconnect': 'Desvincular cuenta',
   'account.cancel': 'Cancelar',
   'account.demo': 'Demostración',
   'account.connected': 'Conectada',

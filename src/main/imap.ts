@@ -28,6 +28,7 @@ import type {
 import {
   clearMailbox,
   clearAccountCache,
+  deleteAccountCache,
   countMessages,
   countUnread,
   adjustMailboxUnseen,
@@ -690,6 +691,7 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
 }
 
 export async function getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>> {
+  const generation = syncGeneration
   const body = readBody(path, uid)
   if (body.fetched) {
     const detail = cachedDetail(path, uid)
@@ -697,17 +699,21 @@ export async function getMessage(path: string, uid: number): Promise<CachedResul
   }
 
   try {
-    const detail = await serial(() => fetchMessage(path, uid))
-    saveBody(path, uid, {
-      text: detail.text,
-      html: detail.html,
-      to: detail.to,
-      cc: detail.cc,
-      attachments: detail.attachments
+    const detail = await serial(async () => {
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      if (readBody(path, uid).fetched) {
+        const cached = cachedDetail(path, uid)
+        if (cached) return cached
+      }
+      const fetched = await fetchMessage(path, uid)
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      saveBody(path, uid, { text: fetched.text, html: fetched.html, to: fetched.to, cc: fetched.cc, attachments: fetched.attachments })
+      offline = false
+      return fetched
     })
-    offline = false
     return { ok: true, data: detail, meta: syncMeta() }
   } catch (error) {
+    if (generation !== syncGeneration) return { ok: false, code: 'unknown', detail: 'La cuenta activa cambió' }
     const code = classify(error)
     const fallback = cachedDetail(path, uid)
     if (fallback && isOfflineError(code)) {
@@ -1168,20 +1174,26 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
   }
 }
 
-export async function disconnectAccount(): Promise<void> {
+export async function disconnectAccount(expectedId: string): Promise<void> {
+  const { active } = await readAccounts()
+  if (!active || active !== expectedId) throw new Error('La cuenta activa cambió')
   syncGeneration += 1
   pendingFullSync.clear()
   publishProgress(null)
-  const { active } = await readAccounts()
-  await serial(closeSession)
-  if (!active) return
-
-  // Sin contraseña guardada, mantener la cuenta sería un estado a medias: se
-  // olvida y la app vuelve a la siguiente cuenta (o a la demo).
-  const { active: next } = await removeAccount(active)
-  if (!next) await writeSettings({ onboarded: false })
-  openAccountCache(next ?? 'default')
-  notify('*')
+  await serial(async () => {
+    if ((await readAccounts()).active !== active) throw new Error('La cuenta activa cambió')
+    await closeSession()
+    try {
+      await deleteAccountCache(active)
+    } catch (error) {
+      openAccountCache(active)
+      throw error
+    }
+    const { active: next } = await removeAccount(active)
+    openAccountCache(next ?? 'default')
+    if (!next) await writeSettings({ onboarded: false })
+    notify('*')
+  })
 }
 
 export function clearCachedMail(accountId: string): Promise<void> {

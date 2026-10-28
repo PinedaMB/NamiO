@@ -20,6 +20,18 @@ import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCreden
 const MAX_ATTEMPTS = 5
 
 let processing = false
+let outboxPaused = false
+let processingDone: Promise<void> | null = null
+
+export async function pauseOutbox(): Promise<void> {
+  outboxPaused = true
+  await processingDone
+}
+
+export function resumeOutbox(): void {
+  outboxPaused = false
+  void processOutbox().catch(error => console.error('[outbox]', error))
+}
 let deletionProgress: { id: string; completed: number } | null = null
 let listener: (() => void) | null = null
 
@@ -245,13 +257,15 @@ async function runOne(row: OutboxRow): Promise<void> {
 
 /** Procesa la cola en orden. Es idempotente y no corre en paralelo consigo misma. */
 export async function processOutbox(): Promise<void> {
-  if (processing) return
+  if (processing || outboxPaused) return
   processing = true
+  let done!: () => void
+  processingDone = new Promise(resolve => { done = resolve })
   const owner = cacheAccountId()
 
   try {
     const attempted = new Set<string>()
-    while (true) {
+    while (!outboxPaused) {
       const row = listOutbox().find(item => item.status !== 'failed' && !attempted.has(item.id))
       if (!row) break
       attempted.add(row.id)
@@ -265,6 +279,8 @@ export async function processOutbox(): Promise<void> {
     }
   } finally {
     processing = false
+    processingDone = null
+    done()
     notify()
   }
 }

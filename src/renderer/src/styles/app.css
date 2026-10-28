@@ -3610,7 +3610,7 @@
 .email-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  border-radius: var(--r-xl);
 }
 
 .email-body__frame {
@@ -4712,6 +4712,11 @@
 
 .thread-message > .email-body,
 .thread-message > .email-body .email-body__frame {
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+}
+
+.thread-message .letter-loading {
+  padding: 16px 20px;
   border-radius: 0 0 var(--r-xl) var(--r-xl);
 }
 

@@ -538,7 +538,7 @@ export const en: Dictionary = {
     'With OAuth2 the app opens your browser and never sees your password. With password sign-in, prefer an app password when the provider requires one.',
   'account.test': 'Connect',
   'account.testing': 'Connecting…',
-  'account.disconnect': 'Disconnect',
+  'account.disconnect': 'Unlink account',
   'account.cancel': 'Cancel',
   'account.demo': 'Demo',
   'account.connected': 'Connected',

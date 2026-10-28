@@ -417,7 +417,7 @@ export interface MailApi {
   /** OAuth2: abre el navegador, espera el redirect y guarda el refresh token. */
   accountConnectOAuth(config: AccountConfig): Promise<ImapResult<AccountState>>
   accountRename(label: string): Promise<ImapResult<AccountState>>
-  accountDisconnect(): Promise<void>
+  accountDisconnect(): Promise<boolean>
 
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>

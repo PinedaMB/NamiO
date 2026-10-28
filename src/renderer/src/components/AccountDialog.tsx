@@ -222,9 +222,16 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   }
 
   const disconnect = async (): Promise<void> => {
-    await window.api.accountDisconnect().catch(() => undefined)
-    setPassword('')
-    onClose()
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (!await window.api.accountDisconnect()) return
+      setPassword('')
+      onClose()
+    } catch (cause) {
+      setError({ code: 'unknown', detail: cause instanceof Error ? cause.message : String(cause) })
+    } finally { setBusy(false) }
   }
 
   return (
@@ -600,7 +607,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
           <div className="account-modal__foot">
             {account?.configured ? (
-              <button className="tool-btn btn--danger" type="button" onClick={() => void disconnect()}>
+              <button className="tool-btn btn--danger" type="button" onClick={() => void disconnect()} disabled={busy}>
                 <Icon name="link_off" size={15} />
                 {t('account.disconnect')}
               </button>

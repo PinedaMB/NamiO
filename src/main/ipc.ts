@@ -40,7 +40,7 @@ import {
   setFlagged,
   setSeen
 } from './imap'
-import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
+import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, pauseOutbox, resumeOutbox, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
 import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments, readMailboxes, getMailboxMeta, cacheAccountId, enqueueOutbox } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
@@ -66,6 +66,7 @@ function validConfig(config: AccountConfig): boolean {
 }
 
 export function registerIpcHandlers(): void {
+  let disconnecting = false
   ipcMain.handle(IPC.coreStatus, async (): Promise<CoreStatus> => {
     const { accounts } = await readAccounts()
     return {
@@ -210,8 +211,36 @@ export function registerIpcHandlers(): void {
     return { ok: true, data: await getAccountState() }
   })
 
-  ipcMain.handle(IPC.accountDisconnect, async (): Promise<void> => {
-    await disconnectAccount()
+  ipcMain.handle(IPC.accountDisconnect, async (event): Promise<boolean> => {
+    if (disconnecting) return false
+    disconnecting = true
+    try {
+      await pauseOutbox()
+      const account = await readActiveAccount()
+      if (!account || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      const pending = listDrafts().filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer).length
+      const queued = outboxItems().length
+      const english = (await readSettings()).language === 'en'
+      const options = {
+        type: 'warning' as const,
+        message: english ? `Unlink ${account.user}?` : `¿Desvincular ${account.user}?`,
+        detail: (english
+          ? 'The account, saved credentials and ALL local data will be deleted, including downloaded messages, drafts, pending operations and rules. Emails on the server will not be deleted.'
+          : 'Se eliminarán la cuenta, sus credenciales y TODOS sus datos locales: mensajes descargados, borradores, operaciones pendientes y reglas. Los correos del servidor no se borrarán.') +
+          (pending || queued ? (english ? `\n\nUnsynced drafts: ${pending}. Pending operations: ${queued}. These local changes will be lost. Cancel to keep them.` : `\n\nBorradores sin sincronizar: ${pending}. Operaciones pendientes: ${queued}. Estos cambios locales se perderán. Cancela para conservarlos.`) : ''),
+        buttons: english ? ['Cancel', 'Unlink and delete local data'] : ['Cancelar', 'Desvincular y borrar datos locales'],
+        defaultId: 0, cancelId: 0, noLink: true
+      }
+      const owner = BrowserWindow.fromWebContents(event.sender)
+      const choice = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options)
+      if (choice.response !== 1) return false
+      if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      await disconnectAccount(account.id)
+      return true
+    } finally {
+      disconnecting = false
+      resumeOutbox()
+    }
   })
 
   ipcMain.handle(IPC.mailboxesList, (_event, sync: boolean = true) => listMailboxes(sync))

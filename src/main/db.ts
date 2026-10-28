@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, rm, stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -1015,6 +1015,14 @@ export async function cacheUsage(accounts: readonly { id: string }[]): Promise<C
     accounts: perAccount,
     unassignedBytes: sizes.filter(file => !used.has(file.name)).reduce((sum, file) => sum + file.bytes, 0)
   }
+}
+
+/** Retira todos los datos locales de una cuenta desvinculada. */
+export async function deleteAccountCache(accountId: string): Promise<void> {
+  if (!/^[a-z0-9_-]+$/i.test(accountId)) throw new Error('Cuenta inválida')
+  if (openedAccountId === accountId) closeCache()
+  const file = join(app.getPath('userData'), accountCacheFile(accountId))
+  for (const suffix of ['-wal', '-shm', '-journal', '']) await rm(file + suffix, { force: true })
 }
 
 /** Libera cuerpos descargados sin tocar sobres, borradores, reglas ni la cola. */

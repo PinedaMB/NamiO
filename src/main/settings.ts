@@ -115,7 +115,7 @@ export async function readAccounts(): Promise<{ accounts: StoredAccount[]; activ
 }
 
 export async function writeAccounts(accounts: readonly StoredAccount[], active: string | null): Promise<void> {
-  await writeSettings({ accounts: [...accounts], activeAccount: active ?? undefined })
+  await writeSettings({ accounts: [...accounts], activeAccount: active ?? undefined, account: undefined })
 }
 
 export async function readActiveAccount(): Promise<StoredAccount | null> {
