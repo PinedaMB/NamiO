@@ -61,7 +61,7 @@ async function opening() {
       accountIdentity: { current: scenario === 'same' ? 'b' : 'a' },
       setOpeningNotification() {}, setNotificationTarget(fn) { pending = fn(pending) },
       async handleSelectAccount(id) { assert.equal(id, 'b'); switched++; if (scenario !== 'failure') context.accountIdentity.current = 'b' },
-      setView() {}, setFilter() {}, setQuery() {},
+      setView() {}, setFilter() {}, setQuery() {}, setMessageOpen() {},
       async loadFolder(path, uid) { opened.push([path, uid]) }
     }
     vm.runInNewContext(compile(`(${effect})()`), context)

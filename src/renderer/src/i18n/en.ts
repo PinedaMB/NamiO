@@ -2,6 +2,7 @@ import type { Dictionary } from './es'
 
 /** English copy. Typed as a complete Dictionary: una clave faltante rompe el build. */
 export const en: Dictionary = {
+  'thread.backToList': 'Back to messages',
   'update.title': 'Updates',
   'update.current': 'Installed version: {version}',
   'update.hint': 'Automatic updates are available in the installed Windows app and AppImage. Updates download in the background and install on exit; you can also restart to install once ready.',

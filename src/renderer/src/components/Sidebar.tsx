@@ -121,19 +121,19 @@ export function Sidebar({
             className="account"
             type="button"
             onClick={(event) => toggleMenu(event.currentTarget)}
-            title={collapsed ? `${accountLabel} · ${t('account.switch')}` : t('account.switch')}
+            title={`${accountLabel} · ${t('account.switch')}${inactiveUnseen > 0 ? ` · ${t('account.inactiveMail', { count: inactiveUnseen })}` : ''}`}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
           >
             <span className="account__id">
               <span className={cx('dot', !accountConnected && 'dot--idle')} />
               <span className="account__mail">{accountLabel}</span>
+              {inactiveUnseen > 0 && (
+                <span className="account__alert" aria-hidden="true">
+                  <Icon name="mark_email_unread" size={14} />
+                </span>
+              )}
             </span>
-            {inactiveUnseen > 0 && (
-              <span className="account__alert" title={t('account.inactiveMail', { count: inactiveUnseen })}>
-                {inactiveUnseen}
-              </span>
-            )}
             <Icon name={accounts.length > 1 ? 'expand_more' : accountConnected ? 'tune' : 'add'} size={16} />
           </TooltipButton>
 
@@ -166,6 +166,7 @@ export function Sidebar({
                       {unseenOf(item.id) > 0 && (
                         <span className={cx('account-menu__count', item.active && 'account-menu__count--active')}>
                           {unseenOf(item.id)}
+                          <span className="account-menu__count-label">{t('list.unread')}</span>
                         </span>
                       )}
                       {item.active && <Icon name="check" size={15} />}

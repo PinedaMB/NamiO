@@ -35,6 +35,7 @@ interface ThreadPaneProps {
   onOpenAttachment: (index: number, messageId?: string) => void
   onPrev: () => void
   onNext: () => void
+  onBack: () => void
 }
 
 const ATTACHMENT_ICON: Record<Attachment['kind'], { icon: string; tone: string }> = {
@@ -120,7 +121,8 @@ export function ThreadPane({
   onQuickDraft,
   onOpenAttachment,
   onPrev,
-  onNext
+  onNext,
+  onBack
 }: ThreadPaneProps): React.JSX.Element {
   const { t, locale } = useI18n()
   const { bodyTheme: preferredTheme } = usePreferences()
@@ -135,6 +137,9 @@ export function ThreadPane({
     <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
+          <TooltipButton className="tool-btn tool-btn--icon reading__back" type="button" onClick={onBack} title={t('thread.backToList')}>
+            <Icon name="arrow_back" size={18} />
+          </TooltipButton>
           <TooltipButton
             className="tool-btn tool-btn--icon"
             type="button"

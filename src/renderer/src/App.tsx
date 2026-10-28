@@ -134,6 +134,21 @@ export function App(): React.JSX.Element {
   const [toast, setToast] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [compactWindow, setCompactWindow] = useState(() => window.matchMedia('(max-width: 1280px)').matches)
+  const [compactNavExpanded, setCompactNavExpanded] = useState(false)
+  const [messageOpen, setMessageOpen] = useState(false)
+  const railCollapsed = compactWindow ? !compactNavExpanded : sidebarCollapsed
+  useEffect(() => {
+    if (messageOpen && window.matchMedia('(max-width: 960px)').matches) {
+      document.querySelector<HTMLButtonElement>('.reading__back')?.focus()
+    }
+  }, [messageOpen])
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1280px)')
+    const update = (): void => { setCompactWindow(media.matches); setCompactNavExpanded(false) }
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
   const [contextOpen, setContextOpen] = useState(true)
 
   const [account, setAccount] = useState<AccountState | null>(null)
@@ -389,6 +404,7 @@ export function App(): React.JSX.Element {
   /** Abre un resultado de búsqueda: cambia de buzón si hace falta y selecciona el mensaje. */
   const openHit = useCallback(
     (hit: SearchHit): void => {
+      setMessageOpen(true)
       setFilter(hit.unread ? 'focused' : 'other')
       userNavigated.current = true
       const id = `live:${hit.uid}`
@@ -706,6 +722,7 @@ export function App(): React.JSX.Element {
   }, [live, selected, folder, locale, view])
 
   const select = (id: string, messageId?: string): void => {
+    if (!draftsFolder) setMessageOpen(true)
     setIndividualMessageId(messageId ?? null)
     userNavigated.current = true
     setSelectedId(id)
@@ -728,6 +745,8 @@ export function App(): React.JSX.Element {
   }
 
   const selectFolder = (id: string): void => {
+    setMessageOpen(false)
+    setCompactNavExpanded(false)
     if (mailboxes.some(box => box.path === id && isDraftMailbox(box))) setFilter('all')
     setView('mailbox')
     if (live) {
@@ -935,6 +954,7 @@ export function App(): React.JSX.Element {
         return
       }
       applyAccount(result.data)
+      setMessageOpen(false)
       void refreshAccounts()
       await loadMailboxes(result.data)
       setToast(t('account.switched'))
@@ -966,6 +986,7 @@ export function App(): React.JSX.Element {
           setFilter('all')
           setQuery('')
           await loadFolder(notificationTarget.path, notificationTarget.uid)
+          setMessageOpen(true)
         }
       } finally {
         setNotificationTarget(current => current === notificationTarget ? null : current)
@@ -1112,10 +1133,10 @@ export function App(): React.JSX.Element {
   if (booting) return <BootSplash />
 
   return (
-    <div className={sidebarCollapsed ? 'app app--rail-collapsed' : 'app'}>
+    <div className={railCollapsed ? 'app app--rail-collapsed' : 'app'}>
       <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+        collapsed={railCollapsed}
+        onToggleCollapsed={() => compactWindow ? setCompactNavExpanded(current => !current) : setSidebarCollapsed(current => !current)}
         activeFolder={folder}
         folders={folderViews}
         accountLabel={accountLabel}
@@ -1156,6 +1177,7 @@ export function App(): React.JSX.Element {
           live={live}
           query={query}
           onQuery={(next) => {
+            setMessageOpen(false)
             setQuery(next)
             setView('mailbox')
           }}
@@ -1179,7 +1201,7 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        <div className="panes">
+        <div className={messageOpen && selected ? 'panes panes--message-open' : 'panes'}>
           {view === 'settings' ? (
             <Settings
               onCacheCleared={(id) => {
@@ -1252,6 +1274,10 @@ export function App(): React.JSX.Element {
 
               {selected ? (
                 <ThreadPane
+                  onBack={() => {
+                    setMessageOpen(false)
+                    requestAnimationFrame(() => document.querySelector<HTMLElement>('.thread--active button, .thread--active [tabindex="0"]')?.focus())
+                  }}
                   thread={individualMessageId && selected.messages.some(message => message.id === individualMessageId) ? { ...selected, messages: selected.messages.filter(message => message.id === individualMessageId) } : selected}
                   mailbox={folder}
                   spam={folderViews.some((item) => item.id === folder && item.spam)}

@@ -5,6 +5,7 @@
  * Interpolación: `{nombre}` se reemplaza con las variables de `t(key, vars)`.
  */
 export const es = {
+  'thread.backToList': 'Volver a los mensajes',
   'update.title': 'Actualizaciones',
   'update.current': 'Versión instalada: {version}',
   'update.hint': 'La actualización automática está disponible en la aplicación instalada para Windows y AppImage. Se descarga en segundo plano y se instala al salir; también puedes reiniciar para instalarla cuando esté lista.',
