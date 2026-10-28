@@ -5,7 +5,7 @@
   <p><strong>Tu correo, a tu ritmo.</strong></p>
   <p>Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes.<br />Varias cuentas, acceso sin conexión y avisos de correo nuevo en una interfaz oscura.</p>
 
-  <p><strong>0.4.3 · En desarrollo · Español (México) / English</strong></p>
+  <p><strong>0.4.4 · En desarrollo · Español (México) / English</strong></p>
 
   <p>
     <a href="https://github.com/PinedaMB/NamiO/releases">Descargas</a> ·
@@ -22,19 +22,26 @@
 | | En NamiO |
 | --- | --- |
 | 📬 **Reunir tus cuentas** | Agrega varias cuentas de correo y alterna entre ellas. Cada una conserva sus mensajes, borradores y reglas. |
-| ✍️ **Escribir con formato** | Usa negrita, cursiva, subrayado, enlaces, listas y citas. Envía en HTML o como texto plano, con adjuntos, CC y CCO. |
-| 📝 **Retomar un borrador** | Guarda varios borradores por cuenta, conserva su formato y adjuntos y sincronizalos con la carpeta de borradores del servidor. |
-| 🔎 **Encontrar y organizar** | Busca en el correo guardado, destaca mensajes, archiva, elimina o aplica acciones a una selección. También tienes menús con clic derecho. |
+| ✍️ **Escribir con formato** | Usa formato, tamaño de letra, colores y resaltado. Elige la importancia del mensaje y la cuenta remitente. Envía en HTML o como texto plano, con adjuntos, CC y CCO. |
+| 📝 **Retomar un borrador** | Guarda varios borradores por cuenta, conserva su formato y adjuntos y sincronízalos con la carpeta de borradores del servidor. |
+| 🔎 **Encontrar y organizar** | Busca en todas las carpetas guardadas de la cuenta, carga más resultados y abre coincidencias antiguas. Ordena, filtra y aplica acciones a una selección. |
+| 📎 **Ver adjuntos** | Amplía imágenes, recorre PDF por páginas o consulta TXT sin salir del correo. Guarda los archivos cuando los necesites. |
 | 📂 **Automatizar el orden** | Crea reglas locales para mover, archivar, marcar como leído o eliminar mensajes según sus condiciones. |
 | 🔔 **Enterarte de lo nuevo** | Recibe notificaciones de tus cuentas, elige si llevan sonido y abre el mensaje desde el aviso. |
 | 📴 **Leer sin conexión** | Consulta los mensajes ya descargados. Los envíos aceptados en la cola quedan pendientes para reintentarse cuando vuelva la conexión. |
-| ⌨️ **Moverte a tu manera** | Personaliza los atajos, usa la paleta de comandos y elige entre español e inglés para la interfaz. |
+| ⌨️ **Moverte a tu manera** | Personaliza los atajos y sus símbolos Ctrl o ⌘, usa la paleta de comandos y elige entre español e inglés. |
 
 ### Más espacio para escribir y leer
 
 Para vaciar **Spam** o **Papelera**, haz clic derecho sobre la carpeta y elige **Vaciar carpeta…**; también está disponible en la barra del lector mediante el ícono de vaciado. NamiO muestra la cantidad de mensajes y pide confirmación: el borrado es definitivo. Las selecciones múltiples también se confirman una sola vez y se procesan en segundo plano; desde otras carpetas se mueven a Papelera. Puedes seguir navegando mientras la cola trabaja. Si cierras la aplicación o falla la conexión, las operaciones pendientes se conservan para reintentarse.
 
 El redactor se puede **ampliar, minimizar y restaurar** sin perder lo que estás escribiendo. Al cerrarlo, guardas el borrador; al descartarlo, lo eliminas.
+
+Al iniciar se muestra una **bienvenida con acciones rápidas**. Abre un correo desde la lista y pulsa **Esc** para cerrarlo. **Ctrl+A** selecciona los mensajes cargados cuando el foco está en la lista, o el texto cuando está en el correo, un TXT o un campo de edición.
+
+Los adjuntos aparecen **colapsados**. Las imágenes, los PDF y los TXT admiten vista previa de hasta **20 MB**, con guardado y cierre mediante Esc. Los PDF con contraseña requieren guardarse para abrirlos en otro lector. Al descargar un archivo se muestra **«Preparando descarga…»** hasta terminar o cancelar.
+
+La búsqueda consulta **todas las carpetas guardadas de la cuenta activa**, sin limitarse a los mensajes visibles. El cuerpo del mensaje solo participa si ya se descargó; la búsqueda no consulta directamente el servidor.
 
 El lector permite elegir un **fondo claro u oscuro para los mensajes**, independientemente del aspecto oscuro de la aplicación. Las animaciones respetan la preferencia de movimiento reducido de tu sistema.
 
@@ -88,6 +95,7 @@ Al pulsar un aviso, NamiO abre la cuenta y el mensaje correspondientes. Si está
 - **Credenciales protegidas por el sistema.** Se guardan cifradas cuando el sistema ofrece almacenamiento seguro; si no está disponible, NamiO no las conserva y te lo informa.
 - **Imágenes remotas bloqueadas inicialmente.** Puedes permitirlas desde Configuración. En correo no deseado permanecen bloqueadas.
 - **Contenido de correo protegido.** Los mensajes HTML se limpian antes de mostrarse y sus enlaces se abren en tu navegador.
+- **Desvinculación completa.** Al desvincular una cuenta se eliminan sus credenciales y todos sus datos locales, sin borrar los correos del servidor. La confirmación advierte si hay borradores sin sincronizar u operaciones pendientes; puedes cancelar para conservarlos.
 - **Control del espacio.** En Cuentas puedes consultar el uso de caché y vaciar el contenido descargado. Esta acción conserva credenciales, borradores, reglas y operaciones pendientes, y no borra el correo del servidor.
 
 > Sin conexión solo está disponible lo que ya se descargó. Después de vaciar la caché necesitas conectarte para recuperar el contenido de los mensajes.
@@ -104,7 +112,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 
 ## 🌱 Estado actual
 
-**NamiO 0.4.3 está en desarrollo.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es una versión 1.0.
+**NamiO 0.4.4 está en desarrollo.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es una versión 1.0.
 
 - La bandeja muestra **una cuenta a la vez**; no hay bandeja unificada.
 - La revisión de cuentas inactivas detecta nuevos mensajes para los avisos; no equivale a sincronizar todo su contenido continuamente.

@@ -1,6 +1,23 @@
 # Cambios
 
-## 0.4.3 — En desarrollo
+## 0.4.4 — 2026-10-28
+
+- Bienvenida en el lector con acciones rápidas y atajos. Al iniciar o cambiar de carpeta no se abre un correo automáticamente; Esc cierra el mensaje actual.
+- Ctrl+A respeta el foco: selecciona los mensajes cargados en la lista, el contenido del correo o el texto del visor TXT, sin resaltar toda la interfaz. Los campos de edición mantienen su comportamiento habitual.
+- Lectura del HTML sin esperar a que terminen de cargar las imágenes remotas. Los mensajes de un hilo se muestran progresivamente, priorizando el elegido o el más reciente; se evitan descargas duplicadas y respuestas de cuentas anteriores.
+- Búsqueda en todas las carpetas guardadas de la cuenta activa, con «Cargar más», alcance local explícito, reintento ante errores y apertura correcta de resultados fuera de la tanda visible. Los asuntos y fragmentos resaltan las coincidencias.
+- Ordenamiento y filtros aplicados a toda la caché antes de limitar los mensajes mostrados, con contadores y carga de más mensajes. Conversaciones con fechas consistentes y controles de despliegue alineados.
+- Visores integrados de imágenes, PDF y TXT. Incluyen cierre con Esc, guardado, zoom para imágenes y PDF y navegación por páginas de PDF. Los TXT conservan los acentos de UTF-8, UTF-16 y Windows-1252. La vista previa admite hasta 20 MB; los PDF con contraseña se guardan para abrirlos en un lector externo.
+- Adjuntos colapsados inicialmente. Al guardarlos se muestra «Preparando descarga…» en el lector y los visores, con bloqueo de clics repetidos y limpieza del indicador al terminar, cancelar o fallar.
+- Importancia alta, normal o baja al redactar, recibir y mostrar mensajes, conservada en borradores y envíos pendientes; independiente de la estrella de destacados.
+- Redactor con tamaño de letra, color y resaltado, colores predefinidos y restauración de valores predeterminados. Se indica la cuenta desde la que se enviará el mensaje.
+- Configuración avanzada de cuentas contraída inicialmente, con sugerencias de servidor a partir del dominio del correo que respetan los cambios manuales.
+- Al desvincular se eliminan las credenciales y todos los datos locales de la cuenta, sin borrar los correos del servidor. La confirmación advierte sobre borradores sin sincronizar y operaciones pendientes y permite cancelar.
+- Símbolos de atajos Ctrl o ⌘ configurables y guardados, con valor inicial según el sistema. Barra de búsqueda centrada y bienvenida, tarjetas y textos más consistentes.
+- Tarjetas de correo más compactas, checkbox centrado sobre el avatar y fondo blanco para avatares con imagen.
+- Pruebas de regresión ampliadas para búsqueda, selección por foco, carga de mensajes, desvinculación, visores y preparación de descargas.
+
+## 0.4.3
 
 - Actualizaciones visibles en la barra de estado: búsqueda manual, progreso de descarga, reintento ante errores y botón para reiniciar e instalar. Disponible en Windows y AppImage.
 
