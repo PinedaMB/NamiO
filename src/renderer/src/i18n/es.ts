@@ -16,6 +16,9 @@ export const es = {
   'common.move': 'Mover',
   'common.deleting': 'Eliminando…',
   'common.delete': 'Eliminar',
+  'context.emptyFolder': 'Vaciar carpeta…',
+  'toast.folderEmpty': 'La carpeta ya está vacía',
+  'toast.deletingBackground': 'Borrado en cola: continúa en segundo plano',
   'common.spam': 'Marcar como spam',
   'common.reply': 'Responder',
   'common.compose': 'Redactar',
@@ -38,6 +41,8 @@ export const es = {
   'onboarding.subtitle':
     'Conectá una cuenta y tus mensajes quedan en una caché local: búsqueda instantánea, lectura sin conexión y nada de nube de por medio.',
   'onboarding.gmail': 'Gmail',
+  'onboarding.yahoo': 'Yahoo',
+  'onboarding.yahooHint': 'Conectá con una contraseña de aplicación',
   'onboarding.gmailHint': 'OAuth2 o contraseña de aplicación',
   'onboarding.outlook': 'Outlook / Microsoft 365',
   'onboarding.outlookHint': 'Iniciá sesión con tu cuenta de Microsoft',

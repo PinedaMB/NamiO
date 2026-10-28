@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from './Icon'
 
@@ -56,7 +56,10 @@ export function ContextMenu({ anchor, label, actions, onClose }: {
 
   return createPortal(<div ref={menu} className="context-menu" role="menu" aria-label={label} style={position} onContextMenu={event => event.preventDefault()}>
     <span className="context-menu__title">{label}</span>
-    {actions.map(action => <button key={action.label} type="button" role="menuitem" disabled={action.disabled} className={action.danger ? 'context-menu__item context-menu__item--danger' : 'context-menu__item'}
-      onClick={() => { onClose(); anchor.trigger.focus({ preventScroll: true }); action.run() }}><Icon name={action.icon} size={17} />{action.label}</button>)}
+    {actions.map((action, index) => <Fragment key={action.label}>
+      {action.danger && index > 0 && !actions[index - 1]?.danger && <div className="context-menu__separator" role="separator" />}
+      <button type="button" role="menuitem" disabled={action.disabled} className={action.danger ? 'context-menu__item context-menu__item--danger' : 'context-menu__item'}
+        onClick={() => { onClose(); anchor.trigger.focus({ preventScroll: true }); action.run() }}><Icon name={action.icon} size={17} />{action.label}</button>
+    </Fragment>)}
   </div>, document.body)
 }

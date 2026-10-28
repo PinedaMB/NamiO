@@ -24,8 +24,8 @@ async function main() {
     assert.equal(db.readDraft().bcc, 'hidden@example.com')
     assert.equal(db.readDraft().attachments[0].id,'file1')
     assert.equal(db.readPickedAttachment('file1').name,'report.txt')
-    const sent = [], copies = []
-    let failSmtp = false, failSentCopy = false
+    const sent = [], copies = [], deletedBatches = []
+    let failSmtp = false, failSentCopy = false, failBatch = false
     vm.runInNewContext(compile(await fs.readFile('src/main/mail.ts','utf8')), { exports:mail, Buffer, setTimeout:()=>0, console, require:id=>{
       if(id==='@shared/mailAddresses')return addresses
       if(id==='./db')return db
@@ -33,7 +33,7 @@ async function main() {
       if(id==='./settings')return {readActiveAccount:async()=>({id:'one'})}
       if(id==='electron')return {dialog:{},BrowserWindow:{}}
       if(id==='nodemailer')return {createTransport:options=>options.streamTransport ? nodemailer.createTransport(options) : {sendMail:async message=>{if(failSmtp)throw new Error('Offline');sent.push(message)},close(){}}}
-      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)}}
+      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)},deleteMessageBatch:async(...args)=>{if(failBatch)throw new Error('IMAP offline');deletedBatches.push(args)}}
       return require(id)
     }})
     const payload = {to:draft.to,cc:draft.cc,bcc:draft.bcc,subject:draft.subject,text:draft.body,html:draft.html,attachments:['file1'],inReplyTo:draft.inReplyTo,references:draft.references}
@@ -73,6 +73,19 @@ async function main() {
     assert.equal(db.listOutbox().length,0)
     await mail.processOutbox()
     assert.equal(sent.length,deliveriesBeforeRetry+1,'completed queue entries are not sent again')
+    db.enqueueOutbox({kind:'delete-many',mailbox:'Spam',payload:{uids:[1,5000],uidValidity:'7',permanent:true}})
+    failBatch = true
+    await mail.processOutbox()
+    assert.equal(db.listOutbox().length,1,'failed background deletion remains pending')
+    db.closeCache();db.openAccountCache('one')
+    failBatch = false
+    await mail.processOutbox()
+    assert.equal(db.listOutbox().length,0,'background deletion resumes after reopening the cache')
+    assert.equal(deletedBatches.length,1)
+    assert.equal(deletedBatches[0][0],'Spam')
+    assert.deepEqual(Array.from(deletedBatches[0][1]),[1,5000])
+    assert.equal(deletedBatches[0][2],true)
+    assert.equal(deletedBatches[0][3],'7')
     db.clearDraft()
     assert.equal(db.readPickedAttachment('file1'),undefined)
     console.log('Compose mail: durable attachments/drafts, validation, CC/BCC privacy, reply headers, exact sent copy, queued offline mail and file cleanup passed')

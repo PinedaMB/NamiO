@@ -27,6 +27,7 @@ interface ThreadPaneProps {
   onToggleRead: () => void
   deleting?: boolean
   onDelete: () => void
+  onEmptyFolder?: () => void
   onStar: () => void
   onReply: () => void
   onQuickDraft: () => void
@@ -111,6 +112,7 @@ export function ThreadPane({
   onArchive,
   onToggleRead,
   onDelete,
+  onEmptyFolder,
   deleting = false,
   onStar,
   onReply,
@@ -170,6 +172,11 @@ export function ThreadPane({
             <Icon name={deleting ? 'progress_activity' : 'delete'} size={15} className={deleting ? 'spin' : undefined} />
             {deleting && <span role="status">{t('common.deleting')}</span>}
           </TooltipButton>
+          {onEmptyFolder && (
+            <TooltipButton className="tool-btn tool-btn--icon btn--danger" type="button" onClick={onEmptyFolder} disabled={!canMutate} title={t('context.emptyFolder')}>
+              <Icon name="delete_sweep" size={15} />
+            </TooltipButton>
+          )}
         </div>
 
         <div className="toolbar-group">

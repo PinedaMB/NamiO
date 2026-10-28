@@ -1,5 +1,5 @@
 import { trackNewMail } from './notificationCursor'
-import { isDraftMailbox } from '@shared/mailboxes'
+import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 import { createHash } from 'node:crypto'
 import { ImapFlow, type MessageStructureObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
@@ -899,6 +899,48 @@ export function deleteMessage(path: string, uid: number, permanent = false): Pro
     await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
     notify('*')
   })
+}
+
+export function mailboxDeletionSnapshot(path: string): Promise<{ uids: number[]; uidValidity: string }> {
+  const generation = syncGeneration
+  return serial(async () => {
+    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+    const client = await ensureClient()
+    const lock = await client.getMailboxLock(path)
+    try {
+      const uids = await client.search({ all: true }, { uid: true })
+      if (!uids || !client.mailbox || !client.mailbox.uidValidity || generation !== syncGeneration) throw new Error('No se pudo obtener una lista segura de mensajes')
+      return { uids, uidValidity: String(client.mailbox.uidValidity) }
+    } finally { lock.release() }
+  })
+}
+
+export async function deleteMessageBatch(path: string, uids: number[], permanent: boolean, uidValidity: string): Promise<void> {
+  const generation = syncGeneration
+  for (let offset = 0; offset < uids.length; offset += 100) {
+    await serial(async () => {
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      const client = await ensureClient()
+      const trash = trashPath()
+      const box = readMailboxes().find(item => item.path === path)
+      if (permanent ? path !== trash && (!box || !isSpamMailbox(box)) : !trash || path === trash) throw new Error('Destino de borrado inválido')
+      const lock = await client.getMailboxLock(path)
+      try {
+        if (generation !== syncGeneration || !client.mailbox || String(client.mailbox.uidValidity) !== uidValidity) throw new Error('La identidad de la carpeta cambió; no se eliminaron mensajes')
+        if (!client.capabilities.has('UIDPLUS') && (permanent || !client.capabilities.has('MOVE'))) throw new Error('El servidor no permite eliminar solo estos mensajes de forma segura')
+        const batch = uids.slice(offset, offset + 100)
+        const range = batch.join(',')
+        const result = permanent ? await client.messageDelete(range, { uid: true }) : await client.messageMove(range, trash!, { uid: true })
+        if (!result) throw new Error('El servidor no confirmó la eliminación')
+        for (const uid of batch) {
+          const removed = deleteMessageRow(path, uid)
+          if (removed?.unread) adjustMailboxUnseen(path, -1)
+        }
+        await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
+        notify('*')
+      } finally { lock.release() }
+    })
+  }
 }
 
 /* ---------------------------------------------------------------------------

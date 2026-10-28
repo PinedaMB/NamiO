@@ -5232,46 +5232,85 @@
   z-index: 100;
   display: flex;
   flex-direction: column;
-  width: min(260px, calc(100vw - 16px));
+  width: min(280px, calc(100vw - 16px));
   max-height: calc(100vh - 16px);
   overflow-y: auto;
-  padding: var(--sp-xs);
-  border-radius: var(--r-lg);
-  background: var(--surface-container-high);
+  padding: var(--sp-sm);
+  border-radius: var(--r-xl);
+  background: var(--surface-container);
   box-shadow: var(--shadow-lg);
   animation: content-in 120ms var(--ease) both;
 }
 
 .context-menu__title {
-  padding: var(--sp-sm) var(--sp-md);
+  padding: var(--sp-md);
+  margin-bottom: var(--sp-xs);
+  border-bottom: 1px solid var(--outline-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--on-surface-variant);
   font-size: 12px;
+  font-weight: 550;
+}
+
+.context-menu__separator {
+  height: 1px;
+  margin: var(--sp-sm) var(--sp-md);
+  background: var(--outline-variant);
 }
 
 .context-menu__item {
   display: flex;
   align-items: center;
-  gap: var(--sp-sm);
-  min-height: 36px;
+  gap: var(--sp-md);
+  min-height: 40px;
   padding: var(--sp-sm) var(--sp-md);
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: transparent;
   color: var(--on-surface);
   text-align: left;
+  font-family: var(--font-sans);
+  font-size: 13px;
   cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
 }
 
-.context-menu__item:hover,
-.context-menu__item:focus-visible {
-  background: var(--surface-container-highest);
+.context-menu__item > .icon {
+  flex-shrink: 0;
+  color: var(--outline);
+}
+
+.context-menu__item:enabled:hover,
+.context-menu__item:enabled:focus-visible {
+  background: var(--secondary-container);
+  color: var(--primary);
+}
+
+.context-menu__item:enabled:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.context-menu__item:enabled:hover > .icon,
+.context-menu__item:enabled:focus-visible > .icon {
+  color: currentColor;
 }
 
 .context-menu__item--danger {
   color: var(--error);
+}
+
+.context-menu__item--danger > .icon {
+  color: currentColor;
+}
+
+.context-menu__item--danger:enabled:hover,
+.context-menu__item--danger:enabled:focus-visible {
+  background: var(--error-container);
+  color: var(--on-error-container);
+  outline-color: var(--error);
 }
 
 .context-menu__item:disabled {

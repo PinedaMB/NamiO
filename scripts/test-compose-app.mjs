@@ -18,11 +18,11 @@ contextBridge.exposeInMainWorld('api',{
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'drafts-preload.cjs'), `
-const {contextBridge}=require('electron');const listeners=[];const syncs=[];let inboxPresent=true,finishDelete,deleteCalls=0;const meta={offline:false,syncedAt:1};
+const {contextBridge}=require('electron');const listeners=[];const syncs=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const meta={offline:false,syncedAt:1};
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
 let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
-const boxes=[{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0}];
+const boxes=[{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0},{path:'Spam',name:'Spam',specialUse:String.fromCharCode(92)+'Junk',messages:2,unseen:0},{path:'Trash',name:'Trash',specialUse:String.fromCharCode(92)+'Trash',messages:2,unseen:0}];
 const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
 contextBridge.exposeInMainWorld('api',{
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('api',{
  listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>({ok:true,data:path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[],meta}),
  getMessage:async(path,uid)=>({ok:true,data:{...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[],text:remote.body,html:remote.html,attachments:[]},meta}),
  deleteMessage:async(path,uid)=>{if(path!=='INBOX'||uid!==11)throw new Error('Wrong delete target');deleteCalls++;return new Promise(resolve=>{finishDelete=()=>{inboxPresent=false;notify();resolve({ok:true,queued:false})}})},finishTestDelete:async()=>finishDelete(),inspectTestDeleteCalls:async()=>deleteCalls,
+ deleteMessages:async(path,uids)=>{backgroundDeletes.push({path,uids});return{ok:true,queued:true}},inspectTestBackgroundDeletes:async()=>backgroundDeletes,
  syncMailbox:async path=>{syncs.push(path);return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
@@ -44,6 +45,11 @@ const {app,BrowserWindow}=require('electron');
 app.setPath('userData',${JSON.stringify(join(folder,'profile'))});app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
  const errors=[];
+ const captureMenu=async(window,path)=>{
+   window.webContents.invalidate();
+   await new Promise(resolve=>setTimeout(resolve,250));
+   await require('node:fs/promises').writeFile(path,(await window.webContents.capturePage()).toPNG());
+ };
  const win=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{preload:${JSON.stringify(join(folder,'preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
  win.webContents.on('console-message',event=>{if(event.level==='error')errors.push('demo: '+event.message+' ['+event.sourceId+':'+event.lineNumber+']')});
  await win.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
@@ -125,6 +131,9 @@ app.whenReady().then(async()=>{
  }
 })()`)});
  console.log('Context menus: read/star target actions, keyboard navigation, focus restoration and viewport placement passed');
+ await win.webContents.executeJavaScript(${JSON.stringify(`document.querySelector('.thread__content').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:500,clientY:240}))`)});
+ await captureMenu(win,'/tmp/namio-context-menu-message.png');
+ await win.webContents.executeJavaScript(${JSON.stringify(`(()=>{if(document.querySelectorAll('.context-menu [role="separator"]').length!==1)throw new Error('Destructive actions must be separated');document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))})()`)});
  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('[aria-label="Redactar"]').click();
@@ -153,8 +162,51 @@ app.whenReady().then(async()=>{
  await until(()=>form.querySelector('input[type="password"]'),'Gmail app-password alternative missing');
  if(!submit.disabled)throw new Error('App-password mode must require a password');
 })()`)});
- onboarding.destroy();
  console.log('Gmail onboarding: built-in OAuth, email validation and app-password alternative passed');
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ document.querySelector('.account').click();
+ for(let i=0;i<100&&!document.querySelector('.account-menu .account-menu__action');i++)await new Promise(resolve=>setTimeout(resolve,50));
+ document.querySelector('.account-menu .account-menu__action').click();
+ for(let i=0;i<100&&!document.querySelector('.account-preset');i++)await new Promise(resolve=>setTimeout(resolve,50));
+ if(!document.querySelector('.account-preset'))throw new Error('Account dialog did not open');
+})()`)});
+ const fieldsScript = ${JSON.stringify(`(selector)=>[...document.querySelector(selector).querySelectorAll('label')].filter(label=>{const input=label.querySelector('input');return input&&!input.closest('details:not([open])')&&input.getBoundingClientRect().width>0}).map(label=>label.querySelector('span').textContent.trim()).sort()`)};
+ for(const [provider,card] of [['Gmail','Gmail'],['Outlook','Outlook'],['Yahoo','Yahoo'],['Otro','Otro correo'],['Local','Servidor local']]){
+   const initialFields=await onboarding.webContents.executeJavaScript('('+${JSON.stringify(`async (card,fields)=>{
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,50));
+ document.querySelector('.onboarding__back').click();await wait();
+ const cards=[...document.querySelectorAll('.onboarding__card')];const selected=cards.find(button=>button.textContent.includes(card));
+ if(!selected)throw new Error('Missing onboarding provider '+card+': '+cards.map(button=>button.textContent).join('|'));
+ selected.click();await wait();
+ return fields('.onboarding__form');
+}`)}+')('+JSON.stringify(card)+','+fieldsScript+')');
+   const dialogFields=await win.webContents.executeJavaScript('('+${JSON.stringify(`async (provider,fields)=>{
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,50));
+ for(let i=0;i<100&&!document.querySelector('.account-preset');i++)await wait();
+ const presets=[...document.querySelectorAll('.account-preset')];const selected=presets.find(button=>button.textContent.includes(provider));
+ if(!selected)throw new Error('Missing dialog provider '+provider+': '+presets.map(button=>button.textContent).join('|'));
+ selected.click();await wait();
+ return fields('.account-form');
+}`)}+')('+JSON.stringify(provider)+','+fieldsScript+')');
+   if(JSON.stringify(initialFields)!==JSON.stringify(dialogFields))throw new Error(provider+' fields differ: '+JSON.stringify({initialFields,dialogFields}));
+   if(provider==='Gmail'){
+     for(const [surface,selector] of [[onboarding,'.onboarding__form'],[win,'.account-form']]){
+       await surface.webContents.executeJavaScript('('+${JSON.stringify(`async selector=>{
+ const form=document.querySelector(selector);
+ const button=[...form.querySelectorAll('button')].find(button=>button.textContent.trim()==='Contraseña de aplicación'&&button.getBoundingClientRect().width>0);
+ if(!button)throw new Error('Gmail authentication choice must be visible without opening advanced settings');
+ button.click();await new Promise(resolve=>setTimeout(resolve,50));
+ if(!form.querySelector('input[type="password"]')||!form.querySelector('button[type="submit"]').disabled)throw new Error('Gmail app-password validation differs');
+}`)}+')('+JSON.stringify(selector)+')');
+     }
+     const startPasswordFields=await onboarding.webContents.executeJavaScript('('+fieldsScript+')('+JSON.stringify('.onboarding__form')+')');
+     const dialogPasswordFields=await win.webContents.executeJavaScript('('+fieldsScript+')('+JSON.stringify('.account-form')+')');
+     if(JSON.stringify(startPasswordFields)!==JSON.stringify(dialogPasswordFields))throw new Error('Gmail app-password fields differ');
+   }
+ }
+ await win.webContents.executeJavaScript("document.querySelector('.account-modal__actions .tool-btn').click()");
+ console.log('Authentication forms: matching visible fields for Gmail, Outlook, Yahoo, custom and local accounts; visible Gmail method selection and password validation passed');
+ onboarding.destroy();
  const live=new BrowserWindow({show:false,width:1024,height:768,useContentSize:true,webPreferences:{preload:${JSON.stringify(join(folder,'drafts-preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
  live.webContents.on('console-message',event=>{if(event.level==='error')errors.push('live: '+event.message+' ['+event.sourceId+':'+event.lineNumber+']')});
  await live.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
@@ -167,6 +219,40 @@ app.whenReady().then(async()=>{
  const card=title=>[...document.querySelectorAll('.thread__content')].find(item=>item.textContent.includes(title));
  await until(()=>document.querySelector('[aria-label="Drafts"]'),'Drafts folder missing');
  await until(()=>!document.querySelector('.list-loading'),'Initial folder still loading');await wait();
+ for(const path of ['Spam','Trash','INBOX']){
+ const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent===path);
+ if(!target)throw new Error('Missing folder '+path);
+ target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:200}));
+ await until(()=>document.querySelector('.context-menu'),'Folder context menu missing');
+ const empty=[...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.includes('Vaciar carpeta'));
+ if(path==='INBOX'){
+ if(empty)throw new Error('Regular folders cannot expose empty-folder');
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+ }else{
+ if(!empty)throw new Error('Spam/Trash must expose empty-folder');
+ empty.click();await wait();
+ const jobs=await window.api.inspectTestBackgroundDeletes();
+ if(jobs.at(-1)?.path!==path||jobs.at(-1)?.uids!==undefined)throw new Error('Wrong background deletion request');
+ }
+ await until(()=>!document.querySelector('.context-menu'),'Folder context menu did not close');
+ }
+ console.log('Empty-folder UI: Spam and Trash queue background deletion; Inbox does not expose it');
+ for(const path of ['Spam','Trash','INBOX']){
+ [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent===path).click();
+ await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent===path&&!document.querySelector('.list-loading')&&document.querySelector('.reading__toolbar'),'Folder toolbar did not load');
+ await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Folder message did not finish loading');
+ await new Promise(requestAnimationFrame);await wait();
+ const empty=document.querySelector('.reading__toolbar [aria-label="Vaciar carpeta…"]');
+ if(path==='INBOX'){
+ if(empty)throw new Error('Inbox toolbar cannot expose empty-folder');
+ }else{
+ if(!empty||empty.disabled)throw new Error('Spam/Trash toolbar needs an enabled empty-folder action');
+ empty.click();await wait();
+ const jobs=await window.api.inspectTestBackgroundDeletes();
+ if(jobs.at(-1)?.path!==path||jobs.at(-1)?.uids!==undefined)throw new Error('Toolbar queued the wrong folder');
+ }
+ }
+ console.log('Reader toolbar: empty-folder is available only in Spam/Trash and reuses background deletion');
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body not ready');
  const bodyFrame=document.querySelector('.email-body iframe'), bodyDocument=bodyFrame.contentDocument;
  const detail=document.querySelector('.thread-message');detail.open=false;
@@ -219,6 +305,9 @@ app.whenReady().then(async()=>{
  saved=await window.api.inspectTestDrafts();if(saved.length!==2||!saved.some(item=>item.id==='new-draft'))throw new Error('Multiple drafts not preserved');
 })()`)});
  console.log('Folder context sync: clicked folder is synchronized without changing the open folder');
+ await live.webContents.executeJavaScript(${JSON.stringify(`(()=>{const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='Spam');target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:240,clientY:180}));})()`)});
+ await captureMenu(live,'/tmp/namio-context-menu-folder.png');
+ await live.webContents.executeJavaScript(${JSON.stringify(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`)});
  if(errors.length)throw new Error(errors.join('\\n'));
  console.log('Drafts folder: remote editing, local pending drafts, independent discard and multiple saved drafts passed');
  console.log('Full app compose regression: lazy load, typing, formatting and four close/reopen cycles preserve the mailbox without renderer errors');app.exit(0);

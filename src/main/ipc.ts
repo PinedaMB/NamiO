@@ -5,6 +5,7 @@ import { senderLogo } from './senderLogo'
 import { writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { app } from 'electron'
+import { isSpamMailbox } from '@shared/mailboxes'
 import {
   IPC,
   type AccountConfig,
@@ -29,6 +30,7 @@ import {
   listAccounts,
   listEnvelopes,
   listMailboxes,
+  mailboxDeletionSnapshot,
   readAttachment,
   searchMail,
   selectAccount,
@@ -38,7 +40,7 @@ import {
   setSeen
 } from './imap'
 import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
-import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments } from './db'
+import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments, readMailboxes, getMailboxMeta, cacheAccountId, enqueueOutbox } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
 
@@ -226,14 +228,14 @@ export function registerIpcHandlers(): void {
       return { ok: false, queued: false, error: 'Mensaje inválido' }
     }
     const permanent = path === trashPath()
-    if (permanent) {
+    {
       const account = await readActiveAccount()
       const english = (await readSettings()).language === 'en'
       const options = {
         type: 'warning' as const,
-        message: english ? 'Permanently delete this message?' : '¿Eliminar este mensaje definitivamente?',
-        detail: english ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.',
-        buttons: english ? ['Cancel', 'Delete permanently'] : ['Cancelar', 'Eliminar definitivamente'],
+        message: permanent ? (english ? 'Permanently delete this message?' : '¿Eliminar este mensaje definitivamente?') : (english ? 'Move this message to Trash?' : '¿Mover este mensaje a Papelera?'),
+        detail: permanent ? (english ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.') : (english ? 'You can recover it from Trash.' : 'Podés recuperarlo desde Papelera.'),
+        buttons: english ? ['Cancel', permanent ? 'Delete permanently' : 'Move to Trash'] : ['Cancelar', permanent ? 'Eliminar definitivamente' : 'Mover a Papelera'],
         defaultId: 0, cancelId: 0, noLink: true
       }
       const window = BrowserWindow.fromWebContents(event.sender)
@@ -244,6 +246,42 @@ export function registerIpcHandlers(): void {
       }
     }
     return deleteMessageAction(path, uid, permanent)
+  })
+
+  ipcMain.handle(IPC.messagesDelete, async (event, path: string, selectedUids?: number[]) => {
+    try {
+      if (typeof path !== 'string' || !path || (selectedUids !== undefined && (!Array.isArray(selectedUids) || selectedUids.length > 10000 || selectedUids.some(uid => !Number.isSafeInteger(uid) || uid <= 0)))) throw new Error('Selección inválida')
+      const account = await readActiveAccount()
+      if (!account || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      const empty = selectedUids === undefined
+      const box = readMailboxes().find(item => item.path === path)
+      if (empty && (!box || (path !== trashPath() && !isSpamMailbox(box)))) throw new Error('Solo se puede vaciar Spam o Papelera')
+      const permanent = empty || path === trashPath()
+      const cachedValidity = getMailboxMeta(path)?.uidValidity
+      const snapshot = empty || !cachedValidity ? await mailboxDeletionSnapshot(path) : null
+      const uids = [...new Set(selectedUids ?? snapshot!.uids)]
+      const uidValidity = snapshot?.uidValidity ?? String(cachedValidity)
+      if (!uids.length) return { ok: true, queued: false }
+      const english = (await readSettings()).language === 'en'
+      const options = {
+        type: 'warning' as const,
+        message: empty
+          ? (english ? `Empty folder "${box!.name}" (${uids.length} messages)?` : `¿Vaciar la carpeta «${box!.name}» (${uids.length} mensajes)?`)
+          : (english ? `Delete ${uids.length} selected messages?` : `¿Eliminar ${uids.length} mensajes seleccionados?`),
+        detail: `${account.user}\n${path}\n` + (permanent ? (english ? 'These messages will be permanently deleted. This cannot be undone.' : 'Estos mensajes se eliminarán definitivamente. Esta acción no se puede deshacer.') : (english ? 'These messages will be moved to Trash.' : 'Estos mensajes se moverán a Papelera.')),
+        buttons: english ? ['Cancel', permanent ? 'Delete permanently' : 'Move to Trash'] : ['Cancelar', permanent ? 'Eliminar definitivamente' : 'Mover a Papelera'],
+        defaultId: 0, cancelId: 0, noLink: true
+      }
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const choice = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      if (choice.response !== 1) return { ok: true, queued: false, canceled: true }
+      if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      enqueueOutbox({ kind: 'delete-many', mailbox: path, payload: { uids, uidValidity, permanent } })
+      void processOutbox()
+      return { ok: true, queued: true }
+    } catch (error) {
+      return { ok: false, queued: false, error: error instanceof Error ? error.message : 'No se pudo iniciar el borrado' }
+    }
   })
 
   ipcMain.handle(IPC.attachmentSave, async (event, path: string, uid: number, index: number) => {

@@ -32,6 +32,8 @@
 
 ### Más espacio para escribir y leer
 
+Para vaciar **Spam** o **Papelera**, hacé clic derecho sobre la carpeta y elegí **Vaciar carpeta…**; también está disponible en la barra del lector mediante el icono de vaciado. NamiO muestra la cantidad de mensajes y pide confirmación: el borrado es definitivo. Las selecciones múltiples también se confirman una sola vez y se procesan en segundo plano; desde otras carpetas se mueven a Papelera. Podés seguir navegando mientras la cola trabaja. Si cerrás la aplicación o falla la conexión, las operaciones pendientes se conservan para reintentarse.
+
 El redactor se puede **ampliar, minimizar y restaurar** sin perder lo que estás escribiendo. Al cerrarlo, guardás el borrador; al descartarlo, lo eliminás.
 
 El lector permite elegir un **fondo claro u oscuro para los mensajes**, independientemente del aspecto oscuro de la aplicación. Las animaciones respetan la preferencia de movimiento reducido de tu sistema.

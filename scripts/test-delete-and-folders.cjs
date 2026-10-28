@@ -40,14 +40,14 @@ async function main() {
     ts.forEachChild(node, visit)
   }
   visit(ipcAst)
-  for (const response of [0, 1]) {
+  for (const path of ['INBOX', 'Trash']) for (const response of [0, 1]) {
     let queued = 0
     const remove = vm.runInNewContext(ts.transpile(`(${handler})`, { target: ts.ScriptTarget.ES2022 }), {
       trashPath: () => 'Trash', readActiveAccount: async () => ({ id: 'one' }), readSettings: async () => ({ language: 'es' }),
       BrowserWindow: { fromWebContents: () => null }, dialog: { showMessageBox: async () => ({ response }) },
       deleteMessageAction: async () => { queued++; return { ok: true, queued: false } }
     })
-    const result = await remove({ sender: {} }, 'Trash', 1)
+    const result = await remove({ sender: {} }, path, 1)
     assert.equal(queued, response)
     assert.equal(result.canceled === true, response === 0)
     assert.equal((await remove({ sender: {} }, 'INBOX', -1)).ok, false)

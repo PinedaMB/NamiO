@@ -13,6 +13,9 @@ export const en: Dictionary = {
   'common.move': 'Move',
   'common.deleting': 'Deleting…',
   'common.delete': 'Delete',
+  'context.emptyFolder': 'Empty folder…',
+  'toast.folderEmpty': 'The folder is already empty',
+  'toast.deletingBackground': 'Deletion queued: continuing in the background',
   'common.spam': 'Mark as spam',
   'common.reply': 'Reply',
   'common.compose': 'Compose',
@@ -35,6 +38,8 @@ export const en: Dictionary = {
   'onboarding.subtitle':
     'Connect an account and your messages land in a local cache: instant search, offline reading and no cloud in between.',
   'onboarding.gmail': 'Gmail',
+  'onboarding.yahoo': 'Yahoo',
+  'onboarding.yahooHint': 'Connect with an app password',
   'onboarding.gmailHint': 'OAuth2 or an app password',
   'onboarding.outlook': 'Outlook / Microsoft 365',
   'onboarding.outlookHint': 'Sign in with your Microsoft account',

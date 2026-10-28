@@ -8,7 +8,7 @@ import { createTransport } from 'nodemailer'
 import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
 import { readDraft, cacheAccountId, rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
 import { readActiveAccount } from './settings'
-import { appendToSent, archivePath, deleteMessage, getCredentials, moveMessage, removeServerDraft, setSeen, syncInbox } from './imap'
+import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCredentials, moveMessage, removeServerDraft, setSeen, syncInbox } from './imap'
 
 /**
  * Cola de salida: todo lo que modifica el servidor (enviar, archivar, eliminar)
@@ -46,6 +46,7 @@ function labelOf(row: OutboxRow): string {
     const subject = typeof payload.subject === 'string' ? payload.subject : ''
     return subject || '(sin asunto)'
   }
+  if (row.kind === 'delete-many') return `${row.mailbox}: ${Array.isArray(payload.uids) ? payload.uids.length : 0}`
   return row.kind
 }
 
@@ -206,6 +207,10 @@ async function runOne(row: OutboxRow): Promise<void> {
     await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target)
   } else if (row.kind === 'delete') {
     await deleteMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, payloadOf(row).permanent === true)
+  } else if (row.kind === 'delete-many') {
+    const payload = payloadOf(row)
+    if (!row.mailbox || !Array.isArray(payload.uids) || payload.uids.some(uid => !Number.isInteger(uid) || uid <= 0) || typeof payload.uidValidity !== 'string' || !/^\d+$/.test(payload.uidValidity)) throw new Error('Lote de borrado inválido')
+    await deleteMessageBatch(row.mailbox, payload.uids as number[], payload.permanent === true, payload.uidValidity)
   } else if (row.kind === 'move') {
     const target = payloadOf(row).target
     if (typeof target !== 'string' || target === '') throw new Error('La regla no tiene buzón destino')

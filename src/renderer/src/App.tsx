@@ -14,7 +14,7 @@ import type {
   SearchHit,
   SyncProgress
 } from '@shared/ipc'
-import { isDraftMailbox, sidebarMailboxes } from '@shared/mailboxes'
+import { isDraftMailbox, isSpamMailbox, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
@@ -266,18 +266,26 @@ export function App(): React.JSX.Element {
     const generation = accountGeneration.current
     const request = folderRequest.current
     try {
+      if (live && action === 'delete') {
+        const ids = checkedIds.filter(id => threads.some(thread => thread.id === id))
+        const uids = ids.map(uidOf).filter((uid): uid is number => uid !== null)
+        if (!uids.length) return
+        const result = await window.api.deleteMessages(folder, uids)
+        if (!result.ok) throw new Error(result.error ?? 'IPC')
+        if (result.canceled || generation !== accountGeneration.current || request !== folderRequest.current) return
+        setCheckedIds(current => current.filter(id => !ids.includes(id)))
+        setToast(t('toast.deletingBackground'))
+        return
+      }
       for (const id of checkedIds) {
         if (generation !== accountGeneration.current || request !== folderRequest.current) break
         if (!threads.some((thread) => thread.id === id)) continue
         if (live) {
           const uid = uidOf(id)
           if (uid === null) continue
-          if (action === 'delete') setPendingDelete({ id, path: folder, generation })
           const result = action === 'read'
             ? await window.api.setSeen(folder, uid, true)
-            : action === 'archive'
-              ? await window.api.archiveMessage(folder, uid)
-              : await window.api.deleteMessage(folder, uid)
+            : await window.api.archiveMessage(folder, uid)
           if (generation !== accountGeneration.current || request !== folderRequest.current) break
           if (!result.ok) throw new Error('detail' in result ? result.detail : result.error ?? 'IPC')
           if ('canceled' in result && result.canceled) break
@@ -1064,10 +1072,32 @@ export function App(): React.JSX.Element {
 
   const deletingId = pendingDelete?.path === folder && pendingDelete.generation === accountGeneration.current ? pendingDelete.id : null
 
+  const emptyFolder = async (path: string): Promise<void> => {
+    if (bulkRunning.current || deletingMessage.current) return
+    bulkRunning.current = true
+    setBulkBusy(true)
+    const generation = accountGeneration.current
+    try {
+      const result = await window.api.deleteMessages(path)
+      if (generation !== accountGeneration.current || result.canceled) return
+      if (!result.ok) throw new Error(result.error ?? 'IPC')
+      setToast(t(result.queued ? 'toast.deletingBackground' : 'toast.folderEmpty'))
+    } catch (error) {
+      if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+    } finally {
+      bulkRunning.current = false
+      setBulkBusy(false)
+      void refreshOutbox()
+    }
+  }
+
+  const canEmptyMailbox = (path: string): boolean => mailboxes.some(box => box.path === path && (isSpamMailbox(box) || box.specialUse === '\\Trash' || /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(box.name) || /(^|\/)(trash|deleted items|papelera)$/i.test(box.path)))
+
   const contextActions: ContextAction[] = contextMenu?.kind === 'folder'
     ? [
       { label: t('context.openFolder'), icon: 'folder_open', run: () => selectFolder(contextMenu.id) },
-      { label: t('topbar.sync'), icon: 'sync', run: () => { void handleSync(contextMenu.id) }, disabled: !live || manualSyncing }
+      { label: t('topbar.sync'), icon: 'sync', run: () => { void handleSync(contextMenu.id) }, disabled: !live || manualSyncing },
+      ...(canEmptyMailbox(contextMenu.id) ? [{ label: t('context.emptyFolder'), icon: 'delete_sweep', run: () => { void emptyFolder(contextMenu.id) }, danger: true, disabled: !live || bulkBusy || pendingDelete !== null }] : [])
     ]
     : selected && selected.id === contextMenu?.id
       ? [
@@ -1241,6 +1271,7 @@ export function App(): React.JSX.Element {
                   onArchive={archive}
                   onToggleRead={toggleRead}
                   onDelete={deleteSelected}
+                  onEmptyFolder={live && canEmptyMailbox(folder) ? () => { void emptyFolder(folder) } : undefined}
                   onStar={toggleStar}
                   onReply={() => openReply()}
                   onOpenAttachment={openAttachment}

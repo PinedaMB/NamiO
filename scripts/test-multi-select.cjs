@@ -27,7 +27,11 @@ async function check(action, behavior = 'success') {
     if (behavior === 'error' && uid === 2) return { ok: false, error: 'server rejected', detail: 'server rejected' }
     return { ok: true, queued: behavior === 'queued', data: true }
   }
-  context.window = { api: { setSeen: invoke, archiveMessage: invoke, deleteMessage: invoke } }
+  context.window = { api: { setSeen: invoke, archiveMessage: invoke, deleteMessages: async (path, uids) => {
+    const result = await invoke(path, uids[0])
+    if (behavior !== 'cancel' && behavior !== 'switch') calls.push(...uids.slice(1))
+    return result
+  } } }
   const run = vm.runInNewContext(ts.transpile(`(${expression})`, { target: ts.ScriptTarget.ES2022 }), context)
   await run(action)
   assert.equal(context.bulkRunning.current, false)
@@ -41,7 +45,7 @@ async function check(action, behavior = 'success') {
   } else {
     assert.equal(calls.length, behavior === 'demo' ? 0 : 2)
     assert.equal(context.checkedIds.length, 0)
-    if (behavior === 'queued') assert.equal(context.threads.length, 2)
+    if (behavior === 'queued' || (action === 'delete' && behavior !== 'demo')) assert.equal(context.threads.length, 2)
     else if (action === 'read') assert.ok(context.threads.every(thread => !thread.unread))
     else assert.equal(context.threads.length, 0)
   }

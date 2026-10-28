@@ -8,7 +8,7 @@ import { Icon } from './Icon'
 import { ERROR_KEYS } from './errorKeys'
 import { PasswordField } from './PasswordField'
 
-export type OnboardingChoice = 'gmail' | 'outlook' | 'custom' | 'local'
+export type OnboardingChoice = 'gmail' | 'outlook' | 'yahoo' | 'custom' | 'local'
 
 interface OnboardingProps {
   onConnected: (state: AccountState) => void
@@ -34,6 +34,12 @@ const PRESETS: Record<OnboardingChoice, ProviderPreset> = {
     smtp: { host: 'smtp.office365.com', port: 587, secure: false },
     oauth: true,
     provider: 'microsoft'
+  },
+  yahoo: {
+    imap: { host: 'imap.mail.yahoo.com', port: 993, secure: true },
+    smtp: { host: 'smtp.mail.yahoo.com', port: 465, secure: true },
+    oauth: false,
+    provider: null
   },
   local: {
     imap: { host: '127.0.0.1', port: 1143, secure: false },
@@ -70,6 +76,7 @@ const CHOICES: ReadonlyArray<{
     hintKey: 'onboarding.outlookHint',
     badgeKey: 'onboarding.oauthBadge'
   },
+  { id: 'yahoo', icon: 'mail', titleKey: 'onboarding.yahoo', hintKey: 'onboarding.yahooHint' },
   { id: 'custom', icon: 'dns', titleKey: 'onboarding.custom', hintKey: 'onboarding.customHint' },
   { id: 'local', icon: 'terminal', titleKey: 'onboarding.local', hintKey: 'onboarding.localHint' }
 ]
@@ -125,6 +132,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
   const userMissingAt = user.trim() !== '' && !user.includes('@')
   const valid =
     preset !== null &&
+    host.trim() !== '' &&
     user.trim() !== '' &&
     !userHasSpaces &&
     Number.isInteger(portNumber) &&
@@ -239,6 +247,8 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                     ? 'onboarding.gmail'
                     : choice === 'outlook'
                       ? 'onboarding.outlook'
+                      : choice === 'yahoo'
+                        ? 'onboarding.yahoo'
                       : choice === 'local'
                         ? 'onboarding.local'
                         : 'onboarding.custom'
@@ -301,16 +311,19 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
               )) : (
                 <>
                   <label className="account-field">
-                    <span>{t(choice === 'gmail' ? 'account.appPassword' : 'account.password')}</span>
+                    <span>{t(choice === 'gmail' || choice === 'yahoo' ? 'account.appPassword' : 'account.password')}</span>
                     <PasswordField
                       value={password}
                       onChange={setPassword}
-                      ariaLabel={t(choice === 'gmail' ? 'account.appPassword' : 'account.password')}
+                      ariaLabel={t(choice === 'gmail' || choice === 'yahoo' ? 'account.appPassword' : 'account.password')}
                       autoComplete="current-password"
                     />
-                    {choice === 'gmail' && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
+                    {(choice === 'gmail' || choice === 'yahoo') && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
                   </label>
 
+                  <details className="account-advanced" open={choice === 'custom' || choice === 'local'}>
+                    <summary>{t('account.advanced')}</summary>
+                    <div className="account-form">
                   <div className="account-section">
                     <span className="account-section__title">{t('account.smtp')}</span>
                     <div className="account-row account-row--host">
@@ -357,8 +370,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                     </div>
                   </div>
 
-                  {choice === 'custom' && (
-                    <div className="account-section">
+                  <div className="account-section">
                       <span className="account-section__title">{t('onboarding.imapSection')}</span>
                       <div className="account-row account-row--host">
                         <label className="account-field">
@@ -402,8 +414,9 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                           </div>
                         </div>
                       </div>
+                  </div>
                     </div>
-                  )}
+                  </details>
                 </>
               )}
 

@@ -2,6 +2,11 @@
 
 ## 0.4.2 — En desarrollo
 
+- «Vaciar carpeta» en el menú contextual y la barra del lector de Spam y Papelera, con confirmación del número de mensajes y advertencia de borrado definitivo. Incluye mensajes aún no descargados y excluye los que llegan después de preparar la operación.
+- Eliminaciones múltiples con una sola confirmación, cola persistente y procesamiento en segundo plano por lotes. Las eliminaciones individuales también solicitan confirmación antes de mover a Papelera.
+
+- Formularios de inicio y de cuentas alineados: mismos datos básicos por proveedor, Yahoo disponible también en el inicio, selector de autenticación de Gmail visible y servidores bajo opciones avanzadas. Las cuentas manuales y locales muestran sus servidores para poder configurarlos.
+
 - Registro OAuth de escritorio de Google integrado: las nuevas cuentas de Gmail pueden iniciar sesión desde el navegador sin introducir Client ID ni Client Secret. Se conservan los registros propios existentes; el acceso sigue sujeto a los usuarios de prueba autorizados en Google Cloud.
 
 - Pruebas de regresión e interfaz integradas en comandos y CI, con cobertura adicional de recuperación de envíos pendientes y renovación OAuth.

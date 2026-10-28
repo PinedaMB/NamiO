@@ -29,6 +29,7 @@ export const IPC = {
   messageSeen: 'message:seen',
   messageArchive: 'message:archive',
   messageDelete: 'message:delete',
+  messagesDelete: 'messages:delete',
   attachmentSave: 'attachment:save',
   shellOpen: 'shell:open',
   cacheChanged: 'cache:changed',
@@ -233,7 +234,7 @@ export type CachedResult<T> = { ok: true; data: T; meta: SyncMeta } | { ok: fals
    Cola de salida
    ------------------------------------------------------------------------- */
 
-export type OutboxKind = 'send' | 'archive' | 'delete' | 'move' | 'seen' | 'draft-save' | 'draft-delete'
+export type OutboxKind = 'send' | 'archive' | 'delete' | 'delete-many' | 'move' | 'seen' | 'draft-save' | 'draft-delete'
 export type OutboxStatus = 'queued' | 'failed'
 
 export interface OutboxItem {
@@ -400,6 +401,8 @@ export interface MailApi {
   /** Archivar y eliminar pasan por la cola de salida (idempotente, con reintentos). */
   archiveMessage(path: string, uid: number): Promise<MailAction>
   deleteMessage(path: string, uid: number): Promise<MailAction>
+  /** Sin UIDs, vacía exclusivamente Spam o Papelera, previa confirmación. */
+  deleteMessages(path: string, uids?: number[]): Promise<MailAction>
   /** Descarga un adjunto y lo guarda donde el usuario elija. Devuelve la ruta o null si canceló. */
   saveAttachment(path: string, uid: number, index: number): Promise<string | null>
 

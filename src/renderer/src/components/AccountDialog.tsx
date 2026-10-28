@@ -289,12 +289,12 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
           )}
 
           <label className="account-field">
-            <span>{t(microsoft ? 'onboarding.email' : 'account.user')}</span>
+            <span>{t(auth === 'oauth2' ? 'onboarding.email' : 'onboarding.emailOrUser')}</span>
             <input
               value={user}
               onChange={(event) => updateUser(event.target.value)}
               placeholder="vos@ejemplo.com"
-              autoComplete="off"
+              autoComplete="username"
               spellCheck={false}
               aria-invalid={userHasSpaces || undefined}
             />
@@ -311,6 +311,24 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             </p>
           )}
 
+          {gmail && (
+            <div className="account-field">
+              <span>{t('account.auth')}</span>
+              <div className="seg" role="group" aria-label={t('account.auth')}>
+                <button type="button" className={cx('seg__btn', auth === 'oauth2' && 'seg__btn--active')} aria-pressed={auth === 'oauth2'} onClick={() => { setAuth('oauth2'); setPassword(''); setError(null) }}>
+                  {t('account.authOAuth')}
+                </button>
+                <button type="button" className={cx('seg__btn', auth === 'password' && 'seg__btn--active')} aria-pressed={auth === 'password'} onClick={() => { setAuth('password'); setError(null) }}>
+                  {t('account.appPassword')}
+                </button>
+              </div>
+              <em className="account-field__hint">{t('account.gmailHint')}</em>
+              {auth === 'password' && <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://myaccount.google.com/apppasswords')}>{t('account.googleAppPassword')}</button>}
+            </div>
+          )}
+
+          {managedGoogle && auth === 'oauth2' && <p className="account-hint">{t('account.googleOAuthHint')}</p>}
+
           {auth === 'password' && (
             <label className="account-field">
               <span>{t(appPassword ? 'account.appPassword' : 'account.password')}</span>
@@ -318,13 +336,13 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 value={password}
                 onChange={setPassword}
                 ariaLabel={t(appPassword ? 'account.appPassword' : 'account.password')}
-                autoComplete="new-password"
+                autoComplete="current-password"
               />
               {appPassword && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
             </label>
           )}
 
-          <details className="account-advanced" key={String(open)}>
+          <details className="account-advanced" key={String(open)} open={presetId === 'custom' || presetId === 'local'}>
             <summary>{t('account.advanced')}</summary>
             <div className="account-form">
               <fieldset className="account-section">
@@ -378,7 +396,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
               {(presetId === 'custom' || gmail || auth === 'oauth2') && <fieldset className="account-section">
                 <legend className="account-section__title">{t('account.auth')}</legend>
-              {(presetId === 'custom' || gmail) && <div className="account-field">
+              {(presetId === 'custom' && !gmail) && <div className="account-field">
                 <div className="seg" role="group" aria-label={t('account.auth')}>
                   <TooltipButton
                     type="button"
@@ -407,7 +425,6 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
               {auth === 'oauth2' && (
                 <>
-                  {managedGoogle && <p className="account-hint">{t('account.googleOAuthHint')}</p>}
                   <label className="account-field">
                     <span>{t('account.oauthProvider')}</span>
                     <div className="seg" role="group" aria-label={t('account.oauthProvider')}>
@@ -493,7 +510,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                     </>
                   )}
 
-                  {!microsoft && (
+                  {!microsoft && !managedGoogle && (
                     <p className="account-hint">
                       <Icon name="info" size={14} />
                       {t('account.oauthHint')}

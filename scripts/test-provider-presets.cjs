@@ -64,13 +64,22 @@ function findPreset(node) {
   ts.forEachChild(node, findPreset)
 }
 findPreset(onboarding)
+const onboardingPresets = onboarding.statements.flatMap(statement => ts.isVariableStatement(statement) ? [...statement.declarationList.declarations] : []).find(node => node.name.getText(onboarding) === 'PRESETS')
+const initialPresets = vm.runInNewContext(`(${onboardingPresets.initializer.getText(onboarding)})`)
+for (const preset of context.PRESETS) {
+  const initial = initialPresets[preset.id]
+  assert.ok(initial, `${preset.id} must be available from both entry points`)
+  for (const section of ['imap', 'smtp']) for (const field of ['host', 'port', 'secure']) {
+    assert.equal(initial[section][field], preset[section][field], `${preset.id} ${section}.${field} must match`)
+  }
+}
 for (const choice of ['gmail', 'outlook']) for (const gmailPassword of [true, false]) {
   const preset = vm.runInNewContext(presetExpression, { choice, gmailPassword, PRESETS: { gmail: { oauth: true }, outlook: { oauth: true } } })
   assert.equal(preset.oauth, choice === 'outlook' || !gmailPassword)
 }
 console.log('Provider checks passed: presets, custom reset, Yahoo and Gmail authentication options')
 
-assert.match(source, /\(presetId === 'custom' \|\| gmail\) && <div className="account-field">/)
+assert.match(source, /\(presetId === 'custom' && !gmail\) && <div className="account-field">/)
 assert.match(source, /<legend className="account-section__title">\{t\('account.imap'\)\}/)
 
 context.serverFromEmail = evaluate(serverFromEmail)
@@ -97,5 +106,5 @@ state.SmtpHost = context.smtpHost
 updateUser('person@gmail.com')
 assert.equal(state.Host, 'imap.gmail.com')
 assert.equal(state.SmtpHost, 'smtp.gmail.com')
-assert.match(source, /<details className="account-advanced" key=\{String\(open\)\}>/)
+assert.match(source, /<details className="account-advanced" key=\{String\(open\)\} open=/)
 console.log('Server suggestions: domain prefix, edits, invalid emails, manual servers and provider presets passed')

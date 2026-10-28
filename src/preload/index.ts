@@ -71,6 +71,7 @@ const api: MailApi = {
   archiveMessage: (path: string, uid: number): Promise<MailAction> =>
     ipcRenderer.invoke(IPC.messageArchive, path, uid),
   deleteMessage: (path: string, uid: number): Promise<MailAction> => ipcRenderer.invoke(IPC.messageDelete, path, uid),
+  deleteMessages: (path: string, uids?: number[]): Promise<MailAction> => ipcRenderer.invoke(IPC.messagesDelete, path, uids),
   saveAttachment: (path: string, uid: number, index: number): Promise<string | null> =>
     ipcRenderer.invoke(IPC.attachmentSave, path, uid, index),
 
