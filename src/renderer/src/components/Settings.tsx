@@ -17,6 +17,7 @@ import {
 } from '../settings/shortcuts'
 import { Icon } from './Icon'
 import { RulesSection } from './RulesSection'
+import { UpdateNotice } from './UpdateNotice'
 import { cx } from '../lib/cx'
 
 interface SettingsProps {
@@ -274,6 +275,16 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     if (section === 'general') {
       return (
         <div className="settings-stack">
+          <section className="settings-card" aria-labelledby="settings-updates-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-updates-title" className="settings-card__title">{t('update.title')}</h2>
+                <p className="settings-card__subtitle">{t('update.current', { version: status?.appVersion ?? '—' })}</p>
+              </div>
+            </div>
+            <UpdateNotice />
+            <p className="settings-card__note">{t('update.hint')}</p>
+          </section>
           <div className="settings-card">
             <div className="settings-card__head">
               <div>

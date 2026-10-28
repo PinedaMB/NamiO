@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
+  type UpdateState,
   type NotificationTarget,
   type AccountConfig,
   type RecipientSuggestion,
@@ -31,6 +32,14 @@ import {
  * de seguridad, no un detalle de implementación.
  */
 const api: MailApi = {
+  updateStatus: () => ipcRenderer.invoke(IPC.updateStatus),
+  checkForUpdates: () => ipcRenderer.invoke(IPC.updateCheck),
+  installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),
+  onUpdateChanged: (listener) => {
+    const handler = (_event: unknown, state: UpdateState): void => listener(state)
+    ipcRenderer.on(IPC.updateChanged, handler)
+    return () => ipcRenderer.removeListener(IPC.updateChanged, handler)
+  },
   testNotification: () => ipcRenderer.invoke(IPC.notificationTest),
   onNotificationOpen: (listener) => {
     const handler = (_event: unknown, target: NotificationTarget): void => listener(target)

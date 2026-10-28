@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import { UpdateNotice } from './UpdateNotice'
 import type { OutboxItem, SyncProgress } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
@@ -83,6 +84,7 @@ export function StatusBar({ appVersion, bindings, pending, progress = null, dele
       </div>}
 
       <div className="statusbar__right">
+        <UpdateNotice />
         {progress && (
           <span className="sync-progress" data-tooltip={t('sync.progress', { cached: progress.cached, total: progress.total })} tabIndex={0}>
             <Icon name="cloud_download" size={12} />

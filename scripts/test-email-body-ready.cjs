@@ -8,6 +8,7 @@ let index = 0
 let darkened = false
 let measured = false
 let resize, pendingMeasure
+let disconnected = 0
 const observed = []
 const animationFrame = { current: 0 }
 const inner = {
@@ -19,7 +20,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX
 }), {
   exports: exportsObject,
-  ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() {} },
+  ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() { disconnected++ } },
   requestAnimationFrame: callback => { pendingMeasure = callback; return 1 },
   cancelAnimationFrame: () => { pendingMeasure = undefined },
   DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },
@@ -54,10 +55,17 @@ frame.props.onLoad()
 assert.deepEqual(observed, [inner.body], 'observe message content, not the root whose height follows the iframe')
 assert.ok(measured)
 measured = false
-resize()
+const beforeResize = disconnected
+resize([{ contentRect: { width: 600, height: 1250 } }])
+assert.equal(disconnected, beforeResize + 1, 'pause observation before scheduling an iframe resize')
+assert.equal(observed.length, 1, 'do not resume within the observer delivery')
 assert.equal(measured, false, 'ResizeObserver must defer layout mutations to the next frame')
 pendingMeasure()
 assert.ok(measured)
+assert.equal(observed.length, 2, 'resume observing after the deferred measurement')
+pendingMeasure = undefined
+resize([{ contentRect: { width: 600, height: 1250 } }])
+assert.equal(pendingMeasure, undefined, 're-observing unchanged content must not create a frame loop')
 frame = render()
 assert.equal(frame.props.style.visibility, 'visible')
 assert.equal(frame.props.style.height, 1250)

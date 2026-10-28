@@ -7,6 +7,10 @@
 
 export const IPC = {
   coreStatus: 'core:status',
+  updateStatus: 'update:status',
+  updateChanged: 'update:changed',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
   cacheClear: 'cache:clear',
   recipientSuggestions: 'recipients:suggest',
   notificationTest: 'notifications:test',
@@ -367,7 +371,17 @@ export interface NotificationTarget {
   uid: number
 }
 
+export interface UpdateState {
+  phase: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+  version?: string
+  percent?: number
+}
+
 export interface MailApi {
+  updateStatus(): Promise<UpdateState | null>
+  checkForUpdates(): Promise<void>
+  installUpdate(): Promise<void>
+  onUpdateChanged(listener: (state: UpdateState) => void): () => void
   testNotification(): Promise<void>
   onNotificationOpen(listener: (target: NotificationTarget) => void): () => void
   suggestRecipients(query: string): Promise<RecipientSuggestion[]>

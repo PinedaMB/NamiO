@@ -131,10 +131,19 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
     // Imágenes y fuentes cambian la altura después del load.
     observerRef.current?.disconnect()
     cancelAnimationFrame(measureFrame.current)
-    // Medir fuera del observer evita realimentar el layout al cambiar el lector.
-    const observer = new ResizeObserver(() => {
+    // Pausar la observación evita que el ajuste del iframe realimente la misma entrega.
+    let observedSize = ''
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return
+      const size = `${entry.contentRect.width}:${entry.contentRect.height}`
+      if (size === observedSize) return
+      observedSize = size
+      observer.disconnect()
       cancelAnimationFrame(measureFrame.current)
-      measureFrame.current = requestAnimationFrame(measure)
+      measureFrame.current = requestAnimationFrame(() => {
+        measure()
+        if (inner.body) observer.observe(inner.body)
+      })
     })
     // El elemento raíz sigue la altura del iframe y realimenta su propio ajuste.
     if (inner.body) observer.observe(inner.body)

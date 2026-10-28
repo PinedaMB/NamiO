@@ -2,6 +2,8 @@
 
 ## 0.4.3 — En desarrollo
 
+- Actualizaciones visibles en la barra de estado: búsqueda manual, progreso de descarga, reintento ante errores y botón para reiniciar e instalar. Disponible en Windows y AppImage.
+
 - Fechas consistentes en listas, búsqueda, lector y respuestas: formato regional de México, hora local de 24 horas, «Ayer», año para fechas de otros años y detalle con zona horaria. Las fechas inválidas no bloquean el lector; las conversaciones se ordenan por el instante real y la sincronización muestra días, meses o años cuando corresponde.
 
 - Las respuestas nuevas separan el área de escritura del mensaje original mediante una cita con título y fondo propio; la estructura se conserva al guardar borradores y enviar HTML.

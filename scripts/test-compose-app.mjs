@@ -8,8 +8,9 @@ const require = createRequire(import.meta.url)
 const folder = await mkdtemp(join(tmpdir(), 'namio-compose-app-'))
 try {
   await writeFile(join(folder, 'preload.cjs'), `
-const {contextBridge}=require('electron');const noop=()=>()=>{};
+const {contextBridge}=require('electron');const noop=()=>()=>{};const updateListeners=new Set();let updateState={phase:'downloading',version:'0.4.4',percent:42};let installs=0;
 contextBridge.exposeInMainWorld('api',{
+ updateStatus:async()=>updateState,onUpdateChanged:fn=>{updateListeners.add(fn);return()=>updateListeners.delete(fn)},checkForUpdates:async()=>{},installUpdate:async()=>{installs++},testUpdate:async next=>{updateState=next;updateListeners.forEach(fn=>fn(next))},testInstalls:async()=>installs,
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},
  getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:false,connected:false,account:null}),
@@ -56,6 +57,27 @@ app.whenReady().then(async()=>{
  await win.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
  win.webContents.debugger.attach('1.3');
  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async fn=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,30))}throw new Error('Update notice missing')};
+ await until(()=>document.querySelector('.update-notice [role="progressbar"]'));
+ const bar=document.querySelector('.update-notice [role="progressbar"]');if(bar.getAttribute('aria-valuenow')!=='42')throw new Error('Incorrect update progress');
+ await window.api.testUpdate({phase:'ready',version:'0.4.4'});
+ await until(()=>document.querySelector('.update-notice button')?.textContent.includes('Reiniciar e instalar 0.4.4'));
+})()`)});
+ await captureMenu(win,'/tmp/namio-update-ready.png');
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ document.querySelector('.rail [aria-label="Configuración"]').click();
+ for(let i=0;i<100&&!document.querySelector('#settings-updates-title');i++)await new Promise(r=>setTimeout(r,30));
+ if(!document.querySelector('#settings-updates-title'))throw new Error('Settings update section missing');
+ for(let i=0;i<100&&!document.querySelector('.settings .update-notice button');i++)await new Promise(r=>setTimeout(r,30));
+ if(!document.querySelector('.settings .update-notice button')?.textContent.includes('Reiniciar e instalar 0.4.4'))throw new Error('Settings update state missing');
+})()`)});
+ await captureMenu(win,'/tmp/namio-settings-updates.png');
+ await win.webContents.executeJavaScript("document.querySelector('.settings__hero > .tool-btn').click()");
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ document.querySelector('.update-notice button').click();await new Promise(r=>setTimeout(r,30));if(await window.api.testInstalls()!==1)throw new Error('Install action not connected');
+ await window.api.testUpdate({phase:'error'});await new Promise(r=>setTimeout(r,30));if(!document.querySelector('.update-notice button').textContent.includes('Reintentar'))throw new Error('Update retry missing');
+})()`)});
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  const wait=()=>new Promise(resolve=>setTimeout(resolve,50));
  const until=async(predicate,message)=>{for(let i=0;i<100;i++){if(predicate())return;await wait()}throw new Error(message)};

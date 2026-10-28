@@ -5470,3 +5470,9 @@
   justify-content: flex-start;
   padding-top: var(--sp-xs);
 }
+
+.update-notice { display: flex; align-items: center; gap: var(--sp-sm); }
+.update-notice__button { display: flex; align-items: center; gap: var(--sp-sm); color: var(--primary); background: transparent; border: 0; border-radius: var(--r-sm); padding: 4px; font: inherit; cursor: pointer; }
+.update-notice__button:hover { background: var(--surface-container-high); }
+.update-notice__button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.update-notice__button:disabled { color: var(--on-surface-variant); cursor: default; }

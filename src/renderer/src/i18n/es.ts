@@ -5,6 +5,15 @@
  * Interpolación: `{nombre}` se reemplaza con las variables de `t(key, vars)`.
  */
 export const es = {
+  'update.title': 'Actualizaciones',
+  'update.current': 'Versión instalada: {version}',
+  'update.hint': 'La actualización automática está disponible en la aplicación instalada para Windows y AppImage. Se descarga en segundo plano y se instala al salir; también puedes reiniciar para instalarla cuando esté lista.',
+  'update.check': 'Buscar actualizaciones',
+  'update.checking': 'Buscando actualizaciones…',
+  'update.available': 'Versión {version} disponible…',
+  'update.downloading': 'Descargando actualización: {percent}%',
+  'update.install': 'Reiniciar e instalar {version}',
+  'update.error': 'No se pudo actualizar. Reintentar',
   'context.openFolder': 'Abrir carpeta',
   'context.openMessage': 'Abrir correo',
   'context.editDraft': 'Editar borrador',
