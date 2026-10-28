@@ -11,7 +11,7 @@
     "dev": "astro dev --host 0.0.0.0",
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0",
-    "test": "node scripts/check-site.mjs"
+    "test": "node scripts/check-site.mjs && node scripts/check-releases.mjs && node scripts/check-reveal.mjs && node scripts/check-story.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

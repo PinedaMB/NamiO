@@ -21,4 +21,14 @@ assert.ok(html.includes('https://github.com/PinedaMB/NamiO/releases'));
 for (const path of ['fonts/inter.woff2', 'fonts/jetbrains-mono.woff2', 'fonts/material-symbols.woff2', 'licenses/Inter-OFL.txt', 'licenses/JetBrainsMono-OFL.txt', 'licenses/MaterialSymbols-Apache.txt', 'licenses/NamiO-MIT.txt']) {
   assert.ok(existsSync(join('dist', path)), `Missing asset or license: ${path}`);
 }
+assert.ok(!html.includes('0.4.0'), 'App version must come from the published release');
+assert.equal((html.match(/data-release-version/g) || []).length, 2);
+for (const format of ['AppImage', 'deb', 'exe']) assert.ok(html.includes(`data-release-download="${format}"`));
 console.log('Landing: sections, local assets, licenses, metadata and download links verified');
+
+assert.ok(html.includes('data-hero'));
+const source = readFileSync('src/pages/index.astro', 'utf8');
+assert.ok(source.includes("() => revealOnScroll(gsap)"));
+assert.ok(!source.includes('section:first-of-type'), 'Hero animation must not target later sections');
+assert.ok(source.includes('document.fonts.ready.then(() => ScrollTrigger.refresh())'));
+console.log('Entrance animations: content remains visible before scroll and layout refresh follows font loading');

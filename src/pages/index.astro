@@ -4,14 +4,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const asset = (path: string) => `${base}/${path}`;
 ---
 <!doctype html>
-<html lang="es" class="dark">
+<html lang="es-MX" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="NamiO, tu correo a tu ritmo. Cliente de correo de escritorio con varias cuentas, borradores, lectura sin conexión y notificaciones." />
   <meta name="theme-color" content="#0f131c" />
   <meta property="og:title" content="NamiO — Tu correo, a tu ritmo" />
-  <meta property="og:description" content="Leé, escribí y organizá tus mensajes con varias cuentas, acceso sin conexión y control sobre tus datos." />
+  <meta property="og:description" content="Lee, escribe y organiza tus mensajes con varias cuentas, acceso sin conexión y control sobre tus datos." />
+  <meta property="og:locale" content="es_MX" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content={new URL(asset('logo.png'), Astro.site).href} />
   <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
@@ -20,17 +21,17 @@ const asset = (path: string) => `${base}/${path}`;
 </head>
 <body class="bg-surface font-body-md text-on-surface antialiased">
 <a href="#contenido" class="skip-link">Saltar al contenido</a>
-<header class="fixed top-0 left-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.4)]"><div class="h-16 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between"><div class="flex items-center gap-space-md"><a aria-label="NamiO, inicio" class="flex items-center gap-space-sm group" href="#contenido"><img alt="NamiO" class="w-8 h-8 rounded-full object-cover" src={asset("logo.png")}/><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight group-hover:text-primary transition-colors">NamiO</span></a><span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-space-sm py-0.5 rounded-lg">v0.4.0</span></div><nav class="hidden md:flex items-center gap-space-lg" data-active-classes="text-primary font-medium"><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#funciones">Funciones</a><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#sin-conexion">Sin conexión</a><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#privacidad">Privacidad</a><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#descargas">Descargas</a></nav><details class="mobile-menu"><summary aria-label="Abrir menú de navegación"><span></span><span></span><span></span></summary><nav aria-label="Navegación móvil"><a href="#funciones">Funciones</a><a href="#sin-conexion">Sin conexión</a><a href="#privacidad">Privacidad</a><a href="#descargas">Descargas</a></nav></details><div class="header-cta flex items-center gap-space-md"><a class="inline-flex items-center justify-center bg-primary-container hover:bg-primary text-on-primary-container hover:text-on-primary font-body-sm text-body-sm px-space-md py-space-sm rounded-lg transition-colors font-medium shadow-[0_1px_4px_rgba(0,0,0,0.3)]" href="#descargas">Descargar NamiO</a></div></div></header><main tabindex="-1" id="contenido" class="w-full pt-16 bg-surface min-h-[calc(100vh-140px)]"><div class="flex flex-col w-full">
+<header class="fixed top-0 left-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.4)]"><div class="h-16 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between"><div class="flex items-center gap-space-md"><a aria-label="NamiO, inicio" class="flex items-center gap-space-sm group" href="#contenido"><img alt="NamiO" class="w-8 h-8 rounded-full object-cover" src={asset("logo.png")}/><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight group-hover:text-primary transition-colors">NamiO</span></a><span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-space-sm py-0.5 rounded-lg" data-release-version>Última versión</span></div><nav class="hidden md:flex items-center gap-space-lg" data-active-classes="text-primary font-medium"><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#funciones">Funciones</a><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#sin-conexion">Notificaciones</a><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#privacidad">Privacidad</a><a class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#descargas">Descargas</a></nav><details class="mobile-menu"><summary aria-label="Abrir menú de navegación"><span></span><span></span><span></span></summary><nav aria-label="Navegación móvil"><a href="#funciones">Funciones</a><a href="#sin-conexion">Notificaciones</a><a href="#privacidad">Privacidad</a><a href="#descargas">Descargas</a></nav></details><div class="header-cta flex items-center gap-space-md"><a class="inline-flex items-center justify-center bg-primary-container hover:bg-primary text-on-primary-container hover:text-on-primary font-body-sm text-body-sm px-space-md py-space-sm rounded-lg transition-colors font-medium shadow-[0_1px_4px_rgba(0,0,0,0.3)]" href="#descargas">Descargar NamiO</a></div></div></header><main tabindex="-1" id="contenido" class="w-full pt-16 bg-surface min-h-[calc(100vh-140px)]"><div class="flex flex-col w-full">
 
 <div class="relative w-full overflow-hidden">
 <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[720px] h-[340px] bg-primary-container/15 blur-[120px] pointer-events-none rounded-full"></div>
 <div class="absolute top-96 -left-24 w-[420px] h-[280px] bg-secondary-container/20 blur-[100px] pointer-events-none rounded-full"></div>
 
-<section class="relative max-w-7xl mx-auto px-6 lg:px-12 pt-12 pb-16 lg:pt-16 lg:pb-24 flex flex-col items-center text-center">
+<section data-hero class="relative max-w-7xl mx-auto px-6 lg:px-12 pt-12 pb-16 lg:pt-16 lg:pb-24 flex flex-col items-center text-center">
 
 <div class="inline-flex items-center gap-2 bg-surface-container-high px-3 py-1.5 rounded-full mb-8 shadow-sm">
 <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-<span class="font-label-sm text-label-sm text-primary tracking-wider uppercase">v0.4.0 EN DESARROLLO · CÓDIGO ABIERTO · ESPAÑOL / ENGLISH</span>
+<span class="font-label-sm text-label-sm text-primary tracking-wider uppercase"><span data-release-version>NamiO</span> · CÓDIGO ABIERTO · ESPAÑOL / INGLÉS</span>
 </div>
 
 <h1 class="font-headline-lg text-4xl sm:text-5xl lg:text-6xl text-on-surface font-bold tracking-tight max-w-4xl mx-auto leading-tight">
@@ -38,21 +39,20 @@ const asset = (path: string) => `${base}/${path}`;
 </h1>
 
 <p class="mt-6 font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto leading-relaxed">
-        Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes a tu ritmo. Varias cuentas, lectura sin conexión y control sobre tus datos en una interfaz oscura y cuidada.
+        Todas tus cuentas de correo en una aplicación de escritorio. Lee sin conexión y mantén el control de tus datos.
       </p>
 
 <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
 <a class="group inline-flex items-center gap-3 bg-primary hover:bg-primary-fixed text-on-primary font-headline-sm text-headline-sm px-6 py-3.5 rounded-xl shadow-lg transition-all duration-200" href="#descargas">
 <span class="material-symbols-outlined text-[20px]" aria-hidden="true">download</span>
-<span>Explorar descargas</span>
-<span class="bg-on-primary/15 text-on-primary font-label-sm text-label-sm px-2 py-0.5 rounded-md">AppImage · .deb</span>
+<span>Ver descargas</span>
+<span class="bg-on-primary/15 text-on-primary font-label-sm text-label-sm px-2 py-0.5 rounded-md">Windows · Linux</span>
 </a>
 <a class="group inline-flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high text-on-surface font-body-md text-body-md px-5 py-3.5 rounded-xl shadow-sm transition-all duration-200" href="https://github.com/PinedaMB/NamiO" rel="noreferrer" target="_blank">
 <svg class="w-5 h-5 fill-current text-on-surface-variant group-hover:text-primary transition-colors" viewbox="0 0 24 24">
 <path clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" fill-rule="evenodd"></path>
 </svg>
 <span>Ver código en GitHub</span>
-<span class="bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded">Licencia MIT</span>
 </a>
 </div>
 
@@ -74,8 +74,8 @@ const asset = (path: string) => `${base}/${path}`;
 </div>
 </section>
 
-<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pb-24" aria-label="Vista ilustrativa de la interfaz de NamiO">
-<p class="preview-caption">Una bandeja para concentrarte en lo que importa · Vista ilustrativa</p>
+<section class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-12 pb-24" aria-label="Vista ilustrativa de la interfaz de NamiO">
+<p class="preview-caption">Vista ilustrativa de NamiO</p>
 <div inert aria-hidden="true" class="app-preview relative bg-surface-container-lowest rounded-2xl shadow-2xl p-2 sm:p-3 overflow-hidden">
 
 <div class="bg-surface-container-high px-4 py-2.5 rounded-t-xl flex items-center justify-between">
@@ -88,37 +88,37 @@ const asset = (path: string) => `${base}/${path}`;
 <span class="font-headline-sm text-[12px] text-on-surface font-medium tracking-tight">NamiO — tu correo, a tu ritmo</span>
 </div>
 </div>
-<div class="flex items-center gap-3 text-on-surface-variant font-label-sm text-label-sm">
+<div class="flex items-center gap-3 text-on-surface-variant font-body-sm text-sm">
 <span class="hidden sm:inline-flex items-center gap-1.5 bg-surface-container px-2 py-0.5 rounded text-primary">
 <span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
               IMAP Sincronizado
             </span>
-<span class="bg-surface-container-highest px-1.5 py-0.5 rounded font-code-kbd text-code-kbd">⌘K Omnibar</span>
+<span class="bg-surface-container-highest px-1.5 py-0.5 rounded font-code-kbd text-code-kbd">⌘K Barra de comandos</span>
 </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-12 bg-surface-dim rounded-b-xl min-h-[580px] overflow-hidden">
+<div class="preview-columns grid grid-cols-1 md:grid-cols-12 bg-surface-dim rounded-b-xl min-h-[580px] overflow-hidden">
 
 <div class="hidden md:flex md:col-span-3 lg:col-span-2 bg-surface-container-low p-3 flex-col justify-between">
 <div class="space-y-4">
 
 <div class="bg-surface-container p-2.5 rounded-xl space-y-1">
 <div class="flex items-center justify-between">
-<span class="font-label-sm text-label-sm text-on-surface-variant font-semibold uppercase tracking-wider">Cuentas</span>
+<span class="font-body-sm text-sm text-on-surface-variant font-semibold uppercase tracking-wider">Cuentas</span>
 <span class="w-2 h-2 rounded-full bg-primary" title="Cuenta activa sincronizada"></span>
 </div>
 <div class="flex items-center gap-2 pt-1 text-on-surface">
-<div class="w-6 h-6 rounded-md bg-primary-container text-on-primary-container font-bold flex items-center justify-center text-xs">P</div>
+<div class="w-6 h-6 rounded-md bg-primary-container text-on-primary-container font-bold flex items-center justify-center text-sm">P</div>
 <div class="truncate">
 <p class="font-body-sm text-body-sm font-medium leading-none truncate">personal@gmail.com</p>
-<span class="font-label-sm text-[10px] text-on-surface-variant">OAuth2 · En línea</span>
+<span class="font-body-sm text-[12px] text-on-surface-variant">OAuth2 · En línea</span>
 </div>
 </div>
-<div class="flex items-center gap-2 pt-1 text-on-surface-variant opacity-70 hover:opacity-100 transition-opacity cursor-pointer">
-<div class="w-6 h-6 rounded-md bg-surface-container-highest text-on-surface font-bold flex items-center justify-center text-xs">T</div>
+<div class="flex items-center gap-2 pt-1 text-on-surface-variant transition-opacity cursor-pointer">
+<div class="w-6 h-6 rounded-md bg-surface-container-highest text-on-surface font-bold flex items-center justify-center text-sm">T</div>
 <div class="truncate">
 <p class="font-body-sm text-body-sm leading-none truncate">juan@empresa.com</p>
-<span class="font-label-sm text-[10px]">IMAP/SMTP SSL</span>
+<span class="font-body-sm text-[12px]">IMAP/SMTP SSL</span>
 </div>
 </div>
 </div>
@@ -126,14 +126,14 @@ const asset = (path: string) => `${base}/${path}`;
 <nav class="space-y-0.5 font-body-sm text-body-sm">
 <a class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-primary-container/20 text-primary font-medium" href="#">
 <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">inbox</span> Bandeja</span>
-<span class="font-label-sm text-label-sm bg-primary/20 text-primary px-1.5 py-0.2 rounded">12</span>
+<span class="font-body-sm text-sm bg-primary/20 text-primary px-1.5 py-0.2 rounded">12</span>
 </a>
 <a class="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" href="#">
 <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">star</span> Destacados</span>
 </a>
 <a class="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" href="#">
 <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">draft</span> Borradores</span>
-<span class="font-label-sm text-label-sm text-on-surface-variant">3</span>
+<span class="font-body-sm text-sm text-on-surface-variant">3</span>
 </a>
 <a class="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" href="#">
 <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">send</span> Enviados</span>
@@ -148,11 +148,11 @@ const asset = (path: string) => `${base}/${path}`;
 </div>
 
 <div class="bg-surface-container p-2.5 rounded-xl flex items-center justify-between text-on-surface-variant">
-<span class="font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="font-body-sm text-sm flex items-center gap-1.5">
 <span class="material-symbols-outlined text-[16px] text-tertiary" aria-hidden="true">wifi</span>
-                Modo Offline Listo
+                Modo sin conexión listo
               </span>
-<span class="font-label-sm text-[10px] text-outline font-code-kbd">24.3 MB</span>
+<span class="font-body-sm text-[12px] text-outline font-code-kbd">24.3 MB</span>
 </div>
 </div>
 
@@ -161,14 +161,14 @@ const asset = (path: string) => `${base}/${path}`;
 
 <div class="flex items-center gap-2 bg-surface-container-high px-3 py-1.5 rounded-lg text-on-surface-variant">
 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">search</span>
-<input class="bg-transparent text-xs w-full text-on-surface placeholder:text-outline focus:outline-none" placeholder="Buscar correos ( / )..." readonly="" type="text" value="from:equipo"/>
-<kbd class="bg-surface-container text-outline px-1.5 py-0.5 rounded font-code-kbd text-[10px]">ESC</kbd>
+<input class="bg-transparent text-sm w-full text-on-surface placeholder:text-outline focus:outline-none" placeholder="Buscar correos ( / )..." readonly="" type="text" value="from:equipo"/>
+<kbd class="bg-surface-container text-outline px-1.5 py-0.5 rounded font-code-kbd text-[12px]">ESC</kbd>
 </div>
 
 <div class="flex items-center gap-1.5 pt-1 pb-1">
-<span class="bg-primary-container text-on-primary-container text-[11px] font-medium px-2 py-0.5 rounded-md">Todos (12)</span>
-<span class="bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[11px] px-2 py-0.5 rounded-md cursor-pointer">No leídos</span>
-<span class="bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[11px] px-2 py-0.5 rounded-md cursor-pointer">Con estrella</span>
+<span class="bg-primary-container text-on-primary-container text-[12px] font-medium px-2 py-0.5 rounded-md">Todos (12)</span>
+<span class="bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[12px] px-2 py-0.5 rounded-md cursor-pointer">No leídos</span>
+<span class="bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[12px] px-2 py-0.5 rounded-md cursor-pointer">Con estrella</span>
 </div>
 
 <div class="space-y-1.5 pt-1">
@@ -177,37 +177,37 @@ const asset = (path: string) => `${base}/${path}`;
 <div class="absolute left-0 top-2 bottom-2 w-1 bg-primary rounded-r"></div>
 <div class="flex items-center justify-between">
 <span class="font-headline-sm text-body-sm font-semibold text-primary">Arquitectura NamiO</span>
-<span class="font-label-sm text-label-sm text-primary font-code-kbd">10:42 AM</span>
+<span class="font-body-sm text-sm text-primary font-code-kbd">10:42 AM</span>
 </div>
-<p class="font-body-sm text-body-sm font-medium text-on-surface truncate mt-0.5">Sincronización IMAP local y colas offline</p>
-<p class="font-body-sm text-xs text-on-surface-variant truncate mt-1">El nuevo motor almacena cada mensaje localmente para lectura instantánea...</p>
+<p class="font-body-sm text-body-sm font-medium text-on-surface truncate mt-0.5">Sincronización IMAP local y colas sin conexión</p>
+<p class="font-body-sm text-sm text-on-surface-variant truncate mt-1">El nuevo motor almacena cada mensaje localmente para lectura instantánea...</p>
 <div class="flex items-center gap-1.5 mt-2">
-<span class="bg-secondary-container text-on-secondary-container font-label-sm text-[10px] px-1.5 py-0.2 rounded">Seguridad</span>
-<span class="bg-surface-container-highest text-on-surface-variant font-label-sm text-[10px] px-1.5 py-0.2 rounded">v0.4.0</span>
+<span class="bg-secondary-container text-on-secondary-container font-body-sm text-[12px] px-1.5 py-0.2 rounded">Seguridad</span>
+<span class="bg-surface-container-highest text-on-surface-variant font-body-sm text-[12px] px-1.5 py-0.2 rounded">Correo local</span>
 </div>
 </div>
 
 <div class="bg-surface-container-low hover:bg-surface-container-high p-3 rounded-xl transition-colors cursor-pointer">
 <div class="flex items-center justify-between">
-<span class="font-body-sm text-body-sm font-medium text-on-surface">GitHub Releases</span>
-<span class="font-label-sm text-label-sm text-on-surface-variant font-code-kbd">Ayer</span>
+<span class="font-body-sm text-body-sm font-medium text-on-surface">Versiones de GitHub</span>
+<span class="font-body-sm text-sm text-on-surface-variant font-code-kbd">Ayer</span>
 </div>
 <p class="font-body-sm text-body-sm text-on-surface truncate mt-0.5">Novedades del proyecto NamiO</p>
-<p class="font-body-sm text-xs text-on-surface-variant truncate mt-1">Se han generado los paquetes automáticos para distribuciones Linux...</p>
+<p class="font-body-sm text-sm text-on-surface-variant truncate mt-1">Se han generado los paquetes automáticos para distribuciones Linux...</p>
 </div>
 
 <div class="bg-surface-container-low hover:bg-surface-container-high p-3 rounded-xl transition-colors cursor-pointer">
 <div class="flex items-center justify-between">
 <span class="font-body-sm text-body-sm font-medium text-on-surface">Comunidad Linux</span>
-<span class="font-label-sm text-label-sm text-on-surface-variant font-code-kbd">24 May</span>
+<span class="font-body-sm text-sm text-on-surface-variant font-code-kbd">24 de mayo</span>
 </div>
-<p class="font-body-sm text-body-sm text-on-surface truncate mt-0.5">Feedback sobre el modo "El correo es papel"</p>
-<p class="font-body-sm text-xs text-on-surface-variant truncate mt-1">Excelente decisión mantener la lectura en lienzo claro para correos complejos...</p>
+<p class="font-body-sm text-body-sm text-on-surface truncate mt-0.5">Comentarios sobre el modo "El correo es papel"</p>
+<p class="font-body-sm text-sm text-on-surface-variant truncate mt-1">Excelente decisión mantener la lectura en lienzo claro para correos complejos...</p>
 </div>
 </div>
 </div>
 
-<div class="hidden sm:flex items-center justify-between pt-3 text-outline text-[11px] font-code-kbd">
+<div class="hidden sm:flex items-center justify-between pt-3 text-outline text-[12px] font-code-kbd">
 <span>[J/K] Navegar</span>
 <span>[E] Archivar</span>
 <span>[X] Seleccionar</span>
@@ -219,39 +219,39 @@ const asset = (path: string) => `${base}/${path}`;
 
 <div class="flex flex-wrap items-center justify-between gap-2 pb-3">
 <div class="flex items-center gap-1.5">
-<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-2.5 py-1 rounded text-xs inline-flex items-center gap-1 font-body-sm">
-<span class="material-symbols-outlined text-[14px]" aria-hidden="true">reply</span> Responder <kbd class="font-code-kbd text-[10px] text-outline">R</kbd>
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-2.5 py-1 rounded text-sm inline-flex items-center gap-1 font-body-sm">
+<span class="material-symbols-outlined text-[14px]" aria-hidden="true">reply</span> Responder <kbd class="font-code-kbd text-[12px] text-outline">R</kbd>
 </button>
-<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-2.5 py-1 rounded text-xs inline-flex items-center gap-1 font-body-sm">
-<span class="material-symbols-outlined text-[14px]" aria-hidden="true">archive</span> Archivar <kbd class="font-code-kbd text-[10px] text-outline">E</kbd>
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-2.5 py-1 rounded text-sm inline-flex items-center gap-1 font-body-sm">
+<span class="material-symbols-outlined text-[14px]" aria-hidden="true">archive</span> Archivar <kbd class="font-code-kbd text-[12px] text-outline">E</kbd>
 </button>
-<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-2.5 py-1 rounded text-xs inline-flex items-center gap-1 font-body-sm">
-<span class="material-symbols-outlined text-[14px]" aria-hidden="true">schedule</span> Posponer <kbd class="font-code-kbd text-[10px] text-outline">S</kbd>
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-2.5 py-1 rounded text-sm inline-flex items-center gap-1 font-body-sm">
+<span class="material-symbols-outlined text-[14px]" aria-hidden="true">schedule</span> Posponer <kbd class="font-code-kbd text-[12px] text-outline">S</kbd>
 </button>
 </div>
 
-<div class="flex items-center gap-1 bg-surface-container-high p-0.5 rounded-lg text-xs">
-<span class="bg-surface-bright text-on-surface px-2 py-0.5 rounded text-[11px] font-medium flex items-center gap-1">
+<div class="flex items-center gap-1 bg-surface-container-high p-0.5 rounded-lg text-sm">
+<span class="bg-surface-bright text-on-surface px-2 py-0.5 rounded text-[12px] font-medium flex items-center gap-1">
 <span class="w-2 h-2 rounded-full bg-white"></span> Papel (Claro)
                   </span>
-<span class="text-on-surface-variant hover:text-on-surface px-2 py-0.5 rounded text-[11px] cursor-pointer">Oscuro</span>
+<span class="text-on-surface-variant hover:text-on-surface px-2 py-0.5 rounded text-[12px] cursor-pointer">Oscuro</span>
 </div>
 </div>
 
 <div class="bg-surface-container-low p-4 rounded-xl space-y-3">
 <div class="flex items-start justify-between">
 <div>
-<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Sincronización IMAP local y colas offline</h2>
-<div class="flex items-center gap-2 mt-1">
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Sincronización IMAP local y colas sin conexión</h2>
+<div class="flex flex-wrap items-center gap-2 mt-1">
 <span class="font-body-sm text-body-sm text-on-surface font-medium">Equipo de Desarrollo NamiO</span>
-<span class="text-on-surface-variant font-label-sm text-label-sm">&lt;core@namio.internal&gt;</span>
+<span class="text-on-surface-variant font-body-sm text-sm">&lt;core@namio.internal&gt;</span>
 </div>
 </div>
-<span class="bg-surface-container text-tertiary font-label-sm text-[11px] px-2 py-0.5 rounded flex items-center gap-1">
+<span class="bg-surface-container text-tertiary font-body-sm text-[12px] px-2 py-0.5 rounded flex items-center gap-1">
 <span class="material-symbols-outlined text-[14px]" aria-hidden="true">lock</span> TLS 1.3
                   </span>
 </div>
-<div class="text-on-surface-variant font-body-sm text-xs flex items-center gap-4">
+<div class="text-on-surface-variant font-body-sm text-sm flex flex-wrap items-center gap-4">
 <span>Para: <strong class="text-on-surface">personal@gmail.com</strong></span>
 <span>Fecha: <strong>Hoy, 10:42 AM</strong></span>
 </div>
@@ -260,29 +260,29 @@ const asset = (path: string) => `${base}/${path}`;
 <div class="bg-white text-gray-900 p-6 rounded-xl shadow-lg font-body-md text-body-md space-y-3">
 <div class="flex items-center justify-between pb-2">
 <span class="font-headline-sm text-sm font-bold text-indigo-900 tracking-tight flex items-center gap-1.5">
-<span class="material-symbols-outlined text-[16px] text-indigo-600" aria-hidden="true">article</span> Visualización Segura: El correo es papel
+<span class="material-symbols-outlined text-[16px] text-indigo-600" aria-hidden="true">article</span> El correo es papel
                   </span>
-<span class="text-[11px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">CSS/HTML Aislado</span>
+<span class="text-[12px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">HTML aislado</span>
 </div>
 <p class="text-gray-800 leading-relaxed text-sm">
                   Hola equipo,
                 </p>
 <p class="text-gray-700 leading-relaxed text-sm">
-                  Las decisiones de diseño en <strong>NamiO</strong> priorizan la velocidad de lectura sin distorsionar el formato original que preparó el remitente. Nuestro contenedor aislado renderiza mensajes en un lienzo optimizado con contraste absoluto, protegiendo las fuentes y evitando que estilos CSS remotos rompan el tema oscuro de la aplicación principal.
+                  En <strong>NamiO</strong>, cada mensaje conserva su formato. Puedes leerlo con fondo claro u oscuro sin cambiar la apariencia de la aplicación.
                 </p>
-<div class="bg-indigo-50 p-3 rounded-lg text-xs text-indigo-950 font-medium">
+<div class="bg-indigo-50 p-3 rounded-lg text-sm text-indigo-950 font-medium">
                   ✓ Borradores con formato y adjuntos.<br/>
-                  ✓ Conexión en cola para envíos pendientes si se pierde la red wifi.
+                  ✓ Envíos pendientes hasta recuperar la conexión.
                 </div>
 </div>
 </div>
 
-<div class="pt-4 flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<div class="pt-4 flex items-center justify-between text-on-surface-variant font-body-sm text-sm">
 <span class="inline-flex items-center gap-1">
 <span class="material-symbols-outlined text-[16px] text-primary" aria-hidden="true">image_not_supported</span>
-                Imágenes remotas bloqueadas (Protección activa)
+                Imágenes remotas bloqueadas
               </span>
-<a class="text-primary hover:underline" href="#">Permitir imágenes para este remitente</a>
+<a class="text-primary hover:underline" href="#">Permitir imágenes</a>
 </div>
 </div>
 </div>
@@ -290,7 +290,7 @@ const asset = (path: string) => `${base}/${path}`;
 </section>
 </div>
 
-<section id="historia" class="story max-w-7xl mx-auto px-6 lg:px-12 w-full" aria-label="Un día con NamiO"><div class="story-stage"><div class="story-glow" aria-hidden="true"></div><header class="story-head"><span class="font-label-md text-label-md text-primary uppercase tracking-widest font-semibold">Un día con NamiO</span><div class="story-progress" aria-hidden="true"><span data-story-bar></span></div><ol class="story-steps" aria-hidden="true"><li data-step><span class="dot"></span>Mañana</li><li data-step><span class="dot"></span>Mediodía</li><li data-step><span class="dot"></span>Tarde</li><li data-step><span class="dot"></span>Noche</li></ol></header><div class="story-chapters"><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">01</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">mark_email_unread</span>Capítulo 1 · Mañana</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Todas tus cuentas, una sola bandeja</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Conectás Gmail, Outlook o tu servidor propio. Cada cuenta conserva sus mensajes, borradores y reglas por separado.</p></div><div class="story-visual" data-visual><div class="sv-card"><div class="sv-row"><span class="sv-avatar" style="--c:#ea4335">G</span><div><b>Gmail</b><small>personal@gmail.com</small></div><span class="sv-badge">12</span></div><div class="sv-row"><span class="sv-avatar" style="--c:#0078d4">O</span><div><b>Outlook</b><small>trabajo@outlook.com</small></div><span class="sv-badge">4</span></div><div class="sv-row"><span class="sv-avatar" style="--c:#7b61ff">S</span><div><b>Servidor propio</b><small>yo@mi-dominio.org</small></div><span class="sv-badge">0</span></div></div></div></article><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">02</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">edit_note</span>Capítulo 2 · Mediodía</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Escribís sin prisa</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Los borradores se guardan solos. Retomás justo donde lo dejaste, desde cualquier cuenta.</p></div><div class="story-visual" data-visual><div class="sv-card"><div class="sv-head"><span class="material-symbols-outlined">edit_note</span>Nuevo mensaje<em>Borrador guardado</em></div><div class="sv-field">Para: equipo@mi-dominio.org</div><div class="sv-field">Asunto: Resumen de la semana</div><div class="sv-lines"><i style="width:92%"></i><i style="width:78%"></i><i style="width:64%"></i><i class="sv-caret" style="width:30%"></i></div></div></div></article><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">03</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">wifi_off</span>Capítulo 3 · Tarde</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Se corta internet. Seguís.</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Leés lo ya descargado y tus envíos esperan en una cola protegida hasta que vuelve la conexión.</p></div><div class="story-visual" data-visual><div class="sv-card"><div class="sv-head"><span class="material-symbols-outlined">wifi_off</span>Sin conexión<em>Cola de salida</em></div><div class="sv-row"><span class="material-symbols-outlined sv-ico">schedule_send</span><div><b>Presupuesto 2026</b><small>Esperando conexión</small></div><span class="sv-chip warn">En cola</span></div><div class="sv-row"><span class="material-symbols-outlined sv-ico">schedule_send</span><div><b>Re: Reunión del jueves</b><small>Reintento automático</small></div><span class="sv-chip warn">En cola</span></div><div class="sv-row"><span class="material-symbols-outlined sv-ico">drafts</span><div><b>Factura #482</b><small>Disponible para leer</small></div><span class="sv-chip ">Local</span></div></div></div></article><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">04</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>Capítulo 4 · Noche</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Cerrás la ventana, NamiO avisa</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Con el segundo plano activo recibís notificaciones y abrís el mensaje con un clic.</p></div><div class="story-visual" data-visual><div class="sv-card sv-toast"><div class="sv-row"><img src={asset("logo.png")} alt="" class="sv-logo"/><div><b>NamiO · Outlook</b><small>Laura Gómez</small><p>Confirmada la reunión de mañana a las 10:00</p></div></div><div class="sv-actions"><span>Abrir</span><span>Descartar</span></div></div></div></article></div></div></section>
+<section id="historia" class="story max-w-7xl mx-auto px-6 lg:px-12 w-full" aria-label="Un día con NamiO"><div class="story-stage"><div class="story-glow" aria-hidden="true"></div><header class="story-head"><span class="font-label-md text-label-md text-primary uppercase tracking-widest font-semibold">Un día con NamiO</span><div class="story-progress" aria-hidden="true"><span data-story-bar></span></div><ol class="story-steps" aria-hidden="true"><li data-step><span class="dot"></span>Mañana</li><li data-step><span class="dot"></span>Mediodía</li><li data-step><span class="dot"></span>Tarde</li><li data-step><span class="dot"></span>Noche</li></ol></header><div class="story-chapters"><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">01</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">mark_email_unread</span>Capítulo 1 · Mañana</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Todas tus cuentas, una sola bandeja</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Conecta Gmail, Outlook o tu servidor propio. Cada cuenta mantiene sus mensajes y reglas por separado.</p></div><div class="story-visual" data-visual><div class="sv-card"><div class="sv-row"><span class="sv-avatar" style="--c:#ea4335">G</span><div><b>Gmail</b><small>personal@gmail.com</small></div><span class="sv-badge">12</span></div><div class="sv-row"><span class="sv-avatar" style="--c:#0078d4">O</span><div><b>Outlook</b><small>trabajo@outlook.com</small></div><span class="sv-badge">4</span></div><div class="sv-row"><span class="sv-avatar" style="--c:#7b61ff">S</span><div><b>Servidor propio</b><small>yo@mi-dominio.org</small></div><span class="sv-badge">0</span></div></div></div></article><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">02</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">edit_note</span>Capítulo 2 · Mediodía</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Escribes sin prisa</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Tus borradores se guardan automáticamente para que retomes donde lo dejaste.</p></div><div class="story-visual" data-visual><div class="sv-card"><div class="sv-head"><span class="material-symbols-outlined">edit_note</span>Nuevo mensaje<em>Borrador guardado</em></div><div class="sv-field">Para: equipo@mi-dominio.org</div><div class="sv-field">Asunto: Resumen de la semana</div><div class="sv-lines"><i style="width:92%"></i><i style="width:78%"></i><i style="width:64%"></i><i class="sv-caret" style="width:30%"></i></div></div></div></article><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">03</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">wifi_off</span>Capítulo 3 · Tarde</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Se corta internet. Sigues.</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Lee los mensajes descargados. Tus envíos esperan hasta que vuelva la conexión.</p></div><div class="story-visual" data-visual><div class="sv-card"><div class="sv-head"><span class="material-symbols-outlined">wifi_off</span>Sin conexión<em>Cola de salida</em></div><div class="sv-row"><span class="material-symbols-outlined sv-ico">schedule_send</span><div><b>Presupuesto 2026</b><small>Esperando conexión</small></div><span class="sv-chip warn">En cola</span></div><div class="sv-row"><span class="material-symbols-outlined sv-ico">schedule_send</span><div><b>Re: Reunión del jueves</b><small>Reintento automático</small></div><span class="sv-chip warn">En cola</span></div><div class="sv-row"><span class="material-symbols-outlined sv-ico">drafts</span><div><b>Factura #482</b><small>Disponible para leer</small></div><span class="sv-chip ">Local</span></div></div></div></article><article class="story-chapter" data-chapter><span class="story-num" aria-hidden="true">04</span><div class="story-copy"><span class="story-tag"><span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>Capítulo 4 · Noche</span><h3 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold mt-5 tracking-tight">Cierras la ventana, NamiO avisa</h3><p class="font-body-md text-body-md text-on-surface-variant mt-4 max-w-md">Activa el segundo plano para recibir avisos con la ventana cerrada.</p></div><div class="story-visual" data-visual><div class="sv-card sv-toast"><div class="sv-row"><img src={asset("logo.png")} alt="" class="sv-logo"/><div><b>NamiO · Outlook</b><small>Laura Gómez</small><p>Confirmada la reunión de mañana a las 10:00</p></div></div><div class="sv-actions"><span>Abrir</span><span>Descartar</span></div></div></div></article></div></div></section>
 <style is:global>
 .story{overflow-x:clip}
 .story-stage{position:relative;display:flex;flex-direction:column;gap:3rem;padding:4rem 0}
@@ -304,7 +304,7 @@ const asset = (path: string) => `${base}/${path}`;
 .story-tag{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem .9rem;border-radius:999px;background:rgba(168,199,250,.1);color:#a8c7fa;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600}
 .story-tag .material-symbols-outlined{font-size:18px}
 .story-visual{position:relative;perspective:900px}
-.sv-card{background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);border-radius:1.25rem;padding:1.25rem;box-shadow:0 30px 60px -20px rgba(0,0,0,.6),0 0 80px -30px rgba(124,108,255,.5);backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:.75rem;max-width:30rem}
+.sv-card{background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);border-radius:1.25rem;padding:1.25rem;box-shadow:0 24px 48px -20px rgba(0,0,0,.6);backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:.75rem;max-width:30rem}
 .sv-row{display:flex;align-items:center;gap:.85rem;padding:.75rem .9rem;border-radius:.85rem;background:rgba(255,255,255,.04)}
 .sv-row>div{flex:1;min-width:0;display:flex;flex-direction:column}
 .sv-row b{font-size:.9rem;color:#e3e2e9} .sv-row small{font-size:.75rem;color:#9a9eb0}
@@ -339,148 +339,97 @@ const asset = (path: string) => `${base}/${path}`;
 
 <section class="max-w-7xl mx-auto px-6 lg:px-12 py-16 w-full" id="funciones">
 <div class="text-center max-w-3xl mx-auto mb-16">
-<span class="font-label-md text-label-md text-primary uppercase tracking-widest font-semibold">Capacidades del Sistema</span>
-<h2 class="font-headline-lg text-3xl sm:text-4xl text-on-surface font-bold mt-2 tracking-tight">Diseñado para la velocidad. Sin adornos innecesarios.</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mt-3">Todas las herramientas esenciales de correo electrónico de escritorio optimizadas para el rendimiento nativo.</p>
+<h2 class="font-headline-lg text-3xl sm:text-4xl text-on-surface font-bold mt-2 tracking-tight">Más control, menos pasos</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-3">Herramientas para escribir, leer y organizar tu correo.</p>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="feature-list grid grid-cols-1 md:grid-cols-2 gap-x-12">
 
-<div class="bg-surface-container-low hover:bg-surface-container p-6 rounded-2xl transition-all duration-200 flex flex-col justify-between group shadow-sm">
+<div class="feature-item flex flex-col justify-between">
 <div>
-<div class="w-12 h-12 rounded-xl bg-primary-container/20 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-<span class="material-symbols-outlined text-[28px]" aria-hidden="true">mark_email_unread</span>
-</div>
-<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Reunir tus cuentas</h3>
-<p class="font-body-md text-body-md text-on-surface-variant mt-2.5 leading-relaxed">
-            Conectá varias cuentas IMAP y SMTP (Gmail, Outlook, Yahoo, Proton Bridge o servidores propios). Cada una conserva sus mensajes, borradores y reglas de forma aislada e independiente.
-          </p>
-</div>
-<div class="mt-6 pt-4 flex items-center gap-2 text-xs font-label-sm text-primary">
-<span class="material-symbols-outlined text-[16px]" aria-hidden="true">swap_horiz</span>
-          Mensajes y reglas separados por cuenta
-        </div>
-</div>
-
-<div class="bg-surface-container-low hover:bg-surface-container p-6 rounded-2xl transition-all duration-200 flex flex-col justify-between group shadow-sm">
-<div>
-<div class="w-12 h-12 rounded-xl bg-tertiary-container/30 text-tertiary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-<span class="material-symbols-outlined text-[28px]" aria-hidden="true">wifi_off</span>
-</div>
-<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Leer y operar sin conexión</h3>
-<p class="font-body-md text-body-md text-on-surface-variant mt-2.5 leading-relaxed">
-            Consultá los correos ya descargados en tu máquina. Los envíos creados sin conexión entran en una cola protegida para reintentarse cuando vuelve la conexión.
-          </p>
-</div>
-<div class="mt-6 pt-4 flex items-center gap-2 text-xs font-label-sm text-tertiary">
-<span class="material-symbols-outlined text-[16px]" aria-hidden="true">sync_saved_locally</span>
-          Cola de salida con reintentos automáticos
-        </div>
-</div>
-
-<div class="bg-surface-container-low hover:bg-surface-container p-6 rounded-2xl transition-all duration-200 flex flex-col justify-between group shadow-sm">
-<div>
-<div class="w-12 h-12 rounded-xl bg-secondary-container/30 text-secondary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+<div class="feature-icon">
 <span class="material-symbols-outlined text-[28px]" aria-hidden="true">edit_note</span>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Escribir con formato y libertad</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Escribe con formato</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mt-2.5 leading-relaxed">
-            Redactor flexible que podés ampliar, minimizar y restaurar sin perder avances. Envío en HTML enriquecido o texto plano limpio, soporte de adjuntos, CC, CCO y borradores sincronizados.
+            Redacta en HTML o texto plano, agrega archivos y usa CC o CCO. Minimiza el editor sin perder tu avance.
           </p>
 </div>
-<div class="mt-6 pt-4 flex items-center gap-2 text-xs font-label-sm text-secondary">
-<span class="material-symbols-outlined text-[16px]" aria-hidden="true">save</span>
-          Borradores seguros por cuenta
-        </div>
 </div>
 
-<div class="bg-surface-container-low hover:bg-surface-container p-6 rounded-2xl transition-all duration-200 flex flex-col justify-between group shadow-sm">
+<div class="feature-item flex flex-col justify-between">
 <div>
-<div class="w-12 h-12 rounded-xl bg-surface-container-highest text-on-surface flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+<div class="feature-icon">
 <span class="material-symbols-outlined text-[28px]" aria-hidden="true">article</span>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">El correo es papel</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Lee a tu manera</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mt-2.5 leading-relaxed">
-            Lector con selector de fondo claro u oscuro para los mensajes, independientemente de la estética de la app. Aísla el HTML para que ningún correo ajeno degrade tu experiencia de lectura.
+            Elige un fondo claro u oscuro para cada mensaje. Su HTML se mantiene aislado de la interfaz.
           </p>
 </div>
-<div class="mt-6 pt-4 flex items-center gap-2 text-xs font-label-sm text-on-surface-variant">
-<span class="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
-          HTML de correo aislado
-        </div>
 </div>
 
-<div class="bg-surface-container-low hover:bg-surface-container p-6 rounded-2xl transition-all duration-200 flex flex-col justify-between group shadow-sm">
+<div class="feature-item flex flex-col justify-between">
 <div>
-<div class="w-12 h-12 rounded-xl bg-primary-container/20 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+<div class="feature-icon">
 <span class="material-symbols-outlined text-[28px]" aria-hidden="true">tune</span>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Automatizar con reglas locales</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Organiza con reglas</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mt-2.5 leading-relaxed">
-            Creá reglas precisas que se ejecutan directamente en tu computadora para mover, clasificar, archivar, marcar como leídos o eliminar mensajes automáticamente según tus criterios.
+            Mueve, archiva o elimina mensajes automáticamente con reglas que se ejecutan en tu computadora.
           </p>
 </div>
-<div class="mt-6 pt-4 flex items-center gap-2 text-xs font-label-sm text-primary">
-<span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span>
-          Procesamiento sin enviar datos a la nube
-        </div>
 </div>
 
-<div class="bg-surface-container-low hover:bg-surface-container p-6 rounded-2xl transition-all duration-200 flex flex-col justify-between group shadow-sm">
+<div class="feature-item flex flex-col justify-between">
 <div>
-<div class="w-12 h-12 rounded-xl bg-secondary-container/30 text-secondary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+<div class="feature-icon">
 <span class="material-symbols-outlined text-[28px]" aria-hidden="true">keyboard</span>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Control total por teclado</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Usa el teclado</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mt-2.5 leading-relaxed">
-            Paleta de comandos estilo desarrollador (<kbd class="font-code-kbd text-code-kbd px-1 py-0.5 bg-surface-container rounded">⌘K</kbd>), atajos de un solo carácter personalizables y navegación fluida entre buzones sin tocar el ratón.
+            Abre la paleta de comandos (<kbd class="font-code-kbd text-code-kbd px-1 py-0.5 bg-surface-container rounded">⌘K</kbd>) y navega entre buzones con atajos personalizables.
           </p>
 </div>
-<div class="mt-6 pt-4 flex items-center gap-2 text-xs font-label-sm text-secondary">
-<span class="material-symbols-outlined text-[16px]" aria-hidden="true">bolt</span>
-          Atajos que podés personalizar
-        </div>
 </div>
 </div>
 </section>
 
 <section id="sin-conexion" class="offline-section max-w-7xl mx-auto px-6 lg:px-12 py-16 w-full">
-  <div><span class="material-symbols-outlined offline-icon" aria-hidden="true">notifications_active</span><h2>El correo sigue.<br /><span>Vos elegís cuándo mirarlo.</span></h2><p>Recibí avisos de todas tus cuentas y abrí el mensaje con un clic. Si activás el segundo plano, podés cerrar la ventana y dejar que NamiO te avise.</p></div>
-  <div class="offline-details"><div><strong>Leé sin conexión</strong><p>Los mensajes que ya descargaste siguen disponibles. Al vaciar la caché, necesitás conexión para recuperar su contenido.</p></div><div><strong>Sin avisos repetidos</strong><p>La primera revisión de una cuenta inactiva no avisa del historial. La cuenta activa se revisa cada minuto; las demás, cada tres.</p></div><div><strong>Tu espacio, tus reglas</strong><p>Elegí el sonido, ocultá el contenido de los avisos y salí por completo desde el icono de bandeja.</p></div></div>
+<div><span class="material-symbols-outlined offline-icon" aria-hidden="true">notifications_active</span><h2>Avisos a tu medida</h2><p>Personaliza el sonido y cierra NamiO por completo desde el icono de la bandeja del sistema.</p></div>
+<div class="offline-details"><div><strong>Sin avisos del historial</strong><p>La primera revisión de una cuenta inactiva no genera notificaciones de mensajes anteriores.</p></div><div><strong>Revisión automática</strong><p>La cuenta activa se revisa cada minuto; las demás, cada tres.</p></div></div>
 </section>
 <section class="max-w-7xl mx-auto px-6 lg:px-12 py-16 w-full" id="privacidad">
-<div class="bg-surface-container-low rounded-3xl p-8 sm:p-12 shadow-xl relative overflow-hidden">
-<div class="absolute -right-16 -bottom-16 w-96 h-96 bg-primary-container/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="privacy-panel p-8 sm:p-12 relative overflow-hidden">
 <div class="max-w-2xl">
-<span class="font-label-md text-label-md text-primary uppercase tracking-widest font-semibold">Privacidad por Construcción</span>
 <h2 class="font-headline-lg text-3xl sm:text-4xl text-on-surface font-bold mt-2 tracking-tight">Tu correo te pertenece. Punto.</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mt-3">
-          NamiO conecta tu equipo con tu proveedor de correo. Los mensajes descargados quedan disponibles localmente y vos elegís qué contenido remoto permitir.
+          Tu equipo se conecta directamente con tu proveedor. Tú decides qué contenido remoto permitir.
         </p>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-10">
 
-<div class="bg-surface-container p-5 rounded-xl space-y-2">
+<div class="privacy-item space-y-3">
 <span class="material-symbols-outlined text-[26px] text-primary" aria-hidden="true">hard_drive</span>
-<h4 class="font-headline-sm text-body-md font-semibold text-on-surface">Mensajes en tu equipo</h4>
-<p class="font-body-sm text-body-sm text-on-surface-variant">La copia descargada de tus mensajes se guarda en tu equipo. Podés vaciar la caché cuando lo desees.</p>
+<h3 class="font-headline-sm text-body-md font-semibold text-on-surface">Mensajes en tu equipo</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Los mensajes descargados se guardan en tu equipo. Si vacías la caché, necesitarás conexión para recuperarlos.</p>
 </div>
 
-<div class="bg-surface-container p-5 rounded-xl space-y-2">
+<div class="privacy-item space-y-3">
 <span class="material-symbols-outlined text-[26px] text-primary" aria-hidden="true">key</span>
-<h4 class="font-headline-sm text-body-md font-semibold text-on-surface">Credenciales protegidas</h4>
-<p class="font-body-sm text-body-sm text-on-surface-variant">Las credenciales se guardan cifradas cuando el sistema ofrece almacenamiento seguro. Si no, NamiO no las conserva.</p>
+<h3 class="font-headline-sm text-body-md font-semibold text-on-surface">Credenciales protegidas</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Se cifran cuando el sistema ofrece almacenamiento seguro. De lo contrario, NamiO no las conserva.</p>
 </div>
 
-<div class="bg-surface-container p-5 rounded-xl space-y-2">
+<div class="privacy-item space-y-3">
 <span class="material-symbols-outlined text-[26px] text-primary" aria-hidden="true">block</span>
-<h4 class="font-headline-sm text-body-md font-semibold text-on-surface">Bloqueo de Píxeles</h4>
-<p class="font-body-sm text-body-sm text-on-surface-variant">Las imágenes remotas están bloqueadas inicialmente para evitar que rastreen cuándo y dónde abriste el email.</p>
+<h3 class="font-headline-sm text-body-md font-semibold text-on-surface">Imágenes bloqueadas</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Las imágenes remotas se bloquean de forma predeterminada para reducir el rastreo.</p>
 </div>
 
-<div class="bg-surface-container p-5 rounded-xl space-y-2">
+<div class="privacy-item space-y-3">
 <span class="material-symbols-outlined text-[26px] text-primary" aria-hidden="true">visibility_off</span>
-<h4 class="font-headline-sm text-body-md font-semibold text-on-surface">Avisos discretos</h4>
-<p class="font-body-sm text-body-sm text-on-surface-variant">Ocultá remitente y asunto en las notificaciones. Esta opción está activada inicialmente.</p>
+<h3 class="font-headline-sm text-body-md font-semibold text-on-surface">Avisos discretos</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">El remitente y el asunto se ocultan de forma predeterminada en las notificaciones.</p>
 </div>
 </div>
 </div>
@@ -488,26 +437,25 @@ const asset = (path: string) => `${base}/${path}`;
 
 <section class="max-w-7xl mx-auto px-6 lg:px-12 py-16 w-full" id="descargas">
 <div class="text-center max-w-2xl mx-auto mb-12">
-<span class="font-label-md text-label-md text-primary uppercase tracking-widest font-semibold">Disponibilidad Multiplataforma</span>
-<h2 class="font-headline-lg text-3xl sm:text-4xl text-on-surface font-bold mt-2 tracking-tight">Elegí tu próximo escritorio</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mt-2">El proyecto está orientado a Linux, Windows y macOS. Consultá qué paquetes incluye cada publicación.</p>
+<h2 class="font-headline-lg text-3xl sm:text-4xl text-on-surface font-bold mt-2 tracking-tight">Descarga NamiO</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Elige tu sistema y consulta los paquetes disponibles.</p>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="download-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-<div class="bg-surface-container p-6 rounded-2xl flex flex-col justify-between shadow-md">
+<div class="download-card">
 <div>
-<div class="flex items-center justify-between">
-<span class="font-headline-sm text-headline-sm text-on-surface font-bold">Linux</span>
-<span class="bg-primary/20 text-primary font-label-sm text-label-sm px-2.5 py-0.5 rounded-full font-medium">Plataforma principal</span>
+<div class="download-platform"><svg class="platform-icon" viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M24 4c-6 0-10 5-10 12v5c-3 4-5 9-5 14l-4 6c-1 2 0 3 2 3h11l6-3 6 3h11c2 0 3-1 2-3l-4-6c0-5-2-10-5-14v-5c0-7-4-12-10-12Zm-5 10a2 3 0 1 0 0 6 2 3 0 0 0 0-6Zm10 0a2 3 0 1 0 0 6 2 3 0 0 0 0-6Zm-10 9 5 4 5-4-5-3-5 3Zm5 8c-3 0-6-2-7-4-2 3-3 7-2 10 3 3 15 3 18 0 1-3 0-7-2-10-1 2-4 4-7 4Z"/></svg><h3>Linux</h3></div>
+<div class="download-status">
+<span class="bg-primary/20 text-primary font-body-sm text-xs px-2.5 py-0.5 rounded-full font-medium">Plataforma principal</span>
 </div>
 <p class="font-body-sm text-body-sm text-on-surface-variant mt-3">
-            Plataforma con comprobaciones locales realizadas. Avisos con soporte de sonido de escritorio GTK.
+            Validado localmente, con soporte de sonido de escritorio GTK.
           </p>
 <div class="mt-4 space-y-2">
 <div class="flex items-center justify-between text-xs text-on-surface bg-surface-container-high px-3 py-2 rounded-lg">
 <span class="font-code-kbd font-medium">AppImage</span>
-<span class="text-outline">64-bit</span>
+<span class="text-outline">64 bits</span>
 </div>
 <div class="flex items-center justify-between text-xs text-on-surface bg-surface-container-high px-3 py-2 rounded-lg">
 <span class="font-code-kbd font-medium">Paquete .deb</span>
@@ -515,123 +463,98 @@ const asset = (path: string) => `${base}/${path}`;
 </div>
 </div>
 </div>
-<a class="mt-6 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-fixed text-on-primary font-body-sm text-body-sm py-2.5 rounded-xl font-medium transition-colors" href="https://github.com/PinedaMB/NamiO/releases" rel="noreferrer" target="_blank">
+<div class="download-actions">
+<a class="mt-6 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-fixed text-on-primary font-body-sm text-body-sm py-2.5 rounded-xl font-medium transition-colors" href="https://github.com/PinedaMB/NamiO/releases/latest" data-release-download="AppImage" rel="noreferrer" target="_blank">
 <span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
-          Descargar paquetes Linux
+          <span data-download-label>Ver AppImage en GitHub</span>
         </a>
+<a class="mt-3 inline-flex items-center justify-center gap-2 text-primary font-body-sm text-body-sm py-2.5 rounded-xl font-medium hover:underline" href="https://github.com/PinedaMB/NamiO/releases/latest" data-release-download="deb" rel="noreferrer" target="_blank"><span data-download-label>Ver .deb en GitHub</span></a>
+</div>
 </div>
 
-<div class="bg-surface-container p-6 rounded-2xl flex flex-col justify-between shadow-md">
+<div class="download-card">
 <div>
-<div class="flex items-center justify-between">
-<span class="font-headline-sm text-headline-sm text-on-surface font-bold">Windows</span>
-<span class="bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm px-2.5 py-0.5 rounded-full font-medium">Previsto (.exe)</span>
+<div class="download-platform"><svg class="platform-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M5 8h18v18H5zm20 0h18v18H25zM5 28h18v18H5zm20 0h18v18H25z" fill="currentColor" transform="translate(0 -3)"/></svg><h3>Windows</h3></div>
+<div class="download-status">
+<span class="bg-surface-container-highest text-on-surface-variant font-body-sm text-xs px-2.5 py-0.5 rounded-full font-medium" data-windows-status>Consulta disponibilidad</span>
 </div>
 <p class="font-body-sm text-body-sm text-on-surface-variant mt-3">
-            Instalador estándar previsto en formato ejecutable. Integración con notificaciones nativas de Windows 10/11.
+            Para Windows 10 y 11, con notificaciones nativas.
           </p>
 <div class="mt-4 space-y-2">
 <div class="flex items-center justify-between text-xs text-on-surface bg-surface-container-high px-3 py-2 rounded-lg">
-<span class="font-code-kbd font-medium">Instalador .exe previsto</span>
-<span class="text-outline">x64 Setup</span>
-</div>
-<p class="font-label-sm text-[11px] text-outline pt-1">Consultá cada publicación en GitHub para validar disponibilidad.</p>
+<span class="font-code-kbd font-medium">Instalador .exe</span>
+<span class="text-outline">Instalador x64</span>
 </div>
 </div>
-<a class="mt-6 inline-flex items-center justify-center gap-2 bg-surface-container-high hover:bg-surface-bright text-on-surface font-body-sm text-body-sm py-2.5 rounded-xl font-medium transition-colors" href="https://github.com/PinedaMB/NamiO/releases" rel="noreferrer" target="_blank">
-<span class="material-symbols-outlined text-[18px]" aria-hidden="true">open_in_new</span>
-          Ver Releases de Windows
+</div>
+<div class="download-actions">
+<a class="mt-6 inline-flex items-center justify-center gap-2 bg-surface-container-high hover:bg-surface-bright text-on-surface font-body-sm text-body-sm py-2.5 rounded-xl font-medium transition-colors" href="https://github.com/PinedaMB/NamiO/releases/latest" data-release-download="exe" rel="noreferrer" target="_blank">
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
+          <span data-download-label>Ver Windows en GitHub</span>
         </a>
 </div>
+</div>
 
-<div class="bg-surface-container p-6 rounded-2xl flex flex-col justify-between shadow-md">
+<div class="download-card">
 <div>
-<div class="flex items-center justify-between">
-<span class="font-headline-sm text-headline-sm text-on-surface font-bold">macOS</span>
-<span class="bg-surface-container-highest text-outline font-label-sm text-label-sm px-2.5 py-0.5 rounded-full font-medium">En desarrollo</span>
+<div class="download-platform"><svg class="platform-icon" viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="M32 4c.5 4-2.8 8.6-6.8 9-.7-3.8 2.8-8.3 6.8-9ZM36 26c0-5 4-7.3 4.2-7.5-2.5-3.7-6.4-4.2-7.8-4.3-3.3-.3-6.5 2-8.2 2-1.7 0-4.3-2-7-1.9-3.6.1-6.9 2.1-8.7 5.3-3.7 6.4-1 15.8 2.6 21 1.8 2.5 3.8 5.3 6.6 5.2 2.6-.1 3.6-1.7 6.8-1.7 3.2 0 4.1 1.7 6.9 1.6 2.9 0 4.7-2.5 6.4-5 2-2.8 2.8-5.6 2.9-5.8-.1 0-4.7-1.8-4.7-8.9Z"/></svg><h3>macOS</h3></div>
+<div class="download-status">
+<span class="bg-surface-container-highest text-outline font-body-sm text-xs px-2.5 py-0.5 rounded-full font-medium">En desarrollo</span>
 </div>
 <p class="font-body-sm text-body-sm text-on-surface-variant mt-3">
-            Distribución y validación pendientes para Apple Silicon y procesadores Intel. Todavía no hay una distribución verificada para macOS.
+            La distribución y validación para Apple Silicon e Intel siguen pendientes.
           </p>
 <div class="mt-4 space-y-2">
-<div class="flex items-center justify-between text-xs text-on-surface-variant bg-surface-container-high px-3 py-2 rounded-lg opacity-60">
+<div class="flex items-center justify-between text-xs text-on-surface-variant bg-surface-container-high px-3 py-2 rounded-lg">
 <span class="font-code-kbd font-medium">Distribución pendiente</span>
 <span class="text-outline">Apple Silicon</span>
 </div>
-<p class="font-label-sm text-[11px] text-outline pt-1">Seguí las novedades y el estado del proyecto en GitHub.</p>
 </div>
 </div>
+<div class="download-actions">
 <a class="mt-6 inline-flex items-center justify-center gap-2 bg-surface-container-high hover:bg-surface-bright text-on-surface font-body-sm text-body-sm py-2.5 rounded-xl font-medium transition-colors" href="https://github.com/PinedaMB/NamiO" rel="noreferrer" target="_blank">
 <span class="material-symbols-outlined text-[18px]" aria-hidden="true">terminal</span>
           Seguir el proyecto
         </a>
 </div>
 </div>
+</div>
 
-<p class="release-note">NamiO 0.4.0 está en desarrollo. Los archivos disponibles pueden corresponder a otra versión: revisá las notas de cada publicación.</p>
+<p class="release-note" data-release-note role="status">Consulta los instaladores y las notas de la última versión en GitHub.</p>
 </section>
 
-<section class="max-w-7xl mx-auto px-6 lg:px-12 py-20 w-full">
-<div class="bg-gradient-to-b from-surface-container to-surface-container-low rounded-3xl p-8 sm:p-14 text-center flex flex-col items-center relative overflow-hidden shadow-2xl">
-<div class="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 bg-primary/20 rounded-full blur-[80px] pointer-events-none"></div>
+<section class="closing-section max-w-7xl mx-auto px-6 lg:px-12 py-20 w-full" aria-labelledby="cta-title">
+<div class="cta-panel">
+<div class="cta-copy">
+<h2 id="cta-title">Experimenta el correo <span>sin distracciones.</span></h2>
+<p>Elige la versión para tu sistema y empieza a organizar tu correo.</p>
+<div class="cta-actions">
+<a class="cta-primary" href="#descargas"><span class="material-symbols-outlined" aria-hidden="true">download</span>Ver descargas<span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></a>
+<a class="cta-secondary" href="https://github.com/PinedaMB/NamiO/issues" rel="noreferrer" target="_blank">Reportar un problema<span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span></a>
+</div>
+</div>
+<div class="cta-mascot" aria-hidden="true"><img src={asset("logo.png")} alt="" width="240" height="240" loading="lazy"/></div>
 
-<div class="relative w-28 h-28 sm:w-32 sm:h-32 mb-6">
-<img class="w-full h-full object-contain filter drop-shadow-[0_8px_24px_rgba(128,131,255,0.4)]" alt="Mapache de NamiO" src={asset("logo.png")}/>
-</div>
-<h2 class="font-headline-lg text-3xl sm:text-5xl text-on-surface font-bold tracking-tight max-w-2xl">
-        Experimentá el correo sin distracciones.
-      </h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl mt-4 leading-relaxed">
-        Explorá las versiones disponibles y seguí el desarrollo de NamiO. Una forma de leer y organizar el correo con tus preferencias al frente.
-      </p>
-<div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-<a class="inline-flex items-center gap-2.5 bg-primary hover:bg-primary-fixed text-on-primary font-headline-sm text-headline-sm px-7 py-3.5 rounded-xl shadow-lg transition-colors" href="#descargas">
-<span class="material-symbols-outlined text-[20px]" aria-hidden="true">download</span>
-          Ver versiones disponibles
-        </a>
-<a class="inline-flex items-center gap-2 bg-surface-container-high hover:bg-surface-bright text-on-surface font-body-md text-body-md px-6 py-3.5 rounded-xl transition-colors" href="https://github.com/PinedaMB/NamiO/issues" rel="noreferrer" target="_blank">
-<span class="material-symbols-outlined text-[18px]" aria-hidden="true">bug_report</span>
-          Reportar un problema
-        </a>
-</div>
-<div class="mt-12 flex flex-wrap items-center justify-center gap-6 text-xs font-label-sm text-outline">
-<span>Creado por <a class="text-on-surface hover:text-primary transition-colors font-medium" href="https://github.com/PinedaMB" rel="noreferrer" target="_blank">PinedaMB</a></span>
-<span>•</span>
-<a href={asset("licenses/NamiO-MIT.txt")}>Licencia MIT</a>
-<span>•</span>
-<span>Comunidad de Código Abierto</span>
-</div>
 </div>
 </section>
-</div></main><footer class="w-full bg-surface-container-lowest py-space-xl shadow-[0_-1px_8px_rgba(0,0,0,0.3)]"><div class="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-space-md text-on-surface-variant"><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-headline-sm text-on-surface">NamiO</span><span class="text-outline-variant">•</span><span class="font-body-sm text-body-sm">Tu correo, a tu ritmo. Licencia MIT.</span></div><div class="flex items-center gap-space-lg font-body-sm text-body-sm"><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="https://github.com/PinedaMB/NamiO" rel="noreferrer" target="_blank">GitHub</a><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#privacidad">Privacidad</a><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#descargas">Releases</a><span class="font-label-sm text-label-sm text-outline">Hecho por PinedaMB · 2026</span></div></div></footer>
+</div></main><footer class="w-full bg-surface-container-lowest py-space-xl shadow-[0_-1px_8px_rgba(0,0,0,0.3)]"><div class="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-space-md text-on-surface-variant"><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-headline-sm text-on-surface">NamiO</span><span class="text-outline-variant">•</span><span class="font-body-sm text-body-sm">Tu correo, a tu ritmo.</span></div><div class="flex flex-wrap justify-center items-center gap-space-lg font-body-sm text-body-sm"><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="https://github.com/PinedaMB/NamiO" rel="noreferrer" target="_blank">GitHub</a><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#privacidad">Privacidad</a><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#descargas">Versiones</a><a href={asset("licenses/NamiO-MIT.txt")}>Licencia MIT</a><a href="https://github.com/PinedaMB" rel="noreferrer" target="_blank">PinedaMB · 2026</a></div></div></footer>
 <script>
+  import { updateRelease } from '../lib/releases.js';
+  void updateRelease(document);
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { revealOnScroll } from '../lib/reveal.js';
+import { createStoryPlayer } from '../lib/story.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const mm = gsap.matchMedia();
 mm.add('(prefers-reduced-motion: no-preference)', () => {
-  const hero = document.querySelectorAll('main section:first-of-type > *');
-  gsap.from(hero, { y: 24, opacity: 0, duration: 0.8, stagger: 0.12, ease: 'power3.out' });
+  // El contenido sigue visible aunque no se active su animación de entrada.
+  const hero = document.querySelectorAll('main [data-hero] > *');
+  gsap.from(hero, { y: 24, immediateRender: false, duration: 0.8, stagger: 0.12, ease: 'power3.out' });
 
-
-  document.querySelectorAll<HTMLElement>('main section:not(:first-of-type):not(#historia)').forEach((section) => {
-    const grid = section.querySelector(':scope > .grid');
-    const blocks = Array.from(section.children).filter((el) => el !== grid);
-    if (blocks.length) {
-      gsap.from(blocks, {
-        y: 32, opacity: 0, duration: 0.8, stagger: 0.12, ease: 'power3.out',
-        scrollTrigger: { trigger: section, start: 'top 80%', once: true },
-      });
-    }
-    if (grid) {
-      gsap.from(grid.children, {
-        y: 40, opacity: 0, duration: 0.7, stagger: 0.1, ease: 'power3.out',
-        scrollTrigger: { trigger: grid, start: 'top 85%', once: true },
-      });
-    }
-  });
 });
 mm.add('(prefers-reduced-motion: no-preference)', () => {
     const story = document.querySelector<HTMLElement>('#historia');
@@ -640,30 +563,25 @@ mm.add('(prefers-reduced-motion: no-preference)', () => {
       story.classList.add('is-pinned');
       gsap.set(chapters, { autoAlpha: 0 });
       gsap.set(chapters[0], { autoAlpha: 1 });
+      const steps = gsap.utils.toArray<HTMLElement>('[data-step]');
+      const { showChapter, cleanup } = createStoryPlayer(gsap, chapters, steps);
       const tl = gsap.timeline({
         defaults: { ease: 'none' },
-        scrollTrigger: { trigger: story, start: 'top top+=64', end: () => `+=${chapters.length * 80}%`, scrub: 0.6, pin: true, pinSpacing: true, invalidateOnRefresh: true },
+        scrollTrigger: {
+          trigger: story, start: 'top top+=64', end: () => `+=${chapters.length * 80}%`,
+          scrub: 0.6, pin: true, pinSpacing: true, invalidateOnRefresh: true,
+          onUpdate: self => showChapter(Math.round(self.progress * (chapters.length - 1))),
+        },
       });
-      const steps = gsap.utils.toArray<HTMLElement>('[data-step]');
-      gsap.set(steps[0], { opacity: 1 });
+      showChapter(0);
       tl.to('[data-story-bar]', { scaleX: 1, duration: chapters.length - 1 }, 0);
-      chapters.forEach((ch, i) => {
-        const copy = ch.querySelector('.story-copy');
-        const visual = ch.querySelector('[data-visual]');
-        const cards = ch.querySelectorAll('.sv-row, .sv-field, .sv-lines i, .sv-actions');
-        if (i > 0) {
-          tl.to(chapters[i - 1], { autoAlpha: 0, duration: 0.3 }, i - 0.4)
-            .to(steps[i], { opacity: 1, duration: 0.3 }, i - 0.1)
-            .fromTo(ch, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, i - 0.1)
-            .fromTo(copy, { y: 60 }, { y: 0, duration: 0.5 }, i - 0.1)
-            .fromTo(visual, { y: 80, rotateY: -14, scale: 0.92 }, { y: 0, rotateY: 0, scale: 1, duration: 0.6 }, i - 0.1)
-            .fromTo(cards, { x: 24, autoAlpha: 0 }, { x: 0, autoAlpha: 1, stagger: 0.06, duration: 0.3 }, i + 0.1);
-        }
-      });
-      tl.to({}, { duration: 0.3 });
-      return () => story.classList.remove('is-pinned');
+      return () => { cleanup(); story.classList.remove('is-pinned'); };
     }
 });
+mm.add('(prefers-reduced-motion: no-preference)', () => revealOnScroll(gsap));
+// Las fuentes locales y el capítulo fijado cambian las posiciones de las secciones.
+void document.fonts.ready.then(() => ScrollTrigger.refresh());
+window.addEventListener('pageshow', () => ScrollTrigger.refresh());
 </script>
 </body>
 </html>

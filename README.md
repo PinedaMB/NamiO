@@ -37,3 +37,9 @@ Las descargas enlazan a las publicaciones del proyecto, sin anunciar instaladore
 ## Licencia
 
 El sitio conserva la [licencia MIT](LICENSE) de NamiO. Inter y JetBrains Mono se distribuyen bajo SIL OFL 1.1; Material Symbols, bajo Apache 2.0. Sus textos están en `public/licenses/`.
+
+## Versión y descargas automáticas
+
+Al abrir la página, se consulta la última release pública de `PinedaMB/NamiO`. La versión y los enlaces directos a AppImage, .deb y .exe se actualizan con los archivos publicados, sin reconstruir la página. No se usan credenciales en el navegador.
+
+Publica una release estable y adjunta sus instaladores: aparecerán en la siguiente visita o al recargar. Los borradores y las versiones preliminares no se muestran. Si falta un instalador o GitHub no responde, se conserva el enlace a la release para consultar disponibilidad.
