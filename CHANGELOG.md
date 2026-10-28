@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.4.2 — En desarrollo
+
+- Registro OAuth de escritorio de Google integrado: las nuevas cuentas de Gmail pueden iniciar sesión desde el navegador sin introducir Client ID ni Client Secret. Se conservan los registros propios existentes; el acceso sigue sujeto a los usuarios de prueba autorizados en Google Cloud.
+
+- Pruebas de regresión e interfaz integradas en comandos y CI, con cobertura adicional de recuperación de envíos pendientes y renovación OAuth.
+- Selector de autenticación de Gmail disponible en Configuración también para cuentas con contraseña de aplicación; instrucciones de OAuth y acceso para crear una contraseña de aplicación.
+- Retirados los accesos a Posponer, que todavía no realizaban ninguna acción. Los demás atajos personalizados se conservan.
+- El lector observa el tamaño del contenido del correo sin realimentar los cambios de altura del iframe.
+
 ## 0.4.1 — 2026-10-27
 
 - Corregida la carga de imágenes remotas en mensajes cuando están permitidas en Windows y Linux.

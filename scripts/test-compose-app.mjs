@@ -1,5 +1,5 @@
 // Requiere pnpm build. Usa la aplicación compilada, sin credenciales ni conexiones reales.
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('api',{
  clearDraft:async id=>{drafts=drafts.filter(item=>item.id!==id);notify()},inspectTestDrafts:async()=>drafts,
  onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
+  await writeFile(join(folder, 'onboarding-preload.cjs'), (await readFile(join(folder, 'preload.cjs'), 'utf8')).replace('onboarded:true', 'onboarded:false'))
   await writeFile(join(folder, 'runner.cjs'), `
 const {app,BrowserWindow}=require('electron');
 app.setPath('userData',${JSON.stringify(join(folder,'profile'))});app.disableHardwareAcceleration();
@@ -133,7 +134,28 @@ app.whenReady().then(async()=>{
  document.querySelector('.composer__head [aria-label="Cerrar"]').click();
 })()`)});
  console.log('Compose motion: minimize/restore snapshots, 300ms spatial transition, content preservation and reduced motion passed');
- const live=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{preload:${JSON.stringify(join(folder,'drafts-preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
+ const onboarding=new BrowserWindow({show:false,width:1080,height:760,webPreferences:{partition:'google-onboarding-test',preload:${JSON.stringify(join(folder,'onboarding-preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
+ onboarding.webContents.on('console-message',event=>{if(event.level==='error')errors.push('onboarding: '+event.message)});
+ await onboarding.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
+ await onboarding.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async(predicate,message)=>{for(let i=0;i<100;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,50))}throw new Error(message)};
+ await until(()=>document.querySelector('.onboarding__card'),'Onboarding missing');
+ [...document.querySelectorAll('.onboarding__card')].find(button=>button.textContent.includes('Gmail')).click();
+ await until(()=>document.querySelector('.onboarding__form'),'Gmail form missing');
+ const form=document.querySelector('.onboarding__form');
+ if([...form.querySelectorAll('label')].some(label=>/Client ID|Client secret/.test(label.textContent)))throw new Error('Gmail must not ask for OAuth client credentials');
+ const submit=form.querySelector('button[type="submit"]');
+ if(!submit.textContent.includes('Iniciar sesión con Google')||!submit.disabled)throw new Error('Gmail sign-in must require an email');
+ const email=form.querySelector('input[placeholder="vos@ejemplo.com"]');
+ Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(email,'tester@example.com');email.dispatchEvent(new Event('input',{bubbles:true}));
+ await until(()=>!submit.disabled,'Gmail sign-in requires extra credentials');
+ [...form.querySelectorAll('button')].find(button=>button.textContent.trim()==='Contraseña de aplicación').click();
+ await until(()=>form.querySelector('input[type="password"]'),'Gmail app-password alternative missing');
+ if(!submit.disabled)throw new Error('App-password mode must require a password');
+})()`)});
+ onboarding.destroy();
+ console.log('Gmail onboarding: built-in OAuth, email validation and app-password alternative passed');
+ const live=new BrowserWindow({show:false,width:1024,height:768,useContentSize:true,webPreferences:{preload:${JSON.stringify(join(folder,'drafts-preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
  live.webContents.on('console-message',event=>{if(event.level==='error')errors.push('live: '+event.message+' ['+event.sourceId+':'+event.lineNumber+']')});
  await live.loadFile(${JSON.stringify(join(process.cwd(),'out/renderer/index.html'))});
  live.webContents.debugger.attach('1.3');

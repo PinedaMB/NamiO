@@ -30,6 +30,12 @@ jobs:
       - name: Auditar el CSS
         run: pnpm run css:audit
 
+      - name: Pruebas de regresión y recuperación
+        run: pnpm test
+
       # build = typecheck + electron-vite build
       - name: Compilar
         run: pnpm run build
+
+      - name: Pruebas de interfaz Electron
+        run: node scripts/test.mjs --ui

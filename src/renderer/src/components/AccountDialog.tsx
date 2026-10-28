@@ -9,7 +9,7 @@ import type {
   OAuthProvider,
   SmtpConfig
 } from '@shared/ipc'
-import { MICROSOFT_CLIENT_ID } from '@shared/oauth'
+import { GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import { useI18n } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { configFromAccount } from '../data/live'
@@ -76,7 +76,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const [smtpSecure, setSmtpSecure] = useState(true)
   const [auth, setAuth] = useState<AuthMethod>('password')
   const [provider, setProvider] = useState<OAuthProvider>('google')
-  const [clientId, setClientId] = useState('')
+  const [clientId, setClientId] = useState(GOOGLE_CLIENT_ID)
   const [clientSecret, setClientSecret] = useState('')
   const [authUrl, setAuthUrl] = useState('')
   const [tokenUrl, setTokenUrl] = useState('')
@@ -94,7 +94,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     const current = configFromAccount(accountRef.current?.account ?? null)
     const preset = PRESETS.find(item => item.id !== 'custom' && item.imap.host === current.host)
     const presetAuth = preset?.id === 'gmail' || preset?.id === 'outlook' ? 'oauth2' : 'password'
-    setPresetId(preset && (current.auth ?? 'password') === presetAuth ? preset.id : 'custom')
+    setPresetId(preset && (preset.id === 'gmail' || (current.auth ?? 'password') === presetAuth) ? preset.id : 'custom')
     setHost(current.host)
     setPort(String(current.port))
     setSecure(current.secure)
@@ -105,7 +105,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     setSmtpSecure(current.smtp.secure)
     setAuth(current.auth ?? 'password')
     setProvider(current.oauth?.provider ?? 'google')
-    setClientId(current.oauth?.clientId ?? '')
+    setClientId(current.oauth?.clientId ?? GOOGLE_CLIENT_ID)
     setClientSecret(current.oauth?.clientSecret ?? '')
     setAuthUrl(current.oauth?.authUrl ?? '')
     setTokenUrl(current.oauth?.tokenUrl ?? '')
@@ -124,6 +124,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const yahoo = /^imap\.mail\.yahoo\.com$/i.test(host.trim())
   const appPassword = auth === 'password' && (gmail || yahoo)
   const microsoft = auth === 'oauth2' && provider === 'microsoft'
+  const managedGoogle = provider === 'google' && clientId === GOOGLE_CLIENT_ID
   const endpointsOk =
     provider !== 'custom' || (authUrl.trim() !== '' && tokenUrl.trim() !== '' && scope.trim() !== '')
   // Espacios o comas en el usuario son error de tipeo; falta de @ solo avisa.
@@ -157,6 +158,10 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     if (preset.id === 'gmail' || preset.id === 'outlook') {
       setAuth('oauth2')
       setProvider(preset.id === 'gmail' ? 'google' : 'microsoft')
+      if (preset.id === 'gmail') {
+        setClientId(GOOGLE_CLIENT_ID)
+        setClientSecret('')
+      }
     } else {
       setAuth('password')
       setProvider('custom')
@@ -371,9 +376,9 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
 
               </fieldset>
 
-              {(presetId === 'custom' || auth === 'oauth2') && <fieldset className="account-section">
+              {(presetId === 'custom' || gmail || auth === 'oauth2') && <fieldset className="account-section">
                 <legend className="account-section__title">{t('account.auth')}</legend>
-              {presetId === 'custom' && <div className="account-field">
+              {(presetId === 'custom' || gmail) && <div className="account-field">
                 <div className="seg" role="group" aria-label={t('account.auth')}>
                   <TooltipButton
                     type="button"
@@ -383,7 +388,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                     disabled={needsOAuth}
                     title={needsOAuth ? t('account.oauthRequired') : undefined}
                   >
-                    {t('account.authPassword')}
+                    {t(gmail ? 'account.appPassword' : 'account.authPassword')}
                   </TooltipButton>
                   <button
                     type="button"
@@ -397,10 +402,12 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                   </button>
                 </div>
                 {(needsOAuth || gmail) && <em className="account-field__hint">{t(needsOAuth ? 'account.oauthRequired' : 'account.gmailHint')}</em>}
+                {gmail && auth === 'password' && <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://myaccount.google.com/apppasswords')}>{t('account.googleAppPassword')}</button>}
               </div>}
 
               {auth === 'oauth2' && (
                 <>
+                  {managedGoogle && <p className="account-hint">{t('account.googleOAuthHint')}</p>}
                   <label className="account-field">
                     <span>{t('account.oauthProvider')}</span>
                     <div className="seg" role="group" aria-label={t('account.oauthProvider')}>
@@ -425,7 +432,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                     </div>
                   </label>
 
-                  {provider !== 'microsoft' && (
+                  {provider !== 'microsoft' && !managedGoogle && (
                     <>
                       <label className="account-field">
                         <span>{t('account.clientId')}</span>
@@ -593,7 +600,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
                 {busy
                   ? t('account.testing')
                   : auth === 'oauth2'
-                    ? t('account.connectBrowser')
+                    ? t(managedGoogle ? 'account.googleSignIn' : 'account.connectBrowser')
                     : t('account.test')}
               </button>
             </div>

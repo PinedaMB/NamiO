@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { createHash } = require('node:crypto')
 const { readFileSync } = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 
 function load(file, name, context) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)

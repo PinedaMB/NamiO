@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), ts = require('typescript')
+const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), ts = require('typescript-test')
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/shared/mailboxes.ts','utf8'), {module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}), {exports:exportsObject})
 const {sidebarMailboxes}=exportsObject

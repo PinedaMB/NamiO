@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript')
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript-test')
 const compile=source=>ts.transpile(source,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022})
 const boxes={},live={}
 vm.runInNewContext(compile(fs.readFileSync('src/shared/mailboxes.ts','utf8')),{exports:boxes})

@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const vm = require('node:vm')
 const source = fs.readFileSync('src/renderer/src/App.tsx', 'utf8')
 const ast = ts.createSourceFile('App.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)

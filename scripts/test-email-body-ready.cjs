@@ -1,13 +1,14 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const React = require('react')
 const state = []
 let index = 0
 let darkened = false
 let measured = false
 let resize, pendingMeasure
+const observed = []
 const animationFrame = { current: 0 }
 const inner = {
   documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
@@ -18,7 +19,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX
 }), {
   exports: exportsObject,
-  ResizeObserver: class { constructor(callback) { resize = callback } observe() {} disconnect() {} },
+  ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() {} },
   requestAnimationFrame: callback => { pendingMeasure = callback; return 1 },
   cancelAnimationFrame: () => { pendingMeasure = undefined },
   DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },
@@ -50,6 +51,7 @@ assert.match(baseStyle, /word-break: normal/)
 assert.doesNotMatch(baseStyle, /overflow-wrap: anywhere|word-break: break-word/)
 
 frame.props.onLoad()
+assert.deepEqual(observed, [inner.body], 'observe message content, not the root whose height follows the iframe')
 assert.ok(measured)
 measured = false
 resize()

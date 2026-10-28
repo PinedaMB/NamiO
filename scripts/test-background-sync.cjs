@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const source = fs.readFileSync('src/main/imap.ts', 'utf8')
 const ast = ts.createSourceFile('imap.ts', source, ts.ScriptTarget.Latest, true)
 let code

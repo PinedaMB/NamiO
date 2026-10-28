@@ -12,7 +12,6 @@ interface CommandPaletteProps {
   onOpenThread: (id: string) => void
   onCompose: () => void
   onArchive: () => void
-  onSnooze: () => void
   onSelectFolder: (folder: string) => void
   onOpenSettings: () => void
 }
@@ -41,7 +40,6 @@ export function CommandPalette({
   onOpenThread,
   onCompose,
   onArchive,
-  onSnooze,
   onSelectFolder,
   onOpenSettings
 }: CommandPaletteProps): React.JSX.Element | null {
@@ -112,7 +110,6 @@ export function CommandPalette({
         items: [
           { id: 'compose', label: t('palette.compose'), icon: 'edit_square', keys: ['C'], run: run(onCompose) },
           { id: 'archive', label: t('palette.archiveCurrent'), icon: 'done_all', keys: ['E'], run: run(onArchive) },
-          { id: 'snooze', label: t('palette.snoozeUntil'), icon: 'schedule', keys: ['S'], run: run(onSnooze) },
           { id: 'block', label: t('palette.block'), icon: 'block', keys: ['B', 'D'], run: onClose }
         ]
       },
@@ -127,7 +124,7 @@ export function CommandPalette({
         ]
       }
     ]
-  }, [threads, onClose, onCompose, onArchive, onSnooze, onOpenThread, onSelectFolder, onOpenSettings, t])
+  }, [threads, onClose, onCompose, onArchive, onOpenThread, onSelectFolder, onOpenSettings, t])
 
   const filtered = useMemo<Group[]>(() => {
     const needle = query.trim().toLowerCase()

@@ -3,7 +3,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const nodemailer = require('nodemailer')
 const { simpleParser } = require('mailparser')
 const compile = text => ts.transpile(text, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 })
@@ -25,7 +25,7 @@ async function main() {
     assert.equal(db.readDraft().attachments[0].id,'file1')
     assert.equal(db.readPickedAttachment('file1').name,'report.txt')
     const sent = [], copies = []
-    let failSmtp = false
+    let failSmtp = false, failSentCopy = false
     vm.runInNewContext(compile(await fs.readFile('src/main/mail.ts','utf8')), { exports:mail, Buffer, setTimeout:()=>0, console, require:id=>{
       if(id==='@shared/mailAddresses')return addresses
       if(id==='./db')return db
@@ -33,7 +33,7 @@ async function main() {
       if(id==='./settings')return {readActiveAccount:async()=>({id:'one'})}
       if(id==='electron')return {dialog:{},BrowserWindow:{}}
       if(id==='nodemailer')return {createTransport:options=>options.streamTransport ? nodemailer.createTransport(options) : {sendMail:async message=>{if(failSmtp)throw new Error('Offline');sent.push(message)},close(){}}}
-      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>copies.push(raw)}
+      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)}}
       return require(id)
     }})
     const payload = {to:draft.to,cc:draft.cc,bcc:draft.bcc,subject:draft.subject,text:draft.body,html:draft.html,attachments:['file1'],inReplyTo:draft.inReplyTo,references:draft.references}
@@ -51,11 +51,28 @@ async function main() {
     assert.equal(parsed.references[0],'<root@example.com>')
     assert.equal(parsed.attachments[0].content.toString(),'Attachment contents')
     assert.ok(copies[0].equals(sent[0].raw))
+    failSentCopy = true
+    const sentBefore = sent.length
+    assert.equal((await mail.sendMail({...payload,attachments:[]})).queued,false)
+    assert.equal(db.listOutbox().length,0,'failure to save the sent copy cannot queue another SMTP delivery')
+    await mail.processOutbox()
+    assert.equal(sent.length,sentBefore+1,'processing again cannot resend an accepted message')
+    failSentCopy = false
     failSmtp = true
     const queued = await mail.sendMail({...payload,attachments:[]})
     assert.equal(queued.ok,true)
     assert.equal(queued.queued,true)
     assert.equal(db.listOutbox().length,1)
+    const pendingId = db.listOutbox()[0].id
+    db.closeCache(); db.openAccountCache('one')
+    assert.equal(db.listOutbox()[0].id,pendingId,'offline send survives reopening the persistent cache')
+    failSmtp = false
+    const deliveriesBeforeRetry = sent.length
+    await Promise.all([mail.processOutbox(),mail.processOutbox()])
+    assert.equal(sent.length,deliveriesBeforeRetry+1,'concurrent retries deliver the queued message once')
+    assert.equal(db.listOutbox().length,0)
+    await mail.processOutbox()
+    assert.equal(sent.length,deliveriesBeforeRetry+1,'completed queue entries are not sent again')
     db.clearDraft()
     assert.equal(db.readPickedAttachment('file1'),undefined)
     console.log('Compose mail: durable attachments/drafts, validation, CC/BCC privacy, reply headers, exact sent copy, queued offline mail and file cleanup passed')

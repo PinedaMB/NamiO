@@ -1,7 +1,7 @@
 const fs = require('node:fs')
 const assert = require('node:assert/strict')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const source = fs.readFileSync('src/renderer/src/components/Sidebar.tsx', 'utf8')
 const ast = ts.createSourceFile('Sidebar.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 let effect

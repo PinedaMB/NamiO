@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),React=require('react')
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript-test'),React=require('react')
 const compile=text=>ts.transpile(text,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX})
 const addresses={};vm.runInNewContext(compile(fs.readFileSync('src/shared/mailAddresses.ts','utf8')),{exports:addresses})
 async function check(field){

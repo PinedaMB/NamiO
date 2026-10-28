@@ -25,7 +25,6 @@ interface ThreadPaneProps {
   onToggleContext: () => void
   onArchive: () => void
   onToggleRead: () => void
-  onSnooze: () => void
   deleting?: boolean
   onDelete: () => void
   onStar: () => void
@@ -111,7 +110,6 @@ export function ThreadPane({
   onToggleContext,
   onArchive,
   onToggleRead,
-  onSnooze,
   onDelete,
   deleting = false,
   onStar,
@@ -153,17 +151,6 @@ export function ThreadPane({
             <Icon name="archive" size={15} />
             {t('common.archive')}
             <kbd className="kbd">{formatCombo(bindings.archive)}</kbd>
-          </TooltipButton>
-          <TooltipButton
-            className="tool-btn"
-            type="button"
-            onClick={onSnooze}
-            disabled={!canMutate}
-            title={canMutate ? `${t('common.snooze')} (${formatCombo(bindings.snooze)})` : t('toast.readOnly')}
-          >
-            <Icon name="schedule" size={15} />
-            {t('common.snooze')}
-            <kbd className="kbd">{formatCombo(bindings.snooze)}</kbd>
           </TooltipButton>
           <TooltipButton className="tool-btn" type="button" disabled title={t('common.move')}>
             <Icon name="drive_file_move" size={15} />

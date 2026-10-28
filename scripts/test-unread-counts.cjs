@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const { join } = require('node:path')
 const { tmpdir } = require('node:os')
 async function main() {
@@ -32,6 +32,7 @@ async function main() {
   for (const unseen of [0, 42]) {
     let saved
     const sync = vm.runInNewContext(ts.transpile(`${declaration.getText(ast)}; syncMessages`, { target: ts.ScriptTarget.ES2022 }), {
+      readActiveAccount: async () => null,
       ensureClient: async () => ({
         status: async (_path, query) => { assert.equal(query.unseen, true); return { messages: 500, unseen, uidNext: 501, uidValidity: 1 } },
         getMailboxLock: async () => ({ release() {} }), fetch: async function* () {}

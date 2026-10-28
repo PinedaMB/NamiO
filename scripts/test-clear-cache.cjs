@@ -3,7 +3,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 async function main() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'namio-clear-cache-'))
   const db = {}

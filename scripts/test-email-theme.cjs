@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/lib/emailTheme.ts', 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }), { exports: exportsObject })
 const { emailColor, darkenEmail } = exportsObject

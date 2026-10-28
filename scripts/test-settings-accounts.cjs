@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const source = fs.readFileSync('src/renderer/src/components/Settings.tsx', 'utf8')

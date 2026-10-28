@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const { EventEmitter } = require('node:events')
 const compile = code => ts.transpile(code, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS })
 const account = { id: 'a', host: 'mail.test', port: 993, user: 'me@test', label: 'Work' }

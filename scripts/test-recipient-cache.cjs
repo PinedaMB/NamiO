@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict')
-const fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os'), vm = require('node:vm'), ts = require('typescript')
+const fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os'), vm = require('node:vm'), ts = require('typescript-test')
 async function main() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'namio-recipients-'))
   const db = {}

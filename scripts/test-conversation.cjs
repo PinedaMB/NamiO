@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 const os = require('node:os')
 const path = require('node:path')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const React = require('react')
 const compile = file => ts.transpile(fs.readFileSync(file, 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX })
 const live = {}

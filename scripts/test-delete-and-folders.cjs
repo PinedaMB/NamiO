@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises')
 const assert = require('node:assert/strict')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const { join } = require('node:path')
 const { tmpdir } = require('node:os')
 async function main() {

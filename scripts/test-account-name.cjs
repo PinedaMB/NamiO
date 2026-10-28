@@ -1,6 +1,6 @@
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const assert = require('node:assert/strict')
 const source = fs.readFileSync('src/main/ipc.ts', 'utf8')
 const ast = ts.createSourceFile('ipc.ts', source, ts.ScriptTarget.Latest, true)

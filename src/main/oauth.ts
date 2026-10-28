@@ -3,6 +3,8 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { shell } from 'electron'
 import type { OAuthConfig, OAuthProvider } from '@shared/ipc'
+import { GOOGLE_CLIENT_ID } from '@shared/oauth'
+import { GOOGLE_CLIENT_SECRET } from './googleOAuth'
 
 /**
  * OAuth2 para clientes de escritorio, sin backend:
@@ -83,6 +85,11 @@ interface TokenResponse {
   id_token?: string
   error?: string
   error_description?: string
+}
+
+function clientCredentials(config: OAuthConfig): Record<string, string> {
+  const secret = config.clientSecret || (config.provider === 'google' && config.clientId === GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_SECRET : '')
+  return { client_id: config.clientId, ...(secret ? { client_secret: secret } : {}) }
 }
 
 async function postToken(endpoint: string, params: Record<string, string>): Promise<OAuthTokens> {
@@ -193,8 +200,7 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promi
     grant_type: 'authorization_code',
     code: callback.code,
     redirect_uri: callback.redirectUri,
-    client_id: config.clientId,
-    ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+    ...clientCredentials(config),
     code_verifier: verifier
   })
 }
@@ -207,8 +213,7 @@ export async function refresh(config: OAuthConfig, refreshToken: string): Promis
   return postToken(tokenUrl, {
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    client_id: config.clientId,
-    ...(config.clientSecret ? { client_secret: config.clientSecret } : {})
+    ...clientCredentials(config)
   })
 }
 

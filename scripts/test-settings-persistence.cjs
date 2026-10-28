@@ -3,7 +3,7 @@ const fs = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 async function main() {
   const dir = await fs.mkdtemp(join(tmpdir(), 'namio-settings-'))
   try {

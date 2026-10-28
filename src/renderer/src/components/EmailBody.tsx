@@ -136,7 +136,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
       cancelAnimationFrame(measureFrame.current)
       measureFrame.current = requestAnimationFrame(measure)
     })
-    observer.observe(inner.documentElement)
+    // El elemento raíz sigue la altura del iframe y realimenta su propio ajuste.
     if (inner.body) observer.observe(inner.body)
     observerRef.current = observer
 

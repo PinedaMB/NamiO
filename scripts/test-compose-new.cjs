@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript')
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript-test')
 const ast=ts.createSourceFile('App.tsx',fs.readFileSync('src/renderer/src/App.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
 const declarations=new Map()
 function visit(node){if(ts.isVariableDeclaration(node)&&node.initializer)declarations.set(node.name.getText(ast),node.initializer.getText(ast));ts.forEachChild(node,visit)}visit(ast)

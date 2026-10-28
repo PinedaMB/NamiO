@@ -2,7 +2,7 @@ const fs = require('node:fs/promises')
 const { join } = require('node:path')
 const { tmpdir } = require('node:os')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const assert = require('node:assert/strict')
 async function main() {
   const directory = await fs.mkdtemp(join(tmpdir(), 'namio-icons-'))

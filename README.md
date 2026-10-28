@@ -5,7 +5,7 @@
   <p><strong>Tu correo, a tu ritmo.</strong></p>
   <p>Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes.<br />Varias cuentas, acceso sin conexión y avisos de correo nuevo en una interfaz oscura.</p>
 
-  <p><strong>0.4.1 · En desarrollo · Español / English</strong></p>
+  <p><strong>0.4.2 · En desarrollo · Español / English</strong></p>
 
   <p>
     <a href="https://github.com/PinedaMB/NamiO/releases">Descargas</a> ·
@@ -51,10 +51,14 @@ NamiO trabaja con cuentas **IMAP y SMTP**.
 | Servicio | Cómo se conecta |
 | --- | --- |
 | **Outlook / Microsoft** | Inicio de sesión en el navegador con Microsoft. Algunas organizaciones requieren autorización del administrador. |
-| **Gmail** | OAuth2 o contraseña de aplicación, según la configuración de tu cuenta. La opción OAuth2 todavía requiere configurar el identificador de cliente. |
+| **Gmail** | Inicio de sesión en el navegador con Google, sin configurar credenciales OAuth. Mientras el registro esté en pruebas, requiere estar en la lista de usuarios de prueba. También admite contraseña de aplicación. |
 | **Yahoo** | Correo y contraseña de aplicación. |
 | **Otros servidores** | Datos de conexión IMAP y SMTP proporcionados por tu servicio de correo. |
 | **Proton Mail** | Requiere Proton Mail Bridge y una cuenta que permita utilizarlo. |
+
+En Gmail podés elegir **Contraseña de aplicación** tanto al agregar la cuenta como en su configuración. El formulario incluye un acceso para crearla en Google; necesitás verificación en dos pasos y que tu cuenta permita ese método. [Ayuda de Google](https://support.google.com/accounts/answer/185833).
+
+Con **Iniciar sesión con Google**, NamiO utiliza su registro OAuth de escritorio. Las cuentas que ya usan un registro propio conservan sus credenciales. El registro integrado sigue en pruebas: la distribución general con acceso IMAP/SMTP requiere atender la verificación de los permisos restringidos de Google. [Requisitos de Google](https://support.google.com/cloud/answer/13463817).
 
 ## 🔔 Avisos, incluso con la ventana cerrada
 
@@ -96,7 +100,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 
 ## 🌱 Estado actual
 
-**NamiO 0.4.1 está en desarrollo.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es una versión 1.0.
+**NamiO 0.4.2 está en desarrollo.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es una versión 1.0.
 
 - La bandeja muestra **una cuenta a la vez**; no hay bandeja unificada.
 - La revisión de cuentas inactivas detecta nuevos mensajes para los avisos; no equivale a sincronizar todo su contenido continuamente.
@@ -104,6 +108,16 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 - Sigue pendiente ampliar las pruebas con servidores reales, interrupciones de conexión y recuperación tras cierres inesperados.
 
 Podés consultar las novedades en el [historial de cambios](CHANGELOG.md).
+
+### Comprobaciones de desarrollo
+
+- `pnpm test`: ejecuta las pruebas de regresión sin abrir la aplicación ni conectar cuentas reales.
+- `pnpm run test:ui`: compila y ejecuta las pruebas de interfaz con Electron en modo headless.
+- `pnpm run css:audit`: comprueba clases, variables y recursos del CSS.
+
+El CI de Linux ejecuta estas comprobaciones en cada push a `main` o `master` y en cada pull request. Las pruebas cubren fallos de red, persistencia de borradores y envíos pendientes, reintentos concurrentes, renovación de credenciales OAuth y fallos al guardar la copia en Enviados. No garantizan entrega única si el servidor SMTP acepta un correo y se pierde su confirmación, ni sustituyen las pruebas con proveedores reales.
+
+Las pruebas usan `typescript-test` (TypeScript 5) para extraer y ejecutar funciones con su API de compilador; la compilación de la aplicación conserva TypeScript 7.
 
 ## 📄 Licencia
 

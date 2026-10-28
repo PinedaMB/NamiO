@@ -1,22 +1,29 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+const ts = require('typescript-test')
 const source = fs.readFileSync('src/renderer/src/components/AccountDialog.tsx', 'utf8')
 const ast = ts.createSourceFile('AccountDialog.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const declarations = new Map()
 let selectProvider
 let serverFromEmail
+let restoredPreset
 function visit(node) {
+  if (ts.isCallExpression(node) && node.expression.getText(ast) === 'setPresetId' && node.arguments[0]?.getText(ast).includes('presetAuth')) restoredPreset = node.arguments[0].getText(ast)
   if (ts.isFunctionDeclaration(node) && node.name?.text === 'serverFromEmail') serverFromEmail = node.getText(ast)
   if (ts.isVariableDeclaration(node) && node.initializer) declarations.set(node.name.getText(ast), node.initializer.getText(ast))
   if (ts.isJsxAttribute(node) && node.name.getText(ast) === 'onClick' && node.initializer?.expression?.getText(ast).includes("id === 'google' ? 'gmail' : 'outlook'")) selectProvider = node.initializer.expression.getText(ast)
   ts.forEachChild(node, visit)
 }
 visit(ast)
+for (const auth of ['password', 'oauth2']) {
+  const preset = { id: 'gmail' }, current = { auth }
+  assert.equal(vm.runInNewContext(restoredPreset, { preset, current, presetAuth: 'oauth2' }), 'gmail', 'reopening either Gmail authentication method keeps its preset and method selector')
+}
+assert.equal(vm.runInNewContext(restoredPreset, { preset: { id: 'outlook' }, current: { auth: 'password' }, presetAuth: 'oauth2' }), 'custom')
 const state = {}
-const context = { PRESETS: vm.runInNewContext(declarations.get('PRESETS')) }
-for (const name of ['PresetId', 'Host', 'Port', 'Secure', 'SmtpHost', 'SmtpPort', 'SmtpSecure', 'Auth', 'Provider', 'Password', 'Error']) {
+const context = { PRESETS: vm.runInNewContext(declarations.get('PRESETS')), GOOGLE_CLIENT_ID: 'managed-google' }
+for (const name of ['PresetId', 'Host', 'Port', 'Secure', 'SmtpHost', 'SmtpPort', 'SmtpSecure', 'Auth', 'Provider', 'Password', 'Error', 'ClientId', 'ClientSecret']) {
   context[`set${name}`] = value => { state[name] = value }
 }
 function evaluate(code) { return vm.runInNewContext(ts.transpile(`(${code})`, { target: ts.ScriptTarget.ES2022 }), context) }
@@ -29,6 +36,10 @@ for (const [provider, host] of [['google', 'imap.gmail.com'], ['microsoft', 'out
   assert.equal(state.Host, host)
   assert.equal(state.Auth, 'oauth2')
   assert.equal(state.Provider, provider)
+  if (provider === 'google') {
+    assert.equal(state.ClientId, context.GOOGLE_CLIENT_ID)
+    assert.equal(state.ClientSecret, '', 'new Gmail connections use the main-process desktop credential')
+  }
 }
 applyPreset(context.PRESETS.find(preset => preset.id === 'custom'))
 assert.equal(state.PresetId, 'custom')
@@ -59,7 +70,7 @@ for (const choice of ['gmail', 'outlook']) for (const gmailPassword of [true, fa
 }
 console.log('Provider checks passed: presets, custom reset, Yahoo and Gmail authentication options')
 
-assert.match(source, /presetId === 'custom' && <div className="account-field">/)
+assert.match(source, /\(presetId === 'custom' \|\| gmail\) && <div className="account-field">/)
 assert.match(source, /<legend className="account-section__title">\{t\('account.imap'\)\}/)
 
 context.serverFromEmail = evaluate(serverFromEmail)

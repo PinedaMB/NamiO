@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { AccountConfig, AccountState, SmtpConfig } from '@shared/ipc'
-import { MICROSOFT_CLIENT_ID } from '@shared/oauth'
+import { GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import logo from '../assets/logo.png'
 import { useI18n, type TranslationKey } from '../i18n'
 import { cx } from '../lib/cx'
@@ -91,8 +91,6 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
   const [user, setUser] = useState('')
   const [label, setLabel] = useState('')
   const [password, setPassword] = useState('')
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
   const [host, setHost] = useState('')
   const [port, setPort] = useState('993')
   const [secure, setSecure] = useState(true)
@@ -107,8 +105,6 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
     setError(null)
     setPassword('')
     setUser('')
-    setClientId('')
-    setClientSecret('')
     setHost(config.imap.host)
     setPort(String(config.imap.port))
     setSecure(config.imap.secure)
@@ -138,7 +134,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
     Number.isInteger(smtpPortNumber) &&
     smtpPortNumber > 0 &&
     smtpPortNumber < 65536 &&
-    (preset.oauth ? preset.provider === 'microsoft' || clientId.trim() !== '' : password !== '')
+    (preset.oauth || password !== '')
 
   const connect = async (): Promise<void> => {
     if (!preset || !valid || busy) return
@@ -157,8 +153,8 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
         ? {
             oauth: {
               provider: preset.provider,
-              clientId: preset.provider === 'microsoft' ? MICROSOFT_CLIENT_ID : clientId.trim(),
-              clientSecret: preset.provider === 'microsoft' ? '' : clientSecret
+              clientId: preset.provider === 'microsoft' ? MICROSOFT_CLIENT_ID : GOOGLE_CLIENT_ID,
+              clientSecret: ''
             }
           }
         : {})
@@ -294,31 +290,13 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                     </button>
                   </div>
                   <em className="account-field__hint">{t('account.gmailHint')}</em>
+                  {gmailPassword && <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://myaccount.google.com/apppasswords')}>{t('account.googleAppPassword')}</button>}
                 </div>
               )}
 
               {preset?.oauth ? (choice !== 'outlook' && (
                 <>
-                  <label className="account-field">
-                    <span>{t('account.clientId')}</span>
-                    <input
-                      value={clientId}
-                      onChange={(event) => setClientId(event.target.value)}
-                      placeholder="1234-abc.apps.googleusercontent.com"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
-                  <label className="account-field">
-                    <span>{t('account.clientSecret')}</span>
-                    <input
-                      value={clientSecret}
-                      onChange={(event) => setClientSecret(event.target.value)}
-                      placeholder="GOCSPX-…"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </label>
+                  <p className="account-hint">{t('account.googleOAuthHint')}</p>
                 </>
               )) : (
                 <>
@@ -452,7 +430,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                   {busy
                     ? t('onboarding.connecting')
                     : preset?.oauth
-                      ? t('onboarding.connectBrowser')
+                      ? t(choice === 'gmail' ? 'account.googleSignIn' : 'onboarding.connectBrowser')
                       : t('onboarding.connect')}
                 </button>
                 <span className="onboarding__actions-hint">{t('onboarding.advancedHint')}</span>

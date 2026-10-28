@@ -1028,9 +1028,6 @@ export function App(): React.JSX.Element {
         case 'star':
           toggleStar()
           break
-        case 'snooze':
-          setToast(live ? t('toast.readOnly') : t('toast.snoozed'))
-          break
         case 'read':
           toggleRead()
           break
@@ -1243,7 +1240,6 @@ export function App(): React.JSX.Element {
                   onToggleContext={toggleContext}
                   onArchive={archive}
                   onToggleRead={toggleRead}
-                  onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
                   onDelete={deleteSelected}
                   onStar={toggleStar}
                   onReply={() => openReply()}
@@ -1289,7 +1285,6 @@ export function App(): React.JSX.Element {
         onOpenThread={select}
         onCompose={openCompose}
         onArchive={archive}
-        onSnooze={() => setToast(live ? t('toast.readOnly') : t('toast.snoozed'))}
         onSelectFolder={selectFolder}
         onOpenSettings={openSettings}
       />
