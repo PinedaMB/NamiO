@@ -17,7 +17,7 @@ function locate(name, from) {
     if (directory === dirname(directory)) return null
   }
 }
-function collect(name, from, optional = false) {
+function collect(name, from, optional = false, browser = false) {
   const directory = locate(name, from)
   if (!directory && optional) return
   assert.ok(directory, `Dependencia no instalada: ${name}`)
@@ -34,18 +34,21 @@ function collect(name, from, optional = false) {
   assert.ok(notices.length, `Falta texto de licencia: ${metadata.name}@${metadata.version}`)
   packages.set(directory, { metadata, notices })
   for (const dependency of Object.keys(metadata.dependencies ?? {})) {
-    collect(dependency, directory, dependency in (metadata.optionalDependencies ?? {}))
+    collect(dependency, directory, dependency in (metadata.optionalDependencies ?? {}), browser)
   }
   for (const dependency of Object.keys({ ...metadata.optionalDependencies, ...metadata.peerDependencies })) {
-    collect(dependency, directory, true)
+    // El renderer usa el canvas del navegador; PDF.js solo carga este binario en Node.js.
+    if (browser && metadata.name === 'pdfjs-dist' && dependency === '@napi-rs/canvas') continue
+    collect(dependency, directory, true, browser)
   }
 }
-for (const name of [...Object.keys(project.dependencies), ...renderer]) collect(name, root)
+for (const name of Object.keys(project.dependencies)) collect(name, root)
+for (const name of renderer) collect(name, root, false, true)
 
 const entries = [...packages.values()].sort((a, b) => `${a.metadata.name}@${a.metadata.version}`.localeCompare(`${b.metadata.name}@${b.metadata.version}`, 'en'))
 const output = ['# Avisos y licencias de terceros', '',
   'Generado a partir de las dependencias instaladas de NamiO. Conserva los textos originales de sus titulares.', '',
-  'Incluye dependencias de ejecución y del renderer, con sus dependencias instaladas. Algunas pueden no utilizarse en todas las plataformas.', '',
+  'Incluye dependencias de ejecución y del renderer. Las dependencias opcionales exclusivas de Node.js de PDF.js no se distribuyen con el renderer; sus recursos locales conservan también sus avisos de licencia.', '',
   'La licencia MIT de NamiO no sustituye las licencias de estos componentes. DOMPurify se distribuye bajo su opción Apache-2.0; @zone-eu/mailsplit, bajo su opción MIT.', '',
   'Electron y sus componentes conservan los archivos LICENSE.electron.txt y LICENSES.chromium.html que electron-builder incluye con la aplicación.', '',
   '| Componente | Versión | Licencia declarada |', '| --- | --- | --- |',
