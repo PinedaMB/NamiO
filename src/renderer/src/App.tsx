@@ -1396,12 +1396,14 @@ export function App(): React.JSX.Element {
           setComposeMinimized(true)
         }}
         to={compose?.to ?? ''}
+        sender={live && account?.account ? (account.account.user.includes('@') ? account.account.user : `${account.account.user}@${account.account.host || 'localhost'}`) : undefined}
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
         html={compose?.html}
         cc={compose?.cc ?? ''}
         bcc={compose?.bcc ?? ''}
         initialAttachments={compose?.attachments}
+        priority={compose?.priority}
         copilot={!live}
         onRestoreDraft={live ? restoreDraft : undefined}
         onClose={async values => {
@@ -1416,10 +1418,10 @@ export function App(): React.JSX.Element {
           setCompose(null)
         }}
         onPickAttachments={live ? () => window.api.pickAttachments() : undefined}
-        onSend={async ({ to, cc, bcc, subject, body, html, attachments }) => {
+        onSend={async ({ to, cc, bcc, subject, body, html, attachments, priority }) => {
           if (!live) { setCompose(null); setToast(t('toast.sent')); return }
           const generation = accountGeneration.current
-          const result = await window.api.sendMail({ draftId: compose?.id, to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
+          const result = await window.api.sendMail({ priority, draftId: compose?.id, to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
           if (!result.ok) throw new Error(result.error ?? 'SMTP')
           if (generation !== accountGeneration.current) return
           setCompose(null)

@@ -14,15 +14,19 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if(id==='../lib/composeHtml')return{composeEmailHtml:html=>html}
  if(id==='./RichTextEditor')return{RichTextEditor:()=>null}
  if(id==='./RecipientInput')return{RecipientInput:()=>null}
+ if(id==='./Select')return{Select:()=>null}
  if(id==='./Icon')return{Icon:()=>null}
  if(id==='./Tooltip')return{TooltipButton:()=>null}
  return require(id)
 }})
-function render(){index=refIndex=0;effects=[];const tree=exportsObject.ComposeOverlay({open:true,to:'',subject:'Subject',body:'Text',copilot:false,onClose:async value=>closed.push(value),onDiscard:async()=>discarded.push(true),onMinimize:async value=>minimized.push(value),onSend:async value=>{if(failSend)throw new Error('Send failed');sent.push(value)}});effects.at(-1)();return tree}
+function render(){index=refIndex=0;effects=[];const tree=exportsObject.ComposeOverlay({open:true,sender:'sender@example.com',to:'',subject:'Subject',body:'Text',copilot:false,onClose:async value=>closed.push(value),onDiscard:async()=>discarded.push(true),onMinimize:async value=>minimized.push(value),onSend:async value=>{if(failSend)throw new Error('Send failed');sent.push(value)}});effects.at(-1)();return tree}
 function find(tree,predicate){let result;function visit(node){if(!React.isValidElement(node))return;if(predicate(node))result=node;React.Children.forEach(node.props.children,visit)}visit(tree);return result}
 const flush=()=>new Promise(resolve=>setImmediate(resolve))
 ;(async()=>{
  let tree=render()
+ assert.ok(React.Children.toArray(find(tree,n=>n.props.className==='composer__sender').props.children).includes('sender@example.com'),'composer displays the actual sending address')
+ find(tree,n=>n.props['aria-label']==='mail.priority').props.onChange({target:{value:'high'}})
+ tree=render()
  find(tree,n=>n.props.className==='send-btn').props.onClick();await flush()
  assert.equal(sent.length,0)
  assert.ok(find(render(),n=>n.props.role==='alert'))
@@ -33,6 +37,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  tree=render();find(tree,n=>n.props.field==='bcc').props.onChange('hidden@example.com')
  render();keyHandler({key:'Escape',stopPropagation(){},preventDefault(){}});await flush()
  assert.equal(closed[0].to,'first@example.com, second@example.com')
+ assert.equal(closed[0].priority,'high')
  assert.equal(closed[0].cc,'copy@example.com');assert.equal(closed[0].bcc,'hidden@example.com')
  failSend=true;tree=render();find(tree,n=>n.props.className==='send-btn').props.onClick();await flush()
  assert.equal(closed.length,1)
@@ -40,6 +45,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  assert.equal(find(render(),n=>typeof n.props.onChange==='function' && n.props.text==='Text').props.text,'Text')
  failSend=false;tree=render();const sendButton=find(tree,n=>n.props.className==='send-btn');sendButton.props.onClick();sendButton.props.onClick();await flush()
  assert.equal(sent.length,1,'repeated clicks do not duplicate mail')
+ assert.equal(sent[0].priority,'high')
  assert.equal(sent[0].bcc,'hidden@example.com')
  tree=render();find(tree,n=>n.props.className==='tool-btn btn--danger').props.onClick();await flush()
  assert.equal(discarded.length,1);assert.equal(closed.length,1,'discard does not save the draft')
@@ -50,6 +56,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  assert.equal(closed.at(-1).body,'Latest edit','closing in the same turn must save the latest rich editor transaction')
  assert.ok(closed.at(-1).html.includes('<strong>'))
  tree=render();find(tree,n=>n.props.title==='compose.minimize').props.onClick();await flush()
+ assert.equal(minimized.at(-1).priority,'high')
  assert.equal(minimized.at(-1).body,'Latest edit');assert.ok(minimized.at(-1).html.includes('<strong>'))
  tree=render();find(tree,n=>n.props.className==='send-caret').props.onClick()
  tree=render();find(tree,n=>n.type==='button'&&React.Children.toArray(n.props.children).includes('compose.sendPlain')).props.onClick();await flush()

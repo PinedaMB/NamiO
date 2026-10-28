@@ -273,6 +273,10 @@ export function ThreadPane({
                   </div>
 
                   <div className="participants__right">
+                    {message.priority && message.priority !== 'normal' && <span className={cx('mail-priority', message.priority === 'high' && 'mail-priority--high')}>
+                      <Icon name={message.priority === 'high' ? 'priority_high' : 'arrow_downward'} size={16} />
+                      {t(message.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')}
+                    </span>}
                     <span>{message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt}</span>
                     <span className="participants__tls">
                       <span className="dot" />

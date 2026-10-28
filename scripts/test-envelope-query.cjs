@@ -10,7 +10,7 @@ const compile = source => ts.transpile(source, { target: ts.ScriptTarget.ES2022,
 vm.runInNewContext(compile(fs.readFileSync('src/main/db.ts', 'utf8')), { exports: db, Buffer, require: id => id === 'electron' ? { app: { getPath: () => directory } } : require(id) })
 try {
   db.openAccountCache('test')
-  const rows = Array.from({ length: 2505 }, (_, index) => ({ uid: index + 1, date: new Date(1700000000000 + index * 60000).toISOString(), subject: `Message ${index + 1}`, from: null, unread: index < 55, flagged: false, size: 1 }))
+  const rows = Array.from({ length: 2505 }, (_, index) => ({ uid: index + 1, priority: index === 0 ? 'high' : index === 1 ? 'low' : 'normal', date: new Date(1700000000000 + index * 60000).toISOString(), subject: `Message ${index + 1}`, from: null, unread: index < 55, flagged: false, size: 1 }))
   db.upsertEnvelopes('INBOX', rows)
   db.upsertEnvelopes('Other', [{ ...rows[0], uid: 9999 }])
   const ids = values => Array.from(values, row => row.uid)
@@ -24,6 +24,8 @@ try {
   assert.deepEqual(ids(db.readEnvelopes('INBOX', 3, { filter: 'read', oldestFirst: true })), [56, 57, 58])
   assert.equal(db.readEnvelopes('INBOX', 3000).length, 2505, 'all cached matches remain accessible beyond 2000')
   assert.ok(db.readEnvelopes('INBOX', 50, { filter: 'read', oldestFirst: true, includeUid: 1 }).some(row => row.uid === 1), 'preserves open mail when read state changes')
+  assert.equal(db.readEnvelope('INBOX',1).priority,'high')
+  assert.equal(db.readEnvelope('INBOX',2).priority,'low')
   assert.equal(db.countMessages('INBOX'), 2505)
   assert.equal(db.countUnread('INBOX'), 55)
   assert.deepEqual(ids(db.readEnvelopes('Empty', 50, { filter: 'unread' })), [])

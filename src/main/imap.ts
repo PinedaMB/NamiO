@@ -273,10 +273,13 @@ async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Prom
 
   for await (const message of client.fetch(
     range,
-    { envelope: true, bodyStructure: true, flags: true, uid: true, size: true, internalDate: true },
+    { envelope: true, bodyStructure: true, headers: ['Importance', 'Priority', 'X-Priority', 'X-MSMail-Priority'], flags: true, uid: true, size: true, internalDate: true },
     options
   )) {
+    const parsedHeaders = message.headers ? await simpleParser(message.headers) : null
+    const priority = parsedHeaders?.headers.get('priority')
     envelopes.push({
+      priority: priority === 'high' || priority === 'low' ? priority : 'normal',
       uid: message.uid,
       hasAttachments: hasAttachments(message.bodyStructure),
       messageId: message.envelope?.messageId,
@@ -617,6 +620,7 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
     const raw = Buffer.concat(chunks)
 
     const parsed = await simpleParser(raw)
+    const priority = parsed.headers.get('priority')
 
     const to = (parsed.to ? (Array.isArray(parsed.to) ? parsed.to : [parsed.to]) : []).flatMap((entry) =>
       entry.value.flatMap((value) => {
@@ -643,6 +647,7 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
 
     return {
       uid,
+      priority: priority === 'high' || priority === 'low' ? priority : 'normal',
       messageId: parsed.messageId ?? envelope?.messageId,
       inReplyTo: parsed.inReplyTo ?? envelope?.inReplyTo,
       subject: parsed.subject ?? envelope?.subject ?? '',

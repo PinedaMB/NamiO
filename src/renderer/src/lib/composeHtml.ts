@@ -1,14 +1,32 @@
 import DOMPurify from 'dompurify'
 
-/** El editor admite solo formato básico de correo; descarta estilos y contenido activo del portapapeles. */
+/** Conserva solo formato de texto admitido; descarta contenido activo y estilos ajenos. */
 export function cleanComposeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'code'],
-    ALLOWED_ATTR: ['href', 'start'],
+  const root = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'span'],
+    ALLOWED_ATTR: ['href', 'start', 'style'],
     ALLOW_DATA_ATTR: false,
     ALLOW_ARIA_ATTR: false,
-    ALLOWED_URI_REGEXP: /^(https?:|mailto:)/i
-  })
+    ALLOWED_URI_REGEXP: /^(https?:|mailto:)/i,
+    RETURN_DOM: true
+  }) as HTMLElement
+  for (const element of root.querySelectorAll<HTMLElement>('*')) {
+    const styles: string[] = []
+    if (element.tagName === 'SPAN') {
+      for (const property of ['color', 'background-color']) {
+        const value = element.style.getPropertyValue(property)
+        if (/^(#[\da-f]{3,8}|rgba?\([\d.,%\s/]+\)|[a-z]+)$/i.test(value)) styles.push(`${property}:${value}`)
+      }
+      const size = element.style.fontSize.match(/^(\d+(?:\.\d+)?)(px|pt)$/)
+      if (size) {
+        const pixels = Number(size[1]) * (size[2] === 'pt' ? 4 / 3 : 1)
+        if (pixels >= 8 && pixels <= 72) styles.push(`font-size:${pixels}px`)
+      }
+    }
+    element.removeAttribute('style')
+    if (styles.length) element.setAttribute('style', styles.join(';'))
+  }
+  return root.innerHTML
 }
 
 export function textToEditorContent(text: string): { type: 'doc'; content: { type: 'paragraph'; content: { type: 'text'; text: string }[] }[] } {

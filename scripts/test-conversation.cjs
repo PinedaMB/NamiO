@@ -65,17 +65,23 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { expo
   return require(id)
 } })
 const messages = envelopes.slice(0, 3).reverse().map(item => live.detailToMessage({ ...item, to: [], text: 'Message body', html: '<p>Message body</p>', attachments: [{name: 'file.pdf', type: 'application/pdf', size: 12, index: 0}] }, 'es'))
+messages[0].priority = 'low'
+messages[2].priority = 'high'
+const priorityBadges = []
 const tree = pane.ThreadPane({ thread: { ...threads[0], messages }, mailbox: 'INBOX', bindings: {}, onOpenAttachment: (...args) => clicked.push(args) })
 const cards = []
 const attachmentSections = []
 function visit(node) {
   if (!React.isValidElement(node)) return
+  if (node.props.className?.startsWith('mail-priority')) priorityBadges.push(node)
   if (node.props.className === 'thread-message') cards.push(node)
   if (node.props.className === 'thread-message__files') attachmentSections.push(node)
   if (node.props.className === 'attachment') node.props.onClick()
   React.Children.forEach(node.props.children, visit)
 }
 visit(tree)
+assert.equal(priorityBadges.length, 2, 'high and low importance are visible; normal is unbadged')
+assert.equal(priorityBadges.filter(node=>node.props.className.includes('mail-priority--high')).length,1)
 assert.equal(cards.length, 3)
 assert.deepEqual(cards.map(card => card.props.open), [true, false, false])
 assert.deepEqual(cards.map(card => card.key), ['live:3', 'live:2', 'live:1'], 'newest message appears first')
@@ -106,17 +112,20 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadList.tsx'), { expo
   if (id === './Icon') return { Icon: () => null }
   return require(id)
 } })
+threads[0].priority = 'high'
 const selectedMessages = []
 const checkedMessages = []
 const listTree = list.ThreadList({
   threads, allThreads: threads, selectedId: 'live:2', selectedMessageId: 'live:2', mailbox: 'INBOX', live: true,
   checkedIds: [], filter: 'all', onSelect: (...args) => selectedMessages.push(args), onCheck: id => checkedMessages.push(id)
 })
+let importanceIndicators = 0
 let articleCount = 0
 let disclosureCount = 0
 let selectedChildren = 0
 function visitList(node) {
   if (!React.isValidElement(node)) return
+  if (node.props.role === 'img' && node.props['aria-label'] === 'mail.priorityHigh') importanceIndicators++
   if (node.type === 'article') articleCount++
   if (node.props.className === 'thread-group__messages') disclosureCount++
   if (node.type === 'button' && node.props.className?.startsWith('thread-group__message')) {
@@ -129,6 +138,7 @@ function visitList(node) {
   React.Children.forEach(node.props.children, visitList)
 }
 visitList(listTree)
+assert.equal(importanceIndicators,1,'message list exposes high importance accessibly')
 assert.equal(articleCount, 2, 'one conversation row plus the unrelated message')
 assert.equal(disclosureCount, 1)
 assert.equal(selectedChildren, 1)
@@ -168,6 +178,7 @@ assert.equal(hasFiles({ type: 'application/pdf', parameters: { name: 'report.pdf
 let filesIndicator = false
 function inspectCard(node) {
   if (!React.isValidElement(node)) return
+  if (node.props.role === 'img' && node.props['aria-label'] === 'mail.priorityHigh') importanceIndicators++
   if (node.type === 'article') {
     const children = React.Children.toArray(node.props.children)
     assert.ok(children.some(child => child.props?.className === 'thread__content'))

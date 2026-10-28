@@ -58,6 +58,7 @@ export function envelopeToThread(envelope: Envelope, locale: string): Thread {
     receivedAt: formatMessageDate(envelope.date, locale),
     unread: envelope.unread,
     starred: envelope.flagged,
+    priority: envelope.priority,
     vip: false,
     messageCount: 1,
     tags: [],
@@ -110,6 +111,7 @@ export function detailToMessage(detail: MessageDetail, locale: string, partial =
     .filter((paragraph) => paragraph !== '')
 
   return {
+    priority: detail.priority,
     id: `live:${detail.uid}`,
     messageId: detail.messageId,
     inReplyTo: detail.inReplyTo,
@@ -177,7 +179,7 @@ export function pendingDraftThreads(threads: readonly Thread[], drafts: readonly
     id: `draft:${draft.id}`, subject: draft.subject || label, preview: draft.body.slice(0, 120),
     date: draft.updatedAt,
     receivedAt: formatMessageDate(draft.updatedAt, locale),
-    unread: false, starred: false, vip: false, messageCount: 1, tags: [],
+    priority: draft.priority, unread: false, starred: false, vip: false, messageCount: 1, tags: [],
     participants: [personFrom(null, draft.to || label)],
     messages: [{ id: `draft:${draft.id}`, from: personFrom(null, label), to: [], date: draft.updatedAt, sentAt: formatMessageDateTime(draft.updatedAt, locale), body: [draft.body], html: draft.html }], hasAttachments: Boolean(draft.attachments?.length)
   })), ...threads.filter(thread => !replaced.has(thread.id)).map(thread => ({ ...thread, messageIds: undefined, messageCount: 1 }))]

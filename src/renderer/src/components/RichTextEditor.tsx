@@ -1,10 +1,32 @@
-import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
+import { EditorContent, Mark, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { useEffect, useState } from 'react'
 import { useI18n, type TranslationKey } from '../i18n'
 import { cleanComposeHtml, isComposeLink, textToEditorContent } from '../lib/composeHtml'
 import { Icon } from './Icon'
 import { TooltipButton } from './Tooltip'
+
+import { Select } from './Select'
+import { ColorPicker } from './ColorPicker'
+
+const TextStyle = Mark.create({
+  name: 'textStyle',
+  addAttributes() {
+    return Object.fromEntries(([['color', 'color'], ['backgroundColor', 'background-color'], ['fontSize', 'font-size']] as const).map(([name, property]) => [name, {
+      default: null,
+      parseHTML: (element: HTMLElement) => element.style.getPropertyValue(property) || null,
+      renderHTML: (attributes: Record<string, string | null>) => attributes[name] ? { style: `${property}:${attributes[name]}` } : {}
+    }]))
+  },
+  parseHTML() { return [{ tag: 'span[style]' }] },
+  renderHTML({ HTMLAttributes }) { return ['span', HTMLAttributes, 0] }
+})
+
+function colorHex(value: string | undefined, fallback: string): string {
+  if (/^#[\da-f]{6}$/i.test(value ?? '')) return value!
+  const rgb = value?.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+  return rgb ? `#${rgb.slice(1, 4).map(channel => Number(channel).toString(16).padStart(2, '0')).join('')}` : fallback
+}
 
 interface RichTextEditorProps {
   text: string
@@ -25,7 +47,7 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
     extensions: [StarterKit.configure({
       heading: false, codeBlock: false, horizontalRule: false, strike: false,
       link: { openOnClick: false, defaultProtocol: 'https', isAllowedUri: isComposeLink }
-    })],
+    }), TextStyle],
     content: html ? cleanComposeHtml(html) : textToEditorContent(text),
     editable: !disabled,
     editorProps: {
@@ -35,7 +57,7 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
     onUpdate: ({ editor }) => onChange(editor.getText({ blockSeparator: '\n' }), cleanComposeHtml(editor.getHTML()))
   })
   const editor = instance && !instance.isDestroyed ? instance : null
-  useEditorState({ editor, selector: ({ editor }) => editor ? { active: ['bold', 'italic', 'underline', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
+  useEditorState({ editor, selector: ({ editor }) => editor ? { textStyle: editor.getAttributes('textStyle'), active: ['bold', 'italic', 'underline', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -45,6 +67,11 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
 
   useEffect(() => { if (editor && !editor.isDestroyed) editor.setEditable(!disabled) }, [editor, disabled])
   useEffect(() => { if (editor && !editor.isDestroyed) editor.setOptions({ editorProps: { ...editor.options.editorProps, attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('compose.placeholder'), 'data-placeholder': t('compose.placeholder'), spellcheck: 'true' } } }) }, [editor, t])
+
+  const style = editor?.getAttributes('textStyle') ?? {}
+  const changeStyle = (attribute: string, value: string | null): void => {
+    editor?.chain().focus().setMark('textStyle', { [attribute]: value }).run()
+  }
 
   const tools: { label: TranslationKey; icon: string; active?: boolean; disabled?: boolean; run: () => void }[] = [
     { label: 'compose.format.bold', icon: 'format_bold', active: editor?.isActive('bold'), run: () => { editor?.chain().focus().toggleBold().run() } },
@@ -64,6 +91,16 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
         {tools.map(tool => <TooltipButton key={tool.label} className="icon-btn" type="button" title={t(tool.label)}
           aria-pressed={tool.active} disabled={disabled || !editor || tool.disabled}
           onMouseDown={event => event.preventDefault()} onClick={tool.run}><Icon name={tool.icon} size={17} /></TooltipButton>)}
+        <span className="formatbar__sep" />
+        <Select className="formatbar__size" aria-label={t('compose.format.size')} value={style.fontSize ?? ''} disabled={disabled || !editor}
+          onChange={event => changeStyle('fontSize', event.target.value || null)}>
+          <option value="">{t('compose.format.defaultSize')}</option>
+          {![12, 14, 16, 18, 20, 24, 32, 48].map(size => `${size}px`).includes(style.fontSize) && style.fontSize && <option value={style.fontSize}>{style.fontSize}</option>}
+          {[12, 14, 16, 18, 20, 24, 32, 48].map(size => <option key={size} value={`${size}px`}>{size} px</option>)}
+        </Select>
+        {(['color', 'backgroundColor'] as const).map(attribute => <ColorPicker key={attribute}
+          highlight={attribute === 'backgroundColor'} value={style[attribute] ? colorHex(style[attribute], '#000000') : undefined}
+          disabled={disabled || !editor} onChange={value => changeStyle(attribute, value)} />)}
         <span className="formatbar__sep" />
         <TooltipButton className="icon-btn" type="button" title={t('compose.attach')} disabled={disabled || !onAttach} onClick={onAttach}><Icon name="attach_file" size={17} /></TooltipButton>
       </div>

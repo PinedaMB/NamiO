@@ -22,6 +22,7 @@ interface MailboxRow {
 }
 
 interface MessageRow {
+  priority: Envelope['priority'] | null
   has_attachments: number | null
   message_id: string | null
   in_reply_to: string | null
@@ -161,7 +162,7 @@ export function openAccountCache(accountId: string): void {
   if (!draftColumns.some(column => column.name === 'metadata_json')) db.exec('ALTER TABLE drafts ADD COLUMN metadata_json TEXT')
 
   const columns = db.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
-  for (const column of ['message_id', 'in_reply_to', 'has_attachments']) {
+  for (const column of ['message_id', 'in_reply_to', 'has_attachments', 'priority']) {
     if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE messages ADD COLUMN ${column} ${column === 'has_attachments' ? 'INTEGER' : 'TEXT'}`)
   }
 
@@ -291,8 +292,8 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
   }
 
   const statement = database.prepare(`
-    INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments, priority)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(mailbox, uid) DO UPDATE SET
       subject = excluded.subject,
       from_name = excluded.from_name,
@@ -303,7 +304,8 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
       flagged = excluded.flagged,
       message_id = excluded.message_id,
       in_reply_to = excluded.in_reply_to,
-      has_attachments = excluded.has_attachments
+      has_attachments = excluded.has_attachments,
+      priority = excluded.priority
   `)
 
   database.exec('BEGIN')
@@ -321,7 +323,8 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
         envelope.flagged ? 1 : 0,
         envelope.messageId ?? null,
         envelope.inReplyTo ?? null,
-        envelope.hasAttachments === undefined ? null : envelope.hasAttachments ? 1 : 0
+        envelope.hasAttachments === undefined ? null : envelope.hasAttachments ? 1 : 0,
+        envelope.priority ?? 'normal'
       )
       reindexMessage(mailbox, envelope.uid)
     }
@@ -339,7 +342,7 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
   const direction = options.oldestFirst ? 'ASC' : 'DESC'
   const rows = handle()
     .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments
+      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments, priority
        FROM messages WHERE mailbox = ?${condition} ORDER BY date ${direction}, uid ${direction} LIMIT ?`
     )
     .all(...(condition ? [mailbox, options.includeUid ?? -1, limit] : [mailbox, limit])) as unknown as MessageRow[]
@@ -347,6 +350,7 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
   return rows.map((row) => ({
     uid: row.uid,
     hasAttachments: Number(row.has_attachments) === 1,
+    priority: row.priority ?? 'normal',
     messageId: row.message_id ?? undefined,
     inReplyTo: row.in_reply_to ?? undefined,
     subject: row.subject,
@@ -361,7 +365,7 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
 export function readEnvelope(mailbox: string, uid: number): Envelope | null {
   const row = handle()
     .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments
+      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments, priority
        FROM messages WHERE mailbox = ? AND uid = ?`
     )
     .get(mailbox, uid) as unknown as MessageRow | undefined
@@ -370,6 +374,7 @@ export function readEnvelope(mailbox: string, uid: number): Envelope | null {
   return {
     uid: row.uid,
     hasAttachments: Number(row.has_attachments) === 1,
+    priority: row.priority ?? 'normal',
     messageId: row.message_id ?? undefined,
     inReplyTo: row.in_reply_to ?? undefined,
     subject: row.subject,
@@ -466,7 +471,7 @@ export function saveDraft(draft: DraftRow): void {
     ON CONFLICT(id) DO UPDATE SET to_field=excluded.to_field, cc=excluded.cc,
     subject=excluded.subject, body=excluded.body, updated_at=excluded.updated_at, metadata_json=excluded.metadata_json`)
     .run(id, draft.to, draft.cc, draft.subject, draft.body, draft.updatedAt,
-      JSON.stringify({ html: draft.html, bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo,
+      JSON.stringify({ priority: draft.priority, html: draft.html, bcc: draft.bcc, attachments: draft.attachments, inReplyTo: draft.inReplyTo,
         references: draft.references, server: draft.server, previousServer: draft.previousServer, syncedAt: draft.syncedAt }))
   prunePickedAttachments()
 }
@@ -971,7 +976,7 @@ export function allCachedMessages(limit: number = 5000): CachedMessage[] {
 
 /** Sobres anteriores a la detección de adjuntos: se actualizan sin descargar cuerpos. */
 export function missingEnvelopeMetadata(mailbox: string): number[] {
-  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND has_attachments IS NULL')
+  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND (has_attachments IS NULL OR priority IS NULL)')
     .all(mailbox) as unknown as { uid: number }[]
   return rows.map(row => row.uid)
 }

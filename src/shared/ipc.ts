@@ -192,7 +192,10 @@ export interface EnvelopeAddress {
   address: string
 }
 
+export type MailPriority = 'high' | 'normal' | 'low'
+
 export interface Envelope {
+  priority?: MailPriority
   hasAttachments?: boolean
   messageId?: string
   inReplyTo?: string
@@ -263,6 +266,7 @@ export interface OutboxItem {
 }
 
 export interface SendMailPayload {
+  priority?: MailPriority
   draftId?: string
   draftUpdatedAt?: number
   html?: string
@@ -284,6 +288,7 @@ export interface DraftServerRef {
 }
 
 export interface Draft {
+  priority?: MailPriority
   id?: string
   server?: DraftServerRef
   previousServer?: DraftServerRef

@@ -30,8 +30,9 @@ async function main(){
  return require(id)
  }})
  db.storePickedAttachment('file-one','report.txt',Buffer.from('Persisted file'))
- const input={to:'to@example.com',cc:'copy@example.com',bcc:'hidden@example.com',subject:'First draft',body:'Hello',html:'<p><strong>Hello</strong></p>',attachments:[{id:'file-one',name:'report.txt',size:14}],updatedAt:1}
+ const input={priority:'high',to:'to@example.com',cc:'copy@example.com',bcc:'hidden@example.com',subject:'First draft',body:'Hello',html:'<p><strong>Hello</strong></p>',attachments:[{id:'file-one',name:'report.txt',size:14}],updatedAt:1}
  assert.throws(()=>service.queueDraftSave({...input,inReplyTo:'bad\r\nHeader: value'}),/Cabeceras/)
+ assert.throws(()=>service.queueDraftSave({...input,priority:'urgent'}),/Importancia/)
  const first=service.queueDraftSave(input),second=service.queueDraftSave({...input,subject:'Second draft',attachments:[]})
  assert.notEqual(first.id,second.id);assert.equal(db.listDrafts().length,2)
  db.closeCache();db.openAccountCache('one');assert.equal(db.listDrafts().length,2);assert.equal(db.listOutbox().length,2);assert.ok(db.readPickedAttachment('file-one'))
@@ -54,7 +55,7 @@ async function main(){
  const uid=[...remote.keys()][0]
  db.clearDraft(first.id)
  const reopened=await service.openServerDraft('Drafts',uid)
- assert.equal(reopened.bcc,'hidden@example.com');assert.equal(reopened.attachments[0].name,'report.txt');assert.equal(reopened.server.uid,uid)
+ assert.equal(reopened.priority,'high');assert.equal((await simpleParser([...remote.values()][0].raw)).headers.get('priority'),'high');assert.equal(reopened.bcc,'hidden@example.com');assert.equal(reopened.attachments[0].name,'report.txt');assert.equal(reopened.server.uid,uid)
  service.queueDraftDelete(reopened.id)
  assert.equal(db.readDraft(reopened.id),null);assert.ok(db.readDraft(second.id),'discarding one draft preserves others')
  assert.ok(db.listOutbox().some(row=>row.kind==='draft-delete'))

@@ -33,6 +33,7 @@ export interface Person {
 }
 
 export interface Message {
+  priority?: import('@shared/ipc').MailPriority
   date?: string | number
   messageId?: string
   inReplyTo?: string
@@ -51,6 +52,7 @@ export interface Message {
 }
 
 export interface Thread {
+  priority?: import('@shared/ipc').MailPriority
   date?: string | number
   hasAttachments?: boolean
   messageIds?: number[]

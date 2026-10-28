@@ -144,6 +144,7 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     cc: payload.cc === '' ? undefined : payload.cc,
     inReplyTo: payload.inReplyTo,
     references: payload.references,
+    priority: payload.priority,
     subject: payload.subject,
     text: payload.text,
     html: payload.html,
@@ -276,6 +277,7 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
   if (!payload || (payload.html !== undefined && typeof payload.html !== 'string') || typeof payload.to !== 'string' || typeof payload.cc !== 'string' || typeof payload.subject !== 'string' || typeof payload.text !== 'string' || (payload.bcc !== undefined && typeof payload.bcc !== 'string') || !validRecipients(payload.to, payload.cc, payload.bcc ?? '')) {
     return { ok: false, queued: false, error: 'Destinatarios inválidos' }
   }
+  if (payload.priority !== undefined && !['high', 'normal', 'low'].includes(payload.priority)) return { ok: false, queued: false, error: 'Importancia inválida' }
   if (payload.attachments !== undefined && (!Array.isArray(payload.attachments) || payload.attachments.some(id => typeof id !== 'string' || !readPickedAttachment(id)))) {
     return { ok: false, queued: false, error: 'Falta un adjunto. Vuelve a adjuntarlo antes de enviar.' }
   }

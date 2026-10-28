@@ -174,14 +174,7 @@ export function ThreadList({
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
-            <TooltipButton className="icon-btn" type="button" title={t(oldestFirst ? 'list.oldestFirst' : 'list.newestFirst')} aria-label={t('list.sort')} aria-haspopup="menu" aria-expanded={menu?.kind === 'sort'} onClick={event => openMenu('sort', event.currentTarget)}>
-              <Icon name="swap_vert" size={15} />
-            </TooltipButton>
-            <TooltipButton className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')} aria-haspopup="menu" aria-expanded={menu?.kind === 'filter'} onClick={event => openMenu('filter', event.currentTarget)}>
-              <Icon name="filter_list" size={15} />
-            </TooltipButton>
-          </div>
+
         </div>
 
         <div className="list__queue">
@@ -191,6 +184,14 @@ export function ThreadList({
               : t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}
           </span>
           {!live && <strong>{t('list.triaged')}</strong>}
+          <div className="list__tools">
+            <TooltipButton className="icon-btn" type="button" title={t(oldestFirst ? 'list.oldestFirst' : 'list.newestFirst')} aria-label={t('list.sort')} aria-haspopup="menu" aria-expanded={menu?.kind === 'sort'} onClick={event => openMenu('sort', event.currentTarget)}>
+              <Icon name="swap_vert" size={15} />
+            </TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')} aria-haspopup="menu" aria-expanded={menu?.kind === 'filter'} onClick={event => openMenu('filter', event.currentTarget)}>
+              <Icon name="filter_list" size={15} />
+            </TooltipButton>
+          </div>
         </div>
       </div>
       {menu && <ContextMenu anchor={menu.anchor} label={t(menu.kind === 'sort' ? 'list.sort' : 'list.filter')} onClose={closeMenu}
@@ -281,15 +282,18 @@ export function ThreadList({
                   <div className="thread__avatar-wrap">
                     <SenderAvatar email={sender?.email ?? ''} initials={sender?.initials ?? '??'} mailbox={mailbox} blocked={spam || !live} className={active ? 'avatar--accent' : 'avatar--tertiary'} />
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="thread__name">{sender?.name ?? ''}</span>
+                  <div className="thread__sender">
+                    <div className="thread__identity">
+                      <span className="thread__name" title={sender?.name}>{sender?.name ?? ''}</span>
                       {sender?.org && <span className="thread__org">{sender.org}</span>}
                     </div>
                   </div>
                 </div>
 
                 <div className="thread__meta">
+                  {thread.priority && thread.priority !== 'normal' && <span className={cx('mail-priority', thread.priority === 'high' && 'mail-priority--high')} role="img" aria-label={t(thread.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')} data-tooltip={t(thread.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')}>
+                    <Icon name={thread.priority === 'high' ? 'priority_high' : 'arrow_downward'} size={16} />
+                  </span>}
                   {deleting && <span className="thread__processing" role="status"><Icon name="progress_activity" size={15} className="spin" />{t('common.deleting')}</span>}
                   {hasFiles && <span role="img" aria-label={t('thread.attachments')} title={t('thread.attachments')}><Icon name="attach_file" size={15} /></span>}
                   {thread.unread && (

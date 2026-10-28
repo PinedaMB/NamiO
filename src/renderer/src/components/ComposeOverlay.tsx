@@ -1,23 +1,26 @@
 import { TooltipButton } from './Tooltip'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { validRecipients } from '@shared/mailAddresses'
-import type { Draft, PickedAttachment } from '@shared/ipc'
+import type { Draft, PickedAttachment, MailPriority } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { composeEmailHtml } from '../lib/composeHtml'
 import { RecipientInput } from './RecipientInput'
 import { Icon } from './Icon'
+import { Select } from './Select'
 import { cx } from '../lib/cx'
 
 const RichTextEditor = lazy(() => import('./RichTextEditor').then(module => ({ default: module.RichTextEditor })))
 
 interface ComposeOverlayProps {
   open: boolean
+  sender?: string
   to: string
   subject: string
   body: string
   html?: string
+  priority?: MailPriority
   cc?: string
   bcc?: string
   initialAttachments?: PickedAttachment[]
@@ -46,10 +49,12 @@ const DEFAULT_PROMPT =
 
 export function ComposeOverlay({
   open,
+  sender,
   to,
   subject,
   body,
   html,
+  priority = 'normal',
   cc = '',
   bcc = '',
   initialAttachments,
@@ -67,6 +72,7 @@ export function ComposeOverlay({
   const { mounted, closing } = usePresence(open, 140)
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
+  const [priorityValue, setPriorityValue] = useState<MailPriority>(priority)
   const bodyRef = useRef({ body, html })
   const [bodyValue, setBodyValue] = useState(body)
   const [htmlValue, setHtmlValue] = useState(html)
@@ -99,6 +105,7 @@ export function ComposeOverlay({
     if (!open) return
     setToValue(to)
     setSubjectValue(subject)
+    setPriorityValue(priority)
     bodyRef.current = { body, html }
     setBodyValue(body)
     setHtmlValue(html)
@@ -120,10 +127,10 @@ export function ComposeOverlay({
           ]
         : []
     )
-  }, [open, to, subject, body, html, copilot, cc, bcc, initialAttachments])
+  }, [open, to, subject, body, html, copilot, cc, bcc, initialAttachments, priority])
 
   const values = (): Omit<Draft, 'updatedAt'> => ({
-    to: toValue, cc: ccValue, bcc: bccValue,
+    to: toValue, cc: ccValue, bcc: bccValue, priority: priorityValue,
     subject: subjectValue, body: bodyRef.current.body, html: bodyRef.current.html, attachments: picked
   })
 
@@ -178,7 +185,7 @@ export function ComposeOverlay({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, minimized, toValue, ccValue, bccValue, subjectValue, bodyValue, htmlValue, picked, sending, onClose])
+  }, [open, minimized, toValue, ccValue, bccValue, subjectValue, priorityValue, bodyValue, htmlValue, picked, sending, onClose])
 
   if (!mounted) return null
 
@@ -240,6 +247,10 @@ export function ComposeOverlay({
 
         <div className="composer__fields" inert={sending}>
           <div className="field-row">
+            <span className="field-label">{t('compose.from')}</span>
+            <span className="composer__sender"><Icon name="alternate_email" size={16} />{sender || t('account.demo')}</span>
+          </div>
+          <div className="field-row">
             <span className="field-label">{t('compose.to')}</span>
             <RecipientInput key={`${open}:${to}`} field="to" initialValue={to} onChange={setToValue} suggest={!copilot} />
             <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
@@ -270,6 +281,7 @@ export function ComposeOverlay({
               aria-label={t('compose.subject')}
             />
           </div>
+
         </div>
 
         <div className={cx('composer__split', !copilot && 'composer__split--solo')} inert={sending}>
@@ -465,6 +477,16 @@ export function ComposeOverlay({
               <button className="tool-btn" type="button" onClick={() => { setSendOptionsOpen(false); void closeWithDraft() }}><Icon name="save" size={16} />{t('compose.saveDraft')}</button>
             </div>}
           </div>
+
+          <label className="composer__priority">
+            <span className="composer__priority-label">{t('mail.priority')}</span>
+            <Select aria-label={t('mail.priority')} value={priorityValue} disabled={sending}
+              onChange={event => setPriorityValue(event.target.value as MailPriority)}>
+              <option value="normal">{t('mail.priorityNormal')}</option>
+              <option value="high">{t('mail.priorityHigh')}</option>
+              <option value="low">{t('mail.priorityLow')}</option>
+            </Select>
+          </label>
 
           <div className="composer__foot-right">
             {copilot && (

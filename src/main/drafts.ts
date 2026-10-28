@@ -8,6 +8,7 @@ import { readActiveAccount } from './settings'
 
 export function queueDraftSave(input: Draft): Draft {
   if (!input || ['to', 'cc', 'subject', 'body'].some(key => typeof input[key as 'to'] !== 'string')) throw new Error('Borrador inválido')
+  if (input.priority !== undefined && !['high', 'normal', 'low'].includes(input.priority)) throw new Error('Importancia inválida')
   if (input.id !== undefined && !/^[a-z0-9-]{1,80}$/i.test(input.id)) throw new Error('Identificador de borrador inválido')
   if (input.html !== undefined && typeof input.html !== 'string') throw new Error('HTML de borrador inválido')
   if ((input.inReplyTo !== undefined && (typeof input.inReplyTo !== 'string' || /[\r\n]/.test(input.inReplyTo))) || (input.references !== undefined && (!Array.isArray(input.references) || input.references.some(id => typeof id !== 'string' || /[\r\n]/.test(id))))) throw new Error('Cabeceras de borrador inválidas')
@@ -43,7 +44,7 @@ export async function syncDraft(id: string): Promise<void> {
     from: account.user, to: draft.to, cc: draft.cc, bcc: draft.bcc,
     subject: draft.subject, text: draft.body, html: draft.html,
     messageId, inReplyTo: draft.inReplyTo, references: draft.references,
-    headers: { 'X-NamiO-Draft-Id': draft.id! },
+    headers: { 'X-NamiO-Draft-Id': draft.id!, Importance: draft.priority ?? 'normal' },
     attachments: (draft.attachments ?? []).map(file => {
       const stored = readPickedAttachment(file.id)
       if (!stored) throw new Error('Falta un adjunto del borrador')
@@ -63,13 +64,14 @@ export async function openServerDraft(path: string, uid: number): Promise<Draft>
   const owner = cacheAccountId()
   const { raw, server } = await downloadDraft(path, uid)
   const parsed = await simpleParser(raw)
+  const priority = parsed.headers.get('priority')
   if (owner !== cacheAccountId()) throw new Error('La cuenta activa cambió')
   const id = randomUUID()
   const addresses = (entry: typeof parsed.to): string => (entry ? Array.isArray(entry) ? entry : [entry] : [])
     .flatMap(item => item.value.map(value => value.address ?? '')).filter(Boolean).join(', ')
   const updatedAt = Date.now()
   const draft: Draft = {
-    id, server, to: addresses(parsed.to), cc: addresses(parsed.cc), bcc: addresses(parsed.bcc),
+    id, server, priority: priority === 'high' || priority === 'low' ? priority : 'normal', to: addresses(parsed.to), cc: addresses(parsed.cc), bcc: addresses(parsed.bcc),
     subject: parsed.subject ?? '', body: parsed.text ?? '', html: typeof parsed.html === 'string' ? parsed.html : undefined,
     inReplyTo: parsed.inReplyTo, references: typeof parsed.references === 'string' ? [parsed.references] : parsed.references,
     updatedAt, syncedAt: updatedAt,
