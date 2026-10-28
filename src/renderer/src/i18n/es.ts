@@ -166,6 +166,7 @@ export const es = {
   'welcome.search': 'Buscar en tu correo',
   'welcome.settings': 'Abrir configuración',
 
+  'attachment.preparing': 'Preparando descarga…',
   'document.preview': 'Vista previa del adjunto',
   'document.loading': 'Cargando documento…',
   'document.failed': 'No se pudo mostrar el documento. Puedes guardarlo para abrirlo con otra aplicación.',

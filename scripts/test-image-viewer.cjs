@@ -4,6 +4,8 @@ const vm = require('node:vm')
 const ts = require('typescript-test')
 const React = require('react')
 const compile = text => ts.transpile(text, {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX})
+const selectionHelpers = {}
+vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/lib/selection.ts', 'utf8')), {exports: selectionHelpers})
 function find(node, test) {
   if (!React.isValidElement(node)) return null
   if (test(node)) return node
@@ -19,6 +21,7 @@ async function main() {
     ResizeObserver: class {constructor(callback) {resize = callback} observe() {} disconnect() {}},
     require: id => {
       if (id === 'react') return {...React, useState: initial => {const slot = stateIndex++; if (!(slot in state)) state[slot] = initial; return [state[slot], value => {state[slot] = value}]}, useRef: initial => {const slot = refIndex++; return refs[slot] ?? (refs[slot] = {current: initial})}, useEffect: fn => effects.push(fn)}
+      if (id === '../lib/selection') return selectionHelpers
       if (id === '../i18n') return {useI18n: () => ({t: key => key})}
       if (id === './Icon') return {Icon: () => null}
       if (id === './Tooltip') return {TooltipButton: 'button'}
@@ -51,6 +54,10 @@ async function main() {
   assert.equal(saved, 1)
   find(render(), node => node.type === 'img').props.onError()
   assert.ok(find(render(), node => node.props.role === 'alert'))
+  const busySave = find(render({saving: true}), node => node.props['aria-label'] === 'attachment.preparing')
+  assert.equal(busySave.props.disabled, true)
+  assert.equal(busySave.props['aria-busy'], true)
+  assert.ok(find(render({saving: true}), node => node.props.className === 'attachment-progress' && node.props.role === 'status'))
   cleanup(); assert.equal(nativeClosed, 1)
 
   const ipcSource = fs.readFileSync('src/main/ipc.ts', 'utf8')
@@ -84,7 +91,7 @@ async function main() {
   }
   visitApp(appAst)
   let displayed, finish, saves = 0
-  const context = {selected: {id: 'live:1', messages: [{id: 'live:1', attachments: [{kind: 'image', name: 'photo.png'}]}]}, live: true,
+  const context = {savingAttachmentRef: {current: false}, setSavingAttachment() {}, selected: {id: 'live:1', messages: [{id: 'live:1', attachments: [{kind: 'image', name: 'photo.png'}]}]}, live: true,
     uidOf: id => Number(id.slice(5)), folder: 'INBOX', accountGeneration: {current: 1}, attachmentRequest: {current: 0}, setAttachmentPreview: value => {displayed = value}, setToast() {}, t: key => key,
     window: {api: {previewAttachment: () => new Promise(resolve => {finish = resolve}), saveAttachment: async () => {saves++; return null}}}}
   const open = vm.runInNewContext(compile(`(${openSource})`), context)

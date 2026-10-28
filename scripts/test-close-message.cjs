@@ -18,6 +18,7 @@ function visit(node) {
 visit(ast)
 let id = 'one', individual = 'one', open = true, focused = false, paletteClosed = false
 const context = {
+  isSelectAll: () => false,
   paletteOpen: false, compose: null, composeMinimized: false, accountOpen: false, view: 'mailbox',
   selectedId: 'one', visible: [{ id: 'one' }], listedThreads: [{ id: 'one' }], mapped: [{ id: 'one' }],
   setSelectedId: value => { id = value }, setIndividualMessageId: value => { individual = value }, setMessageOpen: value => { open = value },

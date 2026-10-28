@@ -6,6 +6,8 @@ const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const compile = source => ts.transpile(source, {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX})
 const flush = () => new Promise(resolve => setImmediate(resolve))
+const selectionHelpers = {}
+vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/lib/selection.ts', 'utf8')), {exports: selectionHelpers})
 function find(node, test) {
   if (!React.isValidElement(node)) return null
   if (test(node)) return node
@@ -32,6 +34,7 @@ async function main() {
   const textViewer = {}
   vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/DocumentViewer.tsx', 'utf8')), {exports: textViewer, require: id => {
     if (id === 'react') return {...React, useRef: () => ({current: null}), useEffect() {}}
+    if (id === '../lib/selection') return selectionHelpers
     if (id === '../i18n') return {useI18n: () => ({t: key => key})}
     if (id === './Icon') return {Icon: () => null}
     if (id === './Tooltip') return {TooltipButton: 'button'}
@@ -48,6 +51,9 @@ async function main() {
   find(tree, node => node.props.title === 'thread.download').props.onClick(); assert.equal(saved, true)
   assert.ok(find(textViewer.DocumentViewer({...props, attachment: undefined}), node => node.props.role === 'status'))
   assert.ok(find(textViewer.DocumentViewer({...props, error: true}), node => node.props.role === 'alert'))
+  const busySave = find(textViewer.DocumentViewer({...props, saving: true}), node => node.props.title === 'attachment.preparing')
+  assert.equal(busySave.props.disabled, true)
+  assert.equal(busySave.props['aria-busy'], true)
 
   const state = [], refs = [], effects = []
   let slot = 0, refSlot = 0, resize, workerFailure, terminated = false, destroyed = false, workerDestroyed = false
@@ -68,6 +74,7 @@ async function main() {
     require: id => {
       if (id === 'react') return {...React, useRef: value => {const index = refSlot++; return refs[index] ?? (refs[index] = {current: value})}, useEffect: fn => effects.push(fn), useState: value => {const index = slot++; if (!(index in state)) state[index] = value; return [state[index], next => {state[index] = next}]}}
       if (id === 'pdfjs-dist') return {PDFWorker: {create: () => ({destroy: () => {workerDestroyed = true}})}, getDocument: opts => {options.push(opts); return {promise: Promise.resolve(pdf), destroy: async () => {destroyed = true}}}}
+      if (id === '../lib/selection') return selectionHelpers
       if (id === '../i18n') return {useI18n: () => ({t: key => key})}
       if (id === './Icon') return {Icon: () => null}
       if (id === './Tooltip') return {TooltipButton: 'button'}

@@ -163,6 +163,7 @@ export const en: Dictionary = {
   'welcome.search': 'Search your email',
   'welcome.settings': 'Open settings',
 
+  'attachment.preparing': 'Preparing download…',
   'document.preview': 'Attachment preview',
   'document.loading': 'Loading document…',
   'document.failed': 'The document could not be displayed. You can save it to open it in another application.',

@@ -72,6 +72,7 @@ function buildDocument(body: string, allowImages: boolean): string {
     img[role=button] { cursor: zoom-in; }
     img[role=button]:focus-visible { outline: 2px solid #8083ff; outline-offset: 2px; }
     a { color: #2f5bd3; }
+    ::selection { background: #c0c1ff; color: #10131b; }
     table { max-width: 100%; }
     pre, code { white-space: pre-wrap; }
   `

@@ -34,6 +34,7 @@ interface ThreadPaneProps {
   onStar: () => void
   onReply: () => void
   onQuickDraft: () => void
+  savingAttachment?: { mailbox: string; messageId: string; index: number } | null
   onOpenAttachment: (index: number, messageId?: string) => void
   onPrev: () => void
   onNext: () => void
@@ -124,6 +125,7 @@ export function ThreadPane({
   onReply,
   onQuickDraft,
   onOpenAttachment,
+  savingAttachment = null,
   onPrev,
   onNext,
   onBack
@@ -294,7 +296,7 @@ export function ThreadPane({
               </summary>
 
                 {message.attachments && message.attachments.length > 0 && (
-                  <details className="thread-message__files" open>
+                  <details className="thread-message__files">
                     <summary className="thread-message__files-label">
                       <Icon name="attach_file" size={16} />
                       <span>{t('thread.attachments')} · {message.attachments.length}</span>
@@ -303,19 +305,22 @@ export function ThreadPane({
                   <div className="attachments" aria-label={t('thread.attachments')}>
                     {message.attachments.map((attachment, index) => {
                       const meta = ATTACHMENT_ICON[attachment.kind]
+                      const saving = savingAttachment?.mailbox === mailbox && savingAttachment.messageId === message.id && savingAttachment.index === index
                       return (
                         <TooltipButton
                           key={`${attachment.name}-${index}`}
                           className="attachment"
                           type="button"
-                          title={t(['image', 'pdf', 'text'].includes(attachment.kind) ? 'document.preview' : 'thread.download')}
+                          title={t(saving ? 'attachment.preparing' : ['image', 'pdf', 'text'].includes(attachment.kind) ? 'document.preview' : 'thread.download')}
+                          disabled={savingAttachment !== null}
+                          aria-busy={saving}
                           onClick={() => onOpenAttachment(index, message.id)}
                         >
-                          <Icon name={meta.icon} size={18} className="attachment__icon" />
+                          <Icon name={saving ? 'progress_activity' : meta.icon} size={18} className={saving ? 'attachment__icon spin' : 'attachment__icon'} />
                           <span className="attachment__meta">
                             <span className="attachment__name">{attachment.name}</span>
                             <span className="attachment__detail">
-                              {attachment.size} · {attachment.detail}
+                              {saving ? t('attachment.preparing') : `${attachment.size} · ${attachment.detail}`}
                             </span>
                           </span>
                           <Icon name="download" size={15} />

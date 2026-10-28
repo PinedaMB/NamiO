@@ -57,6 +57,11 @@ function createWindow(): void {
     }
   })
 
+  // Ctrl+A se resuelve según el foco del lector, antes del menú nativo.
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    mainWindow?.webContents.setIgnoreMenuShortcuts(input.type === 'keyDown' && (input.control || input.meta) && !input.alt && !input.shift && input.key.toLowerCase() === 'a')
+  })
+
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   void setupBackground(() => mainWindow, openWindow)
 

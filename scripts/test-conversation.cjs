@@ -94,12 +94,12 @@ console.log('Conversation: reply links, independent subjects, cycles, additive c
 assert.equal(attachmentSections.length, 3)
 for (const section of attachmentSections) {
   assert.equal(section.type, 'details')
-  assert.equal(section.props.open, true)
+  assert.equal(section.props.open, undefined)
   const children = React.Children.toArray(section.props.children)
   assert.equal(children[0].type, 'summary')
   assert.equal(children[1].props.className, 'attachments')
 }
-console.log('Attachments: independent native disclosure for each message, expanded by default')
+console.log('Attachments: independent native disclosure for each message, collapsed by default')
 
 const list = {}
 let listMenu = null

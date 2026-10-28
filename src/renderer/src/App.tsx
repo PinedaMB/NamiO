@@ -1,3 +1,4 @@
+import { isSelectAll, selectTextContents } from './lib/selection'
 import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
@@ -194,6 +195,8 @@ export function App(): React.JSX.Element {
   }
   const [attachmentPreview, setAttachmentPreview] = useState<{ attachment?: AttachmentPreview; kind: 'image' | 'pdf' | 'text'; title: string; error?: boolean; save: () => void } | null>(null)
   const attachmentRequest = useRef(0)
+  const [savingAttachment, setSavingAttachment] = useState<{ mailbox: string; messageId: string; index: number } | null>(null)
+  const savingAttachmentRef = useRef(false)
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
   const busySwitch = useRef(false)
@@ -837,21 +840,25 @@ export function App(): React.JSX.Element {
     const uid = uidOf(messageId ?? selected.id)
     if (uid === null) return
 
-    const save = (): void => {
-      void window.api
-        .saveAttachment(folder, uid, index)
-        .then((saved) => {
-          if (saved) setToast(t('toast.saved', { path: saved }))
-        })
-        .catch((error: unknown) => {
-          setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'adjunto' }))
-        })
+    const generation = accountGeneration.current
+    const save = async (): Promise<void> => {
+      if (savingAttachmentRef.current) return
+      savingAttachmentRef.current = true
+      setSavingAttachment({ mailbox: folder, messageId: messageId ?? selected.id, index })
+      try {
+        const saved = await window.api.saveAttachment(folder, uid, index)
+        if (saved && generation === accountGeneration.current) setToast(t('toast.saved', { path: saved }))
+      } catch (error) {
+        if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'adjunto' }))
+      } finally {
+        savingAttachmentRef.current = false
+        setSavingAttachment(null)
+      }
     }
     const message = selected.messages.find(item => item.id === (messageId ?? selected.id))
     const attachment = message?.attachments?.[index]
-    if (!attachment || (attachment.kind !== 'image' && attachment.kind !== 'pdf' && attachment.kind !== 'text')) { save(); return }
+    if (!attachment || (attachment.kind !== 'image' && attachment.kind !== 'pdf' && attachment.kind !== 'text')) { void save(); return }
     const kind = attachment.kind
-    const generation = accountGeneration.current
     const request = ++attachmentRequest.current
     setAttachmentPreview({ kind, title: attachment.name, save })
     void window.api.previewAttachment(folder, uid, index).then(image => {
@@ -1074,7 +1081,36 @@ export function App(): React.JSX.Element {
       const target = event.target as HTMLElement | null
       const typing =
         target !== null &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        ((target.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color'].includes((target as HTMLInputElement).type)) || target.tagName === 'TEXTAREA' || target.isContentEditable)
+
+      if (isSelectAll(event)) {
+        if (event.defaultPrevented || typing || target?.tagName === 'SELECT') return
+        event.preventDefault()
+        if (paletteOpen || accountOpen || (compose && !composeMinimized) || view === 'settings') return
+        const list = target?.closest('.list')
+        if (list) {
+          if (query.trim().length >= 2) {
+            const results = list.querySelector('.search-results-list')
+            if (results) selectTextContents(results)
+          } else if (!bulkBusy && pendingDelete === null) {
+            setCheckedIds(visible.filter(thread => !thread.id.startsWith('draft:')).map(thread => thread.id))
+          }
+          return
+        }
+        const reading = target?.closest('.reading')
+        if (reading || target === document.body) {
+          const message = target?.closest('.thread-message[open]') ?? (reading ?? document.querySelector('.reading'))?.querySelector('.thread-message[open]')
+          const frame = message?.querySelector<HTMLIFrameElement>('.email-body__frame')
+          if (frame?.contentDocument?.body) {
+            frame.focus()
+            selectTextContents(frame.contentDocument.body)
+          } else {
+            const body = message?.querySelector('.body')
+            if (body) selectTextContents(body)
+          }
+        }
+        return
+      }
 
       if (event.key === 'Escape') {
         if (paletteOpen) {
@@ -1388,6 +1424,7 @@ export function App(): React.JSX.Element {
                   onEmptyFolder={live && canEmptyMailbox(folder) ? () => { void emptyFolder(folder) } : undefined}
                   onStar={toggleStar}
                   onReply={() => openReply()}
+                  savingAttachment={savingAttachment}
                   onOpenAttachment={openAttachment}
                   onQuickDraft={() => openReply(COPILOT_DRAFT)}
                   onPrev={() => step(-1)}
@@ -1542,11 +1579,15 @@ export function App(): React.JSX.Element {
       )}
 
       {attachmentPreview && (attachmentPreview.kind === 'image'
-        ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} error={attachmentPreview.error} onSave={attachmentPreview.save}
+        ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
           onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />
-        : <DocumentViewer title={attachmentPreview.title} attachment={attachmentPreview.attachment} error={attachmentPreview.error} onSave={attachmentPreview.save}
+        : <DocumentViewer title={attachmentPreview.title} attachment={attachmentPreview.attachment} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
           onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />)}
-      {toast && (
+      {savingAttachment && <div className="toast" role="status">
+        <Icon name="progress_activity" size={16} className="spin" />
+        {t('attachment.preparing')}
+      </div>}
+      {toast && !savingAttachment && (
         <div className="toast" role="status">
           <Icon name="check_circle" size={16} />
           {toast}

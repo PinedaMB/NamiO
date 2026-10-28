@@ -5809,3 +5809,8 @@
 .document-viewer .image-viewer__toolbar { flex-wrap: nowrap; }
 .document-viewer .image-viewer__toolbar strong { flex-basis: auto; }
 .document-viewer__body { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+.attachment-progress { display: flex; align-items: center; gap: 8px; padding: 10px 16px; flex-shrink: 0; color: var(--primary); background: var(--surface-container-low); font-size: 12px; }
+
+.topbar, .rail, .list, .reading__toolbar, .statusbar { user-select: none; }
+input, textarea, [contenteditable="true"], .search-results-list { user-select: text; }
