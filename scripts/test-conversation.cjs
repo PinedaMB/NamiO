@@ -77,8 +77,10 @@ function visit(node) {
 }
 visit(tree)
 assert.equal(cards.length, 3)
-assert.deepEqual(cards.map(card => card.props.open), [false, false, true])
-assert.deepEqual(clicked, [[0, 'live:1'], [0, 'live:2'], [0, 'live:3']])
+assert.deepEqual(cards.map(card => card.props.open), [true, false, false])
+assert.deepEqual(cards.map(card => card.key), ['live:3', 'live:2', 'live:1'], 'newest message appears first')
+assert.deepEqual(messages.map(message => message.id), ['live:1', 'live:2', 'live:3'], 'display order does not mutate conversation data')
+assert.deepEqual(clicked, [[0, 'live:3'], [0, 'live:2'], [0, 'live:1']])
 console.log('Conversation: reply links, independent subjects, cycles, additive cache migration, cards and attachment identity passed')
 
 assert.equal(attachmentSections.length, 3)
@@ -92,7 +94,10 @@ for (const section of attachmentSections) {
 console.log('Attachments: independent native disclosure for each message, expanded by default')
 
 const list = {}
+let listMenu = null
 vm.runInNewContext(compile('src/renderer/src/components/ThreadList.tsx'), { exports: list, require: id => {
+  if (id === 'react') return { ...React, useState: () => [listMenu, value => { listMenu = value }], useCallback: fn => fn }
+  if (id === './ContextMenu') return { ContextMenu: () => null }
   if (id === '../lib/dates') return dates
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }

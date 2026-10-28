@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { app } from 'electron'
-import type { CacheUsage, Draft, Envelope, MailboxInfo, RecipientSuggestion } from '@shared/ipc'
+import type { CacheUsage, Draft, Envelope, EnvelopeListOptions, MailboxInfo, RecipientSuggestion } from '@shared/ipc'
 
 /**
  * Caché local. Es la fuente de verdad para la UI: la red solo la actualiza.
@@ -334,13 +334,15 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
   return envelopes.map((envelope) => envelope.uid).filter((uid) => !previos.has(uid))
 }
 
-export function readEnvelopes(mailbox: string, limit: number): Envelope[] {
+export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeListOptions = {}): Envelope[] {
+  const condition = options.filter === 'unread' ? ' AND (unread = 1 OR uid = ?)' : options.filter === 'read' ? ' AND (unread = 0 OR uid = ?)' : ''
+  const direction = options.oldestFirst ? 'ASC' : 'DESC'
   const rows = handle()
     .prepare(
       `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments
-       FROM messages WHERE mailbox = ? ORDER BY date DESC, uid DESC LIMIT ?`
+       FROM messages WHERE mailbox = ?${condition} ORDER BY date ${direction}, uid ${direction} LIMIT ?`
     )
-    .all(mailbox, limit) as unknown as MessageRow[]
+    .all(...(condition ? [mailbox, options.includeUid ?? -1, limit] : [mailbox, limit])) as unknown as MessageRow[]
 
   return rows.map((row) => ({
     uid: row.uid,

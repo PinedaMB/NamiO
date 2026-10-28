@@ -251,11 +251,11 @@ export function ThreadPane({
               {t('thread.loading')}
             </div>
           ) : (
-            thread.messages.map((message, messageIndex) => {
+            [...thread.messages].reverse().map((message, messageIndex) => {
               const from = message.from
               const toLine = message.to.map(person => person.email).join(', ')
               return (
-              <details className="thread-message" key={message.id} open={messageIndex === thread.messages.length - 1}>
+              <details className="thread-message" key={message.id} open={messageIndex === 0}>
               <summary className="participants">
                 <div className="participants__top">
                   <div className="participants__who">

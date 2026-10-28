@@ -56,7 +56,7 @@ async function opening() {
     const target = { accountId: 'b', identity: 'b', path: 'INBOX', uid: 42 }
     let pending = target, opened = [], switched = 0
     const context = {
-      notificationTarget: target, switchingAccount: scenario === 'switching', openingNotification: false,
+      listOptions: { current: { filter: 'unread' } }, filterFocusUid: { current: undefined }, notificationTarget: target, switchingAccount: scenario === 'switching', openingNotification: false,
       compose: scenario === 'compose' ? {} : null,
       accountIdentity: { current: scenario === 'same' ? 'b' : 'a' },
       setOpeningNotification() {}, setNotificationTarget(fn) { pending = fn(pending) },

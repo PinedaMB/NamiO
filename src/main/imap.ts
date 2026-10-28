@@ -12,6 +12,8 @@ import type {
   AccountSummary,
   CachedResult,
   Envelope,
+  EnvelopeListOptions,
+  EnvelopeListResult,
   EnvelopeAddress,
   ImapAccountConfig,
   ImapErrorCode,
@@ -572,16 +574,18 @@ export async function listMailboxes(sync = true): Promise<CachedResult<MailboxIn
 export async function listEnvelopes(
   path: string,
   limit: number,
-  sync = true
-): Promise<CachedResult<Envelope[]>> {
-  const cached = readEnvelopes(path, limit)
+  sync = true,
+  options: EnvelopeListOptions = {}
+): Promise<EnvelopeListResult> {
+  const result = (): EnvelopeListResult => ({ ok: true, data: readEnvelopes(path, limit, options), meta: syncMeta(), counts: { total: countMessages(path), unread: countUnread(path) } })
+  const cached = result()
 
-  if (!sync) return { ok: true, data: cached, meta: syncMeta() }
+  if (!sync) return cached
 
-  if (cached.length === 0) {
+  if (countMessages(path) === 0) {
     try {
       await serial(() => syncMessages(path, limit))
-      return { ok: true, data: readEnvelopes(path, limit), meta: syncMeta() }
+      return result()
     } catch (error) {
       const code = classify(error)
       if (!isOfflineError(code)) return { ok: false, code, detail: describe(error) }
@@ -597,7 +601,7 @@ export async function listEnvelopes(
       notify(path)
     })
 
-  return { ok: true, data: cached, meta: syncMeta() }
+  return cached
 }
 
 async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {

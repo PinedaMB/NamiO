@@ -37,7 +37,7 @@ async function focusOldMessage(failure = false) {
     useCallback: fn => fn, locale: 'es', accountGeneration: { current: 1 }, folderRequest: { current: 0 },
     activeFolderRef: { current: null }, userNavigated: { current: false }, PAGE_SIZE: 50,
     setThreads: value => { threads = value }, setSelectedId: value => { selected = value },
-    setIndividualMessageId() {}, setLoadingFolder() {}, setFolder() {}, setListLimit() {}, setLocalDrafts() {}, setSync() {},
+    listOptions: { current: {} }, setListCounts() {}, setIndividualMessageId() {}, setLoadingFolder() {}, setFolder() {}, setListLimit() {}, setLocalDrafts() {}, setSync() {},
     setLiveError: value => { error = value },
     envelopesToThreads: envelopes => envelopes.map(envelope => ({ id: `live:${envelope.uid}` })),
     window: { api: {

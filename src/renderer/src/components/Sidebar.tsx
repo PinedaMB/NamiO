@@ -22,6 +22,7 @@ interface SidebarProps {
   activity?: readonly AccountActivity[]
   showTags: boolean
   syncLabel: string
+  syncDetail: string
   offline: boolean
   onFolderContextMenu?: (anchor: ContextAnchor, id: string) => void
   onSelectFolder: (id: string) => void
@@ -46,6 +47,7 @@ export function Sidebar({
   activity = [],
   showTags,
   syncLabel,
+  syncDetail,
   offline,
   onSelectFolder,
   onFolderContextMenu,
@@ -267,7 +269,7 @@ export function Sidebar({
           </TooltipButton>
         )}
         <div className="sync-pill">
-          <span className="sync-pill__state" data-tooltip={syncLabel} tabIndex={0}>
+          <span className="sync-pill__state" data-tooltip={`${accountLabel} · ${syncDetail}`} tabIndex={0}>
             <span
               className={cx('dot', offline ? 'dot--error' : 'dot--tertiary', accountConnected && !offline && 'pulse')}
             />

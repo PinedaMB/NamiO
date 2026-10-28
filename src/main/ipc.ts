@@ -12,6 +12,7 @@ import {
   type AppSettings,
   type CoreStatus,
   type Draft,
+  type EnvelopeListOptions,
   type ImapResult,
   type RuleDraft,
   type SendMailPayload
@@ -214,9 +215,16 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IPC.mailboxesList, (_event, sync: boolean = true) => listMailboxes(sync))
-  ipcMain.handle(IPC.messagesList, (_event, path: string, limit: number, sync: boolean = true) =>
-    listEnvelopes(path, Math.min(Math.max(limit, 1), 2000), sync)
-  )
+  ipcMain.handle(IPC.messagesList, (_event, path: string, limit: number, sync: boolean = true, options: EnvelopeListOptions = {}) => {
+    if (typeof path !== 'string' || !Number.isSafeInteger(limit) || limit < 1 ||
+      !options || typeof options !== 'object' ||
+      (options.filter !== undefined && !['all', 'unread', 'read'].includes(options.filter)) ||
+      (options.oldestFirst !== undefined && typeof options.oldestFirst !== 'boolean') ||
+      (options.includeUid !== undefined && (!Number.isSafeInteger(options.includeUid) || options.includeUid < 1))) {
+      return { ok: false, code: 'unknown', detail: 'Consulta de mensajes inválida' }
+    }
+    return listEnvelopes(path, limit, sync, options)
+  })
   ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number) => getMessage(path, uid))
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)

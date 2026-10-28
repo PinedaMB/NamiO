@@ -1,4 +1,5 @@
-import type { ContextAnchor } from './ContextMenu'
+import { ContextMenu, type ContextAnchor } from './ContextMenu'
+import { useCallback, useState } from 'react'
 import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Tag, Thread } from '../data/demo'
@@ -25,7 +26,7 @@ interface ThreadListProps {
   filter: FilterId
   unreadCount: number
   otherCount: number
-  /** Mensajes cargados en la ventana (sin filtrar): describe la cola. */
+  /** Total de mensajes en la caché del buzón (sin filtrar). */
   allCount: number
   vipCount: number
   loading?: boolean
@@ -38,6 +39,8 @@ interface ThreadListProps {
   hasMore?: boolean
   onLoadMore?: () => void
   onFilter: (filter: FilterId) => void
+  oldestFirst: boolean
+  onSort: (oldestFirst: boolean) => void
   onContextMenu?: (anchor: ContextAnchor, id: string, messageId?: string) => void
   onSelect: (id: string, messageId?: string) => void
 }
@@ -91,10 +94,18 @@ export function ThreadList({
   hasMore = false,
   onLoadMore,
   onFilter,
+  oldestFirst,
+  onSort,
   onContextMenu,
   onSelect
 }: ThreadListProps): React.JSX.Element {
   const { t, locale } = useI18n()
+  const [menu, setMenu] = useState<{ kind: 'sort' | 'filter'; anchor: ContextAnchor } | null>(null)
+  const closeMenu = useCallback(() => setMenu(null), [])
+  const openMenu = (kind: 'sort' | 'filter', trigger: HTMLElement): void => {
+    const rect = trigger.getBoundingClientRect()
+    setMenu({ kind, anchor: { x: rect.left, y: rect.bottom + 6, trigger } })
+  }
   // En modo real las pestañas no son "prioridad": son todos / sin leer / leídos,
   // y el pie no puede decir "clasificado hace…" porque nadie clasifica nada.
   const focusedLabel = live ? t('list.unread') : t('list.focused')
@@ -104,7 +115,7 @@ export function ThreadList({
       ? t('list.all')
       : filter === 'other'
         ? otherLabel
-        : focusedLabel
+        : filter === 'focused' ? focusedLabel : t(QUEUE_LABEL[filter])
     : t(QUEUE_LABEL[filter])
 
   const seen = new Set<string>()
@@ -164,10 +175,10 @@ export function ThreadList({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
-            <TooltipButton className="icon-btn" type="button" title={t('list.sort')} aria-label={t('list.sort')}>
+            <TooltipButton className="icon-btn" type="button" title={t(oldestFirst ? 'list.oldestFirst' : 'list.newestFirst')} aria-label={t('list.sort')} aria-haspopup="menu" aria-expanded={menu?.kind === 'sort'} onClick={event => openMenu('sort', event.currentTarget)}>
               <Icon name="swap_vert" size={15} />
             </TooltipButton>
-            <TooltipButton className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')}>
+            <TooltipButton className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')} aria-haspopup="menu" aria-expanded={menu?.kind === 'filter'} onClick={event => openMenu('filter', event.currentTarget)}>
               <Icon name="filter_list" size={15} />
             </TooltipButton>
           </div>
@@ -176,12 +187,19 @@ export function ThreadList({
         <div className="list__queue">
           <span>
             {live
-              ? t('list.liveQueue', { count: allCount }).toUpperCase()
+              ? t('list.liveQueue', { count: allCount, loaded: threads.length }).toUpperCase()
               : t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}
           </span>
           {!live && <strong>{t('list.triaged')}</strong>}
         </div>
       </div>
+      {menu && <ContextMenu anchor={menu.anchor} label={t(menu.kind === 'sort' ? 'list.sort' : 'list.filter')} onClose={closeMenu}
+        actions={menu.kind === 'sort'
+          ? [false, true].map(value => ({ label: t(value ? 'list.oldestFirst' : 'list.newestFirst'), icon: oldestFirst === value ? 'check' : 'swap_vert', run: () => onSort(value) }))
+          : (live ? ['all', 'focused', 'other'] as const : ['all', 'focused', 'other', 'vip', 'files', 'needs-reply'] as const).map(value => ({
+            label: value === 'focused' ? focusedLabel : value === 'other' ? otherLabel : t(QUEUE_LABEL[value]),
+            icon: filter === value ? 'check' : 'filter_list', run: () => onFilter(value)
+          }))} />}
 
       {checkedIds.length > 0 && (
         <div className="list-selection">
@@ -339,6 +357,7 @@ export function ThreadList({
             {emptyLabel ?? t('list.empty')}
           </p>
         )}
+        {hasMore && onLoadMore && <button className="btn" type="button" onClick={onLoadMore}>{t('list.loadMore')}</button>}
       </div>
     </section>
   )

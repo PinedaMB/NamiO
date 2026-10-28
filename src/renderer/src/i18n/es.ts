@@ -120,7 +120,7 @@ export const es = {
   'sync.progress': 'Sincronizando {cached}/{total}',
   'list.emptyUnread': 'No hay mensajes sin leer.',
   'list.emptyRead': 'No hay mensajes leídos en esta carpeta.',
-  'list.liveQueue': 'Últimos {count} mensajes',
+  'list.liveQueue': '{loaded} mostrados · {count} en caché',
   'list.vip': 'VIP',
   'list.queue': 'COLA: {name}',
   'list.highPriority': 'Alta prioridad',
@@ -133,6 +133,9 @@ export const es = {
   'list.conversationMessages': '{count} mensajes',
   'list.loading': 'Cargando bandeja…',
   'list.sort': 'Ordenar',
+  'list.loadMore': 'Cargar más mensajes',
+  'list.newestFirst': 'Más recientes primero',
+  'list.oldestFirst': 'Más antiguos primero',
   'list.filter': 'Filtrar',
 
   'thread.threadOf': 'Hilo {n} de {total}',

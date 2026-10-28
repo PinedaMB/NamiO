@@ -117,7 +117,7 @@ export const en: Dictionary = {
   'sync.progress': 'Syncing {cached}/{total}',
   'list.emptyUnread': 'No unread messages.',
   'list.emptyRead': 'No read messages in this folder.',
-  'list.liveQueue': 'Latest {count} messages',
+  'list.liveQueue': '{loaded} shown · {count} cached',
   'list.vip': 'VIP',
   'list.queue': 'QUEUE: {name}',
   'list.highPriority': 'High Priority',
@@ -130,6 +130,9 @@ export const en: Dictionary = {
   'list.conversationMessages': '{count} messages',
   'list.loading': 'Loading mailbox…',
   'list.sort': 'Sort',
+  'list.loadMore': 'Load more messages',
+  'list.newestFirst': 'Newest first',
+  'list.oldestFirst': 'Oldest first',
   'list.filter': 'Filter',
 
   'thread.threadOf': 'Thread {n} of {total}',

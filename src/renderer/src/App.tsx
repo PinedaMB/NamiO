@@ -12,7 +12,8 @@ import type {
   MailboxInfo,
   OutboxItem,
   SearchHit,
-  SyncProgress
+  SyncProgress,
+  EnvelopeListOptions
 } from '@shared/ipc'
 import { isDraftMailbox, isSpamMailbox, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
@@ -54,13 +55,23 @@ function matchesFilter(thread: Thread, filter: FilterId): boolean {
     case 'vip':
       return thread.vip
     case 'files':
-      return thread.messages.some((message) => (message.attachments?.length ?? 0) > 0)
+      return Boolean(thread.hasAttachments) || thread.messages.some((message) => (message.attachments?.length ?? 0) > 0)
     case 'needs-reply':
       // Heurística de demo: lo que es VIP y sigue sin leer es lo que espera respuesta.
       return thread.unread && thread.vip
     default:
       return true
   }
+}
+
+function sortThreads(threads: readonly Thread[], oldestFirst: boolean): Thread[] {
+  // La demo ya viene ordenada y usa fechas de presentación, sin timestamp.
+  if (threads.every(thread => thread.date === undefined)) return oldestFirst ? [...threads].reverse() : [...threads]
+  const timestamp = (thread: Thread): number => {
+    const value = thread.date === undefined ? NaN : new Date(thread.date).getTime()
+    return Number.isFinite(value) ? value : 0
+  }
+  return [...threads].sort((a, b) => oldestFirst ? timestamp(a) - timestamp(b) : timestamp(b) - timestamp(a))
 }
 
 function matchesFolder(thread: Thread, folder: string): boolean {
@@ -111,6 +122,7 @@ export function App(): React.JSX.Element {
   const bulkRunning = useRef(false)
   const togglingRead = useRef(false)
   const [filter, setFilter] = useState<FilterId>('focused')
+  const [oldestFirst, setOldestFirst] = useState(false)
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [localDrafts, setLocalDrafts] = useState<Draft[]>([])
@@ -201,6 +213,10 @@ export function App(): React.JSX.Element {
   }, [applyActivity])
   /** Cuántos mensajes se piden a la caché (crece al llegar al final de la lista). */
   const [listLimit, setListLimit] = useState(PAGE_SIZE)
+  const [listCounts, setListCounts] = useState<{ total: number; unread: number } | null>(null)
+  const listOptions = useRef<EnvelopeListOptions>({})
+  const filterFocusUid = useRef<number | undefined>(undefined)
+  listOptions.current = { filter: filter === 'focused' ? 'unread' : filter === 'other' ? 'read' : 'all', oldestFirst, includeUid: uidOf(selectedId ?? '') ?? undefined }
   const loadingMoreRef = useRef(false)
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null)
   /** Solo se marca leído lo que el usuario abrió; la selección automática no cuenta. */
@@ -222,6 +238,7 @@ export function App(): React.JSX.Element {
       accountIdentity.current = identity
       accountGeneration.current += 1
       setThreads([])
+      setListCounts(null)
       setSelectedId(null)
       setIndividualMessageId(null)
       setLocalDrafts([])
@@ -246,7 +263,7 @@ export function App(): React.JSX.Element {
     ? pendingDraftThreads(threads, localDrafts, folder, locale, t('draft.local')) : threads,
   [draftsFolder, threads, localDrafts, folder, locale, t])
 
-  const visible = useMemo(() => {
+  const filteredThreads = useMemo(() => {
     if (live) {
       // El hilo abierto sigue visible aunque se marque leído: si desapareciera
       // del filtro, la selección saltaría al siguiente y lo marcaría leído
@@ -258,6 +275,7 @@ export function App(): React.JSX.Element {
     }
     return listedThreads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
   }, [live, listedThreads, filter, folder, selectedId])
+  const visible = useMemo(() => sortThreads(filteredThreads, oldestFirst), [filteredThreads, oldestFirst])
 
   useEffect(() => {
     setCheckedIds([])
@@ -324,9 +342,9 @@ export function App(): React.JSX.Element {
     [listedThreads, selectedId, visible]
   )
 
-  const unreadCount = listedThreads.filter((thread) => thread.unread).length
-  const otherCount = listedThreads.filter((thread) => !thread.unread).length
-  const allCount = listedThreads.length
+  const unreadCount = live && listCounts ? listCounts.unread : listedThreads.filter((thread) => thread.unread).length
+  const otherCount = live && listCounts ? listCounts.total - listCounts.unread : listedThreads.filter((thread) => !thread.unread).length
+  const allCount = live && listCounts ? listCounts.total : listedThreads.length
   const vipCount = threads.filter((thread) => thread.vip).length
 
   const folderViews = useMemo<readonly FolderView[]>(() => {
@@ -341,7 +359,7 @@ export function App(): React.JSX.Element {
   }, [live, mailboxes, t])
 
   const loadFolder = useCallback(
-    async (path: string, focusUid?: number): Promise<void> => {
+    async (path: string, focusUid?: number, sync = true): Promise<void> => {
       const generation = accountGeneration.current
       const request = ++folderRequest.current
       activeFolderRef.current = path
@@ -351,8 +369,9 @@ export function App(): React.JSX.Element {
       setLoadingFolder(true)
       setFolder(path)
       setListLimit(PAGE_SIZE)
+      setListCounts(null)
       if (focusUid === undefined) setSelectedId(null)
-      const result = await window.api.listEnvelopes(path, PAGE_SIZE, true).catch(() => null)
+      const result = await window.api.listEnvelopes(path, PAGE_SIZE, sync, { ...listOptions.current, includeUid: focusUid }).catch(() => null)
       if (generation !== accountGeneration.current || request !== folderRequest.current) return
       const drafts = await window.api.listDrafts().catch(() => [])
       if (generation !== accountGeneration.current || request !== folderRequest.current) return
@@ -366,6 +385,7 @@ export function App(): React.JSX.Element {
       }
 
       setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
+      setListCounts(result.counts ?? null)
       let envelopes = result.data
       if (focusUid !== undefined && !envelopes.some(envelope => envelope.uid === focusUid)) {
         const message = await window.api.getMessage(path, focusUid).catch(() => null)
@@ -384,6 +404,12 @@ export function App(): React.JSX.Element {
     },
     [locale]
   )
+
+  useEffect(() => {
+    const focusUid = filterFocusUid.current
+    filterFocusUid.current = undefined
+    if (live) void loadFolder(activeFolderRef.current, focusUid, false)
+  }, [filter, oldestFirst])
 
   useEffect(() => {
     if (!live || !mailboxes.some(mailbox => mailbox.path === folder)) return
@@ -405,6 +431,7 @@ export function App(): React.JSX.Element {
   const openHit = useCallback(
     (hit: SearchHit): void => {
       setMessageOpen(true)
+      if (filter !== (hit.unread ? 'focused' : 'other')) filterFocusUid.current = hit.uid
       setFilter(hit.unread ? 'focused' : 'other')
       userNavigated.current = true
       const id = `live:${hit.uid}`
@@ -417,7 +444,7 @@ export function App(): React.JSX.Element {
 
       if (hit.unread) markRead(hit.mailbox, hit.uid, id)
     },
-    [folder, loadFolder, markRead]
+    [folder, loadFolder, markRead, filter]
   )
 
   // Búsqueda con debounce: 2 caracteres mínimo y una sola consulta en vuelo.
@@ -460,12 +487,13 @@ export function App(): React.JSX.Element {
     if (generation !== accountGeneration.current || request !== folderRequest.current) return
     if (boxes?.ok) setMailboxes(boxes.data)
 
-    const list = await window.api.listEnvelopes(folder, listLimit, false).catch(() => null)
+    const list = await window.api.listEnvelopes(folder, listLimit, false, listOptions.current).catch(() => null)
     if (generation !== accountGeneration.current || request !== folderRequest.current || !list?.ok) return
 
     const drafts = await window.api.listDrafts().catch(() => [])
     if (generation !== accountGeneration.current || request !== folderRequest.current) return
     setLocalDrafts(drafts)
+    setListCounts(list.counts ?? null)
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = envelopesToThreads(list.data, locale)
     setThreads((previous) => mergeLoaded(previous, mapped))
@@ -502,17 +530,17 @@ export function App(): React.JSX.Element {
   const loadMore = useCallback(async (): Promise<void> => {
     if (!live || loadingFolder || loadingMoreRef.current || folder !== activeFolderRef.current) return
     const request = folderRequest.current
-    const next = Math.min(listLimit + 100, 2000)
-    if (next === listLimit) return
+    const next = listLimit + 100
 
     const generation = accountGeneration.current
     loadingMoreRef.current = true
-    setListLimit(next)
     try {
-      const result = await window.api.listEnvelopes(folder, next, false).catch(() => null)
+      const result = await window.api.listEnvelopes(folder, next, false, listOptions.current).catch(() => null)
       if (generation !== accountGeneration.current || request !== folderRequest.current || !result?.ok) return
 
       const mapped = envelopesToThreads(result.data, locale)
+      setListLimit(next)
+      setListCounts(result.counts ?? null)
       setThreads((previous) => mergeLoaded(previous, mapped))
       setSelectedId((current) =>
         mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)
@@ -983,6 +1011,7 @@ export function App(): React.JSX.Element {
         }
         if (notificationTarget.identity === accountIdentity.current) {
           setView('mailbox')
+          if (listOptions.current.filter !== 'all') filterFocusUid.current = notificationTarget.uid
           setFilter('all')
           setQuery('')
           await loadFolder(notificationTarget.path, notificationTarget.uid)
@@ -1082,8 +1111,11 @@ export function App(): React.JSX.Element {
     : sync.offline
       ? t('sidebar.offline')
       : sync.syncedAt
-        ? t('sidebar.syncedAgo', { time: formatElapsed(now - sync.syncedAt, locale) })
+        ? t('sidebar.synced')
         : t('sidebar.syncing')
+  const syncDetail = live && !sync.offline && sync.syncedAt
+    ? t('sidebar.syncedAgo', { time: formatElapsed(now - sync.syncedAt, locale) })
+    : syncLabel
 
   const outboxFailed = outbox.find((item) => item.status === 'failed') ?? null
 
@@ -1145,6 +1177,7 @@ export function App(): React.JSX.Element {
         activity={activity}
         showTags={!live}
         syncLabel={syncLabel}
+        syncDetail={syncDetail}
         offline={live && sync.offline}
         onFolderContextMenu={(anchor, id) => setContextMenu({ ...anchor, kind: 'folder', id })}
         onSelectFolder={selectFolder}
@@ -1258,6 +1291,8 @@ export function App(): React.JSX.Element {
                     : undefined
                 }
                 onFilter={setFilter}
+                oldestFirst={oldestFirst}
+                onSort={setOldestFirst}
                 onContextMenu={(anchor, id, messageId) => {
                   setSelectedId(id)
                   setIndividualMessageId(messageId ?? null)

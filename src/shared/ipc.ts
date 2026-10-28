@@ -205,6 +205,15 @@ export interface Envelope {
   size: number
 }
 
+export interface EnvelopeListOptions {
+  filter?: 'all' | 'unread' | 'read'
+  oldestFirst?: boolean
+  /** Conserva el mensaje abierto aunque cambie su estado de lectura. */
+  includeUid?: number
+}
+
+export type EnvelopeListResult = CachedResult<Envelope[]> & { counts?: { total: number; unread: number } }
+
 export interface MessageAttachment {
   name: string
   size: number
@@ -407,7 +416,7 @@ export interface MailApi {
 
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
-  listEnvelopes(path: string, limit: number, sync?: boolean): Promise<CachedResult<Envelope[]>>
+  listEnvelopes(path: string, limit: number, sync?: boolean, options?: EnvelopeListOptions): Promise<EnvelopeListResult>
   getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>
