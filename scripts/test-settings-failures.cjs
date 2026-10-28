@@ -19,7 +19,7 @@ function provider(file, name) {
         createContext: () => ({ Provider: 'provider' }), useEffect() {}, useCallback: fn => fn, useMemo: fn => fn(),
         useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = value }] }
       }
-      if (id === './shortcuts') return { DEFAULT_BINDINGS: { reply: 'r' }, normalizeBindings: () => ({}) }
+      if (id === './shortcuts') return { defaultShortcutModifier: () => 'ctrl', DEFAULT_BINDINGS: { reply: 'r' }, normalizeBindings: () => ({}) }
       if (id === './es') return { es: {} }
       if (id === './en') return { en: {} }
       return require(id)
@@ -32,6 +32,7 @@ async function checkPreferences() {
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setBodyTheme', 'bodyTheme', 'dark'],
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setRemoteImages', 'remoteImages', 'allow'],
     ['src/renderer/src/settings/ShortcutsProvider.tsx', 'ShortcutsProvider', 'save', 'bindings', { reply: 'x' }],
+    ['src/renderer/src/settings/ShortcutsProvider.tsx', 'ShortcutsProvider', 'setModifier', 'modifier', 'command'],
     ['src/renderer/src/i18n/index.tsx', 'I18nProvider', 'setLocale', 'locale', 'en']
   ]) {
     const subject = provider(file, name)
@@ -44,6 +45,7 @@ async function checkPreferences() {
     subject.fail(false)
     await subject.render()[setter](value)
     assert.equal(subject.render()[field], value)
+    if (field === 'modifier') assert.equal(subject.writes.at(-1).shortcutModifier, 'command')
     assert.equal(subject.render().saveError, null)
   }
 }

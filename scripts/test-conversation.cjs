@@ -54,6 +54,7 @@ const clicked = []
 vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { exports: pane, require: id => {
   if (id === 'react') return { ...React, useState: () => [null, () => {}], useEffect() {} }
   if (id === '../lib/dates') return dates
+  if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
   if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: 'dark' }) }
   if (id === '../settings/shortcuts') return { formatCombo: () => '' }
@@ -62,6 +63,7 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { expo
   if (id === './SenderAvatar') return { SenderAvatar: () => null }
   if (id === './Tooltip') return { TooltipButton: () => null }
   if (id === './Icon') return { Icon: () => null }
+  if (id === '../assets/logo.png') return { default: 'logo.png' }
   return require(id)
 } })
 const messages = envelopes.slice(0, 3).reverse().map(item => live.detailToMessage({ ...item, to: [], text: 'Message body', html: '<p>Message body</p>', attachments: [{name: 'file.pdf', type: 'application/pdf', size: 12, index: 0}] }, 'es'))
@@ -110,6 +112,7 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadList.tsx'), { expo
   if (id === './SenderAvatar') return { SenderAvatar: () => null }
   if (id === './Tooltip') return { TooltipButton: () => null }
   if (id === './Icon') return { Icon: () => null }
+  if (id === '../assets/logo.png') return { default: 'logo.png' }
   return require(id)
 } })
 threads[0].priority = 'high'
@@ -127,6 +130,16 @@ function visitList(node) {
   if (!React.isValidElement(node)) return
   if (node.props.role === 'img' && node.props['aria-label'] === 'mail.priorityHigh') importanceIndicators++
   if (node.type === 'article') articleCount++
+  if (node.props.className === 'thread__avatar-wrap') {
+    const label = React.Children.toArray(node.props.children).find(child => child.props?.className === 'thread__select')
+    assert.ok(label, 'checkbox shares the exact avatar container')
+    let stopped = false
+    label.props.onClick({stopPropagation: () => {stopped = true}})
+    assert.equal(stopped, true, 'checkbox clicks do not open the message')
+    stopped = false
+    label.props.onKeyDown({key: ' ', stopPropagation: () => {stopped = true}})
+    assert.equal(stopped, true, 'space selects without opening the message')
+  }
   if (node.props.className === 'thread-group__messages') disclosureCount++
   if (node.type === 'button' && node.props.className?.startsWith('thread-group__message')) {
     node.props.onClick()
@@ -190,3 +203,21 @@ function inspectCard(node) {
 inspectCard(listTree)
 assert.ok(filesIndicator)
 console.log('Cards: inline disclosure, attachment indicator, MIME detection and cached attachment metadata passed')
+
+const quickActions = []
+const welcomeTree = pane.ThreadPaneEmpty({ bindings: { compose: 'c', palette: 'mod+k', settings: 'mod+,' },
+  onCompose: () => quickActions.push('compose'), onSearch: () => quickActions.push('search'), onSettings: () => quickActions.push('settings') })
+const welcomeButtons = []
+function visitWelcome(node) {
+  if (!React.isValidElement(node)) return
+  if (node.props.className === 'mail-welcome__action') welcomeButtons.push(node)
+  React.Children.forEach(node.props.children, visitWelcome)
+}
+visitWelcome(welcomeTree)
+assert.equal(welcomeButtons.length, 3)
+for (const button of welcomeButtons) button.props.onClick()
+assert.deepEqual(quickActions, ['compose', 'search', 'settings'])
+welcomeButtons.length = 0
+visitWelcome(pane.ThreadPaneEmpty({ loading: true, bindings: {} }))
+assert.equal(welcomeButtons.length, 0, 'loading does not offer premature actions')
+console.log('Reader welcome: compose, search and settings invoke real callbacks; loading is preserved')

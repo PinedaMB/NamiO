@@ -1,3 +1,4 @@
+import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../data/demo'
 import { useI18n } from '../i18n'
@@ -43,6 +44,7 @@ export function CommandPalette({
   onSelectFolder,
   onOpenSettings
 }: CommandPaletteProps): React.JSX.Element | null {
+  const formatCombo = useFormatCombo()
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
   const [query, setQuery] = useState('')
@@ -259,7 +261,7 @@ export function CommandPalette({
             <kbd className="kbd">Tab</kbd> {t('palette.autocomplete')}
           </span>
           <span>
-            <kbd className="kbd">⌘↵</kbd> {t('palette.secondary')}
+            <kbd className="kbd">{formatCombo('mod+enter')}</kbd> {t('palette.secondary')}
           </span>
           <span style={{ marginLeft: 'auto' }}>{t('palette.engine')}</span>
         </div>

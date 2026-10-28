@@ -20,6 +20,7 @@ import {
   type MessageDetail,
   type OutboxItem,
   type PickedAttachment,
+  type AttachmentPreview,
   type Draft,
   type Rule,
   type RuleDraft,
@@ -82,6 +83,7 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.messageArchive, path, uid),
   deleteMessage: (path: string, uid: number): Promise<MailAction> => ipcRenderer.invoke(IPC.messageDelete, path, uid),
   deleteMessages: (path: string, uids?: number[]): Promise<MailAction> => ipcRenderer.invoke(IPC.messagesDelete, path, uids),
+  previewAttachment: (path: string, uid: number, index: number): Promise<AttachmentPreview> => ipcRenderer.invoke(IPC.attachmentPreview, path, uid, index),
   saveAttachment: (path: string, uid: number, index: number): Promise<string | null> =>
     ipcRenderer.invoke(IPC.attachmentSave, path, uid, index),
 
@@ -95,7 +97,7 @@ const api: MailApi = {
   listOutbox: (): Promise<OutboxItem[]> => ipcRenderer.invoke(IPC.outboxList),
   retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
-  search: (query: string, limit = 60): Promise<SearchHit[]> => ipcRenderer.invoke(IPC.searchQuery, query, limit),
+  search: (query: string, limit = 60, offset = 0): Promise<SearchHit[]> => ipcRenderer.invoke(IPC.searchQuery, query, limit, offset),
   senderLogo: (email: string, mailbox: string): Promise<string | null> => ipcRenderer.invoke(IPC.senderLogo, email, mailbox),
   syncMailbox: (path: string): Promise<ImapResult<boolean>> => ipcRenderer.invoke(IPC.syncMailbox, path),
   syncProgress: (): Promise<SyncProgress | null> => ipcRenderer.invoke(IPC.syncProgress),

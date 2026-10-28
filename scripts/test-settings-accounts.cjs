@@ -12,7 +12,7 @@ function settings(accounts, events, section = 'accounts') {
     if (id.endsWith('.png')) return { default: '/image.png' }
     if (id === 'react') return { ...React, useEffect: () => {}, useRef: () => ({ current: null }), useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
-    if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }) }
+    if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }), useFormatCombo: () => combo => combo }
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }

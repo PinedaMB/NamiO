@@ -2,6 +2,7 @@ import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   NotificationTarget,
+  AttachmentPreview,
   Draft,
   AccountState,
   AccountActivity,
@@ -21,6 +22,8 @@ import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFold
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ContextMenu, type ContextAnchor, type ContextAction } from './components/ContextMenu'
+import { DocumentViewer } from './components/DocumentViewer'
+import { ImageViewer } from './components/ImageViewer'
 import { ThreadList } from './components/ThreadList'
 import { SearchResults } from './components/SearchResults'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
@@ -115,7 +118,7 @@ export function App(): React.JSX.Element {
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [contextMenu, setContextMenu] = useState<(ContextAnchor & { kind: 'message' | 'folder'; id: string; messageId?: string }) | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
-  const [selectedId, setSelectedId] = useState<string | null>(THREADS[0]?.id ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [individualMessageId, setIndividualMessageId] = useState<string | null>(null)
   const [checkedIds, setCheckedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -179,7 +182,18 @@ export function App(): React.JSX.Element {
   })
   const [now, setNow] = useState(() => Date.now())
   const [outbox, setOutbox] = useState<readonly OutboxItem[]>([])
-  const [query, setQuery] = useState('')
+  const [query, setQueryValue] = useState('')
+  const [searchOffset, setSearchOffset] = useState(0)
+  const [searchHasMore, setSearchHasMore] = useState(false)
+  const [searchError, setSearchError] = useState(false)
+  const [searchRetry, setSearchRetry] = useState(0)
+  const setQuery = (value: string): void => {
+    setSearchOffset(0)
+    setSearchHasMore(false)
+    setQueryValue(value)
+  }
+  const [attachmentPreview, setAttachmentPreview] = useState<{ attachment?: AttachmentPreview; kind: 'image' | 'pdf' | 'text'; title: string; error?: boolean; save: () => void } | null>(null)
+  const attachmentRequest = useRef(0)
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
   const busySwitch = useRef(false)
@@ -245,6 +259,8 @@ export function App(): React.JSX.Element {
       setMailboxes([])
       setQuery('')
       setHits([])
+      setAttachmentPreview(null)
+      attachmentRequest.current += 1
       setSearching(false)
       setLoadingFolder(state.configured)
       setFolder('inbox')
@@ -338,7 +354,7 @@ export function App(): React.JSX.Element {
   }
 
   const selected = useMemo(
-    () => listedThreads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
+    () => selectedId === null ? null : listedThreads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
     [listedThreads, selectedId, visible]
   )
 
@@ -371,36 +387,39 @@ export function App(): React.JSX.Element {
       setListLimit(PAGE_SIZE)
       setListCounts(null)
       if (focusUid === undefined) setSelectedId(null)
-      const result = await window.api.listEnvelopes(path, PAGE_SIZE, sync, { ...listOptions.current, includeUid: focusUid }).catch(() => null)
-      if (generation !== accountGeneration.current || request !== folderRequest.current) return
-      const drafts = await window.api.listDrafts().catch(() => [])
-      if (generation !== accountGeneration.current || request !== folderRequest.current) return
-      setLocalDrafts(drafts)
-      setLoadingFolder(false)
-
-      if (!result) return
-      if (!result.ok) {
-        setLiveError({ code: result.code, detail: result.detail })
-        return
-      }
-
-      setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
-      setListCounts(result.counts ?? null)
-      let envelopes = result.data
-      if (focusUid !== undefined && !envelopes.some(envelope => envelope.uid === focusUid)) {
-        const message = await window.api.getMessage(path, focusUid).catch(() => null)
+      try {
+        const result = await window.api.listEnvelopes(path, PAGE_SIZE, sync, { ...listOptions.current, includeUid: focusUid }).catch(() => null)
         if (generation !== accountGeneration.current || request !== folderRequest.current) return
-        if (!message?.ok) {
-          setLiveError({ code: message && !message.ok ? message.code : 'unknown', detail: message && !message.ok ? message.detail : 'IPC' })
+        const drafts = await window.api.listDrafts().catch(() => [])
+        if (generation !== accountGeneration.current || request !== folderRequest.current) return
+        setLocalDrafts(drafts)
+
+        if (!result) return
+        if (!result.ok) {
+          setLiveError({ code: result.code, detail: result.detail })
           return
         }
-        envelopes = [...envelopes, message.data]
+
+        setSync({ offline: result.meta.offline, syncedAt: result.meta.syncedAt })
+        setListCounts(result.counts ?? null)
+        let envelopes = result.data
+        if (focusUid !== undefined && !envelopes.some(envelope => envelope.uid === focusUid)) {
+          const message = await window.api.getMessage(path, focusUid).catch(() => null)
+          if (generation !== accountGeneration.current || request !== folderRequest.current) return
+          if (!message?.ok) {
+            setLiveError({ code: message && !message.ok ? message.code : 'unknown', detail: message && !message.ok ? message.detail : 'IPC' })
+            return
+          }
+          envelopes = [...envelopes, message.data]
+        }
+        const mapped = envelopesToThreads(envelopes, locale)
+        setThreads(mapped)
+        userNavigated.current = false
+        setSelectedId(focusUid !== undefined ? `live:${focusUid}` : null)
+        setLiveError(null)
+      } finally {
+        if (generation === accountGeneration.current && request === folderRequest.current) setLoadingFolder(false)
       }
-      const mapped = envelopesToThreads(envelopes, locale)
-      setThreads(mapped)
-      userNavigated.current = false
-      setSelectedId(focusUid !== undefined ? `live:${focusUid}` : (mapped[0]?.id ?? null))
-      setLiveError(null)
     },
     [locale]
   )
@@ -427,48 +446,52 @@ export function App(): React.JSX.Element {
     [live]
   )
 
-  /** Abre un resultado de búsqueda: cambia de buzón si hace falta y selecciona el mensaje. */
+  /** Carga el resultado explícito aunque esté fuera de la tanda visible. */
   const openHit = useCallback(
     (hit: SearchHit): void => {
       setMessageOpen(true)
-      if (filter !== (hit.unread ? 'focused' : 'other')) filterFocusUid.current = hit.uid
-      setFilter(hit.unread ? 'focused' : 'other')
-      userNavigated.current = true
-      const id = `live:${hit.uid}`
-
-      if (hit.mailbox !== folder) {
-        void loadFolder(hit.mailbox, hit.uid)
-      } else {
-        setSelectedId(id)
-      }
-
-      if (hit.unread) markRead(hit.mailbox, hit.uid, id)
+      const generation = accountGeneration.current
+      const pending = loadFolder(hit.mailbox, hit.uid, false)
+      const request = folderRequest.current
+      void pending.then(() => {
+        if (generation !== accountGeneration.current || request !== folderRequest.current) return
+        userNavigated.current = true
+        setIndividualMessageId(`live:${hit.uid}`)
+        if (hit.unread) markRead(hit.mailbox, hit.uid, `live:${hit.uid}`)
+      })
     },
-    [folder, loadFolder, markRead, filter]
+    [loadFolder, markRead]
   )
 
-  // Búsqueda con debounce: 2 caracteres mínimo y una sola consulta en vuelo.
+  // Cada página pide un resultado extra para saber si quedan más coincidencias.
   useEffect(() => {
     const trimmed = query.trim()
     if (trimmed.length < 2) {
       setHits([])
       setSearching(false)
+      setSearchHasMore(false)
+      setSearchError(false)
       return
     }
 
     let cancelled = false
     const generation = accountGeneration.current
     setSearching(true)
+    setSearchError(false)
+    if (searchOffset === 0) setHits([])
     const timer = window.setTimeout(() => {
       void window.api
-        .search(trimmed, 60)
+        .search(trimmed, 61, searchOffset)
         .then((result) => {
           if (cancelled || generation !== accountGeneration.current) return
-          setHits(result)
+          setHits(previous => searchOffset === 0 ? result.slice(0, 60) : [...previous, ...result.slice(0, 60)])
+          setSearchHasMore(result.length > 60)
           setSearching(false)
         })
         .catch(() => {
-          if (!cancelled && generation === accountGeneration.current) setSearching(false)
+          if (cancelled || generation !== accountGeneration.current) return
+          setSearchError(true)
+          setSearching(false)
         })
     }, 200)
 
@@ -476,7 +499,7 @@ export function App(): React.JSX.Element {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [query, searchOffset, searchRetry])
 
   /** Relee la caché sin tocar la red: lo usa el aviso de "buzón sincronizado". */
   const refreshFromCache = useCallback(async (): Promise<void> => {
@@ -497,7 +520,7 @@ export function App(): React.JSX.Element {
     setSync({ offline: list.meta.offline, syncedAt: list.meta.syncedAt })
     const mapped = envelopesToThreads(list.data, locale)
     setThreads((previous) => mergeLoaded(previous, mapped))
-    setSelectedId((current) => (mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
+    setSelectedId((current) => (current === null || mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)))
   }, [folder, locale, listLimit])
 
   const handleSync = async (path = folder): Promise<void> => {
@@ -543,7 +566,7 @@ export function App(): React.JSX.Element {
       setListCounts(result.counts ?? null)
       setThreads((previous) => mergeLoaded(previous, mapped))
       setSelectedId((current) =>
-        mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)
+        current === null || mapped.some((thread) => thread.id === current) ? current : (mapped[0]?.id ?? null)
       )
     } finally {
       loadingMoreRef.current = false
@@ -605,7 +628,7 @@ export function App(): React.JSX.Element {
     setSettings(preferences ?? {})
     // Sin cuenta se limpia el estado real y se recupera la bienvenida.
     setThreads(THREADS)
-    setSelectedId(THREADS[0]?.id ?? null)
+    setSelectedId(null)
     setMailboxes([])
     setFolder('inbox')
     setLiveError(null)
@@ -711,7 +734,7 @@ export function App(): React.JSX.Element {
   }
 
   useEffect(() => {
-    if (selectedId && visible.some((thread) => thread.id === selectedId)) return
+    if (selectedId === null || visible.some((thread) => thread.id === selectedId)) return
     setSelectedId(visible[0]?.id ?? null)
   }, [visible, selectedId])
 
@@ -814,14 +837,28 @@ export function App(): React.JSX.Element {
     const uid = uidOf(messageId ?? selected.id)
     if (uid === null) return
 
-    void window.api
-      .saveAttachment(folder, uid, index)
-      .then((saved) => {
-        if (saved) setToast(t('toast.saved', { path: saved }))
-      })
-      .catch((error: unknown) => {
-        setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'adjunto' }))
-      })
+    const save = (): void => {
+      void window.api
+        .saveAttachment(folder, uid, index)
+        .then((saved) => {
+          if (saved) setToast(t('toast.saved', { path: saved }))
+        })
+        .catch((error: unknown) => {
+          setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'adjunto' }))
+        })
+    }
+    const message = selected.messages.find(item => item.id === (messageId ?? selected.id))
+    const attachment = message?.attachments?.[index]
+    if (!attachment || (attachment.kind !== 'image' && attachment.kind !== 'pdf' && attachment.kind !== 'text')) { save(); return }
+    const kind = attachment.kind
+    const generation = accountGeneration.current
+    const request = ++attachmentRequest.current
+    setAttachmentPreview({ kind, title: attachment.name, save })
+    void window.api.previewAttachment(folder, uid, index).then(image => {
+      if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ kind, title: image.name, attachment: image, save })
+    }).catch(() => {
+      if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ kind, title: attachment.name, error: true, save })
+    })
   }
 
   /** Alterna leído/no leído; en modo real escribe `\Seen` en el servidor. */
@@ -1052,7 +1089,16 @@ export function App(): React.JSX.Element {
           setAccountOpen(false)
           return
         }
-        if (view === 'settings') setView('mailbox')
+        if (view === 'settings') {
+          setView('mailbox')
+          return
+        }
+        if (event.defaultPrevented || typing) return
+        const activeRow = document.querySelector<HTMLElement>('.thread--active button, .thread--active [tabindex="0"]')
+        setSelectedId(null)
+        setIndividualMessageId(null)
+        setMessageOpen(false)
+        activeRow?.focus()
         return
       }
 
@@ -1264,6 +1310,10 @@ export function App(): React.JSX.Element {
                   query={query.trim()}
                   hits={hits}
                   loading={searching}
+                  error={searchError}
+                  hasMore={searchHasMore}
+                  onLoadMore={() => setSearchOffset(hits.length)}
+                  onRetry={() => { setSearchOffset(0); setSearchRetry(value => value + 1) }}
                   selectedKey={selected ? `${folder}:${uidOf(selected.id) ?? ''}` : null}
                   onOpen={openHit}
                 />
@@ -1344,7 +1394,7 @@ export function App(): React.JSX.Element {
                   onNext={() => step(1)}
                 />
               ) : (
-                <ThreadPaneEmpty loading={loadingFolder} label={live ? t('account.liveEmpty') : undefined} />
+                <ThreadPaneEmpty bindings={bindings} onCompose={openCompose} onSearch={() => setPaletteOpen(true)} onSettings={openSettings} loading={loadingFolder} label={live && visible.length === 0 ? t('account.liveEmpty') : undefined} />
               )}
 
               {!live && (
@@ -1491,6 +1541,11 @@ export function App(): React.JSX.Element {
         </div>
       )}
 
+      {attachmentPreview && (attachmentPreview.kind === 'image'
+        ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} error={attachmentPreview.error} onSave={attachmentPreview.save}
+          onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />
+        : <DocumentViewer title={attachmentPreview.title} attachment={attachmentPreview.attachment} error={attachmentPreview.error} onSave={attachmentPreview.save}
+          onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />)}
       {toast && (
         <div className="toast" role="status">
           <Icon name="check_circle" size={16} />

@@ -1,3 +1,4 @@
+import { useShortcuts, useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
 import { LOCALES, useI18n } from '../i18n'
 import { Icon } from './Icon'
@@ -38,6 +39,8 @@ export function Topbar({
   onSync,
   syncing
 }: TopbarProps): React.JSX.Element {
+  const { bindings, modifier } = useShortcuts()
+  const formatCombo = useFormatCombo()
   const { t, locale, setLocale } = useI18n()
 
   return (
@@ -103,8 +106,7 @@ export function Topbar({
         />
         {query === '' ? (
           <span className="search__hint">
-            <kbd className="kbd">⌘</kbd>
-            <kbd className="kbd">K</kbd>
+            <kbd className="kbd">{formatCombo(bindings.palette)}</kbd>
           </span>
         ) : (
           <TooltipButton className="search__clear" type="button" onClick={() => onQuery('')} title={t('common.close')}>
@@ -121,7 +123,7 @@ export function Topbar({
           aria-label={t('status.actions')}
           onClick={onOpenPalette}
         >
-          <Icon name="keyboard_command_key" size={18} />
+          <span className="mono">{modifier === 'command' ? '⌘' : 'Ctrl'}</span>
         </TooltipButton>
         <div className="lang-switch" role="group" aria-label={t('topbar.language')}>
           {LOCALES.map((item) => (

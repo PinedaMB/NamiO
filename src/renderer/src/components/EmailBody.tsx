@@ -1,3 +1,4 @@
+import { ImageViewer } from './ImageViewer'
 import DOMPurify from 'dompurify'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { BodyTheme } from '@shared/ipc'
@@ -68,6 +69,8 @@ function buildDocument(body: string, allowImages: boolean): string {
       word-break: normal;
     }
     img { max-width: 100%; height: auto; }
+    img[role=button] { cursor: zoom-in; }
+    img[role=button]:focus-visible { outline: 2px solid #8083ff; outline-offset: 2px; }
     a { color: #2f5bd3; }
     table { max-width: 100%; }
     pre, code { white-space: pre-wrap; }
@@ -82,16 +85,20 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   const bodyTheme = theme ?? preferredTheme
   const frameRef = useRef<HTMLIFrameElement>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
+  const themedDocument = useRef<{ document: Document; theme: BodyTheme } | null>(null)
   const measureFrame = useRef(0)
   const [allowOverride, setAllowOverride] = useState<boolean | null>(null)
   const [height, setHeight] = useState(320)
   const [background, setBackground] = useState<string | undefined>(undefined)
   const [readyDocument, setReadyDocument] = useState<string | null>(null)
 
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null)
+
   // La preferencia manda; el override es solo para este mensaje. Si el usuario
   // cambia la preferencia mientras lee, se vuelve a ella.
   useEffect(() => {
     setAllowOverride(null)
+    setPreviewImage(null)
   }, [remoteImages, html])
 
   const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
@@ -103,15 +110,19 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
 
   useLayoutEffect(() => {
     const inner = frameRef.current?.contentDocument
-    if (inner && readyDocument === documentHtml) setBackground(applyEmailTheme(inner, bodyTheme))
+    if (inner && readyDocument === documentHtml && (themedDocument.current?.document !== inner || themedDocument.current.theme !== bodyTheme)) {
+      setBackground(applyEmailTheme(inner, bodyTheme))
+      themedDocument.current = { document: inner, theme: bodyTheme }
+    }
   }, [bodyTheme, documentHtml, readyDocument])
 
   const handleLoad = (): void => {
     const frame = frameRef.current
     const inner = frame?.contentDocument
-    if (!frame || !inner) return
+    if (!frame || !inner || themedDocument.current?.document === inner) return
 
     setBackground(applyEmailTheme(inner, bodyTheme))
+    themedDocument.current = { document: inner, theme: bodyTheme }
 
     // El iframe comparte origen (sin scripts), así que el padre puede medirlo:
     // así el correo crece a su altura real y hay un solo scroll (el del lector).
@@ -149,8 +160,36 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
     if (inner.body) observer.observe(inner.body)
     observerRef.current = observer
 
+    inner.querySelectorAll('img').forEach(image => {
+      const src = image.currentSrc || image.src || ''
+      if (!image.closest('a') && src !== TRANSPARENT && /^(https?:|data:image\/)/i.test(src)) {
+        image.tabIndex = 0
+        image.setAttribute('role', 'button')
+        image.setAttribute('aria-label', image.alt || t('image.preview'))
+      }
+    })
+
+    inner.addEventListener('keydown', (event) => {
+      if ((event.key === 'Enter' || event.key === ' ') && !event.defaultPrevented) {
+        const image = (event.target as HTMLElement | null)?.closest<HTMLImageElement>('img[role="button"]')
+        if (image) { event.preventDefault(); image.click(); return }
+      }
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+
     inner.addEventListener('click', (event) => {
       const target = event.target as HTMLElement | null
+      const image = target?.closest('img')
+      if (image && !image.closest('a')) {
+        const src = image.currentSrc || image.src || ''
+        if (src !== TRANSPARENT && /^(https?:|data:image\/)/i.test(src)) {
+          event.preventDefault()
+          setPreviewImage({ src, title: image.alt || t('image.preview') })
+          return
+        }
+      }
       const anchor = target?.closest('a')
       if (!anchor) return
       event.preventDefault()
@@ -158,6 +197,21 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
       if (/^(https?:|mailto:)/i.test(href)) void window.api?.openExternal?.(href)
     })
   }
+
+  // El evento load espera imágenes remotas; el texto puede mostrarse antes.
+  useEffect(() => {
+    let frameId = 0
+    const showWhenParsed = (): void => {
+      const inner = frameRef.current?.contentDocument
+      if (inner?.URL === 'about:srcdoc' && inner.readyState !== 'loading' && inner.body) {
+        handleLoad()
+        return
+      }
+      frameId = requestAnimationFrame(showWhenParsed)
+    }
+    frameId = requestAnimationFrame(showWhenParsed)
+    return () => cancelAnimationFrame(frameId)
+  }, [documentHtml, bodyTheme])
 
   useEffect(() => () => {
     observerRef.current?.disconnect()
@@ -179,6 +233,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
       {readyDocument !== documentHtml && (
         <div className="letter-loading" role="status">{t('thread.loading')}</div>
       )}
+      {previewImage && <ImageViewer key={previewImage.src} src={previewImage.src} title={previewImage.title} onClose={() => setPreviewImage(null)} />}
       <iframe
         key={documentHtml}
         ref={frameRef}

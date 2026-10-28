@@ -1,3 +1,4 @@
+import { pdfAssets } from './scripts/pdf-assets'
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
@@ -59,6 +60,6 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [react(), cspMeta()]
+    plugins: [react(), cspMeta(), pdfAssets()]
   }
 })

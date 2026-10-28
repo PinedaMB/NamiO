@@ -1,12 +1,14 @@
+import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { useEffect, useState } from 'react'
 import type { BodyTheme } from '@shared/ipc'
+import logo from '../assets/logo.png'
 import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Attachment, Message, Thread } from '../data/demo'
 import { formatMessageDateTime } from '../lib/dates'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
-import { formatCombo, type Bindings } from '../settings/shortcuts'
+import { type Bindings } from '../settings/shortcuts'
 import { EmailBody } from './EmailBody'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
@@ -39,6 +41,8 @@ interface ThreadPaneProps {
 }
 
 const ATTACHMENT_ICON: Record<Attachment['kind'], { icon: string; tone: string }> = {
+  text: { icon: 'article', tone: 'var(--on-surface-variant)' },
+  image: { icon: 'image', tone: 'var(--primary)' },
   pdf: { icon: 'picture_as_pdf', tone: 'var(--primary)' },
   sheet: { icon: 'table_chart', tone: 'var(--tertiary)' },
   calendar: { icon: 'event', tone: 'var(--secondary)' },
@@ -124,6 +128,7 @@ export function ThreadPane({
   onNext,
   onBack
 }: ThreadPaneProps): React.JSX.Element {
+  const formatCombo = useFormatCombo()
   const { t, locale } = useI18n()
   const { bodyTheme: preferredTheme } = usePreferences()
   const themeKey = `${mailbox}:${thread.id}:${preferredTheme}`
@@ -303,7 +308,7 @@ export function ThreadPane({
                           key={`${attachment.name}-${index}`}
                           className="attachment"
                           type="button"
-                          title={t('thread.download')}
+                          title={t(['image', 'pdf', 'text'].includes(attachment.kind) ? 'document.preview' : 'thread.download')}
                           onClick={() => onOpenAttachment(index, message.id)}
                         >
                           <Icon name={meta.icon} size={18} className="attachment__icon" />
@@ -350,17 +355,45 @@ export function ThreadPane({
   )
 }
 
-export function ThreadPaneEmpty({ label, loading = false }: { label?: string; loading?: boolean }): React.JSX.Element {
+export function ThreadPaneEmpty({ label, loading = false, bindings, onCompose, onSearch, onSettings }: {
+  label?: string
+  loading?: boolean
+  bindings: Bindings
+  onCompose: () => void
+  onSearch: () => void
+  onSettings: () => void
+}): React.JSX.Element {
+  const formatCombo = useFormatCombo()
   const { t } = useI18n()
   return (
     <main className="reading" aria-label={t('thread.select')}>
-      <div className="reading__scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="reading__scroll reading__welcome-scroll">
         {loading ? (
           <div className="letter-loading" role="status">
             <Icon name="progress_activity" size={18} className="spin" />
             {t('list.loading')}
           </div>
-        ) : <p className="muted">{label ?? t('thread.select')}</p>}
+        ) : (
+          <section className="mail-welcome" aria-labelledby="mail-welcome-title">
+            <img className="mail-welcome__logo" src={logo} alt="" width={56} height={56} />
+            <h1 id="mail-welcome-title">{t('welcome.title')}</h1>
+            <p className="mail-welcome__hint">{t('welcome.hint')}</p>
+            <div className="mail-welcome__actions">
+              {[
+                { icon: 'edit_square', label: t('welcome.compose'), shortcut: bindings.compose, action: onCompose },
+                { icon: 'search', label: t('welcome.search'), shortcut: bindings.palette, action: onSearch },
+                { icon: 'settings', label: t('welcome.settings'), shortcut: bindings.settings, action: onSettings }
+              ].map(item => (
+                <button key={item.icon} type="button" className="mail-welcome__action" data-primary={item.icon === 'edit_square' || undefined} onClick={item.action}>
+                  <Icon name={item.icon} size={19} />
+                  <span className="mail-welcome__action-label">{item.label}</span>
+                  <kbd className="kbd">{formatCombo(item.shortcut)}</kbd>
+                </button>
+              ))}
+            </div>
+            <p className="mail-welcome__footer">{label ?? t('thread.select')}</p>
+          </section>
+        )}
       </div>
     </main>
   )

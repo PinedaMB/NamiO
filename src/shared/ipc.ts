@@ -35,6 +35,7 @@ export const IPC = {
   messageDelete: 'message:delete',
   messagesDelete: 'messages:delete',
   attachmentSave: 'attachment:save',
+  attachmentPreview: 'attachment:preview',
   shellOpen: 'shell:open',
   cacheChanged: 'cache:changed',
   mailSend: 'mail:send',
@@ -93,6 +94,7 @@ export interface AppSettings {
   language: Language
   /** Acción → combinación normalizada (`j`, `mod+k`). */
   shortcuts?: Record<string, string>
+  shortcutModifier?: 'ctrl' | 'command'
   /** Panel de contexto (IA) visible en la bandeja. */
   contextPanel?: boolean
   /** Imágenes remotas en el HTML de los correos: bloqueadas salvo que se permita. */
@@ -216,6 +218,11 @@ export interface EnvelopeListOptions {
 }
 
 export type EnvelopeListResult = CachedResult<Envelope[]> & { counts?: { total: number; unread: number } }
+
+export type AttachmentPreview =
+  | { kind: 'image'; name: string; src: string }
+  | { kind: 'pdf'; name: string; data: string }
+  | { kind: 'text'; name: string; text: string }
 
 export interface MessageAttachment {
   name: string
@@ -362,6 +369,7 @@ export interface SearchHit {  mailbox: string
   mailboxName: string
   uid: number
   subject: string
+  subjectMatch?: string
   from: EnvelopeAddress | null
   date: string
   unread: boolean
@@ -433,6 +441,7 @@ export interface MailApi {
   /** Sin UIDs, vacía exclusivamente Spam o Papelera, previa confirmación. */
   deleteMessages(path: string, uids?: number[]): Promise<MailAction>
   /** Descarga un adjunto y lo guarda donde el usuario elija. Devuelve la ruta o null si canceló. */
+  previewAttachment(path: string, uid: number, index: number): Promise<AttachmentPreview>
   saveAttachment(path: string, uid: number, index: number): Promise<string | null>
 
   sendMail(payload: SendMailPayload): Promise<MailAction>
@@ -449,7 +458,7 @@ export interface MailApi {
   cancelOutbox(id: string): Promise<void>
   onOutboxChanged(listener: () => void): () => void
   /** Búsqueda de texto completo sobre la caché local. */
-  search(query: string, limit?: number): Promise<SearchHit[]>
+  search(query: string, limit?: number, offset?: number): Promise<SearchHit[]>
   /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
   senderLogo(email: string, mailbox: string): Promise<string | null>
   syncMailbox(path: string): Promise<ImapResult<boolean>>

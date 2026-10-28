@@ -745,25 +745,21 @@ export function setFlagged(path: string, uid: number, flagged: boolean): Promise
 }
 
 /** Búsqueda local sobre lo ya sincronizado (asunto, remitentes y cuerpos). */
-export function searchMail(query: string, limit = 60): SearchHit[] {
+export function searchMail(query: string, limit = 60, offset = 0): SearchHit[] {
   const names = new Map(readMailboxes().map((box) => [box.path, box.name]))
 
-  try {
-    return searchMessages(query, limit).map((row) => ({
-      mailbox: row.mailbox,
-      mailboxName: names.get(row.mailbox) ?? row.mailbox,
-      uid: row.uid,
-      subject: row.subject,
-      from: row.fromAddr ? { name: row.fromName, address: row.fromAddr } : null,
-      date: new Date(row.date).toISOString(),
-      unread: row.unread,
-      flagged: row.flagged,
-      snippet: row.snippet
-    }))
-  } catch {
-    // Consulta inválida para FTS: la UI muestra "sin resultados" y sigue viva.
-    return []
-  }
+  return searchMessages(query, limit, offset).map((row) => ({
+    mailbox: row.mailbox,
+    mailboxName: names.get(row.mailbox) ?? row.mailbox,
+    uid: row.uid,
+    subject: row.subject,
+    subjectMatch: row.subjectMatch,
+    from: row.fromAddr ? { name: row.fromName, address: row.fromAddr } : null,
+    date: new Date(row.date).toISOString(),
+    unread: row.unread,
+    flagged: row.flagged,
+    snippet: row.snippet
+  }))
 }
 
 /** Actualización manual: espera a la red y devuelve el error al usuario. */
@@ -823,8 +819,10 @@ export function readAttachment(
   path: string,
   uid: number,
   index: number
-): Promise<{ name: string; content: Buffer }> {
+): Promise<{ name: string; content: Buffer; type: string }> {
+  const generation = syncGeneration
   return serial(async () => {
+    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
     const client = await ensureClient()
     const lock = await client.getMailboxLock(path)
 
@@ -836,10 +834,12 @@ export function readAttachment(
       for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
 
       const parsed = await simpleParser(Buffer.concat(chunks))
+      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
       const attachment = parsed.attachments[index]
       if (!attachment?.content) throw new Error('Adjunto no encontrado')
 
       return {
+        type: attachment.contentType,
         name: attachment.filename ?? `adjunto-${index + 1}`,
         content: Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content)
       }
@@ -1185,13 +1185,13 @@ export async function disconnectAccount(expectedId: string): Promise<void> {
     await closeSession()
     try {
       await deleteAccountCache(active)
+      const { active: next } = await removeAccount(active)
+      openAccountCache(next ?? 'default')
+      if (!next) await writeSettings({ onboarded: false })
     } catch (error) {
-      openAccountCache(active)
+      openAccountCache((await readAccounts()).active ?? 'default')
       throw error
     }
-    const { active: next } = await removeAccount(active)
-    openAccountCache(next ?? 'default')
-    if (!next) await writeSettings({ onboarded: false })
     notify('*')
   })
 }

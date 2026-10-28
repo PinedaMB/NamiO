@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, '..')
 const project = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 // Estas dependencias de desarrollo se incluyen en el renderer y sus assets.
 const renderer = ['react', 'react-dom', 'dompurify', '@tiptap/pm', '@tiptap/react', '@tiptap/starter-kit',
-  '@fontsource-variable/inter', '@fontsource-variable/jetbrains-mono', 'material-symbols']
+  '@fontsource-variable/inter', '@fontsource-variable/jetbrains-mono', 'material-symbols', 'pdfjs-dist']
 // Paquetes que declaran licencia pero no incluyen archivo de licencia en su tarball.
 const withoutLicenseFile = new Set(['lazy-val'])
 const packages = new Map()

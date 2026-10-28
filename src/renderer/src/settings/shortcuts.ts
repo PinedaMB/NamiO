@@ -70,13 +70,20 @@ export function comboFromEvent(event: KeyboardEvent): string | null {
   return parts.join('+')
 }
 
+export type ShortcutModifier = 'ctrl' | 'command'
+
+export function defaultShortcutModifier(): ShortcutModifier {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform) ? 'command' : 'ctrl'
+}
+
 /** Texto para mostrar en un `kbd`. */
-export function formatCombo(combo: string): string {
+export function formatCombo(combo: string, modifier: ShortcutModifier = defaultShortcutModifier()): string {
   const parts = combo.split('+')
   const key = parts.pop() ?? ''
-  const modifiers = parts.map((part) => (part === 'mod' ? '⌘' : part === 'alt' ? '⌥' : part === 'shift' ? '⇧' : part))
-  const label = key === 'space' ? 'Space' : key.length === 1 ? key.toUpperCase() : key.charAt(0).toUpperCase() + key.slice(1)
-  return `${modifiers.join('')}${label}`
+  const mac = modifier === 'command'
+  const modifiers = parts.map((part) => (part === 'mod' ? (mac ? '⌘' : 'Ctrl') : part === 'alt' ? (mac ? '⌥' : 'Alt') : part === 'shift' ? (mac ? '⇧' : 'Shift') : part))
+  const label = key === 'enter' ? '↵' : key === 'space' ? 'Space' : key.length === 1 ? key.toUpperCase() : key.charAt(0).toUpperCase() + key.slice(1)
+  return mac ? `${modifiers.join('')}${label}` : [...modifiers, label].join('+')
 }
 
 /** Solo acepta acciones conocidas y combinaciones no vacías: settings.json puede estar editado a mano. */

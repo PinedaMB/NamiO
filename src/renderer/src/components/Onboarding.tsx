@@ -4,6 +4,7 @@ import { GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import logo from '../assets/logo.png'
 import { useI18n, type TranslationKey } from '../i18n'
 import { cx } from '../lib/cx'
+import { serverFromEmail } from '../lib/serverFromEmail'
 import { Icon } from './Icon'
 import { ERROR_KEYS } from './errorKeys'
 import { PasswordField } from './PasswordField'
@@ -118,6 +119,15 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
     setSmtpHost(config.smtp.host)
     setSmtpPort(String(config.smtp.port))
     setSmtpSecure(config.smtp.secure)
+  }
+
+  const updateUser = (value: string): void => {
+    setUser(value)
+    if (choice !== 'custom') return
+    const previous = serverFromEmail(user)
+    const next = serverFromEmail(value)
+    if (!host || host === previous) setHost(next)
+    if (!smtpHost || smtpHost === previous) setSmtpHost(next)
   }
 
   const back = (): void => {
@@ -276,7 +286,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 <span>{preset?.oauth ? t('onboarding.email') : t('onboarding.emailOrUser')}</span>
                 <input
                   value={user}
-                  onChange={(event) => setUser(event.target.value)}
+                  onChange={(event) => updateUser(event.target.value)}
                   placeholder="tu@ejemplo.com"
                   autoComplete="username"
                   spellCheck={false}
@@ -321,7 +331,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                     {(choice === 'gmail' || choice === 'yahoo') && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
                   </label>
 
-                  <details className="account-advanced" open={choice === 'custom' || choice === 'local'}>
+                  <details className="account-advanced">
                     <summary>{t('account.advanced')}</summary>
                     <div className="account-form">
                   <div className="account-section">

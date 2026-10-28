@@ -32,21 +32,27 @@ async function check(kind) {
   assert.equal(events[0], true)
 }
 async function focusOldMessage(failure = false) {
-  let selected, threads, error
+  let selected, threads, error, loading = false, releaseMessage
   const context = {
     useCallback: fn => fn, locale: 'es', accountGeneration: { current: 1 }, folderRequest: { current: 0 },
     activeFolderRef: { current: null }, userNavigated: { current: false }, PAGE_SIZE: 50,
     setThreads: value => { threads = value }, setSelectedId: value => { selected = value },
-    listOptions: { current: {} }, setListCounts() {}, setIndividualMessageId() {}, setLoadingFolder() {}, setFolder() {}, setListLimit() {}, setLocalDrafts() {}, setSync() {},
+    listOptions: { current: {} }, setListCounts() {}, setIndividualMessageId() {}, setLoadingFolder: value => { loading = value }, setFolder() {}, setListLimit() {}, setLocalDrafts() {}, setSync() {},
     setLiveError: value => { error = value },
     envelopesToThreads: envelopes => envelopes.map(envelope => ({ id: `live:${envelope.uid}` })),
     window: { api: {
       listEnvelopes: async () => ({ ok: true, data: [{ uid: 99 }], meta: {} }), listDrafts: async () => [],
-      getMessage: async (path, uid) => { assert.equal(path, 'INBOX'); assert.equal(uid, 5); return failure ? { ok: false, code: 'unknown', detail: 'Gone' } : { ok: true, data: { uid: 5 } } }
+      getMessage: async (path, uid) => { assert.equal(path, 'INBOX'); assert.equal(uid, 5); await new Promise(resolve => { releaseMessage = resolve }); return failure ? { ok: false, code: 'unknown', detail: 'Gone' } : { ok: true, data: { uid: 5 } } }
     } }
   }
   const load = vm.runInNewContext(ts.transpile(`(${declarations.get('loadFolder')})`, { target: ts.ScriptTarget.ES2022 }), context)
-  await load('INBOX', 5)
+  const pending = load('INBOX', 5)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(loading, true, 'loading must continue while an older search result is fetched')
+  assert.equal(selected, null)
+  releaseMessage()
+  await pending
+  assert.equal(loading, false, 'loading ends after the result or error is ready')
   if (failure) {
     assert.equal(threads.length, 0, 'an expired notification must not open a different message')
     assert.equal(error.detail, 'Gone')

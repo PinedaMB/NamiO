@@ -10,10 +10,11 @@ let measured = false
 let resize, pendingMeasure
 let disconnected = 0
 const observed = []
+const listeners = new Map()
 const animationFrame = { current: 0 }
 const inner = {
   documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
-  body: {}, addEventListener() {}
+  body: {}, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
 }
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/EmailBody.tsx', 'utf8'), {
@@ -33,6 +34,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
     if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ remoteImages: 'allow', bodyTheme: 'dark' }) }
     if (id === '../lib/emailTheme') return { emailBackground: () => undefined, applyEmailTheme() { darkened = true } }
+    if (id === './ImageViewer') return { ImageViewer: () => null }
     if (id === './Icon') return { Icon: () => null }
     return require(id)
   }
@@ -53,6 +55,8 @@ assert.doesNotMatch(baseStyle, /overflow-wrap: anywhere|word-break: break-word/)
 
 frame.props.onLoad()
 assert.deepEqual(observed, [inner.body], 'observe message content, not the root whose height follows the iframe')
+frame.props.onLoad()
+assert.equal(observed.length, 1, 'late image completion must not initialize the document twice')
 assert.ok(measured)
 measured = false
 const beforeResize = disconnected
@@ -74,3 +78,43 @@ assert.equal(render(undefined, 'light').props.style.visibility, 'visible')
 assert.equal(render(undefined, 'light').props.srcDoc, frame.props.srcDoc)
 assert.equal(render(undefined, 'light').key, frame.key)
 console.log('Email body: hidden until themed and measured; message/theme changes reset readiness')
+const tsSource = fs.readFileSync('src/renderer/src/components/EmailBody.tsx', 'utf8')
+const ast = ts.createSourceFile('EmailBody.tsx', tsSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+let readinessEffect
+function findReadiness(node) {
+  if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('showWhenParsed')) readinessEffect = node.arguments[0].getText(ast)
+  ts.forEachChild(node, findReadiness)
+}
+findReadiness(ast)
+let nextFrame, displayed = 0, canceled = false
+const documentState = {URL: 'about:blank', readyState: 'complete', body: {}}
+const ready = vm.runInNewContext(ts.transpile(`(${readinessEffect})`, {target: ts.ScriptTarget.ES2022}), {
+  frameRef: {current: {contentDocument: documentState}}, handleLoad: () => {displayed++},
+  requestAnimationFrame: callback => {nextFrame = callback; return 1}, cancelAnimationFrame: () => {canceled = true}
+})
+const cancelReadiness = ready()
+nextFrame()
+assert.equal(displayed, 0, 'initial about:blank must never appear as the message')
+documentState.URL = 'about:srcdoc'; documentState.readyState = 'loading'
+nextFrame()
+assert.equal(displayed, 0)
+documentState.readyState = 'interactive'
+nextFrame()
+assert.equal(displayed, 1, 'show parsed text while remote images still prevent document load')
+cancelReadiness()
+assert.equal(canceled, true)
+console.log('Email readiness: parsed text does not wait for slow images; blank document is ignored and polling is canceled on unmount')
+
+const inlineImage = {src: 'https://example.test/photo.png', alt: 'Photo', closest: selector => selector === 'img' ? inlineImage : null}
+listeners.get('click')({target: inlineImage, preventDefault() {}})
+index = 0
+let viewerTree = exportsObject.EmailBody({html: '<p>Message</p>', theme: 'dark'})
+let viewer = React.Children.toArray(viewerTree.props.children).find(child => child.props?.src === inlineImage.src)
+assert.ok(viewer, 'inline image opens the shared viewer')
+viewer.props.onClose()
+inlineImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+listeners.get('click')({target: inlineImage, preventDefault() {}})
+index = 0
+viewerTree = exportsObject.EmailBody({html: '<p>Message</p>', theme: 'dark'})
+assert.equal(React.Children.toArray(viewerTree.props.children).some(child => child.props?.onClose), false, 'blocked tracking placeholders cannot open a viewer')
+console.log('Inline image previews open safely; blocked placeholders remain blocked')

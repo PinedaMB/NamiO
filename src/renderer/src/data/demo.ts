@@ -22,7 +22,7 @@ export interface Attachment {
   name: string
   size: string
   detail: string
-  kind: 'pdf' | 'sheet' | 'calendar' | 'file'
+  kind: 'pdf' | 'sheet' | 'calendar' | 'file' | 'image' | 'text'
 }
 
 export interface Person {

@@ -257,11 +257,6 @@ export function ThreadList({
               aria-busy={deleting}
               className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread')}
             >
-              <label className="thread__select">
-                <input className="thread__check" type="checkbox" checked={checkedIds.includes(thread.id)}
-                  onChange={() => onCheck(thread.id)} disabled={bulkBusy || thread.id.startsWith('draft:')}
-                  aria-label={t('list.selectMessage', { subject: thread.subject })} />
-              </label>
               <div className="thread__content"
               onClick={() => onSelect(thread.id)}
               onKeyDown={(event) => {
@@ -280,6 +275,12 @@ export function ThreadList({
               <div className="thread__row">
                 <div className="thread__who">
                   <div className="thread__avatar-wrap">
+                    <label className="thread__select" onClick={event => event.stopPropagation()}
+                      onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') event.stopPropagation() }}>
+                      <input className="thread__check" type="checkbox" checked={checkedIds.includes(thread.id)}
+                        onChange={() => onCheck(thread.id)} disabled={bulkBusy || thread.id.startsWith('draft:')}
+                        aria-label={t('list.selectMessage', { subject: thread.subject })} />
+                    </label>
                     <SenderAvatar email={sender?.email ?? ''} initials={sender?.initials ?? '??'} mailbox={mailbox} blocked={spam || !live} className={active ? 'avatar--accent' : 'avatar--tertiary'} />
                   </div>
                   <div className="thread__sender">

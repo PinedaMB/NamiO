@@ -1,3 +1,4 @@
+import { attachmentPreview } from './attachmentPreview'
 import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
 import { setBackgroundMode } from './background'
 import { testNotification } from './notifications'
@@ -117,6 +118,7 @@ export function registerIpcHandlers(): void {
     for (const key of ['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground'] as const) {
       if (patch[key] !== undefined && typeof patch[key] !== 'boolean') throw new Error('Invalid notification setting')
     }
+    if (patch.shortcutModifier !== undefined && patch.shortcutModifier !== 'ctrl' && patch.shortcutModifier !== 'command') throw new Error('Invalid shortcut modifier')
     await writeSettings(patch)
     if (typeof patch.keepInBackground === 'boolean') setBackgroundMode(patch.keepInBackground)
   })
@@ -215,9 +217,10 @@ export function registerIpcHandlers(): void {
     if (disconnecting) return false
     disconnecting = true
     try {
-      await pauseOutbox()
       const account = await readActiveAccount()
       if (!account || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      await pauseOutbox()
+      if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
       const pending = listDrafts().filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer).length
       const queued = outboxItems().length
       const english = (await readSettings()).language === 'en'
@@ -321,6 +324,12 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle(IPC.attachmentPreview, async (_event, path: string, uid: number, index: number) => {
+    if (typeof path !== 'string' || !Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(index) || index < 0) throw new Error('Adjunto inválido')
+    const attachment = await readAttachment(path, uid, index)
+    return attachmentPreview(attachment)
+  })
+
   ipcMain.handle(IPC.attachmentSave, async (event, path: string, uid: number, index: number) => {
     const attachment = await readAttachment(path, uid, index)
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -400,9 +409,10 @@ export function registerIpcHandlers(): void {
     return { matched }
   })
 
-  ipcMain.handle(IPC.searchQuery, (_event, query: string, limit: number = 60) =>
-    searchMail(String(query ?? '').slice(0, 200), Math.min(Math.max(limit, 1), 100))
-  )
+  ipcMain.handle(IPC.searchQuery, (_event, query: string, limit = 60, offset = 0) => {
+    if (typeof query !== 'string' || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid search query')
+    return searchMail(query.slice(0, 200), limit, offset)
+  })
 
   ipcMain.handle(IPC.shellOpen, async (_event, url: string): Promise<boolean> => {
     // Solo se abre lo que el usuario puede esperar: sin file://, sin protocolos raros.

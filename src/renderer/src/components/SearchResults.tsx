@@ -8,19 +8,23 @@ interface SearchResultsProps {
   query: string
   hits: readonly SearchHit[]
   loading: boolean
+  error: boolean
+  hasMore: boolean
+  onLoadMore: () => void
+  onRetry: () => void
   selectedKey: string | null
   onOpen: (hit: SearchHit) => void
 }
 
 /** El snippet llega con ⟦…⟧ alrededor de las coincidencias: se resalta sin HTML. */
-function Snippet({ text }: { text: string }): React.JSX.Element {
+function HighlightedText({ text }: { text: string }): React.JSX.Element {
   const parts = text.split(/[⟦⟧]/)
   return (
-    <p className="search-hit__snippet">
+    <>
       {parts.map((part, index) =>
         index % 2 === 1 ? <mark key={index}>{part}</mark> : <span key={index}>{part}</span>
       )}
-    </p>
+    </>
   )
 }
 
@@ -28,6 +32,10 @@ export function SearchResults({
   query,
   hits,
   loading,
+  error,
+  hasMore,
+  onLoadMore,
+  onRetry,
   selectedKey,
   onOpen
 }: SearchResultsProps): React.JSX.Element {
@@ -41,7 +49,7 @@ export function SearchResults({
             <Icon name="search" size={14} />
             {loading
               ? t('search.searching')
-              : t(hits.length === 1 ? 'search.resultOne' : 'search.results', { count: hits.length })}
+              : t(hasMore ? 'search.shown' : hits.length === 1 ? 'search.resultOne' : 'search.results', { count: hits.length })}
           </span>
         </div>
         <div className="list__queue">
@@ -50,7 +58,8 @@ export function SearchResults({
         </div>
       </div>
 
-      <div className="thread-list">
+      <p className="search-local-hint">{t('search.localHint')}</p>
+      <div className="thread-list search-results-list" aria-busy={loading}>
         {loading && (
           <div className="list-loading">
             <Icon name="progress_activity" size={16} className="spin" />
@@ -58,10 +67,9 @@ export function SearchResults({
           </div>
         )}
 
-        {!loading && hits.length === 0 && <div className="list-empty">{t('search.empty', { query })}</div>}
+        {!loading && !error && hits.length === 0 && <div className="list-empty">{t('search.empty', { query })}</div>}
 
-        {!loading &&
-          hits.map((hit) => {
+        {hits.map((hit) => {
             const key = `${hit.mailbox}:${hit.uid}`
             return (
               <article
@@ -78,21 +86,31 @@ export function SearchResults({
                 role="button"
                 aria-current={selectedKey === key ? 'true' : undefined}
               >
+                <div className="search-hit__location">
+                  <Icon name="folder" size={14} />
+                  <span className="search-hit__folder">{hit.mailboxName}</span>
+                  <span className="thread__time" title={formatMessageDateTime(hit.date, locale)}>{formatMessageDate(hit.date, locale)}</span>
+                </div>
+                <div className="search-hit__subject"><HighlightedText text={hit.subjectMatch ?? hit.subject} /></div>
                 <div className="search-hit__head">
                   <span className="thread__name">{hit.from?.name || hit.from?.address || '—'}</span>
-                  <span className="search-hit__folder">{hit.mailboxName}</span>
                   {hit.unread && (
                     <span className="thread__unread" role="img" aria-label={t('list.unread')} title={t('list.unread')}>
                       <Icon name="mark_email_unread" size={16} />
                     </span>
                   )}
-                  <span className="thread__time" title={formatMessageDateTime(hit.date, locale)}>{formatMessageDate(hit.date, locale)}</span>
                 </div>
-                <div className="thread__subject">{hit.subject}</div>
-                {hit.snippet.trim() !== '' && <Snippet text={hit.snippet} />}
+                {hit.snippet.trim() !== '' && <p className="search-hit__snippet"><HighlightedText text={hit.snippet} /></p>}
               </article>
             )
           })}
+        {error && <div className="list-empty" role="alert">
+          <p>{t('search.failed')}</p>
+          <button className="btn" type="button" onClick={onRetry}>{t('search.retry')}</button>
+        </div>}
+        {!error && hasMore && <button className="btn" type="button" disabled={loading} onClick={onLoadMore}>
+          {t(loading ? 'search.searching' : 'list.loadMore')}
+        </button>}
       </div>
     </section>
   )

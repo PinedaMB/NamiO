@@ -1,3 +1,4 @@
+import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { validRecipients } from '@shared/mailAddresses'
@@ -68,6 +69,7 @@ export function ComposeOverlay({
   onSend,
   onPickAttachments
 }: ComposeOverlayProps): React.JSX.Element | null {
+  const formatCombo = useFormatCombo()
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
   const [toValue, setToValue] = useState(to)
@@ -461,7 +463,7 @@ export function ComposeOverlay({
                 <Icon name="send" size={16} />
                 {sending && <Icon name="progress_activity" size={16} className="spin" />}
                 {t(sending ? 'compose.sending' : 'compose.sendNow')}
-                <kbd className="kbd">⌘↵</kbd>
+                <kbd className="kbd">{formatCombo('mod+enter')}</kbd>
               </button>
               <TooltipButton ref={sendCaretRef} className="send-caret" type="button" title={t('compose.sendingOptions')} disabled={sending}
                 aria-expanded={sendOptionsOpen} aria-controls={sendOptionsOpen ? 'composer-send-options' : undefined}

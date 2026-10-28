@@ -15,6 +15,7 @@ import { usePresence } from '../lib/usePresence'
 import { configFromAccount } from '../data/live'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
+import { serverFromEmail } from '../lib/serverFromEmail'
 import { ERROR_KEYS } from './errorKeys'
 import { PasswordField } from './PasswordField'
 
@@ -54,11 +55,6 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
     smtp: { host: '', port: 465, secure: true }
   }
 ]
-
-function serverFromEmail(email: string): string {
-  const domain = /^[^\s@,]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$/i.exec(email.trim())?.[1]
-  return domain ? `email.${domain.toLowerCase()}` : ''
-}
 
 export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
   const { t } = useI18n()
@@ -349,7 +345,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             </label>
           )}
 
-          <details className="account-advanced" key={String(open)} open={presetId === 'custom' || presetId === 'local'}>
+          <details className="account-advanced" key={String(open)}>
             <summary>{t('account.advanced')}</summary>
             <div className="account-form">
               <fieldset className="account-section">

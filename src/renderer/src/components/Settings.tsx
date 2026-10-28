@@ -1,3 +1,4 @@
+import { useFormatCombo } from '../settings/ShortcutsProvider'
 import logo from '../assets/logo.png'
 import naomi from '../assets/naomi.png'
 import { TooltipButton } from './Tooltip'
@@ -12,7 +13,6 @@ import {
   SHORTCUT_GROUPS,
   actionForCombo,
   comboFromEvent,
-  formatCombo,
   type ShortcutAction
 } from '../settings/shortcuts'
 import { Icon } from './Icon'
@@ -44,8 +44,9 @@ const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }
 ]
 
 export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAccount, onManageAccount, onSelectAccount }: SettingsProps): React.JSX.Element {
+  const formatCombo = useFormatCombo()
   const { t, locale, setLocale, saveError: localeError } = useI18n()
-  const { bindings, save, reset, saveError: shortcutsError } = useShortcuts()
+  const { bindings, modifier, setModifier, save, reset, saveError: shortcutsError } = useShortcuts()
   const { notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
   const saveError = localeError || shortcutsError || preferencesError
   const activeAccount = accounts.find((account) => account.active)
@@ -181,6 +182,19 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               <Icon name="restart_alt" size={15} />
               {t('settings.shortcuts.reset')}
             </button>
+          </div>
+
+          <div className="account-field">
+            <span id="shortcut-symbol-label">{t('settings.shortcuts.symbols')}</span>
+            <div className="seg" role="group" aria-labelledby="shortcut-symbol-label">
+              {(['ctrl', 'command'] as const).map(value => (
+                <button key={value} type="button" className={cx('seg__btn', modifier === value && 'seg__btn--active')}
+                  aria-pressed={modifier === value} onClick={() => void setModifier(value)}>
+                  {value === 'ctrl' ? 'Ctrl · Windows / Linux' : '⌘ · macOS'}
+                </button>
+              ))}
+            </div>
+            <em className="account-field__hint">{t('settings.shortcuts.symbolsHint')}</em>
           </div>
 
           <div className="settings-search">

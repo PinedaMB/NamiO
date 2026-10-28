@@ -715,10 +715,11 @@ function toFtsQuery(query: string): string {
   return tokens.map((token) => `"${token}"*`).join(' ')
 }
 
-export function searchMessages(query: string, limit: number): {
+export function searchMessages(query: string, limit: number, offset = 0): {
   mailbox: string
   uid: number
   subject: string
+  subjectMatch: string
   fromName: string
   fromAddr: string
   date: number
@@ -734,19 +735,21 @@ export function searchMessages(query: string, limit: number): {
       `SELECT search.mailbox AS mailbox,
               search.uid AS uid,
               search.subject AS subject,
+              highlight(search, 0, '⟦', '⟧') AS subject_match,
               snippet(search, 2, '⟦', '⟧', '…', 14) AS snippet,
               m.date AS date, m.from_name AS from_name, m.from_addr AS from_addr,
               m.unread AS unread, m.flagged AS flagged
        FROM search
        JOIN messages m ON m.mailbox = search.mailbox AND m.uid = search.uid
        WHERE search MATCH ?
-       ORDER BY m.date DESC
-       LIMIT ?`
+       ORDER BY m.date DESC, search.mailbox ASC, search.uid DESC
+       LIMIT ? OFFSET ?`
     )
-    .all(expression, limit) as unknown as {
+    .all(expression, limit, offset) as unknown as {
     mailbox: string
     uid: number
     subject: string
+    subject_match: string
     snippet: string
     date: number
     from_name: string
@@ -759,6 +762,7 @@ export function searchMessages(query: string, limit: number): {
     mailbox: row.mailbox,
     uid: row.uid,
     subject: row.subject,
+    subjectMatch: row.subject_match,
     fromName: row.from_name,
     fromAddr: row.from_addr,
     date: row.date,

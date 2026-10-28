@@ -34,6 +34,7 @@ for (const blocked of [true, false]) for (const setting of ['allow', 'block']) f
       if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
       if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ remoteImages: setting, bodyTheme: 'light' }) }
       if (id === '../lib/emailTheme') return { applyEmailTheme() {} }
+      if (id === './ImageViewer') return { ImageViewer: () => null }
       if (id === './Icon') return { Icon: () => null }
       return require(id)
     }

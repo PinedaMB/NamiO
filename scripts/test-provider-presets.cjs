@@ -6,11 +6,9 @@ const source = fs.readFileSync('src/renderer/src/components/AccountDialog.tsx', 
 const ast = ts.createSourceFile('AccountDialog.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const declarations = new Map()
 let selectProvider
-let serverFromEmail
 let restoredPreset
 function visit(node) {
   if (ts.isCallExpression(node) && node.expression.getText(ast) === 'setPresetId' && node.arguments[0]?.getText(ast).includes('presetAuth')) restoredPreset = node.arguments[0].getText(ast)
-  if (ts.isFunctionDeclaration(node) && node.name?.text === 'serverFromEmail') serverFromEmail = node.getText(ast)
   if (ts.isVariableDeclaration(node) && node.initializer) declarations.set(node.name.getText(ast), node.initializer.getText(ast))
   if (ts.isJsxAttribute(node) && node.name.getText(ast) === 'onClick' && node.initializer?.expression?.getText(ast).includes("id === 'google' ? 'gmail' : 'outlook'")) selectProvider = node.initializer.expression.getText(ast)
   ts.forEachChild(node, visit)
@@ -82,7 +80,7 @@ console.log('Provider checks passed: presets, custom reset, Yahoo and Gmail auth
 assert.match(source, /\(presetId === 'custom' && !gmail\) && <div className="account-field">/)
 assert.match(source, /<legend className="account-section__title">\{t\('account.imap'\)\}/)
 
-context.serverFromEmail = evaluate(serverFromEmail)
+context.serverFromEmail = evaluate(fs.readFileSync('src/renderer/src/lib/serverFromEmail.ts', 'utf8').replace(/^export /, ''))
 for (const [email, expected] of [
   ['person@example.com', 'email.example.com'],
   [' Person@SUB.Example.COM ', 'email.sub.example.com'],
@@ -106,5 +104,31 @@ state.SmtpHost = context.smtpHost
 updateUser('person@gmail.com')
 assert.equal(state.Host, 'imap.gmail.com')
 assert.equal(state.SmtpHost, 'smtp.gmail.com')
-assert.match(source, /<details className="account-advanced" key=\{String\(open\)\} open=/)
+assert.match(source, /<details className="account-advanced" key=\{String\(open\)\}>/)
 console.log('Server suggestions: domain prefix, edits, invalid emails, manual servers and provider presets passed')
+
+let onboardingUpdateUser
+function findUpdateUser(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(onboarding) === 'updateUser') onboardingUpdateUser = node.initializer.getText(onboarding)
+  ts.forEachChild(node, findUpdateUser)
+}
+findUpdateUser(onboarding)
+assert.ok(onboardingUpdateUser)
+assert.match(onboardingSource, /onChange=\{\(event\) => updateUser\(event.target.value\)\}/)
+assert.match(onboardingSource, /<details className="account-advanced">/)
+const updateOnboardingUser = evaluate(onboardingUpdateUser)
+Object.assign(context, { choice: 'custom', user: '', host: '', smtpHost: '' })
+updateOnboardingUser('person@example.com')
+assert.equal(state.Host, 'email.example.com')
+assert.equal(state.SmtpHost, 'email.example.com')
+Object.assign(context, { user: 'person@example.com', host: 'imap.manual.com', smtpHost: 'email.example.com' })
+state.Host = context.host
+updateOnboardingUser('person@another.com')
+assert.equal(state.Host, 'imap.manual.com')
+assert.equal(state.SmtpHost, 'email.another.com')
+Object.assign(context, { choice: 'local', host: '127.0.0.1', smtpHost: '127.0.0.1' })
+state.Host = context.host; state.SmtpHost = context.smtpHost
+updateOnboardingUser('person@example.com')
+assert.equal(state.Host, '127.0.0.1')
+assert.equal(state.SmtpHost, '127.0.0.1')
+console.log('Onboarding: advanced options collapsed, matching suggestions and manual/local servers preserved')

@@ -1,8 +1,9 @@
+import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { Fragment } from 'react'
 import { UpdateNotice } from './UpdateNotice'
 import type { OutboxItem, SyncProgress } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
-import { formatCombo, type Bindings } from '../settings/shortcuts'
+import { type Bindings } from '../settings/shortcuts'
 import { Icon } from './Icon'
 
 interface StatusBarProps {
@@ -21,6 +22,7 @@ interface LegendEntry {
 }
 
 function LegendItem({ entry }: { entry: LegendEntry }): React.JSX.Element {
+  const formatCombo = useFormatCombo()
   const { t } = useI18n()
   return (
     <span className="legend__item">

@@ -7,7 +7,8 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  exports:exportsObject,Error,window:{addEventListener:(_name,fn)=>{keyHandler=fn},removeEventListener(){}},require:id=>{
  if(id==='react')return {...React,useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=initial;return[state[slot],value=>{state[slot]=typeof value==='function'?value(state[slot]):value}]},useRef:initial=>{const slot=refIndex++;return refs[slot]??(refs[slot]={current:initial})},useEffect:fn=>effects.push(fn)}
  if(id==='@shared/mailAddresses')return addresses
- if(id==='../i18n')return{useI18n:()=>({t:key=>key})}
+ if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
+  if(id==='../i18n')return{useI18n:()=>({t:key=>key})}
  if(id==='../lib/usePresence')return{usePresence:()=>({mounted:true,closing:false})}
  if(id==='../lib/cx')return{cx:(...v)=>v.filter(Boolean).join(' ')}
  if(id==='../data/demo')return{COPILOT_DRAFT:''}

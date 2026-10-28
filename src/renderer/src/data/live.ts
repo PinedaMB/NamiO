@@ -40,7 +40,9 @@ function formatBytes(bytes: number): string {
 }
 
 function attachmentKind(name: string, type: string): Attachment['kind'] {
+  if (/^image\/(png|jpeg|gif|webp|avif|bmp|x-icon|vnd.microsoft.icon)$/i.test(type)) return 'image'
   const lower = name.toLowerCase()
+  if (type === 'text/plain' || (type === 'application/octet-stream' && lower.endsWith('.txt'))) return 'text'
   if (type.includes('pdf') || lower.endsWith('.pdf')) return 'pdf'
   if (type.includes('sheet') || /\.(xlsx?|csv|ods)$/.test(lower)) return 'sheet'
   if (type.includes('calendar') || lower.endsWith('.ics')) return 'calendar'

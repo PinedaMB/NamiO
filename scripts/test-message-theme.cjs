@@ -13,7 +13,8 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
   require: id => {
     if (id === 'react') return { ...React, useState: () => [override, value => { override = value }], useEffect() {} }
     if (id === '../lib/dates') return dates
-    if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
+    if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
+  if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: preferred }) }
     if (id === '../settings/shortcuts') return { formatCombo: () => '' }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
@@ -21,6 +22,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
     if (id === './SenderAvatar') return { SenderAvatar: () => null }
     if (id === './Tooltip') return { TooltipButton: () => null }
     if (id === './Icon') return { Icon: () => null }
+    if (id === '../assets/logo.png') return { default: 'logo.png' }
     return require(id)
   }
 })
