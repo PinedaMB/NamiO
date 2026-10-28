@@ -156,6 +156,8 @@ export const en: Dictionary = {
   'context.insert': 'Insert 10:30 AM into Reply',
 
   'status.navigate': 'Navigate',
+  'status.deleting': 'Deleting in {folder}: {completed}/{total} messages',
+  'status.deletePending': 'Deletion pending in {folder}: {total} messages',
   'status.archive': 'Archive',
   'status.reply': 'Reply',
   'status.compose': 'Compose',
@@ -194,6 +196,7 @@ export const en: Dictionary = {
   'compose.bcc': 'Bcc',
   'compose.subject': 'Subject',
   'compose.placeholder': 'Write your message…',
+  'compose.originalMessage': 'Original message',
   'compose.autosaved': 'Draft autosaved',
   'compose.attach': 'Attach files',
   'draft.restore': 'Restore draft',

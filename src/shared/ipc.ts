@@ -246,6 +246,7 @@ export interface OutboxItem {
   createdAt: number
   /** Asunto o descripción corta para mostrar. */
   label: string
+  deletionProgress?: { completed: number; total: number; running: boolean }
 }
 
 export interface SendMailPayload {

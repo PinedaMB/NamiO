@@ -8,10 +8,12 @@ for (const path of ['electron.vite.config.ts', 'src/main/index.ts']) {
   assert.match(fs.readFileSync(path, 'utf8'), /"img-src 'self' data: blob: https: http:"/)
 }
 function compile(file) { return ts.transpile(fs.readFileSync(file, 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }) }
+const dates = {}
+vm.runInNewContext(compile('src/renderer/src/lib/dates.ts'), { exports: dates })
 const live = {}
 const mailboxes = {}
 vm.runInNewContext(compile('src/shared/mailboxes.ts'), { exports: mailboxes })
-vm.runInNewContext(compile('src/renderer/src/data/live.ts'), { exports: live, require: () => mailboxes })
+vm.runInNewContext(compile('src/renderer/src/data/live.ts'), { exports: live, require: id => id === '../lib/dates' ? dates : mailboxes })
 for (const mailbox of [
   { path: 'provider-special-folder', specialUse: '\\Junk' },
   { path: '[Gmail]/Spam' }, { path: 'Junk Email' },

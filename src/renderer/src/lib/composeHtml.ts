@@ -18,6 +18,17 @@ export function textToEditorContent(text: string): { type: 'doc'; content: { typ
   }
 }
 
+export function replyComposeHtml(body: string, attribution: string, original: string, label: string): string {
+  const paragraphs = (text: string): string => text.split('\n').map(line => {
+    const paragraph = document.createElement('p')
+    paragraph.textContent = line
+    return paragraph.outerHTML
+  }).join('')
+  const heading = document.createElement('strong')
+  heading.textContent = label
+  return `${paragraphs(body)}<blockquote><p>${heading.outerHTML}</p>${paragraphs(attribution)}${paragraphs(original)}</blockquote>`
+}
+
 /** Estilos inline sencillos para clientes de correo que ignoran las hojas de estilo. */
 export function composeEmailHtml(html: string): string {
   const container = document.createElement('div')

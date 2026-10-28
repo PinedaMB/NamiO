@@ -5,11 +5,11 @@
   <p><strong>Tu correo, a tu ritmo.</strong></p>
   <p>Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes.<br />Varias cuentas, acceso sin conexión y avisos de correo nuevo en una interfaz oscura.</p>
 
-  <p><strong>0.4.2 · En desarrollo · Español / English</strong></p>
+  <p><strong>0.4.2 · En desarrollo · Español (México) / English</strong></p>
 
   <p>
     <a href="https://github.com/PinedaMB/NamiO/releases">Descargas</a> ·
-    <a href="#-qué-podés-hacer">Funciones</a> ·
+    <a href="#-qué-puedes-hacer">Funciones</a> ·
     <a href="#-primeros-pasos">Primeros pasos</a> ·
     <a href="https://github.com/PinedaMB/NamiO/issues">Reportar un problema</a>
   </p>
@@ -17,36 +17,38 @@
 
 ---
 
-## ✨ Qué podés hacer
+## ✨ Qué puedes hacer
 
 | | En NamiO |
 | --- | --- |
-| 📬 **Reunir tus cuentas** | Agregá varias cuentas de correo y alterná entre ellas. Cada una conserva sus mensajes, borradores y reglas. |
-| ✍️ **Escribir con formato** | Usá negrita, cursiva, subrayado, enlaces, listas y citas. Enviá en HTML o como texto plano, con adjuntos, CC y CCO. |
-| 📝 **Retomar un borrador** | Guardá varios borradores por cuenta, conservá su formato y adjuntos y sincronizalos con la carpeta de borradores del servidor. |
-| 🔎 **Encontrar y organizar** | Buscá en el correo guardado, destacá mensajes, archivá, eliminá o aplicá acciones a una selección. También tenés menús con clic derecho. |
-| 📂 **Automatizar el orden** | Creá reglas locales para mover, archivar, marcar como leído o eliminar mensajes según sus condiciones. |
-| 🔔 **Enterarte de lo nuevo** | Recibí notificaciones de tus cuentas, elegí si llevan sonido y abrí el mensaje desde el aviso. |
-| 📴 **Leer sin conexión** | Consultá los mensajes ya descargados. Los envíos aceptados en la cola quedan pendientes para reintentarse cuando vuelva la conexión. |
-| ⌨️ **Moverte a tu manera** | Personalizá los atajos, usá la paleta de comandos y elegí entre español e inglés para la interfaz. |
+| 📬 **Reunir tus cuentas** | Agrega varias cuentas de correo y alterna entre ellas. Cada una conserva sus mensajes, borradores y reglas. |
+| ✍️ **Escribir con formato** | Usa negrita, cursiva, subrayado, enlaces, listas y citas. Envía en HTML o como texto plano, con adjuntos, CC y CCO. |
+| 📝 **Retomar un borrador** | Guarda varios borradores por cuenta, conserva su formato y adjuntos y sincronizalos con la carpeta de borradores del servidor. |
+| 🔎 **Encontrar y organizar** | Busca en el correo guardado, destaca mensajes, archiva, elimina o aplica acciones a una selección. También tienes menús con clic derecho. |
+| 📂 **Automatizar el orden** | Crea reglas locales para mover, archivar, marcar como leído o eliminar mensajes según sus condiciones. |
+| 🔔 **Enterarte de lo nuevo** | Recibe notificaciones de tus cuentas, elige si llevan sonido y abre el mensaje desde el aviso. |
+| 📴 **Leer sin conexión** | Consulta los mensajes ya descargados. Los envíos aceptados en la cola quedan pendientes para reintentarse cuando vuelva la conexión. |
+| ⌨️ **Moverte a tu manera** | Personaliza los atajos, usa la paleta de comandos y elige entre español e inglés para la interfaz. |
 
 ### Más espacio para escribir y leer
 
-Para vaciar **Spam** o **Papelera**, hacé clic derecho sobre la carpeta y elegí **Vaciar carpeta…**; también está disponible en la barra del lector mediante el icono de vaciado. NamiO muestra la cantidad de mensajes y pide confirmación: el borrado es definitivo. Las selecciones múltiples también se confirman una sola vez y se procesan en segundo plano; desde otras carpetas se mueven a Papelera. Podés seguir navegando mientras la cola trabaja. Si cerrás la aplicación o falla la conexión, las operaciones pendientes se conservan para reintentarse.
+Para vaciar **Spam** o **Papelera**, haz clic derecho sobre la carpeta y elige **Vaciar carpeta…**; también está disponible en la barra del lector mediante el ícono de vaciado. NamiO muestra la cantidad de mensajes y pide confirmación: el borrado es definitivo. Las selecciones múltiples también se confirman una sola vez y se procesan en segundo plano; desde otras carpetas se mueven a Papelera. Puedes seguir navegando mientras la cola trabaja. Si cierras la aplicación o falla la conexión, las operaciones pendientes se conservan para reintentarse.
 
-El redactor se puede **ampliar, minimizar y restaurar** sin perder lo que estás escribiendo. Al cerrarlo, guardás el borrador; al descartarlo, lo eliminás.
+El redactor se puede **ampliar, minimizar y restaurar** sin perder lo que estás escribiendo. Al cerrarlo, guardas el borrador; al descartarlo, lo eliminas.
 
 El lector permite elegir un **fondo claro u oscuro para los mensajes**, independientemente del aspecto oscuro de la aplicación. Las animaciones respetan la preferencia de movimiento reducido de tu sistema.
 
+Las fechas usan la **zona horaria del equipo** y hora de 24 horas. La lista y la búsqueda muestran la hora de hoy, «Ayer» o una fecha con año si corresponde. Al pasar el cursor sobre una fecha puedes consultar el detalle completo; el lector y las citas de respuesta incluyen el año y la zona horaria.
+
 ## 🚀 Primeros pasos
 
-1. **Descargá una versión disponible** desde [Releases](https://github.com/PinedaMB/NamiO/releases). Revisá qué sistema y formato incluye esa publicación.
-2. **Abrí NamiO y agregá tu cuenta.** También podés explorar la demostración antes de conectar tu correo.
-3. **Elegí tu proveedor y completá la conexión.** El método de acceso depende del servicio que uses.
-4. **Dejá que se sincronice tu bandeja.** Podés empezar a leer mientras se descarga el resto en segundo plano.
-5. **Ajustá NamiO a tu gusto** desde Configuración: idioma, atajos, imágenes remotas, tema del mensaje y notificaciones.
+1. **Descarga una versión disponible** desde [Releases](https://github.com/PinedaMB/NamiO/releases). Revisa qué sistema y formato incluye esa publicación.
+2. **Abre NamiO y agrega tu cuenta.** También puedes explorar la demostración antes de conectar tu correo.
+3. **Elige tu proveedor y completa la conexión.** El método de acceso depende del servicio que uses.
+4. **Deja que se sincronice tu bandeja.** Puedes empezar a leer mientras se descarga el resto en segundo plano.
+5. **Ajusta NamiO a tu gusto** desde Configuración: idioma, atajos, imágenes remotas, tema del mensaje y notificaciones.
 
-### Conectá tu correo
+### Conecta tu correo
 
 NamiO trabaja con cuentas **IMAP y SMTP**.
 
@@ -58,7 +60,7 @@ NamiO trabaja con cuentas **IMAP y SMTP**.
 | **Otros servidores** | Datos de conexión IMAP y SMTP proporcionados por tu servicio de correo. |
 | **Proton Mail** | Requiere Proton Mail Bridge y una cuenta que permita utilizarlo. |
 
-En Gmail podés elegir **Contraseña de aplicación** tanto al agregar la cuenta como en su configuración. El formulario incluye un acceso para crearla en Google; necesitás verificación en dos pasos y que tu cuenta permita ese método. [Ayuda de Google](https://support.google.com/accounts/answer/185833).
+En Gmail puedes elegir **Contraseña de aplicación** tanto al agregar la cuenta como en su configuración. El formulario incluye un acceso para crearla en Google; necesitas verificación en dos pasos y que tu cuenta permita ese método. [Ayuda de Google](https://support.google.com/accounts/answer/185833).
 
 Con **Iniciar sesión con Google**, NamiO utiliza su registro OAuth de escritorio. Las cuentas que ya usan un registro propio conservan sus credenciales. El registro integrado sigue en pruebas: la distribución general con acceso IMAP/SMTP requiere atender la verificación de los permisos restringidos de Google. [Requisitos de Google](https://support.google.com/cloud/answer/13463817).
 
@@ -66,7 +68,7 @@ Con **Iniciar sesión con Google**, NamiO utiliza su registro OAuth de escritori
 
 NamiO puede avisarte de mensajes nuevos en **todas tus cuentas**. La cuenta activa se revisa cada minuto y las demás, cada tres minutos; los avisos no son instantáneos.
 
-En **Configuración → General y velocidad** podés:
+En **Configuración → General y velocidad** puedes:
 
 - Activar o desactivar las notificaciones.
 - Elegir si reproducen sonido.
@@ -74,7 +76,7 @@ En **Configuración → General y velocidad** podés:
 - Probar un aviso.
 - Activar **Mantener en segundo plano al cerrar**, desactivado por defecto.
 
-Con el segundo plano activado, cerrar la ventana mantiene NamiO funcionando. El icono de bandeja ofrece **Abrir NamiO** y **Salir** para terminar la aplicación por completo. Si el escritorio no ofrece una bandeja disponible, se conserva el cierre normal.
+Con el segundo plano activado, cerrar la ventana mantiene NamiO funcionando. El ícono de bandeja ofrece **Abrir NamiO** y **Salir** para terminar la aplicación por completo. Si el escritorio no ofrece una bandeja disponible, se conserva el cierre normal.
 
 Al pulsar un aviso, NamiO abre la cuenta y el mensaje correspondientes. Si estás redactando en otra cuenta, espera a que cierres el redactor para conservar tu trabajo.
 
@@ -84,11 +86,11 @@ Al pulsar un aviso, NamiO abre la cuenta y el mensaje correspondientes. Si está
 
 - **Datos locales por cuenta.** Los mensajes descargados se guardan en tu equipo para consultarlos sin conexión.
 - **Credenciales protegidas por el sistema.** Se guardan cifradas cuando el sistema ofrece almacenamiento seguro; si no está disponible, NamiO no las conserva y te lo informa.
-- **Imágenes remotas bloqueadas inicialmente.** Podés permitirlas desde Configuración. En correo no deseado permanecen bloqueadas.
+- **Imágenes remotas bloqueadas inicialmente.** Puedes permitirlas desde Configuración. En correo no deseado permanecen bloqueadas.
 - **Contenido de correo protegido.** Los mensajes HTML se limpian antes de mostrarse y sus enlaces se abren en tu navegador.
-- **Control del espacio.** En Cuentas podés consultar el uso de caché y vaciar el contenido descargado. Esta acción conserva credenciales, borradores, reglas y operaciones pendientes, y no borra el correo del servidor.
+- **Control del espacio.** En Cuentas puedes consultar el uso de caché y vaciar el contenido descargado. Esta acción conserva credenciales, borradores, reglas y operaciones pendientes, y no borra el correo del servidor.
 
-> Sin conexión solo está disponible lo que ya se descargó. Después de vaciar la caché necesitás conectarte para recuperar el contenido de los mensajes.
+> Sin conexión solo está disponible lo que ya se descargó. Después de vaciar la caché necesitas conectarte para recuperar el contenido de los mensajes.
 
 ## 💻 Disponibilidad
 
@@ -97,7 +99,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 | Plataforma | Estado |
 | --- | --- |
 | **Linux** | Distribución en AppImage y `.deb`. Es la plataforma con comprobaciones locales realizadas hasta ahora. |
-| **Windows** | Instalador `.exe` configurado para instalarse en el perfil del usuario, sin privilegios de administrador; validación completa pendiente. Consultá cada publicación para ver si lo incluye. |
+| **Windows** | Instalador `.exe` configurado para instalarse en el perfil del usuario, sin privilegios de administrador; validación completa pendiente. Consulta cada publicación para ver si lo incluye. |
 | **macOS** | Distribución y validación pendientes. |
 
 ## 🌱 Estado actual
@@ -109,7 +111,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 - Las funciones de copiloto con IA todavía no están disponibles.
 - Sigue pendiente ampliar las pruebas con servidores reales, interrupciones de conexión y recuperación tras cierres inesperados.
 
-Podés consultar las novedades en el [historial de cambios](CHANGELOG.md).
+Puedes consultar las novedades en el [historial de cambios](CHANGELOG.md).
 
 ### Comprobaciones de desarrollo
 
@@ -123,11 +125,11 @@ Las pruebas usan `typescript-test` (TypeScript 5) para extraer y ejecutar funcio
 
 ## 📄 Licencia
 
-NamiO se distribuye bajo la [licencia MIT](LICENSE). Las bibliotecas, fuentes e iconos de terceros conservan sus propias [licencias y atribuciones](THIRD_PARTY_NOTICES.md), también incluidas con la aplicación.
+NamiO se distribuye bajo la [licencia MIT](LICENSE). Las bibliotecas, fuentes e íconos de terceros conservan sus propias [licencias y atribuciones](THIRD_PARTY_NOTICES.md), también incluidas con la aplicación.
 
 ## 💬 ¿Encontraste algo que mejorar?
 
-[Reportá un problema o proponé una mejora](https://github.com/PinedaMB/NamiO/issues). Incluí la versión de NamiO, tu sistema operativo y los pasos para reproducirlo. Si adjuntás una captura, ocultá direcciones y contenido privado.
+[Reporta un problema o propón una mejora](https://github.com/PinedaMB/NamiO/issues). Incluye la versión de NamiO, tu sistema operativo y los pasos para reproducirlo. Si adjuntas una captura, oculta direcciones y contenido privado.
 
 ---
 

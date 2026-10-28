@@ -33,6 +33,7 @@ export interface Person {
 }
 
 export interface Message {
+  date?: string | number
   messageId?: string
   inReplyTo?: string
   id: string
@@ -50,6 +51,7 @@ export interface Message {
 }
 
 export interface Thread {
+  date?: string | number
   hasAttachments?: boolean
   messageIds?: number[]
   id: string

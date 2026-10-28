@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('api',{
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'drafts-preload.cjs'), `
-const {contextBridge}=require('electron');const listeners=[];const syncs=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const meta={offline:false,syncedAt:1};
+const {contextBridge}=require('electron');const listeners=[];const syncs=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];let deletionJob=null;const meta={offline:false,syncedAt:1};
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
 let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
@@ -27,17 +27,18 @@ const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
 contextBridge.exposeInMainWorld('api',{
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
- accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>[],syncProgress:async()=>null,senderLogo:async()=>null,
+ accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>null,senderLogo:async()=>null,
  listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>({ok:true,data:path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[],meta}),
  getMessage:async(path,uid)=>({ok:true,data:{...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[],text:remote.body,html:remote.html,attachments:[]},meta}),
  deleteMessage:async(path,uid)=>{if(path!=='INBOX'||uid!==11)throw new Error('Wrong delete target');deleteCalls++;return new Promise(resolve=>{finishDelete=()=>{inboxPresent=false;notify();resolve({ok:true,queued:false})}})},finishTestDelete:async()=>finishDelete(),inspectTestDeleteCalls:async()=>deleteCalls,
- deleteMessages:async(path,uids)=>{backgroundDeletes.push({path,uids});return{ok:true,queued:true}},inspectTestBackgroundDeletes:async()=>backgroundDeletes,
+ deleteMessages:async(path,uids)=>{backgroundDeletes.push({path,uids});deletionJob={id:'delete-job',kind:'delete-many',status:'queued',attempts:0,lastError:null,createdAt:1,label:path,deletionProgress:{completed:0,total:250,running:true}};outboxListeners.forEach(fn=>fn());return{ok:true,queued:true}},inspectTestBackgroundDeletes:async()=>backgroundDeletes,
+ advanceTestDeletion:async(completed,running=true)=>{deletionJob.deletionProgress={completed,total:250,running};outboxListeners.forEach(fn=>fn())},finishTestDeletion:async()=>{deletionJob=null;outboxListeners.forEach(fn=>fn())},
  syncMailbox:async path=>{syncs.push(path);return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
  saveDraft:async input=>{const previous=drafts.find(item=>item.id===input.id);drafts=drafts.filter(item=>item.id!==input.id);drafts.push({...previous,...input,id:input.id??'new-draft'});notify();return{id:input.id??'new-draft',queued:true}},
  clearDraft:async id=>{drafts=drafts.filter(item=>item.id!==id);notify()},inspectTestDrafts:async()=>drafts,
- onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
+ onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:fn=>{outboxListeners.push(fn);return()=>{}},onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'onboarding-preload.cjs'), (await readFile(join(folder, 'preload.cjs'), 'utf8')).replace('onboarded:true', 'onboarded:false'))
   await writeFile(join(folder, 'runner.cjs'), `
@@ -152,10 +153,10 @@ app.whenReady().then(async()=>{
  [...document.querySelectorAll('.onboarding__card')].find(button=>button.textContent.includes('Gmail')).click();
  await until(()=>document.querySelector('.onboarding__form'),'Gmail form missing');
  const form=document.querySelector('.onboarding__form');
- if([...form.querySelectorAll('label')].some(label=>/Client ID|Client secret/.test(label.textContent)))throw new Error('Gmail must not ask for OAuth client credentials');
+ if([...form.querySelectorAll('label')].some(label=>/ID de cliente|Secreto de cliente/.test(label.textContent)))throw new Error('Gmail must not ask for OAuth client credentials');
  const submit=form.querySelector('button[type="submit"]');
  if(!submit.textContent.includes('Iniciar sesión con Google')||!submit.disabled)throw new Error('Gmail sign-in must require an email');
- const email=form.querySelector('input[placeholder="vos@ejemplo.com"]');
+ const email=form.querySelector('input[placeholder="tu@ejemplo.com"]');
  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(email,'tester@example.com');email.dispatchEvent(new Event('input',{bubbles:true}));
  await until(()=>!submit.disabled,'Gmail sign-in requires extra credentials');
  [...form.querySelectorAll('button')].find(button=>button.textContent.trim()==='Contraseña de aplicación').click();
@@ -253,6 +254,19 @@ app.whenReady().then(async()=>{
  }
  }
  console.log('Reader toolbar: empty-folder is available only in Spam/Trash and reuses background deletion');
+ await until(()=>document.querySelector('.deletion-progress [role="progressbar"]'),'Persistent deletion indicator missing');
+ if(!document.querySelector('.deletion-progress').textContent.includes('Trash'))throw new Error('Deletion progress must remain visible after navigating to Inbox');
+ await window.api.advanceTestDeletion(100);
+ await until(()=>document.querySelector('.deletion-progress [role="progressbar"]')?.getAttribute('aria-valuenow')==='100','Confirmed deletion progress did not update');
+ if(!document.querySelector('.deletion-progress').textContent.includes('100/250'))throw new Error('Deletion count missing');
+ await new Promise(resolve=>setTimeout(resolve,2500));
+ if(!document.querySelector('.deletion-progress'))throw new Error('Deletion indicator disappeared with the toast');
+ await window.api.advanceTestDeletion(0,false);
+ await until(()=>document.querySelector('.deletion-progress')?.textContent.includes('Borrado pendiente'),'Disconnected deletion must show pending');
+ if(document.querySelector('.deletion-progress [role="progressbar"]'))throw new Error('Pending deletion cannot claim active progress');
+ await window.api.finishTestDeletion();
+ await until(()=>!document.querySelector('.deletion-progress'),'Completed deletion did not clear the indicator');
+
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body not ready');
  const bodyFrame=document.querySelector('.email-body iframe'), bodyDocument=bodyFrame.contentDocument;
  const detail=document.querySelector('.thread-message');detail.open=false;
@@ -305,6 +319,9 @@ app.whenReady().then(async()=>{
  saved=await window.api.inspectTestDrafts();if(saved.length!==2||!saved.some(item=>item.id==='new-draft'))throw new Error('Multiple drafts not preserved');
 })()`)});
  console.log('Folder context sync: clicked folder is synchronized without changing the open folder');
+ await live.webContents.executeJavaScript('window.api.deleteMessages("Spam").then(()=>window.api.advanceTestDeletion(100))');
+ await captureMenu(live,'/tmp/namio-deletion-progress.png');
+ await live.webContents.executeJavaScript('window.api.finishTestDeletion()');
  await live.webContents.executeJavaScript(${JSON.stringify(`(()=>{const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='Spam');target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:240,clientY:180}));})()`)});
  await captureMenu(live,'/tmp/namio-context-menu-folder.png');
  await live.webContents.executeJavaScript(${JSON.stringify(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`)});

@@ -293,7 +293,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
             <input
               value={user}
               onChange={(event) => updateUser(event.target.value)}
-              placeholder="vos@ejemplo.com"
+              placeholder="tu@ejemplo.com"
               autoComplete="username"
               spellCheck={false}
               aria-invalid={userHasSpaces || undefined}

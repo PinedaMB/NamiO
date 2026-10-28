@@ -157,7 +157,7 @@ void app.whenReady().then(() => {
   // La cola de salida también avisa a la UI cuando cambia.
   let lastOutboxSignature = ''
   setOutboxListener(() => {
-    const signature = JSON.stringify(outboxItems().map((item) => `${item.id}:${item.status}:${item.attempts}`))
+    const signature = JSON.stringify(outboxItems().map((item) => [item.id, item.status, item.attempts, item.deletionProgress]))
     if (signature === lastOutboxSignature) return
     lastOutboxSignature = signature
     for (const window of BrowserWindow.getAllWindows()) {

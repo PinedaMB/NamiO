@@ -30,7 +30,9 @@ async function main() {
   assert.deepEqual(Array.from(snapshot.uids), [1, 5000, 9000], 'empty-folder enumerates the server, including uncached messages')
   const remove = load('deleteMessageBatch')
   const uids = Array.from({ length: 205 }, (_, index) => index + 1)
-  await remove('Spam', uids, true, '7')
+  const progress = []
+  await remove('Spam', uids, true, '7', completed => progress.push(completed))
+  assert.deepEqual(progress, [100, 200, 205], 'progress advances only after confirmed server batches')
   assert.equal(commands.length, 3, 'large deletions are split into bounded IMAP requests')
   assert.deepEqual(removed, uids)
   assert.ok(commands.every(command => command[0] === 'delete' && !command[1].includes('*')), 'new arrivals are never included by a wildcard')

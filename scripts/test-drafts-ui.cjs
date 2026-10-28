@@ -1,8 +1,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript-test')
 const compile=source=>ts.transpile(source,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022})
-const boxes={},live={}
+const boxes={},live={},dates={}
+vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/lib/dates.ts','utf8')),{exports:dates})
 vm.runInNewContext(compile(fs.readFileSync('src/shared/mailboxes.ts','utf8')),{exports:boxes})
-vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/data/live.ts','utf8')),{exports:live,require:()=>boxes})
+vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/data/live.ts','utf8')),{exports:live,require:id=>id==='../lib/dates'?dates:boxes})
 const drafts=[{id:'local-one',to:'one@example.com',cc:'',subject:'Pending new',body:'Hello',updatedAt:1},
  {id:'local-two',to:'two@example.com',cc:'',subject:'Pending edit',body:'Updated',updatedAt:2,syncedAt:1,server:{path:'Drafts',uid:2}},
  {id:'local-three',to:'three@example.com',cc:'',subject:'Already saved',body:'Saved',updatedAt:3,syncedAt:3,server:{path:'Drafts',uid:3}}]

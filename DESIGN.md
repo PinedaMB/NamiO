@@ -318,7 +318,7 @@ negro al 14 %, dentro de la UI oscura.
 
 ## 12. Voz y microcopy
 
-- **Español rioplatense (voseo)**: "Presioná", "Elegí", "Podés". Inglés neutro en la variante `en`.
+- **Español de México (tuteo)**: "Presiona", "Elige", "Puedes". Inglés neutro en la variante `en`.
 - Frases cortas, en presente, sin signos de exclamación.
 - Se nombra lo que pasa: "Sin conexión · mostrando la última copia guardada" en lugar de "Error de
   red". Los errores dicen qué falló y qué se puede hacer.

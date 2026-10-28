@@ -277,7 +277,7 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 <input
                   value={user}
                   onChange={(event) => setUser(event.target.value)}
-                  placeholder="vos@ejemplo.com"
+                  placeholder="tu@ejemplo.com"
                   autoComplete="username"
                   spellCheck={false}
                   aria-invalid={userHasSpaces || undefined}

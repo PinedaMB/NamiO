@@ -2,6 +2,7 @@ import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 export { isSpamMailbox } from '@shared/mailboxes'
 import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
 import type { Attachment, Message, Person, Thread } from './demo'
+import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 
 /** Cuenta que la UI usa para pintar el rail izquierdo. */
 export interface FolderView {
@@ -32,13 +33,6 @@ function personFrom(address: EnvelopeAddress | null, fallbackEmail = ''): Person
   }
 }
 
-function formatTime(iso: string, locale: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  const sameDay = new Date().toDateString() === date.toDateString()
-  return new Intl.DateTimeFormat(locale, sameDay ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' }).format(date)
-}
-
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`
@@ -60,7 +54,8 @@ export function envelopeToThread(envelope: Envelope, locale: string): Thread {
     hasAttachments: envelope.hasAttachments,
     subject: envelope.subject || '—',
     preview: '',
-    receivedAt: formatTime(envelope.date, locale),
+    date: envelope.date,
+    receivedAt: formatMessageDate(envelope.date, locale),
     unread: envelope.unread,
     starred: envelope.flagged,
     vip: false,
@@ -96,7 +91,13 @@ export function envelopesToThreads(envelopes: Envelope[], locale: string): Threa
   return envelopes.map(envelope => {
     const key = envelope.messageId ? root(envelope.messageId) : `uid:${envelope.uid}`
     const group = groups.get(key)!
-    const messageIds = [...group].sort((a, b) => a.date.localeCompare(b.date) || a.uid - b.uid).map(item => item.uid)
+    const messageIds = [...group].sort((a, b) => {
+      const left = Date.parse(a.date)
+      const right = Date.parse(b.date)
+      if (Number.isNaN(left)) return Number.isNaN(right) ? a.uid - b.uid : 1
+      if (Number.isNaN(right)) return -1
+      return left - right || a.uid - b.uid
+    }).map(item => item.uid)
     return { ...envelopeToThread(envelope, locale), messageIds, messageCount: messageIds.length }
   })
 }
@@ -114,12 +115,8 @@ export function detailToMessage(detail: MessageDetail, locale: string, partial =
     inReplyTo: detail.inReplyTo,
     from: personFrom(detail.from),
     to: detail.to.map((address) => personFrom(address)),
-    sentAt: new Intl.DateTimeFormat(locale, {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(detail.date)),
+    date: detail.date,
+    sentAt: formatMessageDateTime(detail.date, locale),
     body: body.length > 0 ? body : [''],
     html: detail.html ?? undefined,
     partial,
@@ -178,9 +175,10 @@ export function pendingDraftThreads(threads: readonly Thread[], drafts: readonly
     .filter(reference => reference?.path === path).map(reference => `live:${reference!.uid}`)))
   return [...pending.map(draft => ({
     id: `draft:${draft.id}`, subject: draft.subject || label, preview: draft.body.slice(0, 120),
-    receivedAt: formatTime(new Date(draft.updatedAt).toISOString(), locale),
+    date: draft.updatedAt,
+    receivedAt: formatMessageDate(draft.updatedAt, locale),
     unread: false, starred: false, vip: false, messageCount: 1, tags: [],
     participants: [personFrom(null, draft.to || label)],
-    messages: [{ id: `draft:${draft.id}`, from: personFrom(null, label), to: [], sentAt: formatTime(new Date(draft.updatedAt).toISOString(), locale), body: [draft.body], html: draft.html }], hasAttachments: Boolean(draft.attachments?.length)
+    messages: [{ id: `draft:${draft.id}`, from: personFrom(null, label), to: [], date: draft.updatedAt, sentAt: formatMessageDateTime(draft.updatedAt, locale), body: [draft.body], html: draft.html }], hasAttachments: Boolean(draft.attachments?.length)
   })), ...threads.filter(thread => !replaced.has(thread.id)).map(thread => ({ ...thread, messageIds: undefined, messageCount: 1 }))]
 }

@@ -20,5 +20,19 @@ const load=name=>vm.runInNewContext(ts.transpile(`(${declarations.get(name)})`,{
  load('openCompose')()
  assert.equal(session,3,'restoring a minimized message must keep the editor instance')
  assert.equal(value.body,'','restoring must not replace the active editor values')
+ context.compose=null
+ context.individualMessageId='live:2'
+ const messages=[{id:'live:1',body:['Old message'],from:{name:'Old sender',email:'old@example.com'}},{id:'live:2',messageId:'<reply-target>',inReplyTo:'<parent>',sentAt:'27 oct',body:['First line\nSecond line','Last paragraph'],from:{name:'Sender',email:'sender@example.com'}}]
+ context.selected={id:'conversation',subject:'Test',messages,participants:[]}
+ let quoteArgs
+ context.replyComposeHtml=(...args)=>{quoteArgs=args;return '<p></p><blockquote>Original</blockquote>'}
+ load('openReply')()
+ assert.equal(value.to,'sender@example.com')
+ assert.equal(value.inReplyTo,'<reply-target>')
+ assert.ok(value.html.includes('<blockquote>'))
+ assert.ok(value.body.includes('> First line\n> Second line'),'every line is quoted in the plain-text fallback')
+ assert.equal(quoteArgs[0],'')
+ assert.equal(quoteArgs[2],'First line\nSecond line\n\nLast paragraph')
+ assert.equal(quoteArgs[3],'compose.originalMessage')
  console.log('New compose: fresh content and instance per message, with explicit draft restoration passed')
 })().catch(error=>{console.error(error);process.exitCode=1})

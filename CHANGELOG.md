@@ -2,6 +2,14 @@
 
 ## 0.4.2 — En desarrollo
 
+- Fechas consistentes en listas, búsqueda, lector y respuestas: formato regional de México, hora local de 24 horas, «Ayer», año para fechas de otros años y detalle con zona horaria. Las fechas inválidas no bloquean el lector; las conversaciones se ordenan por el instante real y la sincronización muestra días, meses o años cuando corresponde.
+
+- Las respuestas nuevas separan el área de escritura del mensaje original mediante una cita con título y fondo propio; la estructura se conserva al guardar borradores y enviar HTML.
+
+- Indicador persistente del borrado en segundo plano con carpeta, cantidad procesada y barra de progreso; las operaciones pendientes se distinguen de las activas y el estado permanece visible al cambiar de carpeta.
+
+- Textos de la interfaz, avisos nativos y documentación adaptados al español de México, con tuteo y terminología consistente.
+
 - «Vaciar carpeta» en el menú contextual y la barra del lector de Spam y Papelera, con confirmación del número de mensajes y advertencia de borrado definitivo. Incluye mensajes aún no descargados y excluye los que llegan después de preparar la operación.
 - Eliminaciones múltiples con una sola confirmación, cola persistente y procesamiento en segundo plano por lotes. Las eliminaciones individuales también solicitan confirmación antes de mover a Papelera.
 

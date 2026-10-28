@@ -20,6 +20,7 @@ import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCreden
 const MAX_ATTEMPTS = 5
 
 let processing = false
+let deletionProgress: { id: string; completed: number } | null = null
 let listener: (() => void) | null = null
 
 export function setOutboxListener(fn: () => void): void {
@@ -46,7 +47,7 @@ function labelOf(row: OutboxRow): string {
     const subject = typeof payload.subject === 'string' ? payload.subject : ''
     return subject || '(sin asunto)'
   }
-  if (row.kind === 'delete-many') return `${row.mailbox}: ${Array.isArray(payload.uids) ? payload.uids.length : 0}`
+  if (row.kind === 'delete-many') return row.mailbox ?? ''
   return row.kind
 }
 
@@ -58,7 +59,14 @@ export function outboxItems(): OutboxItem[] {
     attempts: row.attempts,
     lastError: row.lastError,
     createdAt: row.createdAt,
-    label: labelOf(row)
+    label: labelOf(row),
+    ...(row.kind === 'delete-many' ? {
+      deletionProgress: {
+        completed: deletionProgress?.id === row.id ? deletionProgress.completed : 0,
+        total: Array.isArray(payloadOf(row).uids) ? (payloadOf(row).uids as unknown[]).length : 0,
+        running: deletionProgress?.id === row.id
+      }
+    } : {})
   }))
 }
 
@@ -210,7 +218,17 @@ async function runOne(row: OutboxRow): Promise<void> {
   } else if (row.kind === 'delete-many') {
     const payload = payloadOf(row)
     if (!row.mailbox || !Array.isArray(payload.uids) || payload.uids.some(uid => !Number.isInteger(uid) || uid <= 0) || typeof payload.uidValidity !== 'string' || !/^\d+$/.test(payload.uidValidity)) throw new Error('Lote de borrado inválido')
-    await deleteMessageBatch(row.mailbox, payload.uids as number[], payload.permanent === true, payload.uidValidity)
+    deletionProgress = { id: row.id, completed: 0 }
+    notify()
+    try {
+      await deleteMessageBatch(row.mailbox, payload.uids as number[], payload.permanent === true, payload.uidValidity, completed => {
+        deletionProgress = { id: row.id, completed }
+        notify()
+      })
+    } finally {
+      deletionProgress = null
+      notify()
+    }
   } else if (row.kind === 'move') {
     const target = payloadOf(row).target
     if (typeof target !== 'string' || target === '') throw new Error('La regla no tiene buzón destino')

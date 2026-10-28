@@ -330,7 +330,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                   aria-pressed={locale === item.id}
                 >
                   <span className="lang-option__code">{item.label}</span>
-                  <span className="lang-option__name">{item.id === 'es' ? 'Español' : 'English'}</span>
+                  <span className="lang-option__name">{item.id === 'es' ? 'Español (México)' : 'English'}</span>
                   {locale === item.id && <Icon name="check" size={16} />}
                 </button>
               ))}
@@ -547,7 +547,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             <dl className="profile-details">
               <div className="profile-fact">
                 <dt>{t('settings.profile.language')}</dt>
-                <dd>{locale === 'es' ? 'Español' : 'English'}</dd>
+                <dd>{locale === 'es' ? 'Español (México)' : 'English'}</dd>
               </div>
               <div className="profile-fact">
                 <dt>{t('settings.profile.layout')}</dt>

@@ -20,6 +20,12 @@
         ],
         "createdAt": "2026-10-27T05:20:27.783Z",
         "reason": "Agent review: DESIGN.md section 7 explicitly specifies a left indigo bar for the selected mail row; preserve the existing selection indicator."
+      },
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-10-28T01:36:22.741Z",
+        "reason": "Codex review: composeEmailHtml uses the existing Arial,sans-serif stack for outgoing email compatibility across mail clients; it is not the application UI font."
       }
     ]
   }

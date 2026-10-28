@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import type { SyncProgress } from '@shared/ipc'
+import type { OutboxItem, SyncProgress } from '@shared/ipc'
 import { useI18n, type TranslationKey } from '../i18n'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
 import { Icon } from './Icon'
@@ -11,6 +11,7 @@ interface StatusBarProps {
   pending: number
   /** Descarga completa del buzón en curso. */
   progress?: SyncProgress | null
+  deletion?: OutboxItem
 }
 
 interface LegendEntry {
@@ -32,10 +33,13 @@ function LegendItem({ entry }: { entry: LegendEntry }): React.JSX.Element {
   )
 }
 
-export function StatusBar({ appVersion, bindings, pending, progress = null }: StatusBarProps): React.JSX.Element {
+export function StatusBar({ appVersion, bindings, pending, progress = null, deletion }: StatusBarProps): React.JSX.Element {
   const { t } = useI18n()
   const percent =
     progress && progress.total > 0 ? Math.min(100, Math.round((progress.cached / progress.total) * 100)) : 0
+  const deleting = deletion?.deletionProgress
+  const deletePercent = deleting && deleting.total > 0 ? Math.min(100, Math.round(deleting.completed / deleting.total * 100)) : 0
+  const deletionLabel = deletion && deleting ? t(deleting.running ? 'status.deleting' : 'status.deletePending', { folder: deletion.label, completed: deleting.completed, total: deleting.total }) : ''
 
   // La leyenda sale de los atajos activos: si remapeás, el pie lo refleja.
   const primary: ReadonlyArray<LegendEntry> = [
@@ -52,7 +56,15 @@ export function StatusBar({ appVersion, bindings, pending, progress = null }: St
 
   return (
     <footer className="statusbar">
-      <div className="legend">
+      {deletion && deleting ? (
+        <div className="sync-progress deletion-progress" role="status" aria-live="polite" data-tooltip={deletionLabel} tabIndex={0}>
+          <Icon name={deleting.running ? 'progress_activity' : 'schedule'} size={14} className={deleting.running ? 'spin' : undefined} />
+          <span className="sync-progress__label">{deletionLabel}</span>
+          {deleting.running && <span className="sync-progress__bar" role="progressbar" aria-label={t('common.deleting')} aria-valuemin={0} aria-valuemax={deleting.total} aria-valuenow={deleting.completed}>
+            <span className="sync-progress__fill" style={{ width: `${deletePercent}%` }} />
+          </span>}
+        </div>
+      ) : <div className="legend">
         {primary.map((entry, index) => (
           <Fragment key={entry.labelKey}>
             {index > 0 && <span className="legend__sep">·</span>}
@@ -68,7 +80,7 @@ export function StatusBar({ appVersion, bindings, pending, progress = null }: St
             </Fragment>
           ))}
         </span>
-      </div>
+      </div>}
 
       <div className="statusbar__right">
         {progress && (

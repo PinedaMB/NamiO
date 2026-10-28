@@ -3,6 +3,7 @@ import type { BodyTheme } from '@shared/ipc'
 import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Attachment, Message, Thread } from '../data/demo'
+import { formatMessageDateTime } from '../lib/dates'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { formatCombo, type Bindings } from '../settings/shortcuts'
@@ -121,7 +122,7 @@ export function ThreadPane({
   onPrev,
   onNext
 }: ThreadPaneProps): React.JSX.Element {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { bodyTheme: preferredTheme } = usePreferences()
   const themeKey = `${mailbox}:${thread.id}:${preferredTheme}`
   const [themeOverride, setThemeOverride] = useState<{ key: string; theme: BodyTheme } | null>(null)
@@ -267,7 +268,7 @@ export function ThreadPane({
                   </div>
 
                   <div className="participants__right">
-                    <span>{message.sentAt}</span>
+                    <span>{message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt}</span>
                     <span className="participants__tls">
                       <span className="dot" />
                       {t('thread.encrypted')}

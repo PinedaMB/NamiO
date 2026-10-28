@@ -915,7 +915,7 @@ export function mailboxDeletionSnapshot(path: string): Promise<{ uids: number[];
   })
 }
 
-export async function deleteMessageBatch(path: string, uids: number[], permanent: boolean, uidValidity: string): Promise<void> {
+export async function deleteMessageBatch(path: string, uids: number[], permanent: boolean, uidValidity: string, onProgress?: (completed: number) => void): Promise<void> {
   const generation = syncGeneration
   for (let offset = 0; offset < uids.length; offset += 100) {
     await serial(async () => {
@@ -936,6 +936,7 @@ export async function deleteMessageBatch(path: string, uids: number[], permanent
           const removed = deleteMessageRow(path, uid)
           if (removed?.unread) adjustMailboxUnseen(path, -1)
         }
+        onProgress?.(offset + batch.length)
         await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
         notify('*')
       } finally { lock.release() }

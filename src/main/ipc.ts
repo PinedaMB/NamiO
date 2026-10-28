@@ -234,7 +234,7 @@ export function registerIpcHandlers(): void {
       const options = {
         type: 'warning' as const,
         message: permanent ? (english ? 'Permanently delete this message?' : '¿Eliminar este mensaje definitivamente?') : (english ? 'Move this message to Trash?' : '¿Mover este mensaje a Papelera?'),
-        detail: permanent ? (english ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.') : (english ? 'You can recover it from Trash.' : 'Podés recuperarlo desde Papelera.'),
+        detail: permanent ? (english ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.') : (english ? 'You can recover it from Trash.' : 'Puedes recuperarlo desde Papelera.'),
         buttons: english ? ['Cancel', permanent ? 'Delete permanently' : 'Move to Trash'] : ['Cancelar', permanent ? 'Eliminar definitivamente' : 'Mover a Papelera'],
         defaultId: 0, cancelId: 0, noLink: true
       }
@@ -343,7 +343,7 @@ export function registerIpcHandlers(): void {
       throw new Error('Regla inválida')
     }
     if (draft.action === 'move' && (typeof draft.target !== 'string' || draft.target === '')) {
-      throw new Error('Elegí el buzón destino')
+      throw new Error('Elige el buzón destino')
     }
 
     return saveRule({

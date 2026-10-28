@@ -5,12 +5,15 @@ const ts = require('typescript-test')
 const React = require('react')
 let override = null
 let preferred = 'light'
+const dates = {}
+vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/lib/dates.ts','utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }), {exports:dates})
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/ThreadPane.tsx', 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX }), {
   exports: exportsObject,
   require: id => {
     if (id === 'react') return { ...React, useState: () => [override, value => { override = value }], useEffect() {} }
-    if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
+    if (id === '../lib/dates') return dates
+    if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: preferred }) }
     if (id === '../settings/shortcuts') return { formatCombo: () => '' }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }

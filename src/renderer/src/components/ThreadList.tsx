@@ -6,6 +6,7 @@ import type { FilterId } from './Topbar'
 import { useI18n, type TranslationKey } from '../i18n'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
+import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 
 interface ThreadListProps {
   threads: readonly Thread[]
@@ -93,7 +94,7 @@ export function ThreadList({
   onContextMenu,
   onSelect
 }: ThreadListProps): React.JSX.Element {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   // En modo real las pestañas no son "prioridad": son todos / sin leer / leídos,
   // y el pie no puede decir "clasificado hace…" porque nadie clasifica nada.
   const focusedLabel = live ? t('list.unread') : t('list.focused')
@@ -223,8 +224,8 @@ export function ThreadList({
           const members = thread.messageIds
             ? allThreads.filter(item => thread.messageIds!.includes(Number(item.id.slice(5))))
                 .sort((a, b) => thread.messageIds!.indexOf(Number(a.id.slice(5))) - thread.messageIds!.indexOf(Number(b.id.slice(5))))
-                .map(item => ({ id: item.id, messageId: item.id, sender: item.participants[0], date: item.receivedAt, unread: item.unread }))
-            : thread.messages.map(message => ({ id: thread.id, messageId: message.id, sender: message.from, date: message.sentAt, unread: thread.unread }))
+                .map(item => ({ id: item.id, messageId: item.id, sender: item.participants[0], date: item.date !== undefined ? formatMessageDate(item.date, locale) : item.receivedAt, unread: item.unread }))
+            : thread.messages.map(message => ({ id: thread.id, messageId: message.id, sender: message.from, date: message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt, unread: thread.unread }))
           const hasFiles = allThreads.some(item =>
             (item.id === thread.id || thread.messageIds?.includes(Number(item.id.slice(5)))) &&
             (item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
@@ -278,7 +279,7 @@ export function ThreadList({
                       <Icon name="mark_email_unread" size={16} />
                     </span>
                   )}
-                  <span className="thread__time">{thread.receivedAt}</span>
+                  <span className="thread__time" title={thread.date !== undefined ? formatMessageDateTime(thread.date, locale) : undefined}>{thread.date !== undefined ? formatMessageDate(thread.date, locale) : thread.receivedAt}</span>
                 </div>
               </div>
 

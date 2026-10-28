@@ -2,6 +2,7 @@ import type { SearchHit } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { cx } from '../lib/cx'
 import { Icon } from './Icon'
+import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 
 interface SearchResultsProps {
   query: string
@@ -9,16 +10,6 @@ interface SearchResultsProps {
   loading: boolean
   selectedKey: string | null
   onOpen: (hit: SearchHit) => void
-}
-
-function formatWhen(iso: string, locale: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  const sameDay = new Date().toDateString() === date.toDateString()
-  return new Intl.DateTimeFormat(
-    locale,
-    sameDay ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' }
-  ).format(date)
 }
 
 /** El snippet llega con ⟦…⟧ alrededor de las coincidencias: se resalta sin HTML. */
@@ -95,7 +86,7 @@ export function SearchResults({
                       <Icon name="mark_email_unread" size={16} />
                     </span>
                   )}
-                  <span className="thread__time">{formatWhen(hit.date, locale)}</span>
+                  <span className="thread__time" title={formatMessageDateTime(hit.date, locale)}>{formatMessageDate(hit.date, locale)}</span>
                 </div>
                 <div className="thread__subject">{hit.subject}</div>
                 {hit.snippet.trim() !== '' && <Snippet text={hit.snippet} />}

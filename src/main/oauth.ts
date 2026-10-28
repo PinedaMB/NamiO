@@ -141,7 +141,7 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promi
           `<body style="font-family:system-ui;background:#0f131c;color:#dfe2ee;display:grid;place-items:center;height:100vh;margin:0">` +
           `<div style="text-align:center"><h1 style="font-size:18px">${
             code ? 'Cuenta autorizada' : 'No se pudo autorizar'
-          }</h1><p style="color:#908fa0">Ya podés cerrar esta pestaña y volver a NamiO.</p></div></body></html>`
+          }</h1><p style="color:#908fa0">Ya puedes cerrar esta pestaña y volver a NamiO.</p></div></body></html>`
       )
 
       server.close()

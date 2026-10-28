@@ -33,7 +33,7 @@ async function main() {
       if(id==='./settings')return {readActiveAccount:async()=>({id:'one'})}
       if(id==='electron')return {dialog:{},BrowserWindow:{}}
       if(id==='nodemailer')return {createTransport:options=>options.streamTransport ? nodemailer.createTransport(options) : {sendMail:async message=>{if(failSmtp)throw new Error('Offline');sent.push(message)},close(){}}}
-      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)},deleteMessageBatch:async(...args)=>{if(failBatch)throw new Error('IMAP offline');deletedBatches.push(args)}}
+      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)},deleteMessageBatch:async(...args)=>{if(failBatch)throw new Error('IMAP offline');args[4](1);args[4](args[1].length);deletedBatches.push(args)}}
       return require(id)
     }})
     const payload = {to:draft.to,cc:draft.cc,bcc:draft.bcc,subject:draft.subject,text:draft.body,html:draft.html,attachments:['file1'],inReplyTo:draft.inReplyTo,references:draft.references}
@@ -73,10 +73,13 @@ async function main() {
     assert.equal(db.listOutbox().length,0)
     await mail.processOutbox()
     assert.equal(sent.length,deliveriesBeforeRetry+1,'completed queue entries are not sent again')
+    const progressSnapshots=[]
+    mail.setOutboxListener(()=>progressSnapshots.push(...mail.outboxItems().filter(item=>item.kind==='delete-many').map(item=>item.deletionProgress)))
     db.enqueueOutbox({kind:'delete-many',mailbox:'Spam',payload:{uids:[1,5000],uidValidity:'7',permanent:true}})
     failBatch = true
     await mail.processOutbox()
     assert.equal(db.listOutbox().length,1,'failed background deletion remains pending')
+    assert.equal(mail.outboxItems()[0].deletionProgress.running,false,'a disconnected deletion is pending, not still running')
     db.closeCache();db.openAccountCache('one')
     failBatch = false
     await mail.processOutbox()
@@ -86,6 +89,9 @@ async function main() {
     assert.deepEqual(Array.from(deletedBatches[0][1]),[1,5000])
     assert.equal(deletedBatches[0][2],true)
     assert.equal(deletedBatches[0][3],'7')
+    assert.ok(progressSnapshots.some(progress=>progress.running&&progress.completed===0))
+    assert.ok(progressSnapshots.some(progress=>progress.running&&progress.completed===1&&progress.total===2))
+    assert.ok(progressSnapshots.some(progress=>progress.running&&progress.completed===2))
     db.clearDraft()
     assert.equal(db.readPickedAttachment('file1'),undefined)
     console.log('Compose mail: durable attachments/drafts, validation, CC/BCC privacy, reply headers, exact sent copy, queued offline mail and file cleanup passed')

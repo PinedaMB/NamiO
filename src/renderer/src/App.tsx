@@ -36,6 +36,8 @@ import { TooltipButton } from './components/Tooltip'
 import { useI18n } from './i18n'
 import { useShortcuts } from './settings/ShortcutsProvider'
 import { actionForCombo, comboFromEvent } from './settings/shortcuts'
+import { replyComposeHtml } from './lib/composeHtml'
+import { formatElapsed, formatMessageDateTime } from './lib/dates'
 
 type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string }
 
@@ -89,14 +91,6 @@ function uidOf(threadId: string): number | null {
   if (!threadId.startsWith('live:')) return null
   const uid = Number(threadId.slice(5))
   return Number.isInteger(uid) ? uid : null
-}
-
-function formatAgo(milliseconds: number): string {
-  const seconds = Math.max(0, Math.round(milliseconds / 1000))
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  return `${Math.round(minutes / 60)}h`
 }
 
 export function App(): React.JSX.Element {
@@ -886,8 +880,9 @@ export function App(): React.JSX.Element {
     setComposeMinimized(false)
     const message = selected.messages.find(item => item.id === (individualMessageId ?? selected.id)) ?? selected.messages.at(-1)
     const sender = message?.from ?? selected.participants[0]
-    const quoted = (message?.body ?? []).map((line) => `> ${line}`).join('\n')
-    const attribution = message ? `${message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
+    const original = (message?.body ?? []).join('\n\n')
+    const quoted = original ? original.split('\n').map(line => `> ${line}`).join('\n') : ''
+    const attribution = message ? `${message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
     const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
 
     setComposeSession(session => session + 1)
@@ -896,7 +891,8 @@ export function App(): React.JSX.Element {
       subject: prefix,
       inReplyTo: message?.messageId,
       references: [message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)),
-      body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n')
+      body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n'),
+      html: replyComposeHtml(body, attribution, original, t('compose.originalMessage'))
     })
   }
 
@@ -1065,7 +1061,7 @@ export function App(): React.JSX.Element {
     : sync.offline
       ? t('sidebar.offline')
       : sync.syncedAt
-        ? t('sidebar.syncedAgo', { time: formatAgo(now - sync.syncedAt) })
+        ? t('sidebar.syncedAgo', { time: formatElapsed(now - sync.syncedAt, locale) })
         : t('sidebar.syncing')
 
   const outboxFailed = outbox.find((item) => item.status === 'failed') ?? null
@@ -1305,6 +1301,7 @@ export function App(): React.JSX.Element {
           appVersion={appVersion}
           bindings={bindings}
           pending={outbox.length}
+          deletion={outbox.find(item => item.deletionProgress?.running) ?? outbox.find(item => item.kind === 'delete-many' && item.status !== 'failed')}
           progress={syncProgress}
         />
       </div>

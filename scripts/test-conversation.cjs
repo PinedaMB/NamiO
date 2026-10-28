@@ -6,8 +6,10 @@ const path = require('node:path')
 const ts = require('typescript-test')
 const React = require('react')
 const compile = file => ts.transpile(fs.readFileSync(file, 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX })
+const dates = {}
+vm.runInNewContext(compile('src/renderer/src/lib/dates.ts'), { exports: dates })
 const live = {}
-vm.runInNewContext(compile('src/renderer/src/data/live.ts'), { exports: live, require: () => ({ isSpamMailbox: () => false }) })
+vm.runInNewContext(compile('src/renderer/src/data/live.ts'), { exports: live, require: id => id === '../lib/dates' ? dates : ({ isSpamMailbox: () => false }) })
 function envelope(uid, messageId, inReplyTo, subject = 'Same subject') {
   return { uid, messageId, inReplyTo, subject, hasAttachments: uid === 2, from: { name: 'Sender', address: 'sender@example.com' }, date: `2026-10-${20 + uid}T12:00:00Z`, unread: false, flagged: false, size: 1 }
 }
@@ -51,7 +53,8 @@ const pane = {}
 const clicked = []
 vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { exports: pane, require: id => {
   if (id === 'react') return { ...React, useState: () => [null, () => {}], useEffect() {} }
-  if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
+  if (id === '../lib/dates') return dates
+  if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
   if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: 'dark' }) }
   if (id === '../settings/shortcuts') return { formatCombo: () => '' }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
@@ -90,7 +93,8 @@ console.log('Attachments: independent native disclosure for each message, expand
 
 const list = {}
 vm.runInNewContext(compile('src/renderer/src/components/ThreadList.tsx'), { exports: list, require: id => {
-  if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
+  if (id === '../lib/dates') return dates
+  if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
   if (id === './SenderAvatar') return { SenderAvatar: () => null }
   if (id === './Tooltip') return { TooltipButton: () => null }
