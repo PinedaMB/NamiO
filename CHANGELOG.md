@@ -1,6 +1,6 @@
 # Cambios
 
-## 0.4.2 — En desarrollo
+## 0.4.3 — En desarrollo
 
 - Fechas consistentes en listas, búsqueda, lector y respuestas: formato regional de México, hora local de 24 horas, «Ayer», año para fechas de otros años y detalle con zona horaria. Las fechas inválidas no bloquean el lector; las conversaciones se ordenan por el instante real y la sincronización muestra días, meses o años cuando corresponde.
 

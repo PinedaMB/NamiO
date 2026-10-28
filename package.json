@@ -1,6 +1,6 @@
 {
   "name": "namio",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "productName": "NamiO",
   "description": "NamiO — cliente de correo de escritorio multiplataforma",
   "main": "./out/main/index.js",
