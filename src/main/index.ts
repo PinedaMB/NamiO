@@ -9,6 +9,7 @@ import { readActiveAccount } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 import { setupAutoUpdate } from './updater'
+import icon from '../../build/icon.png?asset'
 
 const isDev = !app.isPackaged
 
@@ -46,6 +47,7 @@ function createWindow(): void {
     backgroundColor: '#0d1014',
     autoHideMenuBar: true,
     title: 'NamiO',
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       // Un cliente de correo procesa contenido hostil: estos cuatro flags no se tocan.

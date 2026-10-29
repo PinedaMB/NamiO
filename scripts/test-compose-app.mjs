@@ -67,6 +67,10 @@ app.whenReady().then(async()=>{
  await captureMenu(win,'/tmp/namio-update-ready.png');
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('.rail [aria-label="Configuración"]').click();
+ for(let i=0;i<100&&!document.querySelector('.settings-nav');i++)await new Promise(r=>setTimeout(r,30));
+ const about=[...document.querySelectorAll('.settings-nav__item')].find(button=>button.textContent.includes('Acerca de'));
+ if(!about)throw new Error('About settings navigation missing');
+ about.click();
  for(let i=0;i<100&&!document.querySelector('#settings-updates-title');i++)await new Promise(r=>setTimeout(r,30));
  if(!document.querySelector('#settings-updates-title'))throw new Error('Settings update section missing');
  for(let i=0;i<100&&!document.querySelector('.settings .update-notice button');i++)await new Promise(r=>setTimeout(r,30));

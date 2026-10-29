@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Notification } from 'electron'
 import { execFile } from 'node:child_process'
+import icon from '../../build/notification.png?asset'
 import { IPC, type Envelope } from '@shared/ipc'
 import { readAccounts, readSettings, type StoredAccount } from './settings'
 
@@ -9,7 +10,7 @@ const active = new Set<Notification>()
 function show(title: string, body: string, silent: boolean, click?: () => void): void {
   if (!Notification.isSupported()) throw new Error('Notifications are not supported on this system')
   const linuxSound = process.platform === 'linux' && !silent
-  const notification = new Notification({ title, body, silent: silent || linuxSound })
+  const notification = new Notification({ title, body, icon, silent: silent || linuxSound })
   if (linuxSound) notification.once('show', () => {
     // shortcut: Linux requiere canberra-gtk-play; empaquetar audio si se soportan escritorios sin libcanberra.
     execFile('canberra-gtk-play', ['--id', 'message-new-email', '--description', 'NamiO'], { timeout: 5000 }, (error) => {
@@ -41,10 +42,13 @@ export async function showNewMail(account: StoredAccount, path: string, messages
   const latest = messages[messages.length - 1]
   if (!latest) return
   const generic = es ? 'Tienes correo nuevo' : 'You have new mail'
-  const title = `NamiO · ${account.label || account.user}`
+  const line = (value: string | undefined, fallback: string, limit: number): string => (value?.replace(/\s+/g, ' ').trim() || fallback).slice(0, limit)
+  const title = `NamiO · ${line(account.label || account.user, account.user, 80)}`
+  const sender = line(latest.from?.name || latest.from?.address, es ? 'Remitente desconocido' : 'Unknown sender', 80)
+  const subject = line(latest.subject, es ? 'Sin asunto' : 'No subject', 150)
   const body = settings.notificationPrivate !== false ? generic : messages.length > 1
-    ? `${messages.length} ${es ? 'correos nuevos' : 'new messages'}`
-    : `${latest.from?.name || latest.from?.address || (es ? 'Remitente desconocido' : 'Unknown sender')}\n${latest.subject}`.slice(0, 240)
+    ? `${messages.length} ${es ? 'correos nuevos' : 'new messages'}\n${sender} — ${subject}`
+    : `${sender}\n${subject}`
   show(title, body, settings.notificationSound === false, () => {
     void readAccounts().then(({ accounts }) => {
       const window = getWindow()

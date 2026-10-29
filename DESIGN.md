@@ -28,19 +28,22 @@ raccoon), y funciona mejor que una letra porque se reconoce a 30 px y a 512 px p
 
 | Pieza | Archivo | Uso |
 | --- | --- | --- |
-| Master | `build/logo-source.png` (1354², alfa) | fuente de todos los tamaños |
+| Original de app | `build/icon-source.png` (1024², alfa) | mapache sobre fondo cuadrado redondeado |
+| Original de notificaciones | `build/notification-source.png` (1024², alfa) | mapache con campana |
+| Original de marca | `build/logo-source.png` (2000², alfa) | mapache con contorno blanco |
 | Icono de app | `build/icon.png` (512²) · `build/icon-1024.png` | `electron-builder` (Linux y Windows) |
-| Marca en la UI | `src/renderer/src/assets/logo.png` (256²) | rail, junto al wordmark "NamiO" |
+| Notificaciones | `build/notification.png` (256²) | avisos nativos de correo nuevo |
+| Marca en la UI | `src/renderer/src/assets/logo.png` (256²) | rail, bienvenida, inicio y Acerca de |
 
 Reglas de uso:
 
 - Se usa **tal cual**: sin recolorear, sin rotar, sin contorno ni sombra dura. El único efecto
   admitido es un `drop-shadow` índigo muy tenue para separarlo de un fondo oscuro.
-- Fondo **transparente**; nunca dentro de un recuadro de color (el pelaje ya es oscuro).
+- Se conserva la transparencia y el diseño de cada original, incluido el fondo del icono de app.
 - Tamaños: 30 px en el rail, 512/1024 en el sistema. No hay versión monocroma: el contraste lo dan
   las franjas claras del hocico y las cejas.
 - Los tamaños se regeneran con `python scripts/make-icons.py` (requiere Pillow); el script recorta
-  el alfa del master y deja 4 % de respiro.
+  el alfa de cada original y deja 4 % de respiro.
 
 ## 3. Paleta
 

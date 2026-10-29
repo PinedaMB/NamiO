@@ -284,6 +284,16 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             </div>
             <p className="settings-card__note"><Icon name="construction" size={16} />{t('settings.about.development')}</p>
           </div>
+          <section className="settings-card" aria-labelledby="settings-updates-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-updates-title" className="settings-card__title">{t('update.title')}</h2>
+                <p className="settings-card__subtitle">{t('update.current', { version: status?.appVersion ?? '—' })}</p>
+              </div>
+            </div>
+            <UpdateNotice detailed />
+            <p className="settings-card__note">{t('update.hint')}</p>
+          </section>
           <section className="settings-card" aria-labelledby="settings-diagnostics-title">
             <div className="settings-card__head">
               <div>
@@ -443,17 +453,6 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             </button>
             </div>
             {notificationStatus && <p role="status" className="settings-card__note">{notificationStatus}</p>}
-          </section>
-
-          <section className="settings-card" aria-labelledby="settings-updates-title">
-            <div className="settings-card__head">
-              <div>
-                <h2 id="settings-updates-title" className="settings-card__title">{t('update.title')}</h2>
-                <p className="settings-card__subtitle">{t('update.current', { version: status?.appVersion ?? '—' })}</p>
-              </div>
-            </div>
-            <UpdateNotice detailed />
-            <p className="settings-card__note">{t('update.hint')}</p>
           </section>
         </div>
       )

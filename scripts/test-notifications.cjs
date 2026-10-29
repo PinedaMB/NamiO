@@ -18,6 +18,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/main/notifications.ts', 'utf8'))
   exports: exportsObject, process: platform, console,
   require(id) {
     if (id === 'node:child_process') return { execFile: (...args) => { sounds.push(args); args[3](null) } }
+    if (id === '../../build/notification.png?asset') return { default: '/namio-notification.png' }
     if (id === 'electron') return { Notification, app: { getLocale: () => 'es' } }
     if (id === '@shared/ipc') return { IPC: { notificationOpen: 'open' } }
     if (id === './settings') return { readSettings: async () => settings, readAccounts: async () => ({ accounts: registered, active: selected.id }) }
@@ -34,16 +35,18 @@ async function main() {
   assert.equal(sounds[0][1][1], 'message-new-email')
   assert.equal(shown[0].options.silent, true, 'avoid a second sound from the notification server')
   assert.equal(shown[0].options.body, 'Tienes correo nuevo')
+  assert.equal(shown[0].options.icon, '/namio-notification.png')
+  assert.equal(shown[0].options.title, 'NamiO · Work')
   shown[0].emit('click')
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(sent[0][1].uid, 10)
   settings = { notificationPrivate: false, notificationSound: false }
   await exportsObject.showNewMail(account, 'INBOX', [message], () => window)
-  assert.ok(shown[1].options.body.includes('Private subject'))
+  assert.equal(shown[1].options.body, 'Sender\nPrivate subject')
   assert.equal(shown[1].options.silent, true)
   assert.equal(sounds.length, 1, 'sound disabled also suppresses Linux playback')
   await exportsObject.showNewMail(account, 'INBOX', [message, { ...message, uid: 11 }], () => window)
-  assert.equal(shown[2].options.body, '2 correos nuevos')
+  assert.equal(shown[2].options.body, '2 correos nuevos\nSender — Private subject')
   settings.notifications = false
   await exportsObject.showNewMail(account, 'INBOX', [message], () => window)
   assert.equal(shown.length, 3)
@@ -69,6 +72,19 @@ async function main() {
   await exportsObject.testNotification()
   assert.equal(shown.at(-1).options.silent, false, 'Windows retains native sound')
   assert.equal(sounds.length, 3, 'other platforms do not run the Linux player')
+
+  registered = [account]
+  settings = { notificationPrivate: false, notificationSound: false }
+  await exportsObject.showNewMail(account, 'INBOX', [{ ...message, subject: '  ', from: null }], () => window)
+  assert.equal(shown.at(-1).options.body, 'Remitente desconocido\nSin asunto')
+  await exportsObject.showNewMail(account, 'INBOX', [{ ...message, subject: 'Hello\n\tworld', from: { name: 'Sender\r\nName' } }], () => window)
+  assert.equal(shown.at(-1).options.body, 'Sender Name\nHello world')
+  settings = { notificationPrivate: true }
+  await exportsObject.showNewMail(account, 'INBOX', [message, message], () => window)
+  assert.equal(shown.at(-1).options.body, 'Tienes correo nuevo', 'grouped notifications also preserve privacy')
+  settings = { notificationPrivate: false, language: 'en' }
+  await exportsObject.showNewMail(account, 'INBOX', [{ ...message, subject: '', from: null }], () => window)
+  assert.equal(shown.at(-1).options.body, 'Unknown sender\nNo subject')
 
   let cursorSettings = {}
   const cursorModule = {}
