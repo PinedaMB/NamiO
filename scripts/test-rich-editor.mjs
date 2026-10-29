@@ -110,8 +110,10 @@ app.whenReady().then(async()=>{
  const email=helpers.composeEmailHtml(saved);assert(email.includes('style=')&&email.includes('<strong>')&&email.includes('font-size:20px')&&email.includes('background-color:'),'Email serialization keeps font size, color, highlight and inline styles');
  assert(!editor.options.editorProps.transformPastedHTML(dirty).includes('<img'),'Editor paste uses sanitizer');
  const reply=helpers.replyComposeHtml('', '27 oct, LinkedIn <sender@example.com>:', 'Vacantes disponibles\\nCiudad de México\\n<img src=x onerror=alert(1)>', 'Mensaje original');
+ const replyReady=()=>editor.state.doc.firstChild.textContent===''&&editor.state.doc.childCount>1&&editor.state.doc.child(1).type.name==='blockquote';
  restore({text:'Original fallback',html:reply});await tick();
- assert(editor.state.doc.firstChild.textContent===''&&editor.state.doc.child(1).type.name==='blockquote','Replies start with an empty writing area above the original');
+ for(let i=0;i<100&&!replyReady();i++)await tick();
+ assert(replyReady(),'Replies start with an empty writing area above the original');
  const content=document.querySelector('.rich-editor__content');
  assert(content.firstElementChild.getBoundingClientRect().height>=80,'Reply area has room to write');
  assert(getComputedStyle(content,'::before').content.includes('Escribe'),'Empty reply shows the writing placeholder');

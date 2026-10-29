@@ -13,6 +13,7 @@ const observed = []
 const listeners = new Map()
 const animationFrame = { current: 0 }
 const inner = {
+  defaultView: { ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() { disconnected++ } } },
   documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
   body: {}, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
 }
@@ -21,7 +22,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX
 }), {
   exports: exportsObject,
-  ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() { disconnected++ } },
+  ResizeObserver: class { constructor() { throw new Error('Use the iframe observer, not the parent window') } },
   requestAnimationFrame: callback => { pendingMeasure = callback; return 1 },
   cancelAnimationFrame: () => { pendingMeasure = undefined },
   DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },

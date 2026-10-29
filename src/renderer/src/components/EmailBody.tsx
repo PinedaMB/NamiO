@@ -120,7 +120,8 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   const handleLoad = (): void => {
     const frame = frameRef.current
     const inner = frame?.contentDocument
-    if (!frame || !inner || themedDocument.current?.document === inner) return
+    const frameWindow = inner?.defaultView
+    if (!frame || !inner || !frameWindow || themedDocument.current?.document === inner) return
 
     setBackground(applyEmailTheme(inner, bodyTheme))
     themedDocument.current = { document: inner, theme: bodyTheme }
@@ -145,7 +146,8 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
     cancelAnimationFrame(measureFrame.current)
     // Pausar la observación evita que el ajuste del iframe realimente la misma entrega.
     let observedSize = ''
-    const observer = new ResizeObserver(([entry]) => {
+    // El observador pertenece al documento medido, no al ciclo de layout del lector.
+    const observer = new frameWindow.ResizeObserver(([entry]) => {
       if (!entry) return
       const size = `${entry.contentRect.width}:${entry.contentRect.height}`
       if (size === observedSize) return
