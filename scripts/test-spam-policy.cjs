@@ -27,7 +27,10 @@ for (const blocked of [true, false]) for (const setting of ['allow', 'block']) f
   const exports = {}
   vm.runInNewContext(compile('src/renderer/src/components/EmailBody.tsx'), {
     exports,
-    DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },
+    DOMParser: class { parseFromString(html) {
+      const head = { markup: '', insertAdjacentHTML(_position, markup) { this.markup = markup } }
+      return { cloneNode() { return this }, querySelectorAll: () => [], head, documentElement: { get outerHTML() { return `<html><head>${head.markup}</head><body>${html}</body></html>` } } }
+    } },
     require: id => {
       if (id === 'react') return { ...React, useState: initial => [index++ === 0 ? override : initial, () => {}], useRef: () => ({ current: null }), useEffect: () => {}, useLayoutEffect: () => {}, useMemo: fn => fn() }
       if (id === 'dompurify') return { default: { sanitize: html => html } }

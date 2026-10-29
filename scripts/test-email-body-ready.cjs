@@ -15,7 +15,7 @@ const animationFrame = { current: 0 }
 const inner = {
   defaultView: { ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() { disconnected++ } } },
   documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
-  body: {}, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
+  body: { scrollHeight: 1250, getBoundingClientRect: () => ({ bottom: 1250 }) }, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
 }
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/EmailBody.tsx', 'utf8'), {
@@ -25,7 +25,10 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   ResizeObserver: class { constructor() { throw new Error('Use the iframe observer, not the parent window') } },
   requestAnimationFrame: callback => { pendingMeasure = callback; return 1 },
   cancelAnimationFrame: () => { pendingMeasure = undefined },
-  DOMParser: class { parseFromString(html) { return { querySelectorAll: () => [], body: { innerHTML: html } } } },
+  DOMParser: class { parseFromString(html) {
+      const head = { markup: '', insertAdjacentHTML(_position, markup) { this.markup = markup } }
+      return { cloneNode() { return this }, querySelectorAll: () => [], head, documentElement: { get outerHTML() { return `<html><head>${head.markup}</head><body>${html}</body></html>` } } }
+    } },
   require: id => {
     if (id === 'react') return { ...React,
       useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = initial; return [state[slot], value => { state[slot] = value }] },
@@ -74,6 +77,12 @@ assert.equal(pendingMeasure, undefined, 're-observing unchanged content must not
 frame = render()
 assert.equal(frame.props.style.visibility, 'visible')
 assert.equal(frame.props.style.height, 1250)
+inner.body.scrollHeight = 1800
+inner.body.getBoundingClientRect = () => ({ bottom: 1800.25 })
+resize([{ contentRect: { width: 600, height: 1800.25 } }])
+pendingMeasure()
+frame = render()
+assert.equal(frame.props.style.height, 1801, 'include body overflow and round fractional pixels up')
 assert.equal(render('<p>Next message</p>').props.style.visibility, 'hidden')
 assert.equal(render(undefined, 'light').props.style.visibility, 'visible')
 assert.equal(render(undefined, 'light').props.srcDoc, frame.props.srcDoc)

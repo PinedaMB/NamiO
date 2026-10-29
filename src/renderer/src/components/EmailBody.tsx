@@ -19,6 +19,7 @@ const TRANSPARENT =
 
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
+    WHOLE_DOCUMENT: true,
     // Defensa en profundidad: el iframe ya corre sin scripts.
     FORBID_TAGS: ['form', 'input', 'textarea', 'select', 'option', 'object', 'embed', 'base', 'meta', 'link'],
     FORBID_ATTR: ['srcset', 'formaction', 'ping'],
@@ -27,7 +28,7 @@ function sanitize(html: string): string {
 }
 
 /** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas se bloquearon. */
-function prepare(html: string, allowImages: boolean): { body: string; blocked: number } {
+function prepare(html: string, allowImages: boolean): { document: Document; blocked: number } {
   const document_ = new DOMParser().parseFromString(html, 'text/html')
   let blocked = 0
 
@@ -41,11 +42,11 @@ function prepare(html: string, allowImages: boolean): { body: string; blocked: n
     })
   }
 
-  const styles = [...(document_.head?.querySelectorAll('style') ?? [])].map((style) => style.outerHTML).join('')
-  return { body: styles + document_.body.innerHTML, blocked }
+  return { document: document_, blocked }
 }
 
-function buildDocument(body: string, allowImages: boolean): string {
+function buildDocument(document_: Document, allowImages: boolean): string {
+  const output = document_.cloneNode(true) as Document
   const csp = [
     "default-src 'none'",
     allowImages ? 'img-src data: https: http:' : 'img-src data:',
@@ -62,13 +63,15 @@ function buildDocument(body: string, allowImages: boolean): string {
     :root[data-email-theme="dark"] { color-scheme: dark; }
     html[data-email-theme="dark"], html[data-email-theme="dark"] body { background: #14161b; color: #dfe2ee; }
     html, body { margin: 0; padding: 0; overflow: hidden; }
+    /* El mensaje determina su altura; 100% dependería del propio iframe. */
+    html, body { height: auto !important; }
     body {
       padding: 18px 20px;
       font: 14px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif;
       overflow-wrap: break-word;
       word-break: normal;
     }
-    img { max-width: 100%; height: auto; }
+    img { max-width: 100%; }
     img[role=button] { cursor: zoom-in; }
     img[role=button]:focus-visible { outline: 2px solid #8083ff; outline-offset: 2px; }
     a { color: #2f5bd3; }
@@ -77,7 +80,9 @@ function buildDocument(body: string, allowImages: boolean): string {
     pre, code { white-space: pre-wrap; }
   `
 
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${style}</style></head><body>${body}</body></html>`
+  // Los estilos del remitente conservan su cabecera y prevalecen sobre nuestros valores base.
+  output.head.insertAdjacentHTML('afterbegin', `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${style}</style>`)
+  return `<!doctype html>${output.documentElement.outerHTML}`
 }
 
 export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps): React.JSX.Element {
@@ -105,7 +110,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
   const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
   const documentHtml = useMemo(
-    () => buildDocument(prepared.body, allowImages),
+    () => buildDocument(prepared.document, allowImages),
     [prepared, allowImages]
   )
 
@@ -135,7 +140,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
         inner.body.style.setProperty('background-color', background, 'important')
         setBackground(background)
       }
-      const next = Math.max(inner.documentElement.scrollHeight, 140)
+      const next = Math.max(inner.documentElement.scrollHeight, inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 140)
       setHeight(next)
     }
     measure()
