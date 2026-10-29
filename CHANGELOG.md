@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.4.7 — 2026-10-29
+
+- Nueva identidad visual en los iconos de la aplicación, instaladores, bandeja, bienvenida y marca de la interfaz, con una variante propia para las notificaciones.
+- General reorganizado por idioma, lectura y notificaciones. Actualizaciones e información técnica disponibles en Acerca de.
+- Actualizaciones con confirmación de la última versión, fecha de publicación y de comprobación, enlace a novedades y progreso con porcentaje, tamaño descargado y velocidad.
+- Notificaciones con icono propio, resumen del último correo al recibir varios mensajes y textos para remitentes o asuntos vacíos, respetando la opción de privacidad.
+
+
 ## 0.4.4 — 2026-10-28
 
 - Bienvenida en el lector con acciones rápidas y atajos. Al iniciar o cambiar de carpeta no se abre un correo automáticamente; Esc cierra el mensaje actual.
