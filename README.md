@@ -27,6 +27,9 @@ El workflow `deploy-pages.yml` compila, verifica y publica al subir cambios a `g
 
 ## Contenido
 
+- `public/logo.png`: marca con contorno para la interfaz y el cierre.
+- `public/icon.png`: icono de app para favicon y vista previa al compartir.
+- `public/notification.png`: variante con campana para Notificaciones.
 - `src/pages/index.astro`: presentación, vista ilustrativa, funciones, privacidad y plataformas.
 - `src/styles/global.css`: estilos responsivos y fuentes locales.
 - `tailwind.config.mjs`: paleta y tipografía conservadas de la referencia.

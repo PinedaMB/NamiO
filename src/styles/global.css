@@ -75,7 +75,7 @@ body > footer { border-top: 1px solid #31353e; }
 @media (min-width: 1024px) { .download-actions { min-height: 126px; align-content: start; } }
 @media (max-width: 640px) { .download-card { padding: 24px; } }
 .offline-section { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; }
-.offline-icon { color: #c0c1ff; font-size: 32px; margin-bottom: 22px; }
+.offline-mascot { display: block; width: 96px; height: 96px; object-fit: contain; margin-bottom: 22px; }
 .offline-section h2 { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.2; font-weight: 600; letter-spacing: -.025em; margin-bottom: 22px; }
 .offline-section h2 span { color: #c0c1ff; }
 .offline-section p { color: #c7c4d7; font-size: 14px; line-height: 1.8; }

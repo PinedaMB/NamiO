@@ -18,7 +18,7 @@ assert.ok(!html.includes('fonts.googleapis.com'), 'Fonts must be local');
 assert.ok(!html.includes('namio.app/install.sh'), 'Do not publish a nonexistent installer');
 assert.ok(html.includes('Vista ilustrativa'));
 assert.ok(html.includes('https://github.com/PinedaMB/NamiO/releases'));
-for (const path of ['fonts/inter.woff2', 'fonts/jetbrains-mono.woff2', 'fonts/material-symbols.woff2', 'licenses/Inter-OFL.txt', 'licenses/JetBrainsMono-OFL.txt', 'licenses/MaterialSymbols-Apache.txt', 'licenses/NamiO-MIT.txt']) {
+for (const path of ['logo.png', 'icon.png', 'notification.png', 'fonts/inter.woff2', 'fonts/jetbrains-mono.woff2', 'fonts/material-symbols.woff2', 'licenses/Inter-OFL.txt', 'licenses/JetBrainsMono-OFL.txt', 'licenses/MaterialSymbols-Apache.txt', 'licenses/NamiO-MIT.txt']) {
   assert.ok(existsSync(join('dist', path)), `Missing asset or license: ${path}`);
 }
 assert.ok(!html.includes('0.4.0'), 'App version must come from the published release');
