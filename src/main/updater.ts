@@ -35,10 +35,10 @@ export function setupAutoUpdate(): void {
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.on('update-available', info => publish({ phase: 'available', version: info.version }))
-  autoUpdater.on('update-not-available', () => publish({ phase: 'idle' }))
-  autoUpdater.on('download-progress', progress => publish({ ...state, phase: 'downloading', percent: Math.max(0, Math.min(100, Math.round(progress.percent))) }))
-  autoUpdater.on('update-downloaded', info => publish({ phase: 'ready', version: info.version }))
+  autoUpdater.on('update-available', info => publish({ phase: 'available', version: info.version, releaseDate: info.releaseDate, checkedAt: Date.now() }))
+  autoUpdater.on('update-not-available', info => publish({ phase: 'idle', version: info?.version, releaseDate: info?.releaseDate, checkedAt: Date.now() }))
+  autoUpdater.on('download-progress', progress => publish({ ...state, phase: 'downloading', percent: Math.max(0, Math.min(100, Math.round(progress.percent))), transferred: progress.transferred, total: progress.total, bytesPerSecond: progress.bytesPerSecond }))
+  autoUpdater.on('update-downloaded', info => publish({ ...state, phase: 'ready', version: info.version, releaseDate: info.releaseDate }))
   autoUpdater.on('error', () => publish({ phase: 'error' }))
   void check()
   setInterval(() => void check(), CHECK_INTERVAL_MS)

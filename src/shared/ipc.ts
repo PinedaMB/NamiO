@@ -397,6 +397,11 @@ export interface UpdateState {
   phase: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
   version?: string
   percent?: number
+  checkedAt?: number
+  releaseDate?: string
+  transferred?: number
+  total?: number
+  bytesPerSecond?: number
 }
 
 export interface MailApi {

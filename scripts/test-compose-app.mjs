@@ -73,6 +73,23 @@ app.whenReady().then(async()=>{
  if(!document.querySelector('.settings .update-notice button')?.textContent.includes('Reiniciar e instalar 0.4.4'))throw new Error('Settings update state missing');
 })()`)});
  await captureMenu(win,'/tmp/namio-settings-updates.png');
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async fn=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,30))}throw new Error('Detailed update state missing')};
+ await window.api.testUpdate({phase:'idle',version:'0.4.4',checkedAt:Date.now(),releaseDate:'2026-10-29T16:00:00Z'});
+ await until(()=>document.querySelector('.settings .update-notice__status')?.textContent.includes('Estás usando la última versión'));
+ if(!document.querySelector('.settings .update-notice__details')?.textContent.includes('Última comprobación'))throw new Error('Update check time missing');
+ document.querySelector('#settings-updates-title').scrollIntoView({block:'start'});
+})()`)});
+ await captureMenu(win,'/tmp/namio-updates-latest.png');
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ await window.api.testUpdate({phase:'downloading',version:'0.4.5',percent:42,transferred:42*1024**2,total:100*1024**2,bytesPerSecond:2*1024**2,checkedAt:Date.now(),releaseDate:'2026-10-29T16:00:00Z'});
+ for(let i=0;i<100&&!document.querySelector('.settings .update-notice__metrics');i++)await new Promise(r=>setTimeout(r,30));
+ if(!document.querySelector('.settings .update-notice__metrics')?.textContent.includes('42 de 100 MB'))throw new Error('Download size missing');
+ if(!document.querySelector('.settings .update-notice__metrics')?.textContent.includes('2 MB/s'))throw new Error('Download speed missing');
+ if(document.querySelector('.settings [role="progressbar"]')?.getAttribute('aria-valuenow')!=='42')throw new Error('Detailed update progress incorrect');
+})()`)});
+ await captureMenu(win,'/tmp/namio-updates-download.png');
+ await win.webContents.executeJavaScript("window.api.testUpdate({phase:'ready',version:'0.4.4'})");
  await win.webContents.executeJavaScript("document.querySelector('.settings__hero > .tool-btn').click()");
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('.update-notice button').click();await new Promise(r=>setTimeout(r,30));if(await window.api.testInstalls()!==1)throw new Error('Install action not connected');

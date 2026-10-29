@@ -35,7 +35,7 @@ const PLATFORM_NAMES: Record<string, string> = { linux: 'Linux', win32: 'Windows
 type Section = 'general' | 'shortcuts' | 'accounts' | 'copilot' | 'rules' | 'about'
 
 const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }> = [
-  { id: 'general', icon: 'bolt', labelKey: 'settings.nav.general' },
+  { id: 'general', icon: 'tune', labelKey: 'settings.nav.general' },
   { id: 'shortcuts', icon: 'keyboard', labelKey: 'settings.nav.shortcuts' },
   { id: 'accounts', icon: 'alternate_email', labelKey: 'settings.nav.accounts' },
   { id: 'copilot', icon: 'neurology', labelKey: 'settings.nav.copilot' },
@@ -259,29 +259,61 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
 
     if (section === 'about') {
       return (
-        <div className="settings-card settings-about">
-          <div className="settings-about__identity">
-            <img src={logo} alt="" width={64} height={64} />
-            <div>
-              <h2 className="settings-about__name">NamiO</h2>
-              <span className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</span>
+        <div className="settings-stack">
+          <div className="settings-card settings-about">
+            <div className="settings-about__identity">
+              <img src={logo} alt="" width={64} height={64} />
+              <div>
+                <h2 className="settings-about__name">NamiO</h2>
+                <span className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</span>
+              </div>
             </div>
+            <p className="settings-about__description">{t('settings.about.description')}</p>
+            <p className="settings-card__subtitle">{t('settings.about.features')}</p>
+            <dl className="diag">
+              <div className="diag__row"><dt>{t('settings.about.author')}</dt><dd>PinedaMB</dd></div>
+              <div className="diag__row"><dt>{t('settings.about.license')}</dt><dd>MIT</dd></div>
+            </dl>
+            <div className="settings-about__links">
+              <button className="btn btn--primary" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO')}>
+                <Icon name="code" size={16} />{t('settings.about.repository')}
+              </button>
+              <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO/issues')}>
+                <Icon name="bug_report" size={16} />{t('settings.about.report')}
+              </button>
+            </div>
+            <p className="settings-card__note"><Icon name="construction" size={16} />{t('settings.about.development')}</p>
           </div>
-          <p className="settings-about__description">{t('settings.about.description')}</p>
-          <p className="settings-card__subtitle">{t('settings.about.features')}</p>
-          <dl className="diag">
-            <div className="diag__row"><dt>{t('settings.about.author')}</dt><dd>PinedaMB</dd></div>
-            <div className="diag__row"><dt>{t('settings.about.license')}</dt><dd>MIT</dd></div>
-          </dl>
-          <div className="settings-about__links">
-            <button className="btn btn--primary" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO')}>
-              <Icon name="code" size={16} />{t('settings.about.repository')}
-            </button>
-            <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO/issues')}>
-              <Icon name="bug_report" size={16} />{t('settings.about.report')}
-            </button>
-          </div>
-          <p className="settings-card__note"><Icon name="construction" size={16} />{t('settings.about.development')}</p>
+          <section className="settings-card" aria-labelledby="settings-diagnostics-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-diagnostics-title" className="settings-card__title">{t('settings.general.diagnostics')}</h2>
+                <p className="settings-card__subtitle">{t('settings.general.diagnosticsHint')}</p>
+              </div>
+            </div>
+            <dl className="diag">
+              <div className="diag__row">
+                <dt>{t('settings.general.app')}</dt>
+                <dd className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</dd>
+              </div>
+              <div className="diag__row">
+                <dt>{t('settings.general.runtime')}</dt>
+                <dd className="mono">{status?.electronVersion ? `Electron ${status.electronVersion}` : '—'}</dd>
+              </div>
+              <div className="diag__row">
+                <dt>{t('settings.general.platform')}</dt>
+                <dd className="mono">{PLATFORM_NAMES[status?.platform ?? ''] ?? status?.platform ?? '—'}</dd>
+              </div>
+              <div className="diag__row">
+                <dt>{t('settings.general.profile')}</dt>
+                <dd className="mono">settings.json</dd>
+              </div>
+            </dl>
+            <p className="settings-card__note">
+              <Icon name="lock" size={14} />
+              {t('settings.general.dataHint')}
+            </p>
+          </section>
         </div>
       )
     }
@@ -289,20 +321,95 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     if (section === 'general') {
       return (
         <div className="settings-stack">
-          <section className="settings-card" aria-labelledby="settings-updates-title">
+          <section className="settings-card" aria-labelledby="settings-language-title">
             <div className="settings-card__head">
               <div>
-                <h2 id="settings-updates-title" className="settings-card__title">{t('update.title')}</h2>
-                <p className="settings-card__subtitle">{t('update.current', { version: status?.appVersion ?? '—' })}</p>
+                <h2 id="settings-language-title" className="settings-card__title">{t('settings.general.language')}</h2>
+                <p className="settings-card__subtitle">{t('settings.general.languageHint')}</p>
               </div>
             </div>
-            <UpdateNotice />
-            <p className="settings-card__note">{t('update.hint')}</p>
+            <div className="lang-options">
+              {LOCALES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={cx('lang-option', locale === item.id && 'lang-option--active')}
+                  onClick={() => setLocale(item.id)}
+                  aria-pressed={locale === item.id}
+                >
+                  <span className="lang-option__code">{item.label}</span>
+                  <span className="lang-option__name">{item.id === 'es' ? 'Español (México)' : 'English'}</span>
+                  {locale === item.id && <Icon name="check" size={16} />}
+                </button>
+              ))}
+            </div>
           </section>
-          <div className="settings-card">
+
+          <section className="settings-card" aria-labelledby="settings-reading-title">
+            <h2 id="settings-reading-title" className="settings-card__title">{t('settings.general.reading')}</h2>
+            <div className="settings-reading__option">
+              <div className="settings-card__head">
+                <div>
+                  <h3 className="settings-reading__title">{t('settings.body.title')}</h3>
+                  <p className="settings-card__subtitle">{t('settings.body.hint')}</p>
+                </div>
+              </div>
+              <div className="seg" role="group" aria-label={t('settings.body.title')}>
+                <button
+                  type="button"
+                  className={cx('seg__btn', bodyTheme === 'light' && 'seg__btn--active')}
+                  onClick={() => setBodyTheme('light')}
+                  aria-pressed={bodyTheme === 'light'}
+                >
+                  <Icon name="light_mode" size={14} />
+                  {t('settings.body.light')}
+                </button>
+                <button
+                  type="button"
+                  className={cx('seg__btn', bodyTheme === 'dark' && 'seg__btn--active')}
+                  onClick={() => setBodyTheme('dark')}
+                  aria-pressed={bodyTheme === 'dark'}
+                >
+                  <Icon name="dark_mode" size={14} />
+                  {t('settings.body.dark')}
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-reading__option">
+              <div className="settings-card__head">
+                <div>
+                  <h3 className="settings-reading__title">{t('settings.images.title')}</h3>
+                  <p className="settings-card__subtitle">{t('settings.images.hint')}</p>
+                </div>
+              </div>
+              <div className="seg" role="group" aria-label={t('settings.images.title')}>
+                <button
+                  type="button"
+                  className={cx('seg__btn', remoteImages === 'block' && 'seg__btn--active')}
+                  onClick={() => setRemoteImages('block')}
+                  aria-pressed={remoteImages === 'block'}
+                >
+                  <Icon name="image_not_supported" size={14} />
+                  {t('settings.images.block')}
+                </button>
+                <button
+                  type="button"
+                  className={cx('seg__btn', remoteImages === 'allow' && 'seg__btn--active')}
+                  onClick={() => setRemoteImages('allow')}
+                  aria-pressed={remoteImages === 'allow'}
+                >
+                  <Icon name="image" size={14} />
+                  {t('settings.images.allow')}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-card" aria-labelledby="settings-notifications-title">
             <div className="settings-card__head">
               <div>
-                <h2 className="settings-card__title">{t('settings.notifications.title')}</h2>
+                <h2 id="settings-notifications-title" className="settings-card__title">{t('settings.notifications.title')}</h2>
                 <p className="settings-card__subtitle">{t('settings.notifications.hint')}</p>
               </div>
             </div>
@@ -336,120 +443,18 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             </button>
             </div>
             {notificationStatus && <p role="status" className="settings-card__note">{notificationStatus}</p>}
-          </div>
+          </section>
 
-          <div className="settings-card">
+          <section className="settings-card" aria-labelledby="settings-updates-title">
             <div className="settings-card__head">
               <div>
-                <h2 className="settings-card__title">{t('settings.general.language')}</h2>
-                <p className="settings-card__subtitle">{t('settings.general.languageHint')}</p>
+                <h2 id="settings-updates-title" className="settings-card__title">{t('update.title')}</h2>
+                <p className="settings-card__subtitle">{t('update.current', { version: status?.appVersion ?? '—' })}</p>
               </div>
             </div>
-            <div className="lang-options">
-              {LOCALES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={cx('lang-option', locale === item.id && 'lang-option--active')}
-                  onClick={() => setLocale(item.id)}
-                  aria-pressed={locale === item.id}
-                >
-                  <span className="lang-option__code">{item.label}</span>
-                  <span className="lang-option__name">{item.id === 'es' ? 'Español (México)' : 'English'}</span>
-                  {locale === item.id && <Icon name="check" size={16} />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-card__head">
-              <div>
-                <h2 className="settings-card__title">{t('settings.images.title')}</h2>
-                <p className="settings-card__subtitle">{t('settings.images.hint')}</p>
-              </div>
-            </div>
-            <div className="seg" role="group" aria-label={t('settings.images.title')}>
-              <button
-                type="button"
-                className={cx('seg__btn', remoteImages === 'block' && 'seg__btn--active')}
-                onClick={() => setRemoteImages('block')}
-                aria-pressed={remoteImages === 'block'}
-              >
-                <Icon name="image_not_supported" size={14} />
-                {t('settings.images.block')}
-              </button>
-              <button
-                type="button"
-                className={cx('seg__btn', remoteImages === 'allow' && 'seg__btn--active')}
-                onClick={() => setRemoteImages('allow')}
-                aria-pressed={remoteImages === 'allow'}
-              >
-                <Icon name="image" size={14} />
-                {t('settings.images.allow')}
-              </button>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-card__head">
-              <div>
-                <h2 className="settings-card__title">{t('settings.body.title')}</h2>
-                <p className="settings-card__subtitle">{t('settings.body.hint')}</p>
-              </div>
-            </div>
-            <div className="seg" role="group" aria-label={t('settings.body.title')}>
-              <button
-                type="button"
-                className={cx('seg__btn', bodyTheme === 'light' && 'seg__btn--active')}
-                onClick={() => setBodyTheme('light')}
-                aria-pressed={bodyTheme === 'light'}
-              >
-                <Icon name="light_mode" size={14} />
-                {t('settings.body.light')}
-              </button>
-              <button
-                type="button"
-                className={cx('seg__btn', bodyTheme === 'dark' && 'seg__btn--active')}
-                onClick={() => setBodyTheme('dark')}
-                aria-pressed={bodyTheme === 'dark'}
-              >
-                <Icon name="dark_mode" size={14} />
-                {t('settings.body.dark')}
-              </button>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-card__head">
-              <div>
-                <h2 className="settings-card__title">{t('settings.general.diagnostics')}</h2>
-                <p className="settings-card__subtitle">{t('settings.general.diagnosticsHint')}</p>
-              </div>
-            </div>
-            <dl className="diag">
-              <div className="diag__row">
-                <dt>{t('settings.general.app')}</dt>
-                <dd className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</dd>
-              </div>
-              <div className="diag__row">
-                <dt>{t('settings.general.runtime')}</dt>
-                <dd className="mono">{status?.electronVersion ? `Electron ${status.electronVersion}` : '—'}</dd>
-              </div>
-              <div className="diag__row">
-                <dt>{t('settings.general.platform')}</dt>
-                <dd className="mono">{PLATFORM_NAMES[status?.platform ?? ''] ?? status?.platform ?? '—'}</dd>
-              </div>
-              <div className="diag__row">
-                <dt>{t('settings.general.profile')}</dt>
-                <dd className="mono">settings.json</dd>
-              </div>
-            </dl>
-            <p className="settings-card__note">
-              <Icon name="lock" size={14} />
-              {t('settings.general.dataHint')}
-            </p>
-          </div>
+            <UpdateNotice detailed />
+            <p className="settings-card__note">{t('update.hint')}</p>
+          </section>
         </div>
       )
     }
