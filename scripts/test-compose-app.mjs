@@ -262,7 +262,9 @@ app.whenReady().then(async()=>{
  console.log('Empty-folder UI: Spam and Trash queue background deletion; Inbox does not expose it');
  for(const path of ['Spam','Trash','INBOX']){
  [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent===path).click();
- await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent===path&&!document.querySelector('.list-loading')&&document.querySelector('.reading__toolbar'),'Folder toolbar did not load');
+ await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent===path&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Folder messages did not load');
+ card('Inbox sample').click();
+ await until(()=>document.querySelector('.reading__toolbar'),'Folder toolbar did not load');
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Folder message did not finish loading');
  await new Promise(requestAnimationFrame);await wait();
  const empty=document.querySelector('.reading__toolbar [aria-label="Vaciar carpeta…"]');
