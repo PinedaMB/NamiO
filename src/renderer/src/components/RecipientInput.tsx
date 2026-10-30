@@ -14,6 +14,7 @@ interface RecipientInputProps {
 export function RecipientInput({ field, initialValue, onChange, suggest }: RecipientInputProps): React.JSX.Element {
   const { t } = useI18n()
   const [contacts, setContacts] = useState(splitRecipients(initialValue))
+  const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState('')
   const [names, setNames] = useState<Record<string, string>>({})
   const [suggestions, setSuggestions] = useState<RecipientSuggestion[]>([])
@@ -50,6 +51,11 @@ export function RecipientInput({ field, initialValue, onChange, suggest }: Recip
     onChange(next.join(', '))
   }
 
+  if (contacts.length > 2 && !expanded) return <button className="recipient-summary" type="button" aria-expanded={false}
+    aria-label={t('compose.editRecipients', { count: contacts.length })} onClick={() => setExpanded(true)}>
+    <span>{contacts.slice(0, 2).join('; ')}</span><strong>{t('recipients.more', { count: contacts.length - 2 })}</strong><Icon name="edit" size={14} />
+  </button>
+
   return (
     <div className="recipient-input">
       {contacts.map(email => <span className="recipient recipient--contact" key={email} title={email}>
@@ -61,6 +67,7 @@ export function RecipientInput({ field, initialValue, onChange, suggest }: Recip
           onChange([...next, draft].filter(Boolean).join(', '))
         }}><Icon name="close" size={13} /></button>
       </span>)}
+      {contacts.length > 2 && <button className="tool-btn" type="button" disabled={Boolean(draft)} aria-expanded={true} onClick={() => setExpanded(false)}>{t('compose.collapseRecipients')}</button>}
       <div className="recipient-input__entry" data-recipient-popup={popup ? 'true' : undefined}>
         <input className="input-bare" value={draft} role="combobox" autoComplete="off" spellCheck={false}
           aria-label={t(`compose.${field}`)} aria-autocomplete="list" aria-expanded={popup}

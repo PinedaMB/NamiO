@@ -1,7 +1,7 @@
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { validRecipients } from '@shared/mailAddresses'
+import { splitRecipients, validRecipients } from '@shared/mailAddresses'
 import type { Draft, PickedAttachment, MailPriority } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
@@ -15,7 +15,15 @@ import { cx } from '../lib/cx'
 
 const RichTextEditor = lazy(() => import('./RichTextEditor').then(module => ({ default: module.RichTextEditor })))
 
+export interface ReplyContext {
+  mode: 'sender' | 'all'
+  sender: string
+  to: string
+  cc: string
+}
+
 interface ComposeOverlayProps {
+  reply?: ReplyContext
   open: boolean
   sender?: string
   to: string
@@ -58,6 +66,7 @@ const DEFAULT_PROMPT =
 export function ComposeOverlay({
   open,
   sender,
+  reply,
   to,
   subject,
   body,
@@ -79,6 +88,7 @@ export function ComposeOverlay({
   const formatCombo = useFormatCombo()
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
+  const [replyMode, setReplyMode] = useState(reply?.mode ?? 'sender')
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
   const [priorityValue, setPriorityValue] = useState<MailPriority>(priority)
@@ -125,15 +135,16 @@ export function ComposeOverlay({
 
   useEffect(() => {
     if (!open) return
+    setReplyMode(reply?.mode ?? 'sender')
     setToValue(to)
     setSubjectValue(subject)
     setPriorityValue(priority)
-    const reply = splitReplyHtml(html)
-    setQuote(reply.quote)
+    const parsedReply = splitReplyHtml(html)
+    setQuote(parsedReply.quote)
     setHistoryOpen(false)
-    bodyRef.current = { body: reply.text ?? body, html: reply.html }
-    setBodyValue(reply.text ?? body)
-    setHtmlValue(reply.html)
+    bodyRef.current = { body: parsedReply.text ?? body, html: parsedReply.html }
+    setBodyValue(parsedReply.text ?? body)
+    setHtmlValue(parsedReply.html)
     setApplied(false)
     setGenerating(false)
     setPicked(initialAttachments ?? [])
@@ -153,7 +164,9 @@ export function ComposeOverlay({
           ]
         : []
     )
-  }, [open, to, subject, body, html, copilot, cc, bcc, initialAttachments, priority])
+  }, [open, to, subject, body, html, copilot, cc, bcc, initialAttachments, priority, reply])
+
+  const recipientCount = new Set([toValue, ccValue, bccValue].flatMap(splitRecipients).map(email => email.toLowerCase())).size
 
   const values = (): Omit<Draft, 'updatedAt'> => ({
     to: toValue, cc: ccValue, bcc: bccValue, priority: priorityValue,
@@ -245,6 +258,16 @@ export function ComposeOverlay({
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
+            {reply && <Select aria-label={t('compose.replyMode')} value={replyMode} disabled={sending} onChange={event => {
+              const mode = event.target.value as 'sender' | 'all'
+              setReplyMode(mode)
+              setToValue(mode === 'all' ? reply.to : reply.sender)
+              setCcValue(mode === 'all' ? reply.cc : '')
+              setCcOpen(mode === 'all' && Boolean(reply.cc))
+            }}>
+              <option value="sender">{t('common.reply')}</option>
+              <option value="all">{t('common.replyAll')}</option>
+            </Select>}
             <span>{subjectValue || t('compose.newMessage')}</span>
             {subjectValue.startsWith('Re:') && copilot && (
               <span className="chip">{t('compose.threadId')}</span>
@@ -281,7 +304,7 @@ export function ComposeOverlay({
           </div>
           <div className="field-row">
             <span className="field-label">{t('compose.to')}</span>
-            <RecipientInput key={`${open}:${to}`} field="to" initialValue={to} onChange={setToValue} suggest={!copilot} />
+            <RecipientInput key={`${open}:${replyMode}:${to}`} field="to" initialValue={toValue} onChange={setToValue} suggest={!copilot} />
             <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
               <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
                 {t('compose.cc')}
@@ -294,7 +317,7 @@ export function ComposeOverlay({
 
           {(ccOpen || ccValue.trim()) && <div className="field-row">
             <span className="field-label">{t('compose.cc')}</span>
-            <RecipientInput key={`${open}:${cc}`} field="cc" initialValue={ccValue} onChange={setCcValue} suggest={!copilot} />
+            <RecipientInput key={`${open}:${replyMode}:${cc}`} field="cc" initialValue={ccValue} onChange={setCcValue} suggest={!copilot} />
           </div>}
           {(bccOpen || bccValue.trim()) && <div className="field-row">
             <span className="field-label">{t('compose.bcc')}</span>
@@ -355,6 +378,7 @@ export function ComposeOverlay({
 
         <div className={cx('composer__split', !copilot && 'composer__split--solo')} inert={sending}>
           <div className="editor">
+            <span className="composer__editor-label">{t(quote ? 'compose.yourReply' : 'compose.yourMessage')}</span>
             <Suspense fallback={<div className="letter-loading" role="status">{t('compose.loadingEditor')}</div>}>
             <RichTextEditor text={bodyValue} html={htmlValue} disabled={sending}
               onChange={(text, markup) => { bodyRef.current = { body: text, html: markup }; setBodyValue(text); setHtmlValue(markup) }}
@@ -523,18 +547,18 @@ export function ComposeOverlay({
               <button className="tool-btn" type="button" onClick={() => void send()}><Icon name="send" size={16} />{t('compose.sendNow')}</button>
               <button className="tool-btn" type="button" onClick={() => void send(false)}><Icon name="text_fields" size={16} />{t('compose.sendPlain')}</button>
               <button className="tool-btn" type="button" onClick={() => { setSendOptionsOpen(false); void closeWithDraft() }}><Icon name="save" size={16} />{t('compose.saveDraft')}</button>
+              <label className="composer__priority">
+                <span className="composer__priority-label">{t('mail.priority')}</span>
+                <Select aria-label={t('mail.priority')} value={priorityValue} disabled={sending}
+                  onChange={event => setPriorityValue(event.target.value as MailPriority)}>
+                  <option value="normal">{t('mail.priorityNormal')}</option>
+                  <option value="high">{t('mail.priorityHigh')}</option>
+                  <option value="low">{t('mail.priorityLow')}</option>
+                </Select>
+              </label>
             </div>}
+            <span className="composer__recipient-count">{t(recipientCount === 1 ? 'compose.sendToOne' : 'compose.sendToMany', { count: recipientCount })}</span>
           </div>
-
-          <label className="composer__priority">
-            <span className="composer__priority-label">{t('mail.priority')}</span>
-            <Select aria-label={t('mail.priority')} value={priorityValue} disabled={sending}
-              onChange={event => setPriorityValue(event.target.value as MailPriority)}>
-              <option value="normal">{t('mail.priorityNormal')}</option>
-              <option value="high">{t('mail.priorityHigh')}</option>
-              <option value="low">{t('mail.priorityLow')}</option>
-            </Select>
-          </label>
 
           <div className="composer__foot-right">
             {copilot && (

@@ -873,11 +873,12 @@ export function appendToSent(raw: Buffer): Promise<void> {
   })
 }
 
-export function moveMessage(path: string, uid: number, target: string): Promise<void> {
+export function moveMessage(path: string, uid: number, target: string, uidValidity?: string): Promise<void> {
   return serial(async () => {
     const client = await ensureClient()
     const lock = await client.getMailboxLock(path)
     try {
+      if (uidValidity !== undefined && (!client.mailbox || String(client.mailbox.uidValidity) !== uidValidity)) throw new Error('La identidad de la carpeta cambió; no se movió el mensaje')
       if (!client.capabilities.has('MOVE') && !client.capabilities.has('UIDPLUS')) throw new Error('El servidor no permite mover solo este mensaje de forma segura')
       if (!await client.messageMove(String(uid), target, { uid: true })) throw new Error('El servidor no confirmó el movimiento')
     } finally {
@@ -885,8 +886,8 @@ export function moveMessage(path: string, uid: number, target: string): Promise<
     }
     const removed = deleteMessageRow(path, uid)
     if (removed?.unread) adjustMailboxUnseen(path, -1)
-    // El mensaje ya no está en la carpeta de origen: la lista tiene que releer.
-    notify(path)
+    await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
+    notify('*')
   })
 }
 

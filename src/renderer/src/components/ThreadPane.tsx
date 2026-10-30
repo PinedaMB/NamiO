@@ -12,6 +12,8 @@ import { type Bindings } from '../settings/shortcuts'
 import { EmailBody } from './EmailBody'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
+import { RecipientsDialog } from './RecipientsDialog'
+import type { ContextAnchor } from './ContextMenu'
 
 interface ThreadPaneProps {
   thread: Thread
@@ -26,12 +28,20 @@ interface ThreadPaneProps {
   spam: boolean
   unread: boolean
   onToggleContext: () => void
+  onMove: () => void
+  onSpam: () => void
+  canMove: boolean
+  canSpam: boolean
+  moving?: boolean
   onArchive: () => void
   onToggleRead: () => void
   deleting?: boolean
   onDelete: () => void
   onEmptyFolder?: () => void
   onStar: () => void
+  onOptions: (anchor: ContextAnchor) => void
+  optionsOpen: boolean
+  onReplyAll: () => void
   onReply: () => void
   onQuickDraft: () => void
   savingAttachment?: { mailbox: string; messageId: string; index: number } | null
@@ -116,13 +126,21 @@ export function ThreadPane({
   mailbox,
   unread,
   onToggleContext,
+  onMove,
+  onSpam,
+  canMove,
+  canSpam,
+  moving = false,
   onArchive,
   onToggleRead,
   onDelete,
   onEmptyFolder,
   deleting = false,
   onStar,
+  onOptions,
+  optionsOpen,
   onReply,
+  onReplyAll,
   onQuickDraft,
   onOpenAttachment,
   savingAttachment = null,
@@ -132,11 +150,14 @@ export function ThreadPane({
 }: ThreadPaneProps): React.JSX.Element {
   const formatCombo = useFormatCombo()
   const { t, locale } = useI18n()
-  const { bodyTheme: preferredTheme } = usePreferences()
+  const { bodyTheme: preferredTheme, timeFormat } = usePreferences()
   const themeKey = `${mailbox}:${thread.id}:${preferredTheme}`
   const [themeOverride, setThemeOverride] = useState<{ key: string; theme: BodyTheme } | null>(null)
   const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : preferredTheme
   useEffect(() => { setThemeOverride(null) }, [themeKey])
+  const [messageExpansion, setMessageExpansion] = useState<Record<string, boolean>>({})
+  const [recipientsId, setRecipientsId] = useState<string | null>(null)
+  const recipientsMessage = thread.messages.find(message => message.id === recipientsId)
   const message = thread.messages[0]
   const from = message?.from
 
@@ -167,12 +188,12 @@ export function ThreadPane({
             {t('common.archive')}
             <kbd className="kbd">{formatCombo(bindings.archive)}</kbd>
           </TooltipButton>
-          <TooltipButton className="tool-btn" type="button" disabled title={t('common.move')}>
-            <Icon name="drive_file_move" size={15} />
-            {t('common.move')}
+          <TooltipButton className="tool-btn" type="button" onClick={onMove} disabled={!canMutate || !canMove} aria-busy={moving} title={t(moving ? 'move.moving' : 'common.move')}>
+            <Icon name={moving ? 'progress_activity' : 'drive_file_move'} size={15} className={moving ? 'spin' : undefined} />
+            {t(moving ? 'move.moving' : 'common.move')}
           </TooltipButton>
-          <TooltipButton className="tool-btn tool-btn--icon btn--danger" type="button" disabled title={t('common.spam')}>
-            <Icon name="report" size={15} />
+          <TooltipButton className="tool-btn tool-btn--icon btn--danger" type="button" onClick={onSpam} disabled={!canMutate || !canSpam} title={t(spam ? 'move.notSpam' : 'common.spam')}>
+            <Icon name={spam ? 'mark_email_read' : 'report'} size={15} />
           </TooltipButton>
           <TooltipButton
             className="tool-btn tool-btn--icon btn--danger"
@@ -259,12 +280,14 @@ export function ThreadPane({
             </div>
           ) : (
             [...thread.messages].reverse().map((message, messageIndex) => {
+              const expansionKey = `${mailbox}:${message.id}`
+              const expanded = messageExpansion?.[expansionKey] ?? messageIndex === 0
               const from = message.from
               const toLine = message.to.map(person => person.email).join(', ')
               const ccLine = message.cc?.map(person => person.email).join(', ')
               return (
-              <details className="thread-message" key={message.id} open={messageIndex === 0}>
-              <summary className="participants">
+              <details className="thread-message" key={message.id} open={expanded}>
+              <summary className="participants" tabIndex={-1} onClick={event => event.preventDefault()}>
                 <div className="participants__top">
                   <div className="participants__who">
                     <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam} className="avatar--lg avatar--accent" />
@@ -275,11 +298,19 @@ export function ThreadPane({
                       </div>
                       <div className="participants__to">
                         <span>{t('thread.to')}</span>
-                        <span className="participants__recipients" title={toLine}>{toLine}</span>
+                        <TooltipButton className="participants__recipients recipients-trigger" type="button" aria-haspopup="dialog" title={toLine}
+                          onClick={event => { event.preventDefault(); event.stopPropagation(); setRecipientsId(message.id) }}>
+                          <span>{message.to.slice(0, 2).map(person => person.email).join('; ')}</span>
+                          {message.to.length > 2 && <strong>{t('recipients.more', { count: message.to.length - 2 })}</strong>}
+                        </TooltipButton>
                       </div>
                       {ccLine && <div className="participants__to">
                         <span>{t('compose.cc')}</span>
-                        <span className="participants__recipients" title={ccLine}>{ccLine}</span>
+                        <TooltipButton className="participants__recipients recipients-trigger" type="button" aria-haspopup="dialog" title={ccLine}
+                          onClick={event => { event.preventDefault(); event.stopPropagation(); setRecipientsId(message.id) }}>
+                          <span>{message.cc?.slice(0, 2).map(person => person.email).join('; ')}</span>
+                          {(message.cc?.length ?? 0) > 2 && <strong>{t('recipients.more', { count: message.cc!.length - 2 })}</strong>}
+                        </TooltipButton>
                       </div>}
                     </div>
                   </div>
@@ -289,13 +320,46 @@ export function ThreadPane({
                       <Icon name={message.priority === 'high' ? 'priority_high' : 'arrow_downward'} size={16} />
                       {t(message.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')}
                     </span>}
-                    <span>{message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt}</span>
+                    <span title={message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt}>{message.date !== undefined ? formatMessageDateTime(message.date, locale, true, timeFormat) : message.sentAt}</span>
                     <span className="participants__tls">
                       <span className="dot" />
                       {t('thread.encrypted')}
                     </span>
                   </div>
-                  <Icon name="expand_more" size={20} className="thread-message__chevron" />
+                  <div className="thread-message__actions">
+                    {messageIndex === 0 && (
+                      <TooltipButton
+                        className="icon-btn"
+                        type="button"
+                        title={t('thread.moreOptions')}
+                        aria-haspopup="menu"
+                        aria-expanded={optionsOpen}
+                        onClick={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          const trigger = event.currentTarget
+                          const bounds = trigger.getBoundingClientRect()
+                          onOptions({ x: bounds.right, y: bounds.bottom, trigger })
+                        }}
+                      >
+                        <Icon name="more_horiz" size={18} />
+                      </TooltipButton>
+                    )}
+                    <TooltipButton
+                      className="tool-btn thread-message__toggle"
+                      title={t(expanded ? 'thread.collapseMessage' : 'thread.expandMessage')}
+                      aria-label={t(expanded ? 'thread.collapseMessage' : 'thread.expandMessage')}
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={event => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setMessageExpansion(current => ({ ...current, [expansionKey]: !expanded }))
+                      }}
+                    >
+                      <Icon name="expand_more" size={20} className="thread-message__chevron" />
+                    </TooltipButton>
+                  </div>
                 </div>
 
               </summary>
@@ -354,13 +418,19 @@ export function ThreadPane({
                 <Icon name="bolt" size={14} />
                 {t('thread.quickDraft')}
               </button>
-              <button className="btn btn--primary" type="button" onClick={onReply}>
+              <TooltipButton className="btn btn--surface" type="button" onClick={onReply} title={t('thread.replySender')}>
+                <Icon name="reply" size={16} />
                 {t('common.reply')}
-              </button>
+              </TooltipButton>
+              <TooltipButton className="btn btn--primary" type="button" onClick={onReplyAll} title={t('thread.replyEveryone')}>
+                <Icon name="reply_all" size={16} />
+                {t('common.replyAll')}
+              </TooltipButton>
             </div>
           </div>
         </article>
       </div>
+      {recipientsMessage && <RecipientsDialog key={`${mailbox}:${recipientsMessage.id}`} message={recipientsMessage} onClose={() => setRecipientsId(null)} />}
     </main>
   )
 }

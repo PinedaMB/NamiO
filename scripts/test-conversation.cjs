@@ -49,16 +49,18 @@ try {
   fs.rmSync(directory, { recursive: true, force: true })
 }
 
+let expansionState
 const pane = {}
 const clicked = []
 vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { exports: pane, require: id => {
-  if (id === 'react') return { ...React, useState: () => [null, () => {}], useEffect() {} }
+  if (id === 'react') return { ...React, useState: () => [null, update => { if (typeof update === 'function') expansionState = update(expansionState ?? {}) }], useEffect() {} }
   if (id === '../lib/dates') return dates
   if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
+  if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', bodyTheme: 'dark' }) }
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
-  if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: 'dark' }) }
   if (id === '../settings/shortcuts') return { formatCombo: () => '' }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
+  if (id === './RecipientsDialog') return { RecipientsDialog: () => null }
   if (id === './EmailBody') return { EmailBody: () => null }
   if (id === './SenderAvatar') return { SenderAvatar: () => null }
   if (id === './Tooltip') return { TooltipButton: () => null }
@@ -69,26 +71,59 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { expo
 const messages = envelopes.slice(0, 3).reverse().map(item => live.detailToMessage({ ...item, to: [], cc: item.uid===2 ? [{name:'Copy',address:'copy@example.com'}] : [], text: 'Message body', html: '<p>Message body</p>', attachments: [{name: 'file.pdf', type: 'application/pdf', size: 12, index: 0}] }, 'es'))
 messages[0].priority = 'low'
 messages[2].priority = 'high'
+messages[2].to = Array.from({ length: 100 }, (_, i) => ({ name: `Person ${i}`, email: `person${i}@example.com` }))
 assert.equal(messages[1].cc[0].email,'copy@example.com','CC survives the message conversion')
 const ccRows=[]
 const priorityBadges = []
-const tree = pane.ThreadPane({ thread: { ...threads[0], messages }, mailbox: 'INBOX', bindings: {}, onOpenAttachment: (...args) => clicked.push(args) })
+let replied = false, repliedAll = false
+let optionsAnchor
+const tree = pane.ThreadPane({ onReply: () => { replied = true }, onReplyAll: () => { repliedAll = true }, onOptions: anchor => { optionsAnchor = anchor }, optionsOpen: true, thread: { ...threads[0], messages }, mailbox: 'INBOX', bindings: {}, onOpenAttachment: (...args) => clicked.push(args) })
+let hasMoreRecipients = false
 const cards = []
 const attachmentSections = []
 function visit(node) {
   if (!React.isValidElement(node)) return
+  if (node.props.title === 'thread.replySender' || node.props.title === 'thread.replyEveryone') node.props.onClick()
+  if (node.props.children === 'recipients.more') hasMoreRecipients = true
+  if (node.type === 'summary' && node.props.className === 'participants') {
+    let prevented = false
+    node.props.onClick({ preventDefault() { prevented = true } })
+    assert.ok(prevented, 'clicking the message header cannot toggle it')
+    assert.equal(node.props.tabIndex, -1)
+  }
+  if (node.props.className === 'tool-btn thread-message__toggle') {
+    const expanded = node.props['aria-expanded']
+    assert.ok(node.props['aria-label'] === (expanded ? 'thread.collapseMessage' : 'thread.expandMessage'))
+    node.props.onClick({ preventDefault() {}, stopPropagation() {} })
+  }
+  if (node.props.title === 'thread.moreOptions') {
+    assert.equal(node.props['aria-haspopup'], 'menu')
+    assert.equal(node.props['aria-expanded'], true)
+    const trigger = { getBoundingClientRect: () => ({ right: 900, bottom: 80 }) }
+    let prevented = false, stopped = false
+    node.props.onClick({ currentTarget: trigger, preventDefault() { prevented = true }, stopPropagation() { stopped = true } })
+    assert.ok(prevented && stopped, 'opening options does not collapse the message')
+    assert.equal(optionsAnchor.trigger, trigger)
+    assert.equal(optionsAnchor.x, 900)
+    assert.equal(optionsAnchor.y, 80)
+  }
   if (node.props.className?.startsWith('mail-priority')) priorityBadges.push(node)
-  if (node.props.className === 'participants__recipients' && node.props.title === 'copy@example.com') ccRows.push(node)
+  if (node.props.className?.includes('participants__recipients') && node.props.title === 'copy@example.com') ccRows.push(node)
   if (node.props.className === 'thread-message') cards.push(node)
   if (node.props.className === 'thread-message__files') attachmentSections.push(node)
   if (node.props.className === 'attachment') node.props.onClick()
   React.Children.forEach(node.props.children, visit)
 }
 visit(tree)
+assert.ok(replied && repliedAll, 'reply and reply-all buttons invoke separate actions')
+assert.ok(hasMoreRecipients, 'large recipient lists show a visible overflow count')
+assert.ok(optionsAnchor, 'message options button opens its anchored menu')
 assert.equal(ccRows.length,1,'CC is visible only on the message that contains it')
 assert.equal(priorityBadges.length, 2, 'high and low importance are visible; normal is unbadged')
 assert.equal(priorityBadges.filter(node=>node.props.className.includes('mail-priority--high')).length,1)
 assert.equal(cards.length, 3)
+assert.equal(expansionState['INBOX:live:3'], false, 'the button collapses the open message')
+assert.equal(expansionState['INBOX:live:2'], true, 'the button expands a collapsed message')
 assert.deepEqual(cards.map(card => card.props.open), [true, false, false])
 assert.deepEqual(cards.map(card => card.key), ['live:3', 'live:2', 'live:1'], 'newest message appears first')
 assert.deepEqual(messages.map(message => message.id), ['live:1', 'live:2', 'live:3'], 'display order does not mutate conversation data')
@@ -111,6 +146,7 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadList.tsx'), { expo
   if (id === 'react') return { ...React, useState: () => [listMenu, value => { listMenu = value }], useCallback: fn => fn }
   if (id === './ContextMenu') return { ContextMenu: () => null }
   if (id === '../lib/dates') return dates
+  if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', bodyTheme: 'dark' }) }
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
   if (id === './SenderAvatar') return { SenderAvatar: () => null }

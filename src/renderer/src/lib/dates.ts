@@ -1,3 +1,5 @@
+import type { TimeFormat } from '@shared/ipc'
+
 function validDate(value: string | number): Date | null {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
@@ -5,13 +7,13 @@ function validDate(value: string | number): Date | null {
 
 const regionFor = (locale: string): string => locale.startsWith('es') ? 'es-MX' : 'en-US'
 
-export function formatMessageDate(value: string | number, locale: string, now = Date.now()): string {
+export function formatMessageDate(value: string | number, locale: string, now = Date.now(), timeFormat: TimeFormat = '24h'): string {
   const date = validDate(value)
   if (!date) return '—'
   const today = new Date(now)
   const region = regionFor(locale)
   if (date.toDateString() === today.toDateString()) {
-    return new Intl.DateTimeFormat(region, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)
+    return new Intl.DateTimeFormat(region, { hour: '2-digit', minute: '2-digit', hourCycle: timeFormat === '12h' ? 'h12' : 'h23' }).format(date)
   }
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
@@ -24,12 +26,13 @@ export function formatMessageDate(value: string | number, locale: string, now = 
   }).format(date)
 }
 
-export function formatMessageDateTime(value: string | number, locale: string): string {
+export function formatMessageDateTime(value: string | number, locale: string, compact = false, timeFormat: TimeFormat = '24h'): string {
   const date = validDate(value)
   if (!date) return '—'
   return new Intl.DateTimeFormat(regionFor(locale), {
-    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-    hourCycle: 'h23', timeZoneName: 'short'
+    day: compact ? '2-digit' : 'numeric', month: compact ? '2-digit' : 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    ...(compact ? { weekday: 'short' as const } : { timeZoneName: 'short' as const }),
+    hourCycle: timeFormat === '12h' ? 'h12' : 'h23'
   }).format(date)
 }
 

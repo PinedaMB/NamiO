@@ -41,7 +41,7 @@ import {
   setFlagged,
   setSeen
 } from './imap'
-import { archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, pauseOutbox, resumeOutbox, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
+import { moveMessageAction, archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, pauseOutbox, resumeOutbox, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
 import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments, readMailboxes, getMailboxMeta, cacheAccountId, enqueueOutbox } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
@@ -118,6 +118,7 @@ export function registerIpcHandlers(): void {
     for (const key of ['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground'] as const) {
       if (patch[key] !== undefined && typeof patch[key] !== 'boolean') throw new Error('Invalid notification setting')
     }
+    if (patch.timeFormat !== undefined && patch.timeFormat !== '12h' && patch.timeFormat !== '24h') throw new Error('Invalid time format')
     if (patch.shortcutModifier !== undefined && patch.shortcutModifier !== 'ctrl' && patch.shortcutModifier !== 'command') throw new Error('Invalid shortcut modifier')
     await writeSettings(patch)
     if (typeof patch.keepInBackground === 'boolean') setBackgroundMode(patch.keepInBackground)
@@ -262,6 +263,7 @@ export function registerIpcHandlers(): void {
     setFlagged(path, uid, flagged)
   )
   ipcMain.handle(IPC.messageSeen, (_event, path: string, uid: number, seen: boolean) => setSeen(path, uid, seen))
+  ipcMain.handle(IPC.messageMove, (_event, path: string, uid: number, target: string) => moveMessageAction(path, uid, target))
   ipcMain.handle(IPC.messageArchive, (_event, path: string, uid: number) => archiveMessage(path, uid))
   ipcMain.handle(IPC.messageDelete, async (event, path: string, uid: number) => {
     if (typeof path !== 'string' || !path || !Number.isInteger(uid) || uid <= 0) {

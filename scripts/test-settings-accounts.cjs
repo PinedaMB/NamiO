@@ -13,7 +13,7 @@ function settings(accounts, events, section = 'accounts') {
     if (id === 'react') return { ...React, useEffect: () => {}, useRef: () => ({ current: null }), useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }), useFormatCombo: () => combo => combo }
-    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === './Icon') return { Icon: () => null }
@@ -73,9 +73,21 @@ assert.ok(generalHtml.includes('settings.notifications.title'))
 assert.equal((generalHtml.match(/role="switch"/g) || []).length, 4)
 assert.ok(generalHtml.includes('settings.notifications.test'))
 const generalSections = [...generalHtml.matchAll(/<section class="settings-card" aria-labelledby="([^"]+)"/g)].map(match => match[1])
-assert.deepEqual(generalSections, ['settings-language-title', 'settings-reading-title', 'settings-notifications-title'])
+assert.deepEqual(generalSections, ['settings-language-title', 'settings-time-title', 'settings-reading-title', 'settings-notifications-title'])
 assert.ok(!generalHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings-updates-title'))
 assert.ok(!generalHtml.includes('settings-updates-title'))
 console.log('Notification settings: labeled preferences and test action render')
+
+const timeEvents = []
+function checkTimeButtons(node) {
+  if (!React.isValidElement(node)) return
+  if (node.type === 'button' && ['settings.time.12h', 'settings.time.24h'].includes(node.props.children)) {
+    assert.equal(node.props['aria-pressed'], node.props.children === 'settings.time.24h')
+    node.props.onClick()
+  }
+  React.Children.forEach(node.props.children, checkTimeButtons)
+}
+checkTimeButtons(settings(accounts, timeEvents, 'general'))
+assert.deepEqual(timeEvents, ['12h', '24h'], 'time format buttons save both supported choices')

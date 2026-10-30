@@ -9,6 +9,7 @@ function render(state, detailed = true) {
   const exported = {}
   vm.runInNewContext(source, { exports: exported, require(id) {
     if (id === 'react') return { ...React, useEffect() {}, useState: () => [state, () => {}] }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h' }) }
     if (id === '../i18n') return { useI18n: () => ({ locale: 'es', t: (key, values = {}) => `${key} ${Object.values(values).join(' ')}`.trim() }) }
     if (id === '../lib/dates') return { formatMessageDateTime: value => String(value) }
     if (id === './Icon') return { Icon: () => null }

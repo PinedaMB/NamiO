@@ -29,6 +29,7 @@ function provider(file, name) {
 }
 async function checkPreferences() {
   for (const [file, name, setter, field, value] of [
+    ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setTimeFormat', 'timeFormat', '12h'],
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setBodyTheme', 'bodyTheme', 'dark'],
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setRemoteImages', 'remoteImages', 'allow'],
     ['src/renderer/src/settings/ShortcutsProvider.tsx', 'ShortcutsProvider', 'save', 'bindings', { reply: 'x' }],
@@ -73,7 +74,23 @@ async function checkRules() {
     if (action !== 'reload') { assert.equal(busy, false); assert.equal(status, null) }
   }
 }
+async function checkTimeFormatIpc() {
+  const ast = ts.createSourceFile('ipc.ts', fs.readFileSync('src/main/ipc.ts', 'utf8'), ts.ScriptTarget.Latest, true)
+  let handler
+  function visit(node) {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === 'ipcMain.handle' && node.arguments[0]?.getText(ast) === 'IPC.settingsSet') handler = node.arguments[1].getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  const writes = []
+  const save = vm.runInNewContext(compile(`(${handler})`), { Error, writeSettings: async patch => writes.push(patch), setBackgroundMode() {} })
+  for (const timeFormat of ['12h', '24h']) await save(null, { timeFormat })
+  assert.equal(writes.length, 2)
+  for (const timeFormat of ['12', 'auto', null, true, 24]) await assert.rejects(save(null, { timeFormat }), /Invalid time format/)
+  assert.equal(writes.length, 2, 'invalid formats cannot reach settings storage')
+}
 ;(async () => {
+  await checkTimeFormatIpc()
   await checkPreferences()
   await checkRules()
   assert.match(fs.readFileSync('src/renderer/src/components/Settings.tsx', 'utf8'), /<RulesSection key=\{accountKey\}/)

@@ -87,7 +87,8 @@ async function main() {
 
     const ui = {}
     vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/SearchResults.tsx', 'utf8')), {exports: ui, require: id => {
-      if (id === '../i18n') return {useI18n: () => ({t: key => key, locale: 'es'})}
+      if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h' }) }
+    if (id === '../i18n') return {useI18n: () => ({t: key => key, locale: 'es'})}
       if (id === '../lib/cx') return {cx: (...values) => values.filter(Boolean).join(' ')}
       if (id === './Icon') return {Icon: () => null}
       if (id === '../lib/dates') return {formatMessageDate: () => '', formatMessageDateTime: () => ''}

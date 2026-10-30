@@ -18,7 +18,8 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: preferred }) }
     if (id === '../settings/shortcuts') return { formatCombo: () => '' }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
-    if (id === './EmailBody') return { EmailBody: () => null }
+    if (id === './RecipientsDialog') return { RecipientsDialog: () => null }
+  if (id === './EmailBody') return { EmailBody: () => null }
     if (id === './SenderAvatar') return { SenderAvatar: () => null }
     if (id === './Tooltip') return { TooltipButton: () => null }
     if (id === './Icon') return { Icon: () => null }

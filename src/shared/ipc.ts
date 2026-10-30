@@ -32,6 +32,7 @@ export const IPC = {
   messageFlag: 'message:flag',
   messageSeen: 'message:seen',
   messageArchive: 'message:archive',
+  messageMove: 'message:move',
   messageDelete: 'message:delete',
   messagesDelete: 'messages:delete',
   attachmentSave: 'attachment:save',
@@ -100,10 +101,13 @@ export interface AppSettings {
   /** Imágenes remotas en el HTML de los correos: bloqueadas salvo que se permita. */
   remoteImages?: RemoteImagePolicy
   /** Lienzo del cuerpo HTML: claro (papel del correo) u oscuro (invertido). */
+  timeFormat?: TimeFormat
   bodyTheme?: BodyTheme
   /** Ya eligió cuenta o demo: no se vuelve a mostrar la bienvenida. */
   onboarded?: boolean
 }
+
+export type TimeFormat = '12h' | '24h'
 
 export type RemoteImagePolicy = 'block' | 'allow'
 
@@ -441,6 +445,7 @@ export interface MailApi {
   /** Marca/desmarca `\Seen` (leído) en el servidor y en la caché. */
   setSeen(path: string, uid: number, seen: boolean): Promise<ImapResult<boolean>>
   /** Archivar y eliminar pasan por la cola de salida (idempotente, con reintentos). */
+  moveMessage(path: string, uid: number, target: string): Promise<MailAction>
   archiveMessage(path: string, uid: number): Promise<MailAction>
   deleteMessage(path: string, uid: number): Promise<MailAction>
   /** Sin UIDs, vacía exclusivamente Spam o Papelera, previa confirmación. */

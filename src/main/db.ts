@@ -347,7 +347,7 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
     )
     .all(...(condition ? [mailbox, options.includeUid ?? -1, limit] : [mailbox, limit])) as unknown as MessageRow[]
 
-  return rows.map((row) => ({
+  const envelopes: Envelope[] = rows.map((row) => ({
     uid: row.uid,
     hasAttachments: Number(row.has_attachments) === 1,
     priority: row.priority ?? 'normal',
@@ -360,6 +360,12 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
     flagged: row.flagged === 1,
     size: row.size
   }))
+  // La selección abierta puede quedar fuera del LIMIT durante una sincronización.
+  if (options.includeUid !== undefined && !envelopes.some(envelope => envelope.uid === options.includeUid)) {
+    const selected = readEnvelope(mailbox, options.includeUid)
+    if (selected) envelopes.push(selected)
+  }
+  return envelopes
 }
 
 export function readEnvelope(mailbox: string, uid: number): Envelope | null {

@@ -33,6 +33,8 @@
 
 ### Más espacio para escribir y leer
 
+Para **mover un correo**, usa **Mover** en la barra del lector o en el menú de opciones. Elige la carpeta de destino y confirma. **Marcar como spam** usa la carpeta de correo no deseado de la cuenta; dentro de ella, **No es spam** devuelve el correo a la bandeja de entrada. Si la operación queda pendiente, se conserva en la cola para reintentarse; no se elimina la copia local antes de que el servidor confirme.
+
 Para vaciar **Spam** o **Papelera**, haz clic derecho sobre la carpeta y elige **Vaciar carpeta…**; también está disponible en la barra del lector mediante el ícono de vaciado. NamiO muestra la cantidad de mensajes y pide confirmación: el borrado es definitivo. Las selecciones múltiples también se confirman una sola vez y se procesan en segundo plano; desde otras carpetas se mueven a Papelera. Puedes seguir navegando mientras la cola trabaja. Si cierras la aplicación o falla la conexión, las operaciones pendientes se conservan para reintentarse.
 
 El redactor se puede **ampliar, minimizar y restaurar** sin perder lo que estás escribiendo. Al cerrarlo, guardas el borrador; al descartarlo, lo eliminas.
@@ -119,7 +121,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 - Las funciones de copiloto con IA todavía no están disponibles.
 - Sigue pendiente ampliar las pruebas con servidores reales, interrupciones de conexión y recuperación tras cierres inesperados.
 
-Puedes consultar las novedades en el [historial de cambios](CHANGELOG.md).
+Puedes consultar las novedades en el [historial de cambios](CHANGELOG.md). El estado de preparación de la versión 1.0 y las validaciones externas pendientes están en la [lista de lanzamiento](RELEASE_CHECKLIST.md).
 
 ### Comprobaciones de desarrollo
 

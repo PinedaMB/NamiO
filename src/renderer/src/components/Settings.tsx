@@ -47,7 +47,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
   const formatCombo = useFormatCombo()
   const { t, locale, setLocale, saveError: localeError } = useI18n()
   const { bindings, modifier, setModifier, save, reset, saveError: shortcutsError } = useShortcuts()
-  const { notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
+  const { notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, timeFormat, setTimeFormat, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
   const saveError = localeError || shortcutsError || preferencesError
   const activeAccount = accounts.find((account) => account.active)
   const formatSize = (bytes: number): string => bytes < 1024 * 1024
@@ -350,6 +350,23 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                   <span className="lang-option__code">{item.label}</span>
                   <span className="lang-option__name">{item.id === 'es' ? 'Español (México)' : 'English'}</span>
                   {locale === item.id && <Icon name="check" size={16} />}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="settings-card" aria-labelledby="settings-time-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-time-title" className="settings-card__title">{t('settings.time.title')}</h2>
+                <p className="settings-card__subtitle">{t('settings.time.hint')}</p>
+              </div>
+            </div>
+            <div className="seg" role="group" aria-label={t('settings.time.title')}>
+              {(['12h', '24h'] as const).map(format => (
+                <button key={format} type="button" className={cx('seg__btn', timeFormat === format && 'seg__btn--active')}
+                  onClick={() => setTimeFormat(format)} aria-pressed={timeFormat === format}>
+                  {t(format === '12h' ? 'settings.time.12h' : 'settings.time.24h')}
                 </button>
               ))}
             </div>

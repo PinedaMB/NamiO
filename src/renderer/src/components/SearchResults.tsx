@@ -1,3 +1,4 @@
+import { usePreferences } from '../settings/PreferencesProvider'
 import type { SearchHit } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { cx } from '../lib/cx'
@@ -39,6 +40,7 @@ export function SearchResults({
   selectedKey,
   onOpen
 }: SearchResultsProps): React.JSX.Element {
+  const { timeFormat } = usePreferences()
   const { t, locale } = useI18n()
 
   return (
@@ -89,7 +91,7 @@ export function SearchResults({
                 <div className="search-hit__location">
                   <Icon name="folder" size={14} />
                   <span className="search-hit__folder">{hit.mailboxName}</span>
-                  <span className="thread__time" title={formatMessageDateTime(hit.date, locale)}>{formatMessageDate(hit.date, locale)}</span>
+                  <span className="thread__time" title={formatMessageDateTime(hit.date, locale, false, timeFormat)}>{formatMessageDate(hit.date, locale, Date.now(), timeFormat)}</span>
                 </div>
                 <div className="search-hit__subject"><HighlightedText text={hit.subjectMatch ?? hit.subject} /></div>
                 <div className="search-hit__head">

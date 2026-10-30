@@ -1,3 +1,4 @@
+import { usePreferences } from '../settings/PreferencesProvider'
 import { useEffect, useState } from 'react'
 import type { UpdateState } from '@shared/ipc'
 import { useI18n } from '../i18n'
@@ -5,6 +6,7 @@ import { formatMessageDateTime } from '../lib/dates'
 import { Icon } from './Icon'
 
 export function UpdateNotice({ detailed = false }: { detailed?: boolean }): React.JSX.Element | null {
+  const { timeFormat } = usePreferences()
   const { t, locale } = useI18n()
   const [state, setState] = useState<UpdateState | null>(null)
   useEffect(() => {
@@ -42,8 +44,8 @@ export function UpdateNotice({ detailed = false }: { detailed?: boolean }): Reac
       </div>}
     </div>}
     {detailed && (state.releaseDate || state.checkedAt !== undefined) && <dl className="update-notice__details">
-      {state.releaseDate && <div><dt>{t('update.published')}</dt><dd>{formatMessageDateTime(state.releaseDate, locale)}</dd></div>}
-      {state.checkedAt !== undefined && <div><dt>{t('update.checked')}</dt><dd>{formatMessageDateTime(state.checkedAt, locale)}</dd></div>}
+      {state.releaseDate && <div><dt>{t('update.published')}</dt><dd>{formatMessageDateTime(state.releaseDate, locale, false, timeFormat)}</dd></div>}
+      {state.checkedAt !== undefined && <div><dt>{t('update.checked')}</dt><dd>{formatMessageDateTime(state.checkedAt, locale, false, timeFormat)}</dd></div>}
     </dl>}
     <div className="update-notice__actions">
       {(!detailed || !busy) && <button type="button" className={detailed && state.phase === 'ready' ? 'btn btn--primary' : 'update-notice__button'} disabled={busy}

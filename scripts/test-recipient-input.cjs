@@ -38,5 +38,17 @@ async function check(field){
  assert.equal(input().props['aria-expanded'],false)
  find(render(),n=>n.type==='button'&&n.props['aria-label']?.endsWith('jorge@example.com')).props.onClick()
  assert.equal(changes.at(-1),'person@example.com, jorge')
+ input().props.onChange({target:{value:'third@example.com'}});input().props.onKeyDown(key('Enter'))
+ input().props.onChange({target:{value:'fourth@example.com'}});input().props.onKeyDown(key('Enter'))
+ const summary=render()
+ assert.equal(summary.props.className,'recipient-summary')
+ assert.equal(summary.props['aria-expanded'],false)
+ const before=changes.at(-1)
+ summary.props.onClick()
+ assert.ok(input(),'expanding the summary reveals editable recipients')
+ assert.equal(changes.at(-1),before,'expanding does not change recipients')
+ find(render(),n=>n.type==='button'&&n.props['aria-expanded']===true).props.onClick()
+ assert.equal(render().props.className,'recipient-summary')
+
 }
 ;(async()=>{for(const field of ['to','cc','bcc'])await check(field);console.log('Recipient fields: Enter chips, duplicate suppression, invalid input, arrow selection, names, Escape and removal passed in To/CC/BCC')})().catch(error=>{console.error(error);process.exitCode=1})

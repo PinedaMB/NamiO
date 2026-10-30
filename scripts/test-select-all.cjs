@@ -89,4 +89,18 @@ const ignored = []
 const native = vm.runInNewContext(compile(`(${nativeHandler})`), {mainWindow: {webContents: {setIgnoreMenuShortcuts: value => ignored.push(value)}}})
 for (const input of [{type: 'keyDown', key: 'a', control: true}, {type: 'keyUp', key: 'a', control: true}, {type: 'keyDown', key: 'c', control: true}, {type: 'keyDown', key: 'A', meta: true}]) native(null, input)
 assert.deepEqual(ignored, [true, false, false, true], 'only the select-all menu accelerator defers to renderer focus')
+for (const type of ['keyDown', 'keyUp']) {
+  for (const modifier of ['control', 'meta']) {
+    for (const shift of [false, true]) {
+      let prevented = false
+      native({ preventDefault() { prevented = true } }, { type, key: 'R', [modifier]: true, shift })
+      assert.equal(prevented, !shift, 'plain reload is blocked while forced reload remains available')
+    }
+  }
+}
+for (const input of [{ key: 'r' }, { key: 'r', control: true, alt: true }, { key: 't', control: true }]) {
+  let prevented = false
+  native({ preventDefault() { prevented = true } }, { type: 'keyDown', ...input })
+  assert.equal(prevented, false, 'unrelated shortcuts remain available')
+}
 console.log('Select all: loaded mail, checkbox focus, fields/editors, HTML/plain bodies, TXT/image viewers and native-menu routing passed')

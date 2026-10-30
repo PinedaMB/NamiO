@@ -1,3 +1,4 @@
+import { usePreferences } from './settings/PreferencesProvider'
 import { isSelectAll, selectTextContents } from './lib/selection'
 import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -27,11 +28,12 @@ import { DocumentViewer } from './components/DocumentViewer'
 import { ImageViewer } from './components/ImageViewer'
 import { ThreadList } from './components/ThreadList'
 import { SearchResults } from './components/SearchResults'
+import { MoveDialog } from './components/MoveDialog'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
 import { ContextRail } from './components/ContextRail'
 import { StatusBar } from './components/StatusBar'
 import { CommandPalette } from './components/CommandPalette'
-import { ComposeOverlay } from './components/ComposeOverlay'
+import { ComposeOverlay, type ReplyContext } from './components/ComposeOverlay'
 import { Settings } from './components/Settings'
 import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
 import { BootSplash } from './components/BootSplash'
@@ -44,7 +46,7 @@ import { actionForCombo, comboFromEvent } from './settings/shortcuts'
 import { replyComposeHtml } from './lib/composeHtml'
 import { formatElapsed, formatMessageDateTime } from './lib/dates'
 
-type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string }
+type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string; reply?: ReplyContext }
 
 type View = 'mailbox' | 'settings'
 
@@ -109,6 +111,7 @@ function uidOf(threadId: string): number | null {
 }
 
 export function App(): React.JSX.Element {
+  const { timeFormat } = usePreferences()
   const { t, locale } = useI18n()
   const { bindings } = useShortcuts()
 
@@ -201,6 +204,8 @@ export function App(): React.JSX.Element {
   const [searching, setSearching] = useState(false)
   const busySwitch = useRef(false)
   const manualSyncBusy = useRef(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+  const [movingId, setMovingId] = useState<string | null>(null)
   const deletingMessage = useRef(false)
   const [pendingDelete, setPendingDelete] = useState<{ id: string; path: string; generation: number } | null>(null)
   const [manualSyncing, setManualSyncing] = useState(false)
@@ -917,6 +922,37 @@ export function App(): React.JSX.Element {
     setToast(t('toast.archived'))
   }
 
+  const moveSelected = (target: string): void => {
+    if (!live || !selected || bulkRunning.current || deletingMessage.current || selected.id.startsWith('draft:') || target === folder || !mailboxes.some(box => box.path === target)) return
+    const uid = uidOf(selected.id)
+    if (uid === null) return
+    const id = selected.id
+    const generation = accountGeneration.current
+    const request = folderRequest.current
+    bulkRunning.current = true
+    setBulkBusy(true)
+    setMovingId(id)
+    setMoveOpen(false)
+    void window.api.moveMessage(folder, uid, target).then(result => {
+      if (generation !== accountGeneration.current || request !== folderRequest.current) return
+      if (!result.ok) setToast(t('toast.actionFailed', { error: result.error ?? '' }))
+      else if (result.queued) setToast(t('toast.queued'))
+      else {
+        setThreads(current => current.filter(thread => thread.id !== id))
+        setToast(t('move.done', { folder: target }))
+      }
+    }).catch((error: unknown) => {
+      if (generation === accountGeneration.current && request === folderRequest.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
+    }).finally(() => {
+      bulkRunning.current = false
+      setBulkBusy(false)
+      setMovingId(null)
+      void refreshOutbox()
+    })
+  }
+
+  useEffect(() => { setMoveOpen(false) }, [folder, selectedId, account?.account?.host, account?.account?.port, account?.account?.user])
+
   const deleteSelected = (): void => {
     if (!selected || deletingMessage.current || bulkRunning.current) return
     if (live) {
@@ -972,20 +1008,33 @@ export function App(): React.JSX.Element {
     setToast(selected.starred ? t('toast.unstarred') : t('toast.starred'))
   }
 
-  const openReply = (body = ''): void => {
+  const openReply = (body = '', replyAll = false): void => {
     if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
     if (!selected) return
     setComposeMinimized(false)
     const message = selected.messages.find(item => item.id === (individualMessageId ?? selected.id)) ?? selected.messages.at(-1)
     const sender = message?.from ?? selected.participants[0]
+    const seen = new Set([account?.account?.user.trim().toLowerCase() ?? ''])
+    const recipients = (people: readonly { email: string }[]): string => people.map(person => person.email.trim()).filter(email => {
+      const key = email.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).join(', ')
+    const allTo = recipients([...(sender ? [sender] : []), ...(message?.to ?? [])])
+    const allCc = recipients(message?.cc ?? [])
+    const to = replyAll ? allTo : sender?.email ?? ''
+    const cc = replyAll ? allCc : ''
     const original = (message?.body ?? []).join('\n\n')
     const quoted = original ? original.split('\n').map(line => `> ${line}`).join('\n') : ''
-    const attribution = message ? `${message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
+    const attribution = message ? `${message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
     const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
 
     setComposeSession(session => session + 1)
     setCompose({
-      to: sender?.email ?? '',
+      to,
+      cc,
+      reply: { mode: replyAll ? 'all' : 'sender', sender: sender?.email ?? '', to: allTo, cc: allCc },
       subject: prefix,
       inReplyTo: message?.messageId,
       references: [message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)),
@@ -1231,6 +1280,11 @@ export function App(): React.JSX.Element {
 
   const canEmptyMailbox = (path: string): boolean => mailboxes.some(box => box.path === path && (isSpamMailbox(box) || box.specialUse === '\\Trash' || /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(box.name) || /(^|\/)(trash|deleted items|papelera)$/i.test(box.path)))
 
+  const spamFolder = mailboxes.find(box => box.specialUse === '\\Junk') ?? mailboxes.find(isSpamMailbox)
+  const inSpam = mailboxes.some(box => box.path === folder && isSpamMailbox(box))
+  const spamTarget = inSpam ? mailboxes.find(box => /^inbox$/i.test(box.path))?.path : spamFolder?.path
+  const moveFolders = mailboxes.filter(box => box.path !== folder)
+
   const contextActions: ContextAction[] = contextMenu?.kind === 'folder'
     ? [
       { label: t('context.openFolder'), icon: 'folder_open', run: () => selectFolder(contextMenu.id) },
@@ -1241,8 +1295,12 @@ export function App(): React.JSX.Element {
       ? [
         { label: t(draftsFolder ? 'context.editDraft' : 'context.openMessage'), icon: draftsFolder ? 'edit_square' : 'mail', run: () => select(selected.id, contextMenu.messageId) },
         ...(!draftsFolder ? [
+          { label: t('common.reply'), icon: 'reply', run: () => openReply() },
+          { label: t('common.replyAll'), icon: 'reply_all', run: () => openReply('', true) },
           { label: t(selected.unread ? 'common.markRead' : 'common.markUnread'), icon: selected.unread ? 'drafts' : 'mark_email_unread', run: () => { void toggleRead() }, disabled: bulkBusy || pendingDelete !== null },
           { label: t(selected.starred ? 'context.unstar' : 'context.star'), icon: selected.starred ? 'star' : 'star_outline', run: toggleStar, disabled: bulkBusy || pendingDelete !== null },
+          { label: t('common.move'), icon: 'drive_file_move', run: () => setMoveOpen(true), disabled: !live || !moveFolders.length || bulkBusy || pendingDelete !== null },
+          { label: t(inSpam ? 'move.notSpam' : 'common.spam'), icon: inSpam ? 'mark_email_read' : 'report', run: () => { if (spamTarget) moveSelected(spamTarget) }, disabled: !live || !spamTarget || bulkBusy || pendingDelete !== null },
           { label: t('common.archive'), icon: 'archive', run: archive, disabled: bulkBusy || pendingDelete !== null },
           { label: t('common.delete'), icon: 'delete', run: deleteSelected, danger: true, disabled: bulkBusy || pendingDelete !== null }
         ] : [])
@@ -1418,12 +1476,20 @@ export function App(): React.JSX.Element {
                   deleting={deletingId === selected.id}
                   unread={selected.unread}
                   onToggleContext={toggleContext}
+                  onMove={() => setMoveOpen(true)}
+                  canMove={live && moveFolders.length > 0}
+                  moving={movingId === selected.id}
+                  onSpam={() => { if (spamTarget) moveSelected(spamTarget) }}
+                  canSpam={live && Boolean(spamTarget)}
                   onArchive={archive}
                   onToggleRead={toggleRead}
                   onDelete={deleteSelected}
                   onEmptyFolder={live && canEmptyMailbox(folder) ? () => { void emptyFolder(folder) } : undefined}
                   onStar={toggleStar}
+                  onOptions={anchor => setContextMenu({ ...anchor, kind: 'message', id: selected.id, messageId: individualMessageId ?? undefined })}
+                  optionsOpen={contextMenu?.kind === 'message' && contextMenu.id === selected.id}
                   onReply={() => openReply()}
+                  onReplyAll={() => openReply('', true)}
                   savingAttachment={savingAttachment}
                   onOpenAttachment={openAttachment}
                   onQuickDraft={() => openReply(COPILOT_DRAFT)}
@@ -1472,6 +1538,7 @@ export function App(): React.JSX.Element {
         onOpenSettings={openSettings}
       />
 
+      {moveOpen && selected && <MoveDialog subject={selected.subject} folders={moveFolders} onClose={() => setMoveOpen(false)} onMove={moveSelected} />}
       {contextMenu && contextActions.length > 0 && <ContextMenu anchor={contextMenu} label={contextMenu.kind === 'folder' ? folderViews.find(item => item.id === contextMenu.id)?.label ?? contextMenu.id : selected?.subject ?? ''} actions={contextActions} onClose={closeContextMenu} />}
 
       <ComposeOverlay
@@ -1491,6 +1558,7 @@ export function App(): React.JSX.Element {
         }}
         to={compose?.to ?? ''}
         sender={live && account?.account ? (account.account.user.includes('@') ? account.account.user : `${account.account.user}@${account.account.host || 'localhost'}`) : undefined}
+        reply={compose?.reply}
         subject={compose?.subject ?? ''}
         body={compose?.body ?? ''}
         html={compose?.html}

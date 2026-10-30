@@ -55,6 +55,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
     if (id === './Tooltip') return { TooltipButton }
     if (id === './SenderAvatar') return { SenderAvatar: () => null }
     if (id === './Icon') return { Icon: () => null }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h' }) }
     if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === '../lib/dates') return {}

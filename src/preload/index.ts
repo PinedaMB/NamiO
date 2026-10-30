@@ -79,6 +79,8 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.messageFlag, path, uid, flagged),
   setSeen: (path: string, uid: number, seen: boolean): Promise<ImapResult<boolean>> =>
     ipcRenderer.invoke(IPC.messageSeen, path, uid, seen),
+  moveMessage: (path: string, uid: number, target: string): Promise<MailAction> =>
+    ipcRenderer.invoke(IPC.messageMove, path, uid, target),
   archiveMessage: (path: string, uid: number): Promise<MailAction> =>
     ipcRenderer.invoke(IPC.messageArchive, path, uid),
   deleteMessage: (path: string, uid: number): Promise<MailAction> => ipcRenderer.invoke(IPC.messageDelete, path, uid),

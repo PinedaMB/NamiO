@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import type { AppSettings, BodyTheme, RemoteImagePolicy } from '@shared/ipc'
+import type { AppSettings, BodyTheme, RemoteImagePolicy, TimeFormat } from '@shared/ipc'
 
 type NotificationPreferences = Required<Pick<AppSettings, 'notifications' | 'notificationSound' | 'notificationPrivate' | 'keepInBackground'>>
 
@@ -9,6 +9,8 @@ interface PreferencesValue {
   saveError: string | null
   remoteImages: RemoteImagePolicy
   setRemoteImages: (policy: RemoteImagePolicy) => void
+  timeFormat: TimeFormat
+  setTimeFormat: (format: TimeFormat) => void
   bodyTheme: BodyTheme
   setBodyTheme: (theme: BodyTheme) => void
 }
@@ -16,12 +18,13 @@ interface PreferencesValue {
 const PreferencesContext = createContext<PreferencesValue | null>(null)
 
 /**
- * Preferencias de privacidad compartidas entre Ajustes y el visor de correos.
+ * Preferencias compartidas entre Ajustes y la interfaz de correo.
  * Persisten en settings.json por IPC, como el idioma y los atajos.
  */
 export function PreferencesProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [remoteImages, setRemoteImagesState] = useState<RemoteImagePolicy>('block')
+  const [timeFormat, setTimeFormatState] = useState<TimeFormat>('24h')
   const [bodyTheme, setBodyThemeState] = useState<BodyTheme>('light')
 
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({ notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false })
@@ -34,6 +37,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         if (settings?.remoteImages === 'allow' || settings?.remoteImages === 'block') {
           setRemoteImagesState(settings.remoteImages)
         }
+        if (settings?.timeFormat === '12h' || settings?.timeFormat === '24h') setTimeFormatState(settings.timeFormat)
         if (settings?.bodyTheme === 'dark' || settings?.bodyTheme === 'light') {
           setBodyThemeState(settings.bodyTheme)
         }
@@ -63,6 +67,17 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
   }, [])
 
+  const setTimeFormat = useCallback(async (format: TimeFormat) => {
+    setSaveError(null)
+    try {
+      await window.api?.setSettings?.({ timeFormat: format })
+      setTimeFormatState(format)
+      setSaveError(null)
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }, [])
+
   const setNotificationPreference = useCallback(async (key: keyof NotificationPreferences, value: boolean) => {
     setSaveError(null)
     try {
@@ -74,8 +89,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }, [])
 
   const value = useMemo<PreferencesValue>(
-    () => ({ notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme }),
-    [notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme]
+    () => ({ notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, timeFormat, setTimeFormat }),
+    [notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, timeFormat, setTimeFormat]
   )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

@@ -1,5 +1,16 @@
 # Cambios
 
+## Sin publicar — preparación de 1.0
+
+- Mover un correo a otra carpeta desde el lector o su menú de opciones. Los movimientos se guardan en la cola persistente, evitan solicitudes duplicadas y verifican la identidad de la carpeta antes de reintentarse.
+- Marcar como spam y devolver un correo de Spam a la bandeja de entrada con «No es spam», usando las carpetas de la cuenta.
+- Menú de opciones en el encabezado del correo, con Responder y Responder a todos como acciones distintas. La respuesta a todos conserva Para y CC, excluye la cuenta activa y evita direcciones duplicadas.
+- Compositor con selector de tipo de respuesta, destinatarios compactos y editables, contador de destinatarios únicos, área de respuesta identificada e importancia dentro de las opciones de envío.
+- Listas completas de destinatarios en un modal, con copia individual o conjunta, estados de error y animaciones de entrada y salida accesibles.
+- Formato horario de 12 o 24 horas configurable y persistente; fechas compactas en el encabezado del lector.
+- Expandir y colapsar el correo únicamente desde su botón. Ctrl+R deja de recargar la aplicación; Ctrl+Shift+R conserva la recarga.
+- La sincronización conserva el resultado de búsqueda abierto aunque esté fuera de la primera página.
+
 ## 0.4.7 — 2026-10-29
 
 - Nueva identidad visual en los iconos de la aplicación, instaladores, bandeja, bienvenida y marca de la interfaz, con una variante propia para las notificaciones.

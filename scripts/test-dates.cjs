@@ -22,6 +22,11 @@ for (const invalid of ['', 'invalid', NaN, Infinity]) {
   assert.equal(formatMessageDateTime(invalid, 'es'), '—')
 }
 assert.match(formatMessageDate(0, 'es', now), /1969/, 'Unix epoch is a valid instant, even when local time is in the previous year')
+const compact = formatMessageDateTime('2026-10-30T09:21:00-06:00', 'es', true)
+assert.match(compact, /30\/10\/2026/)
+assert.match(compact, /09:21/)
+assert.doesNotMatch(compact, /GMT|octubre/)
+assert.equal(formatMessageDateTime('invalid', 'es', true), '—')
 const full = formatMessageDateTime('2026-10-27T23:45:00-06:00', 'es')
 assert.match(full, /2026/)
 assert.match(full, /23:45/)
@@ -54,3 +59,14 @@ assert.equal(detail.sentAt, '—', 'a malformed message date cannot crash the re
 const drafts = live.pendingDraftThreads([], [{ id: 'bad-date', updatedAt: Infinity, to: '', subject: '', body: '' }], 'Drafts', 'es', 'Draft')
 assert.equal(drafts[0].receivedAt, '—', 'a malformed draft timestamp cannot throw during ISO conversion')
 console.log('Dates: Mexico formatting, local midnight, year boundaries, DST, invalid dates, elapsed units and chronological conversation order passed')
+
+process.env.TZ = 'America/Mexico_City'
+for (const locale of ['es', 'en']) {
+  const midnight = '2026-10-30T00:00:00-06:00'
+  const noon = '2026-10-30T12:00:00-06:00'
+  assert.match(formatMessageDateTime(midnight, locale, true, '12h'), /12:00/)
+  assert.match(formatMessageDateTime(midnight, locale, true, '24h'), /00:00/)
+  assert.notEqual(formatMessageDateTime(midnight, locale, true, '12h'), formatMessageDateTime(noon, locale, true, '12h'))
+  assert.match(formatMessageDate(midnight, locale, Date.parse(midnight), '12h'), /12:00/)
+  assert.equal(formatMessageDate(midnight, locale, Date.parse(midnight), '24h'), '00:00')
+}

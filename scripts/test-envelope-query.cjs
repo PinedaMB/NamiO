@@ -24,6 +24,14 @@ try {
   assert.deepEqual(ids(db.readEnvelopes('INBOX', 3, { filter: 'read', oldestFirst: true })), [56, 57, 58])
   assert.equal(db.readEnvelopes('INBOX', 3000).length, 2505, 'all cached matches remain accessible beyond 2000')
   assert.ok(db.readEnvelopes('INBOX', 50, { filter: 'read', oldestFirst: true, includeUid: 1 }).some(row => row.uid === 1), 'preserves open mail when read state changes')
+  for (const options of [{}, { filter: 'read' }, { filter: 'unread' }, { oldestFirst: true }]) {
+    const uid = options.oldestFirst ? 2505 : 1
+    const refreshed = db.readEnvelopes('INBOX', 3, { ...options, includeUid: uid })
+    assert.ok(refreshed.some(row => row.uid === uid), 'background refresh preserves an open search result outside the first page')
+    assert.equal(new Set(ids(refreshed)).size, refreshed.length)
+  }
+  assert.equal(db.readEnvelopes('INBOX', 3, { includeUid: 9999 }).length, 3, 'cannot include a selection from another mailbox')
+  assert.equal(db.readEnvelopes('INBOX', 3, { includeUid: 2505 }).length, 3, 'does not duplicate a selection already in the page')
   assert.equal(db.readEnvelope('INBOX',1).priority,'high')
   assert.equal(db.readEnvelope('INBOX',2).priority,'low')
   assert.equal(db.countMessages('INBOX'), 2505)

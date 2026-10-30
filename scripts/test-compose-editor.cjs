@@ -8,7 +8,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if(id==='react')return {...React,useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=initial;return[state[slot],value=>{state[slot]=typeof value==='function'?value(state[slot]):value}]},useRef:initial=>{const slot=refIndex++;return refs[slot]??(refs[slot]={current:initial})},useEffect:fn=>effects.push(fn),useMemo:fn=>fn()}
  if(id==='@shared/mailAddresses')return addresses
  if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
-  if(id==='../i18n')return{useI18n:()=>({t:key=>key})}
+  if(id==='../i18n')return{useI18n:()=>({t:(key,values)=>key==='compose.sendToMany'?`${key}:${values.count}`:key})}
  if(id==='../lib/usePresence')return{usePresence:()=>({mounted:true,closing:false})}
  if(id==='../lib/cx')return{cx:(...v)=>v.filter(Boolean).join(' ')}
  if(id==='../data/demo')return{COPILOT_DRAFT:''}
@@ -27,6 +27,9 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
 ;(async()=>{
  let tree=render()
  assert.ok(React.Children.toArray(find(tree,n=>n.props.className==='composer__sender').props.children).includes('sender@example.com'),'composer displays the actual sending address')
+ assert.ok(!find(tree,n=>n.props['aria-label']==='mail.priority'),'priority is hidden in sending options')
+ find(tree,n=>n.props.title==='compose.sendingOptions').props.onClick()
+ tree=render()
  find(tree,n=>n.props['aria-label']==='mail.priority').props.onChange({target:{value:'high'}})
  tree=render()
  find(tree,n=>n.props.className==='send-btn').props.onClick();await flush()
@@ -85,6 +88,26 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
  assert.ok(!find(render(),n=>n.props.role==='status'),'canceling the picker does not announce success')
  find(render({onPickAttachments:async()=>{throw new Error('Pick failed')}}),n=>typeof n.props.onAttach==='function').props.onAttach();await flush()
  assert.equal(find(render(),n=>n.props.role==='alert').props.children,'Pick failed')
+ state.length=0;refs.length=0
+ const reply={mode:'all',sender:'sender@example.com',to:'sender@example.com, other@example.com',cc:'copy@example.com'}
+ const replying=()=>render({to:reply.to,cc:reply.cc,reply})
+ tree=replying()
+ effects[0]()
+ tree=replying()
+ assert.equal(find(tree,n=>n.props.className==='composer__recipient-count').props.children,'compose.sendToMany:3')
+ assert.equal(find(tree,n=>n.props['aria-label']==='compose.replyMode').props.value,'all')
+ find(tree,n=>typeof n.props.onAttach==='undefined'&&n.props.text==='Text'&&typeof n.props.onChange==='function').props.onChange('Keep this reply','<p>Keep this reply</p>')
+ find(tree,n=>n.props['aria-label']==='compose.subject').props.onChange({target:{value:'Edited subject'}})
+ find(replying(),n=>n.props['aria-label']==='compose.replyMode').props.onChange({target:{value:'sender'}})
+ tree=replying()
+ assert.equal(find(tree,n=>n.props.field==='to').props.initialValue,'sender@example.com')
+ assert.ok(!find(tree,n=>n.props.field==='cc'))
+ assert.ok(find(tree,n=>n.props.text==='Keep this reply'),'switching reply type preserves the editor')
+ assert.equal(find(tree,n=>n.props['aria-label']==='compose.subject').props.value,'Edited subject')
+ find(tree,n=>n.props['aria-label']==='compose.replyMode').props.onChange({target:{value:'all'}})
+ tree=replying()
+ assert.equal(find(tree,n=>n.props.field==='to').props.initialValue,reply.to)
+ assert.equal(find(tree,n=>n.props.field==='cc').props.initialValue,reply.cc)
  console.log('Compose editor: pending addresses, validation, CC/BCC, Escape draft, failed sends, duplicate clicks and discard passed')
 })().catch(error=>{console.error(error);process.exitCode=1})
 

@@ -6,7 +6,7 @@ import { basename } from 'node:path'
 import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { createTransport } from 'nodemailer'
 import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
-import { readDraft, cacheAccountId, rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
+import { readMailboxes, readEnvelope, getMailboxMeta, readDraft, cacheAccountId, rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
 import { readActiveAccount } from './settings'
 import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCredentials, moveMessage, removeServerDraft, setSeen, syncInbox } from './imap'
 
@@ -246,7 +246,9 @@ async function runOne(row: OutboxRow): Promise<void> {
   } else if (row.kind === 'move') {
     const target = payloadOf(row).target
     if (typeof target !== 'string' || target === '') throw new Error('La regla no tiene buzón destino')
-    await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target)
+    const uidValidity = payloadOf(row).uidValidity
+    if (uidValidity !== undefined && (typeof uidValidity !== 'string' || !/^\d+$/.test(uidValidity))) throw new Error('Identidad de carpeta inválida')
+    await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target, uidValidity as string | undefined)
   } else if (row.kind === 'seen') {
     await setSeen(row.mailbox ?? 'INBOX', row.uid ?? 0, true)
   }
@@ -312,6 +314,26 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
   await processOutbox()
 
   return { ok: true, queued: listOutbox().some(row => row.id === id) }
+}
+
+export async function moveMessageAction(path: string, uid: number, target: string): Promise<MailAction> {
+  if (typeof path !== 'string' || !path || typeof target !== 'string' || !target || path === target || !Number.isSafeInteger(uid) || uid <= 0) {
+    return { ok: false, queued: false, error: 'Movimiento inválido' }
+  }
+  const boxes = readMailboxes()
+  if (!boxes.some(box => box.path === path) || !boxes.some(box => box.path === target) || !readEnvelope(path, uid)) {
+    return { ok: false, queued: false, error: 'No se encontró el mensaje o la carpeta' }
+  }
+  const uidValidity = getMailboxMeta(path)?.uidValidity
+  if (uidValidity == null) return { ok: false, queued: false, error: 'Sincroniza la carpeta antes de mover el mensaje' }
+  const existing = remaining('move', row => row.mailbox === path && row.uid === uid)
+  if (existing) return { ok: false, queued: true, error: 'El mensaje ya tiene un movimiento pendiente' }
+  const id = enqueueOutbox({ kind: 'move', mailbox: path, uid, payload: { target, uidValidity: String(uidValidity) } })
+  notify()
+  await processOutbox()
+  const pending = listOutbox().find(row => row.id === id)
+  if (pending?.status === 'failed') return { ok: false, queued: true, error: pending.lastError ?? 'No se pudo mover' }
+  return { ok: true, queued: Boolean(pending) }
 }
 
 export async function archiveMessage(path: string, uid: number): Promise<MailAction> {

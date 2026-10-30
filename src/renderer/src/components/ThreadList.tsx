@@ -1,3 +1,4 @@
+import { usePreferences } from '../settings/PreferencesProvider'
 import { ContextMenu, type ContextAnchor } from './ContextMenu'
 import { useCallback, useState } from 'react'
 import { SenderAvatar } from './SenderAvatar'
@@ -99,6 +100,7 @@ export function ThreadList({
   onContextMenu,
   onSelect
 }: ThreadListProps): React.JSX.Element {
+  const { timeFormat } = usePreferences()
   const { t, locale } = useI18n()
   const [menu, setMenu] = useState<{ kind: 'sort' | 'filter'; anchor: ContextAnchor } | null>(null)
   const closeMenu = useCallback(() => setMenu(null), [])
@@ -243,8 +245,8 @@ export function ThreadList({
           const members = thread.messageIds
             ? allThreads.filter(item => thread.messageIds!.includes(Number(item.id.slice(5))))
                 .sort((a, b) => thread.messageIds!.indexOf(Number(a.id.slice(5))) - thread.messageIds!.indexOf(Number(b.id.slice(5))))
-                .map(item => ({ id: item.id, messageId: item.id, sender: item.participants[0], date: item.date !== undefined ? formatMessageDate(item.date, locale) : item.receivedAt, unread: item.unread }))
-            : thread.messages.map(message => ({ id: thread.id, messageId: message.id, sender: message.from, date: message.date !== undefined ? formatMessageDateTime(message.date, locale) : message.sentAt, unread: thread.unread }))
+                .map(item => ({ id: item.id, messageId: item.id, sender: item.participants[0], date: item.date !== undefined ? formatMessageDate(item.date, locale, Date.now(), timeFormat) : item.receivedAt, unread: item.unread }))
+            : thread.messages.map(message => ({ id: thread.id, messageId: message.id, sender: message.from, date: message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt, unread: thread.unread }))
           const hasFiles = allThreads.some(item =>
             (item.id === thread.id || thread.messageIds?.includes(Number(item.id.slice(5)))) &&
             (item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
@@ -302,7 +304,7 @@ export function ThreadList({
                       <Icon name="mark_email_unread" size={16} />
                     </span>
                   )}
-                  <span className="thread__time" title={thread.date !== undefined ? formatMessageDateTime(thread.date, locale) : undefined}>{thread.date !== undefined ? formatMessageDate(thread.date, locale) : thread.receivedAt}</span>
+                  <span className="thread__time" title={thread.date !== undefined ? formatMessageDateTime(thread.date, locale, false, timeFormat) : undefined}>{thread.date !== undefined ? formatMessageDate(thread.date, locale, Date.now(), timeFormat) : thread.receivedAt}</span>
                 </div>
               </div>
 
