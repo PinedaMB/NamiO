@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('api',{
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'drafts-preload.cjs'), `
-const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];let deletionJob=null;const meta={offline:false,syncedAt:1};
+const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];const progressListeners=[];let syncProgressState=null;let deletionJob=null;const meta={offline:false,syncedAt:1};let testOffline=false,bodyCached=true,networkReads=0;
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
 let draftSequence=0;let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
@@ -28,19 +28,24 @@ const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
 contextBridge.exposeInMainWorld('api',{
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
- accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>null,senderLogo:async()=>null,
- listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>({ok:true,data:path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[],meta}),
- getMessage:async(path,uid)=>({ok:true,data:{...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[{name:"Visible copy",address:"copy@example.test"}],text:remote.body,html:remote.html,attachments:[]},meta}),
+ accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>syncProgressState,senderLogo:async()=>null,
+ listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>{const data=path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[];return{ok:true,data,meta,counts:{total:data.length,unread:0,availableOffline:bodyCached?data.length:0}}},
+ getMessage:async(path,uid,cachedOnly=false)=>{
+ const data={...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[{name:"Visible copy",address:"copy@example.test"}],text:remote.body,html:remote.html,attachments:[]};
+ if(!bodyCached&&(cachedOnly||testOffline))return{ok:true,data:{...data,text:'',html:null},meta:{...meta,partial:true}};
+ if(!cachedOnly){networkReads++;bodyCached=true;notify()}return{ok:true,data,meta:{...meta}}},
+ testConnectionState:async(offline,cached)=>{testOffline=offline;bodyCached=cached;meta.offline=offline;meta.syncedAt=Date.now();inboxPresent=true;notify()},inspectTestNetworkReads:async()=>networkReads,
  moveMessage:async(path,uid,target)=>{moves.push({path,uid,target});return{ok:true,queued:true}},inspectTestMoves:async()=>moves,
  deleteMessage:async(path,uid)=>{if(path!=='INBOX'||uid!==11)throw new Error('Wrong delete target');deleteCalls++;return new Promise(resolve=>{finishDelete=()=>{inboxPresent=false;notify();resolve({ok:true,queued:false})}})},finishTestDelete:async()=>finishDelete(),inspectTestDeleteCalls:async()=>deleteCalls,
  deleteMessages:async(path,uids)=>{backgroundDeletes.push({path,uids});deletionJob={id:'delete-job',kind:'delete-many',status:'queued',attempts:0,lastError:null,createdAt:1,label:path,deletionProgress:{completed:0,total:250,running:true}};outboxListeners.forEach(fn=>fn());return{ok:true,queued:true}},inspectTestBackgroundDeletes:async()=>backgroundDeletes,
  advanceTestDeletion:async(completed,running=true)=>{deletionJob.deletionProgress={completed,total:250,running};outboxListeners.forEach(fn=>fn())},finishTestDeletion:async()=>{deletionJob=null;outboxListeners.forEach(fn=>fn())},
- syncMailbox:async path=>{syncs.push(path);return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
+ syncMailbox:async path=>{syncs.push(path);if(testOffline)return{ok:false,code:'dns',detail:'fetch failed'};meta.offline=false;meta.syncedAt=Date.now();return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
  saveDraft:async input=>{const id=input.id??'new-draft-'+ ++draftSequence;const previous=drafts.find(item=>item.id===id);drafts=drafts.filter(item=>item.id!==id);drafts.push({...previous,...input,id});notify();return{id,queued:true}},
  clearDraft:async id=>{drafts=drafts.filter(item=>item.id!==id);notify()},inspectTestDrafts:async()=>drafts,
- onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:fn=>{outboxListeners.push(fn);return()=>{}},onRulesChanged:noop
+ testSyncProgress:async phase=>{syncProgressState=phase?{mailbox:'INBOX',phase,cached:1,total:2,running:true}:null;progressListeners.forEach(fn=>fn(syncProgressState))},
+ onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:fn=>{progressListeners.push(fn);return()=>{}},onAccountsActivity:noop,onOutboxChanged:fn=>{outboxListeners.push(fn);return()=>{}},onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'onboarding-preload.cjs'), (await readFile(join(folder, 'preload.cjs'), 'utf8')).replace('onboarded:true', 'onboarded:false'))
   await writeFile(join(folder, 'runner.cjs'), `
@@ -360,6 +365,37 @@ app.whenReady().then(async()=>{
  [...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.endsWith('Sincronizar')).click();
  await until(()=>!document.querySelector('.context-menu'),'Sync did not dismiss menu');await wait();
  if((await window.api.inspectTestSyncs()).join(',')!=='INBOX,Drafts')throw new Error('Folder context sync targeted the selected folder instead of the clicked one');
+ await window.api.testConnectionState(true,true);
+ Object.defineProperty(navigator,'onLine',{configurable:true,value:false});window.dispatchEvent(new Event('offline'));
+ await until(()=>card('Inbox sample'),'Cached inbox did not load offline');card('Inbox sample').click();
+ await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Downloaded body did not open offline');
+ if(!document.querySelector('.offline-strip'))throw new Error('Offline state is not visible');
+ const offlineReads=await window.api.inspectTestNetworkReads();
+ await window.api.testConnectionState(true,false);
+ document.querySelector('.rail__nav [aria-current="page"]').click();await wait();
+ await until(()=>!document.querySelector('.list-loading')&&card('Inbox sample'),'Offline inbox reload missing');card('Inbox sample').click();
+ await until(()=>document.querySelector('.body')?.textContent.includes('cuerpo'),'Missing body did not show the offline placeholder');
+ if(document.querySelector('.letter-loading'))throw new Error('Offline missing body must not spin forever');
+ if(await window.api.inspectTestNetworkReads()!==offlineReads)throw new Error('Offline reader attempted network body reads');
+ document.querySelector('[aria-label="Sincronizar"]').click();await wait();
+ await until(()=>!document.querySelector('.live-banner'),'Offline DNS failure showed a configuration error');
+ if(!document.querySelector('.offline-strip'))throw new Error('DNS failure must retain offline status');
+ const syncsBefore=(await window.api.inspectTestSyncs()).length;
+ await window.api.testConnectionState(false,false);
+ Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.dispatchEvent(new Event('online'));
+ await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible'&&!document.querySelector('.offline-strip'),'Online event did not retry the partial body');
+ if((await window.api.inspectTestSyncs()).length!==syncsBefore+1)throw new Error('Online event must synchronize the active folder once');
+ if(await window.api.inspectTestNetworkReads()<=offlineReads)throw new Error('Reconnection did not download the missing body');
+ if(document.querySelector('.live-banner'))throw new Error('Successful reconnection left the DNS alert visible');
+ delete navigator.onLine;
+ await until(()=>document.querySelector('.list__queue')?.textContent.includes('1/1 SIN CONEXIÓN'),'Offline body counter did not update after download');
+ await window.api.testSyncProgress('headers');
+ await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes('Guardando encabezados 1/2'),'Header progress is unclear');
+ await window.api.testSyncProgress('bodies');
+ await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes('Disponibles sin conexión 1/2'),'Offline body progress is unclear');
+ await window.api.testSyncProgress(null);
+ console.log('Offline recovery: cached body, explicit missing-body state, no network reads while offline, DNS banner and automatic online retry passed');
+
  document.querySelector('[aria-label="Drafts"]').click();
  await until(()=>card('Pendiente local')&&card('Borrador servidor'),'Drafts list did not combine remote and pending drafts');
  card('Borrador servidor').click();await until(()=>document.querySelector('.tiptap')?.editor,'Server draft did not open');

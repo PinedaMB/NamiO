@@ -5,7 +5,7 @@
   <p><strong>Tu correo, a tu ritmo.</strong></p>
   <p>Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes.<br />Varias cuentas, acceso sin conexión y avisos de correo nuevo en una interfaz oscura.</p>
 
-  <p><strong>1.0.0-rc.2 · Candidata de prueba · Español (México) / English</strong></p>
+  <p><strong>1.0.0-rc.4 · Candidata de prueba · Español (México) / English</strong></p>
 
   <p>
     <a href="https://github.com/PinedaMB/NamiO/releases">Descargas</a> ·
@@ -112,9 +112,15 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 | **Windows** | Instalador `.exe` configurado para instalarse en el perfil del usuario, sin privilegios de administrador; validación completa pendiente. Consulta cada publicación para ver si lo incluye. |
 | **macOS** | Distribución y validación pendientes. |
 
+## Lectura sin conexión
+
+La sincronización guarda primero los encabezados y después el texto y HTML de los mensajes de la carpeta, en segundo plano y sin volver a descargar los cuerpos ya guardados. El contador «sin conexión» indica cuántos mensajes tienen contenido disponible en este equipo; la barra de progreso distingue encabezados y cuerpos.
+
+La primera descarga puede tardar y ocupar espacio según el historial. Mantén NamiO abierto y con conexión hasta completar el contador antes de desconectarte. Si se interrumpe, la siguiente sincronización retoma lo pendiente. Los archivos adjuntos y las imágenes externas o incrustadas no se descargan masivamente para uso sin conexión.
+
 ## 🌱 Estado actual
 
-**NamiO 1.0.0-rc.2 es una candidata de prueba.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es la versión estable 1.0.
+**NamiO 1.0.0-rc.4 es una candidata de prueba.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es la versión estable 1.0.
 
 - La bandeja muestra **una cuenta a la vez**; no hay bandeja unificada.
 - La revisión de cuentas inactivas detecta nuevos mensajes para los avisos; no equivale a sincronizar todo su contenido continuamente.

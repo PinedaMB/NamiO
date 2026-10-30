@@ -629,6 +629,18 @@ export interface CachedBody {
   fetched: boolean
 }
 
+export function missingBodyUids(mailbox: string): number[] {
+  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND body_text IS NULL AND body_html IS NULL')
+    .all(mailbox) as { uid: number }[]
+  return rows.map(row => row.uid)
+}
+
+export function countBodies(mailbox: string): number {
+  const row = handle().prepare('SELECT COUNT(*) AS count FROM messages WHERE mailbox = ? AND (body_text IS NOT NULL OR body_html IS NOT NULL)')
+    .get(mailbox) as { count: number }
+  return row.count
+}
+
 export function readBody(mailbox: string, uid: number): CachedBody {
   const row = handle()
     .prepare('SELECT body_text, body_html, to_json, cc_json, attachments_json FROM messages WHERE mailbox = ? AND uid = ?')

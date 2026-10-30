@@ -68,7 +68,7 @@ async function deduplicate(changeAccount=false) {
   const context={syncGeneration:1,offline:false,readBody:()=>({fetched:stored}),cachedDetail:()=>detail,
     syncMeta:()=>({}),serial:fn=>{const run=chain.then(fn,fn);chain=run.catch(()=>{});return run},
     fetchMessage:()=>{fetches++;return new Promise(resolve=>{release=()=>resolve(detail)})},
-    saveBody:()=>{stored=true;writes++},classify:()=> 'unknown',isOfflineError:()=>false,describe:error=>error.message}
+    notify(){}, saveBody:()=>{stored=true;writes++},classify:()=> 'unknown',isOfflineError:()=>false,describe:error=>error.message}
   const get=vm.runInNewContext(compile(`${source};getMessage`),context)
   const localOnly=await get('INBOX',7,true)
   assert.equal(localOnly.ok,true);assert.equal(localOnly.meta.partial,true);assert.equal(fetches,0,'local-only reads never join the network queue')

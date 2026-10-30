@@ -29,6 +29,7 @@ interface ThreadListProps {
   unreadCount: number
   otherCount: number
   /** Total de mensajes en la caché del buzón (sin filtrar). */
+  availableOffline?: number
   allCount: number
   vipCount: number
   loading?: boolean
@@ -89,6 +90,7 @@ export function ThreadList({
   unreadCount,
   otherCount,
   allCount,
+  availableOffline = 0,
   vipCount,
   loading = false,
   emptyLabel,
@@ -203,7 +205,7 @@ export function ThreadList({
         <div className="list__queue">
           <span>
             {live
-              ? t('list.liveQueue', { count: allCount, loaded: threads.length }).toUpperCase()
+              ? t('list.liveQueue', { count: allCount, loaded: threads.length, offline: availableOffline }).toUpperCase()
               : t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}
           </span>
           {!live && <strong>{t('list.triaged')}</strong>}

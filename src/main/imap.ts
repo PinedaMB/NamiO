@@ -30,6 +30,7 @@ import {
   clearAccountCache,
   deleteAccountCache,
   countMessages,
+  countBodies,
   countUnread,
   adjustMailboxUnseen,
   deleteMessageRow,
@@ -37,6 +38,7 @@ import {
   getMeta,
   messagesByUids,
   missingEnvelopeMetadata,
+  missingBodyUids,
   openAccountCache,
   readBody,
   readEnvelope,
@@ -506,26 +508,52 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
     for (let end = uids.length; end > 0; end -= chunk) {
       if (generation !== syncGeneration) return
       const batch = uids.slice(Math.max(0, end - chunk), end)
-      await serial(async () => {
-        if (generation !== syncGeneration) return
+      const fetched = await serial(async () => {
+        if (generation !== syncGeneration) return false
         const cached = new Set(messagesByUids(path, batch).map((message) => message.uid))
         const missing = batch.filter((uid) => !cached.has(uid) || pendingMetadata.has(uid))
-        if (missing.length === 0) return
+        if (missing.length === 0) return false
         const client = await ensureClient()
         const lock = await client.getMailboxLock(path)
         try {
           const envelopes = await fetchRange(client, missing.join(','), true)
           if (generation === syncGeneration) upsertEnvelopes(path, envelopes)
+          return generation === syncGeneration
         } finally {
           lock.release()
         }
       })
       if (generation !== syncGeneration) return
-      publishProgress({ mailbox: path, cached: countMessages(path), total: uids.length, running: true })
-      notify(path)
-      await sleep(120)
+      if (fetched) {
+        publishProgress({ mailbox: path, cached: countMessages(path), total: uids.length, running: true, phase: 'headers' })
+        notify(path)
+        await sleep(120)
+      }
+    }
+    if (generation !== syncGeneration) return
+    const missingBodies = new Set(missingBodyUids(path))
+    const bodyUids = uids.filter(uid => missingBodies.has(uid))
+    let available = countBodies(path)
+    publishProgress({ mailbox: path, cached: available, total: uids.length, running: true, phase: 'bodies' })
+    for (let index = bodyUids.length - 1; index >= 0; index--) {
+      if (generation !== syncGeneration) return
+      const uid = bodyUids[index]!
+      const downloaded = await serial(async () => {
+        if (generation !== syncGeneration || !readEnvelope(path, uid) || readBody(path, uid).fetched) return false
+        await cacheMessageBody(path, uid)
+        return generation === syncGeneration
+      })
+      if (generation !== syncGeneration) return
+      if (downloaded) available++
+      if (index % chunk === 0) available = countBodies(path)
+      if (downloaded || index % chunk === 0) {
+        publishProgress({ mailbox: path, cached: available, total: uids.length, running: true, phase: 'bodies' })
+        notify(path)
+      }
+      if (downloaded) await sleep(20)
     }
   } catch (error) {
+    if (generation === syncGeneration && isOfflineError(classify(error))) offline = true
     console.error('[imap] background sync failed:', describe(error))
   } finally {
     fullSyncRunning = false
@@ -533,8 +561,8 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       publishProgress(null)
       notify(path)
     }
-    const next = pendingFullSync.values().next().value
-    if (next !== undefined) {
+    while (!fullSyncRunning && pendingFullSync.size > 0) {
+      const next = pendingFullSync.values().next().value!
       pendingFullSync.delete(next)
       ensureFullSync(next)
     }
@@ -548,7 +576,7 @@ function ensureFullSync(path: string): void {
     return
   }
   const meta = getMailboxMeta(path)
-  if (!meta || (meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0)) return
+  if (!meta || (meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0 && countBodies(path) >= countMessages(path))) return
   void fullSyncMailbox(path, 100)
 }
 
@@ -590,7 +618,7 @@ export async function listEnvelopes(
   sync = true,
   options: EnvelopeListOptions = {}
 ): Promise<EnvelopeListResult> {
-  const result = (): EnvelopeListResult => ({ ok: true, data: readEnvelopes(path, limit, options), meta: syncMeta(), counts: { total: countMessages(path), unread: countUnread(path) } })
+  const result = (): EnvelopeListResult => ({ ok: true, data: readEnvelopes(path, limit, options), meta: syncMeta(), counts: { total: countMessages(path), unread: countUnread(path), availableOffline: countBodies(path) } })
   const cached = result()
 
   if (!sync) return cached
@@ -615,6 +643,51 @@ export async function listEnvelopes(
     })
 
   return cached
+}
+
+/** Guarda únicamente los cuerpos de lectura; los binarios siguen bajo demanda. */
+async function cacheMessageBody(path: string, uid: number): Promise<void> {
+  const generation = syncGeneration
+  const client = await ensureClient()
+  const lock = await client.getMailboxLock(path)
+  try {
+    const validity = getMailboxMeta(path)?.uidValidity
+    if (validity == null || !client.mailbox || String(client.mailbox.uidValidity) !== String(validity)) throw new Error('La identidad de la carpeta cambió; no se guardó el cuerpo')
+    const message = await client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true }, { uid: true })
+    if (!message || message.uid !== uid || !message.bodyStructure) throw new Error('No se encontró la estructura del mensaje')
+    const parts: { part: string; type: string }[] = []
+    const attachments: { name: string; size: number; type: string }[] = []
+    const collect = (node: MessageStructureObject): void => {
+      const filename = node.dispositionParameters?.filename ?? node.parameters?.name
+      const attached = node.disposition?.toLowerCase() === 'attachment' || Boolean(filename) || node.type.toLowerCase() === 'message/rfc822'
+      if (!attached && node.childNodes?.length) { node.childNodes.forEach(collect); return }
+      if (!attached && ['text/plain', 'text/html'].includes(node.type.toLowerCase())) {
+        parts.push({ part: node.part || '1', type: node.type.toLowerCase() })
+      } else {
+        attachments.push({ name: filename || `adjunto-${attachments.length + 1}`, size: node.size ?? 0, type: node.type })
+      }
+    }
+    collect(message.bodyStructure)
+    const text: string[] = [], html: string[] = []
+    for (const part of parts) {
+      const download = await client.download(String(uid), part.part, { uid: true })
+      if (!download.content) throw new Error('El cuerpo del mensaje no está disponible')
+      const chunks: Buffer[] = []
+      for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
+      const content = Buffer.concat(chunks).toString('utf8')
+      if (part.type === 'text/html') html.push(content)
+      else text.push(content)
+    }
+    const markup = html.length ? html.join('\n') : null
+    const plain = text.length ? text.join('\n') : markup
+      ? (await simpleParser(Buffer.from(`Content-Type: text/html; charset=utf-8\r\n\r\n${markup}`))).text ?? '' : ''
+    if (generation !== syncGeneration || !readEnvelope(path, uid)) return
+    saveBody(path, uid, {
+      text: plain, html: markup,
+      to: (message.envelope?.to ?? []).flatMap(address => toAddress(address) ?? []),
+      cc: (message.envelope?.cc ?? []).flatMap(address => toAddress(address) ?? []), attachments
+    })
+  } finally { lock.release() }
 }
 
 async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
@@ -722,6 +795,7 @@ export async function getMessage(path: string, uid: number, cachedOnly = false):
       const fetched = await fetchMessage(path, uid)
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
       saveBody(path, uid, { text: fetched.text, html: fetched.html, to: fetched.to, cc: fetched.cc, attachments: fetched.attachments })
+      notify(path)
       offline = false
       return fetched
     })

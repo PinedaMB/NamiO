@@ -11,6 +11,8 @@ for (const node of ast.statements) {
 async function check(initial, switchAccount = false, fail = false, metadata = false) {
   const server = [7, 8, 1000, 9000, 20000]
   const cached = new Set(initial)
+  const bodies = new Set(initial)
+  const bodyRequests = []
   const requests = []
   let releases = 0
   const resumed = []
@@ -21,6 +23,11 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
       search: async () => server.slice(),
       getMailboxLock: async () => ({ release: () => releases++ })
     }),
+    missingBodyUids: () => server.filter(uid=>!bodies.has(uid)),
+    readEnvelope: (_path, uid) => cached.has(uid) ? { uid } : null,
+    readBody: (_path, uid) => ({ fetched: bodies.has(uid) }), countBodies: () => bodies.size,
+    cacheMessageBody: async (_path, uid) => { bodyRequests.push(uid); bodies.add(uid) },
+    classify: () => 'network', isOfflineError: () => true,
     missingEnvelopeMetadata: () => metadata ? initial : [],
     messagesByUids: (_path, uids) => uids.filter(uid => cached.has(uid)).map(uid => ({ uid })),
     fetchRange: async (_client, range, byUid) => {
@@ -47,6 +54,8 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
     const fetched = requests.flatMap(range => range.split(',').map(Number))
     assert.ok(fetched.every(uid => metadata || !initial.includes(uid)), 'already cached messages are not fetched again')
     assert.equal(fetched.length, server.length - (metadata ? 0 : initial.length))
+    assert.deepEqual([...bodies].sort((a,b)=>a-b),server,'background synchronization saves missing bodies too')
+    assert.ok(bodyRequests.every(uid=>!initial.includes(uid)),'saved bodies are not fetched again')
   }
 }
 (async () => {

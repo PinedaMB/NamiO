@@ -221,7 +221,7 @@ export interface EnvelopeListOptions {
   includeUid?: number
 }
 
-export type EnvelopeListResult = CachedResult<Envelope[]> & { counts?: { total: number; unread: number } }
+export type EnvelopeListResult = CachedResult<Envelope[]> & { counts?: { total: number; unread: number; availableOffline?: number } }
 
 export type AttachmentPreview =
   | { kind: 'image'; name: string; src: string }
@@ -330,6 +330,7 @@ export interface PickedAttachment {
 
 /** Progreso de la sincronización completa de un buzón (segundo plano). */
 export interface SyncProgress {
+  phase?: 'headers' | 'bodies'
   mailbox: string
   cached: number
   total: number

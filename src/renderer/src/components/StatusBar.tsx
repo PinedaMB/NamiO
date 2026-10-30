@@ -88,10 +88,10 @@ export function StatusBar({ appVersion, bindings, pending, progress = null, dele
       <div className="statusbar__right">
         <UpdateNotice />
         {progress && (
-          <span className="sync-progress" data-tooltip={t('sync.progress', { cached: progress.cached, total: progress.total })} tabIndex={0}>
+          <span className="sync-progress" data-tooltip={t(progress.phase === 'bodies' ? 'sync.bodiesProgress' : 'sync.progress', { cached: progress.cached, total: progress.total })} tabIndex={0}>
             <Icon name="cloud_download" size={12} />
             <span className="sync-progress__label">
-              {t('sync.progress', { cached: progress.cached, total: progress.total })}
+              {t(progress.phase === 'bodies' ? 'sync.bodiesProgress' : 'sync.progress', { cached: progress.cached, total: progress.total })}
             </span>
             <span className="sync-progress__bar">
               <span className="sync-progress__fill" style={{ width: `${percent}%` }} />

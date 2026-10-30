@@ -242,7 +242,7 @@ export function App(): React.JSX.Element {
   }, [applyActivity])
   /** Cuántos mensajes se piden a la caché (crece al llegar al final de la lista). */
   const [listLimit, setListLimit] = useState(PAGE_SIZE)
-  const [listCounts, setListCounts] = useState<{ total: number; unread: number } | null>(null)
+  const [listCounts, setListCounts] = useState<{ total: number; unread: number; availableOffline?: number } | null>(null)
   const listOptions = useRef<EnvelopeListOptions>({})
   const filterFocusUid = useRef<number | undefined>(undefined)
   listOptions.current = { filter: filter === 'focused' ? 'unread' : filter === 'other' ? 'read' : 'all', oldestFirst, includeUid: uidOf(selectedId ?? '') ?? undefined }
@@ -1464,6 +1464,7 @@ export function App(): React.JSX.Element {
                 unreadCount={unreadCount}
                 otherCount={otherCount}
                 allCount={allCount}
+                availableOffline={listCounts?.availableOffline ?? 0}
                 vipCount={vipCount}
                 loading={loadingFolder}
                 emptyLabel={

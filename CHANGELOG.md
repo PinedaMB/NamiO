@@ -1,15 +1,17 @@
 # Cambios
 
-## Sin publicar
+## 1.0.0-rc.4 — 2026-10-30
+
+- La sincronización guarda texto y HTML en segundo plano, empezando por los mensajes recientes. Reanuda los cuerpos faltantes tras una interrupción sin volver a descargar los ya guardados.
+- Los adjuntos binarios no se descargan masivamente; se conserva su lista para abrirlos o guardarlos bajo demanda. Los mensajes no se marcan como leídos durante la descarga.
+- Contador de mensajes disponibles sin conexión y progreso separado para encabezados y cuerpos. Los mensajes que solo tienen encabezado dejan de presentarse como correos completos en caché.
+
+## 1.0.0-rc.3 — 2026-10-30
 
 - En el lector, los fallos temporales de red o DNS activan el aviso de desconexión en lugar de sugerir que la cuenta tiene mal configurado el servidor. Los errores de autenticación y certificados conservan su aviso.
-
 - El lector consulta los cuerpos guardados antes de esperar a la red; muestra cuándo falta contenido sin conexión y reintenta los mensajes parciales al reconectar. La reconexión sincroniza la carpeta abierta y reactiva la cola pendiente.
-
 - Reconectar o detectar borrados en el servidor conserva los cuerpos de los correos ya descargados; la caché solo se reconstruye si cambia la identidad de la carpeta o se reinician sus UID.
-
 - Los fallos de red de OAuth/Fetch se reconocen como desconexión y permiten usar la copia guardada del correo, en lugar de mostrar un error genérico «fetch failed».
-
 - Resaltado breve al llegar un correo nuevo o una respuesta a una conversación; no se repite al navegar, filtrar o cargar páginas y respeta el movimiento reducido.
 
 ## 1.0.0-rc.2 — 2026-10-30
