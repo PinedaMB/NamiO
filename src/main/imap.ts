@@ -886,6 +886,7 @@ export function moveMessage(path: string, uid: number, target: string, uidValidi
     }
     const removed = deleteMessageRow(path, uid)
     if (removed?.unread) adjustMailboxUnseen(path, -1)
+    notify(path)
     await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
     notify('*')
   })
@@ -912,6 +913,7 @@ export function deleteMessage(path: string, uid: number, permanent = false): Pro
     }
     const removed = deleteMessageRow(path, uid)
     if (removed?.unread) adjustMailboxUnseen(path, -1)
+    notify(path)
     await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
     notify('*')
   })
@@ -953,6 +955,7 @@ export async function deleteMessageBatch(path: string, uids: number[], permanent
           if (removed?.unread) adjustMailboxUnseen(path, -1)
         }
         onProgress?.(offset + batch.length)
+        notify(path)
         await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
         notify('*')
       } finally { lock.release() }

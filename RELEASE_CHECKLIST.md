@@ -1,6 +1,6 @@
 # Preparación de NamiO 1.0
 
-Estado al 30 de octubre de 2026. La candidata actual es `1.0.0-rc.1`; sus cambios están en el changelog. Los instalables Linux en `release/1.0.0-rc.1/` son compilaciones locales para realizar las pruebas pendientes, no una publicación estable 1.0. Los artefactos previos en `release/rc-validation/` corresponden a 0.4.7.
+Estado al 30 de octubre de 2026. La candidata actual es `1.0.0-rc.2`; sus cambios están en el changelog. Los instalables Linux en `release/1.0.0-rc.2/` son compilaciones locales para realizar las pruebas pendientes, no una publicación estable 1.0. Los artefactos previos en `release/rc-validation/` corresponden a 0.4.7.
 
 ## Alcance propuesto
 
@@ -10,10 +10,12 @@ La bandeja unificada, la IA, traducción, impresión y bloqueo de remitentes que
 
 ## Comprobaciones locales
 
-- [x] Candidata `1.0.0-rc.1`: compilación, AppImage y `.deb` generados en `release/1.0.0-rc.1/`, hashes SHA-256 y correspondencia del código empaquetado verificados. El ejecutable reporta `1.0.0-rc.1` por IPC al arrancar con un perfil temporal.
+- [x] Actualización inmediata del lector tras movimientos y borrados confirmados, probada con consultas de carpetas lentas y fallidas.
+
+- [x] Candidata `1.0.0-rc.2`: compilación, AppImage y `.deb` generados en `release/1.0.0-rc.2/`, hashes SHA-256 y correspondencia del código empaquetado verificados. El ejecutable reporta `1.0.0-rc.2` por IPC al arrancar con un perfil temporal.
 
 - [x] Envío con cuenta real: confirmado por el usuario durante esta sesión.
-- [x] Regresión automática: 58 pruebas con `pnpm test`.
+- [x] Regresión automática: 59 pruebas con `pnpm test`.
 - [x] Compilación y tipos: `pnpm run build`.
 - [x] Auditoría de estilos: `pnpm run css:audit`.
 - [x] Interfaz en Electron: editor, renderizado de correos y aplicación completa. Se actualizaron los selectores de prueba de las opciones de envío.
@@ -40,7 +42,7 @@ Las pruebas de Electron de este entorno usan modo headless y `--no-sandbox`. No 
 
 1. Registrar proveedor, sistema operativo, versión y resultado de las pruebas externas; no usar correos privados en capturas ni logs compartidos.
 2. Resolver los fallos encontrados y repetir las comprobaciones afectadas.
-3. Usar los instalables `1.0.0-rc.1` generados desde la versión y changelog de esta candidata; si se corrigen fallos, generar una nueva candidata identificable.
+3. Usar los instalables `1.0.0-rc.2` generados desde la versión y changelog de esta candidata; si se corrigen fallos, generar una nueva candidata identificable.
 4. Validar la candidata en uso diario y su actualización antes de publicar `1.0.0`.
 
 SMTP no permite garantizar entrega única si el servidor acepta un correo y se pierde su confirmación. Las pruebas simuladas no sustituyen las pruebas de recuperación con los proveedores reales.

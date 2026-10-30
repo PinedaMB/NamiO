@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.0.0-rc.2 — 2026-10-30
+
+- El lector refleja los movimientos y borrados confirmados sin esperar a consultar los contadores de todas las carpetas. Incluye envío a Papelera, borrado definitivo y borrado por lotes; los rechazos del servidor conservan la copia local.
+
 ## 1.0.0-rc.1 — 2026-10-30
 
 - Mover un correo a otra carpeta desde el lector o su menú de opciones. Los movimientos se guardan en la cola persistente, evitan solicitudes duplicadas y verifican la identidad de la carpeta antes de reintentarse.
