@@ -5,7 +5,7 @@
   <p><strong>Tu correo, a tu ritmo.</strong></p>
   <p>Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes.<br />Varias cuentas, acceso sin conexión y avisos de correo nuevo en una interfaz oscura.</p>
 
-  <p><strong>0.4.7 · En desarrollo · Español (México) / English</strong></p>
+  <p><strong>1.0.0-rc.1 · Candidata de prueba · Español (México) / English</strong></p>
 
   <p>
     <a href="https://github.com/PinedaMB/NamiO/releases">Descargas</a> ·
@@ -114,7 +114,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 
 ## 🌱 Estado actual
 
-**NamiO 0.4.7 está en desarrollo.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es una versión 1.0.
+**NamiO 1.0.0-rc.1 es una candidata de prueba.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es la versión estable 1.0.
 
 - La bandeja muestra **una cuenta a la vez**; no hay bandeja unificada.
 - La revisión de cuentas inactivas detecta nuevos mensajes para los avisos; no equivale a sincronizar todo su contenido continuamente.

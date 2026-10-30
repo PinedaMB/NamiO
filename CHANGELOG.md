@@ -1,6 +1,6 @@
 # Cambios
 
-## Sin publicar — preparación de 1.0
+## 1.0.0-rc.1 — 2026-10-30
 
 - Mover un correo a otra carpeta desde el lector o su menú de opciones. Los movimientos se guardan en la cola persistente, evitan solicitudes duplicadas y verifican la identidad de la carpeta antes de reintentarse.
 - Marcar como spam y devolver un correo de Spam a la bandeja de entrada con «No es spam», usando las carpetas de la cuenta.
