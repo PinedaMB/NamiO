@@ -1,6 +1,6 @@
 import { usePreferences } from '../settings/PreferencesProvider'
 import { ContextMenu, type ContextAnchor } from './ContextMenu'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
 import type { Tag, Thread } from '../data/demo'
@@ -13,6 +13,7 @@ import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 interface ThreadListProps {
   threads: readonly Thread[]
   allThreads?: readonly Thread[]
+  arrivalKey?: string
   mailbox: string
   spam: boolean
   selectedMessageId?: string | null
@@ -75,6 +76,7 @@ export function ThreadList({
   selectedId,
   selectedMessageId,
   mailbox,
+  arrivalKey = mailbox,
   spam,
   checkedIds,
   onCheck,
@@ -103,6 +105,25 @@ export function ThreadList({
   const { timeFormat } = usePreferences()
   const { t, locale } = useI18n()
   const [menu, setMenu] = useState<{ kind: 'sort' | 'filter'; anchor: ContextAnchor } | null>(null)
+  const [arrivals, setArrivals] = useState<Set<string>>(new Set())
+  const arrivalBaseline = useRef<{ key: string; uid: number | null }>({ key: arrivalKey, uid: null })
+  useEffect(() => {
+    if (arrivalBaseline.current.key !== arrivalKey || !live) {
+      arrivalBaseline.current = { key: arrivalKey, uid: null }
+      setArrivals(new Set())
+    }
+    if (!live || loading) return
+    let newest = arrivalBaseline.current.uid ?? 0
+    const added: string[] = []
+    for (const thread of allThreads) {
+      if (!thread.id.startsWith('live:')) continue
+      const uid = Number(thread.id.slice(5))
+      if (arrivalBaseline.current.uid !== null && uid > arrivalBaseline.current.uid) added.push(thread.id)
+      newest = Math.max(newest, uid)
+    }
+    arrivalBaseline.current.uid = newest
+    if (added.length) setArrivals(current => new Set([...current, ...added]))
+  }, [allThreads, arrivalKey, live, loading])
   const closeMenu = useCallback(() => setMenu(null), [])
   const openMenu = (kind: 'sort' | 'filter', trigger: HTMLElement): void => {
     const rect = trigger.getBoundingClientRect()
@@ -251,13 +272,18 @@ export function ThreadList({
             (item.id === thread.id || thread.messageIds?.includes(Number(item.id.slice(5)))) &&
             (item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
           const active = thread.id === selectedId || members.some(member => member.id === selectedId)
+          const arrivingIds = [thread.id, ...members.map(member => member.id)].filter(id => arrivals.has(id))
           const deleting = deletingId === thread.id || members.some(member => member.id === deletingId)
           return (
             <div className="thread-group" key={thread.id}>
             <article
               onContextMenu={event => { if (!onContextMenu) return; event.preventDefault(); onContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLElement>('.thread__content')! }, thread.id) }}
               aria-busy={deleting}
-              className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread')}
+              className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread', arrivingIds.length > 0 && 'thread--arriving')}
+              onAnimationEnd={event => {
+                if (event.target !== event.currentTarget || event.animationName !== 'mail-arrival') return
+                setArrivals(current => new Set([...current].filter(id => !arrivingIds.includes(id))))
+              }}
             >
               <div className="thread__content"
               onClick={() => onSelect(thread.id)}

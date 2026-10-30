@@ -6020,3 +6020,11 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 @media (prefers-reduced-motion: reduce) {
   .move-dialog[open] { animation-duration: 1ms; }
 }
+
+.thread--arriving { animation: mail-arrival 700ms var(--ease) both; }
+@keyframes mail-arrival {
+  from { background-color: color-mix(in srgb, var(--primary) 22%, var(--surface)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread--arriving { animation-duration: 1ms; }
+}

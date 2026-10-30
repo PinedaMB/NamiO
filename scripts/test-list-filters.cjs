@@ -50,7 +50,7 @@ const ContextMenu = () => null
 const TooltipButton = () => null
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/ThreadList.tsx', 'utf8'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }), {
   exports: exportsList, require: id => {
-    if (id === 'react') return { ...React, useState: () => [menu, value => { menu = value }], useCallback: fn => fn }
+    if (id === 'react') return { ...React, useEffect() {}, useRef: initial => ({ current: initial }), useState: initial => typeof initial?.has === 'function' ? [initial, () => {}] : [menu, value => { menu = value }], useCallback: fn => fn }
     if (id === './ContextMenu') return { ContextMenu }
     if (id === './Tooltip') return { TooltipButton }
     if (id === './SenderAvatar') return { SenderAvatar: () => null }

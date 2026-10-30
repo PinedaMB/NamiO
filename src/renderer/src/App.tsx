@@ -1415,6 +1415,7 @@ export function App(): React.JSX.Element {
                 <ThreadList
                 threads={visible}
                 allThreads={listedThreads}
+                arrivalKey={JSON.stringify([accountIdentity.current, folder, filter, oldestFirst, listLimit])}
                 mailbox={folder}
                 spam={folderViews.some((item) => item.id === folder && item.spam)}
                 checkedIds={checkedIds}

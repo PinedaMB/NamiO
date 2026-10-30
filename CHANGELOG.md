@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar
+
+- Reconectar o detectar borrados en el servidor conserva los cuerpos de los correos ya descargados; la caché solo se reconstruye si cambia la identidad de la carpeta o se reinician sus UID.
+
+- Los fallos de red de OAuth/Fetch se reconocen como desconexión y permiten usar la copia guardada del correo, en lugar de mostrar un error genérico «fetch failed».
+
+- Resaltado breve al llegar un correo nuevo o una respuesta a una conversación; no se repite al navegar, filtrar o cargar páginas y respeta el movimiento reducido.
+
 ## 1.0.0-rc.2 — 2026-10-30
 
 - El lector refleja los movimientos y borrados confirmados sin esperar a consultar los contadores de todas las carpetas. Incluye envío a Papelera, borrado definitivo y borrado por lotes; los rechazos del servidor conservan la copia local.

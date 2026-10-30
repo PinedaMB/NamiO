@@ -221,17 +221,17 @@ export async function activateAccount(account: StoredAccount): Promise<void> {
 }
 
 function classify(error: unknown): ImapErrorCode {
-  const value = error as { code?: string; message?: string; authenticationFailed?: boolean } | null
-  const code = (value?.code ?? '').toUpperCase()
-  const message = (value?.message ?? '').toLowerCase()
+  const value = error as { code?: string; message?: string; authenticationFailed?: boolean; cause?: { code?: string; message?: string } } | null
+  const code = (value?.code ?? value?.cause?.code ?? '').toUpperCase()
+  const message = [value?.message, value?.cause?.message].filter(Boolean).join(' ').toLowerCase()
 
   if (value?.authenticationFailed) return 'auth'
   if (code.includes('AUTH') || message.includes('authentication') || message.includes('invalid credentials')) return 'auth'
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'dns'
   if (code === 'ECONNREFUSED') return 'refused'
-  if (code === 'ETIMEDOUT' || code === 'ECONNRESET' || code === 'ESOCKETTIMEDOUT' || code === 'ECONNABORTED') return 'timeout'
+  if (code === 'ETIMEDOUT' || code === 'ECONNRESET' || code === 'ESOCKETTIMEDOUT' || code === 'ECONNABORTED' || code === 'UND_ERR_CONNECT_TIMEOUT') return 'timeout'
   if (code.includes('CERT') || code.includes('TLS') || message.includes('certificate')) return 'tls'
-  if (code.startsWith('E') && code.includes('NETWORK')) return 'network'
+  if (['ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN', 'EHOSTDOWN', 'UND_ERR_SOCKET'].includes(code) || (code.startsWith('E') && code.includes('NETWORK')) || (!code && message === 'fetch failed')) return 'network'
   return 'unknown'
 }
 
@@ -336,25 +336,22 @@ async function syncMessages(path: string, limit: number): Promise<void> {
 
   // STATUS fresco: si el buzón ya estaba seleccionado, `client.mailbox` puede
   // tener EXISTS/UIDNEXT viejos y el sync se quedaría dormido.
-  let exists = 0
+  let statusFresh = false
+  let exists: number | null = null
   let unseen: number | null = null
   let uidNext: number | null = null
   let uidValidity: number | null = null
   try {
     const status = await client.status(path, { messages: true, unseen: true, uidNext: true, uidValidity: true })
     if (status) {
-      exists = status.messages ?? 0
+      statusFresh = status.messages !== undefined && status.uidNext != null && status.uidValidity != null
+      exists = status.messages ?? null
       unseen = status.unseen ?? null
       uidNext = status.uidNext != null ? Number(status.uidNext) : null
       uidValidity = status.uidValidity != null ? Number(status.uidValidity) : null
     }
   } catch {
-    const box = client.mailbox
-    if (box) {
-      exists = box.exists ?? 0
-      uidNext = box.uidNext != null ? Number(box.uidNext) : null
-      uidValidity = box.uidValidity != null ? Number(box.uidValidity) : null
-    }
+    // El fallback se lee después del lock, cuando está seleccionada esta carpeta.
   }
 
   const lock = await client.getMailboxLock(path)
@@ -364,14 +361,17 @@ async function syncMessages(path: string, limit: number): Promise<void> {
   const nuevos: number[] = []
 
   try {
+    const box = client.mailbox || null
+    exists ??= box ? box.exists : null
+    uidNext ??= box?.uidNext != null ? Number(box.uidNext) : null
+    uidValidity ??= box?.uidValidity != null ? Number(box.uidValidity) : null
+    if (exists === null || uidNext === null || uidValidity === null) throw new Error('No se pudo verificar el estado de la carpeta; se conservó la caché')
+    if (!Number.isSafeInteger(exists) || exists < 0 || !Number.isSafeInteger(uidNext) || uidNext < 1 || !Number.isSafeInteger(uidValidity) || uidValidity < 1) throw new Error('El servidor devolvió un estado de carpeta inválido; se conservó la caché')
     const cached = getMailboxMeta(path)
-    // Resync completo si cambió UIDVALIDITY, o si el servidor "encogió" (pocos
-    // servidores reinician sin cambiarla, pero la caché no debe quedar mintiendo).
-    const shrunk =
-      cached !== null &&
-      ((uidNext !== null && cached.uidNext !== null && uidNext < cached.uidNext) ||
-        exists < countMessages(path))
-    const fullSync = cached?.uidValidity == null || cached.uidValidity !== uidValidity || shrunk
+    if (!statusFresh && cached?.uidValidity === uidValidity && cached.uidNext !== null) uidNext = Math.max(uidNext, cached.uidNext)
+    // Menos mensajes puede significar borrados normales, no una caché inválida.
+    const reset = statusFresh && cached?.uidNext != null && uidNext < cached.uidNext
+    const fullSync = cached?.uidValidity == null || cached.uidValidity !== uidValidity || reset
 
     if (fullSync) {
       clearMailbox(path)
@@ -384,6 +384,12 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       if (uidNext != null && uidNext > fromUid) {
         nuevos.push(...upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true)))
       }
+    }
+
+    if (!fullSync && countMessages(path) > exists) {
+      const uids = await client.search({ all: true }, { uid: true })
+      if (!uids) throw new Error('No se pudo comprobar qué mensajes siguen en la carpeta')
+      pruneExcept(path, uids)
     }
 
     saveMailboxSync(path, {

@@ -143,7 +143,7 @@ console.log('Attachments: independent native disclosure for each message, collap
 const list = {}
 let listMenu = null
 vm.runInNewContext(compile('src/renderer/src/components/ThreadList.tsx'), { exports: list, require: id => {
-  if (id === 'react') return { ...React, useState: () => [listMenu, value => { listMenu = value }], useCallback: fn => fn }
+  if (id === 'react') return { ...React, useEffect() {}, useRef: initial => ({ current: initial }), useState: initial => typeof initial?.has === 'function' ? [initial, () => {}] : [listMenu, value => { listMenu = value }], useCallback: fn => fn }
   if (id === './ContextMenu') return { ContextMenu: () => null }
   if (id === '../lib/dates') return dates
   if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', bodyTheme: 'dark' }) }
