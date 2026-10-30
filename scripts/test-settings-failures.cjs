@@ -29,6 +29,7 @@ function provider(file, name) {
 }
 async function checkPreferences() {
   for (const [file, name, setter, field, value] of [
+    ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setAppTheme', 'appTheme', 'light'],
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setTimeFormat', 'timeFormat', '12h'],
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setBodyTheme', 'bodyTheme', 'dark'],
     ['src/renderer/src/settings/PreferencesProvider.tsx', 'PreferencesProvider', 'setRemoteImages', 'remoteImages', 'allow'],

@@ -20,7 +20,7 @@ body.receipt-body { padding:0; height:100%; }
 @media (max-width:420px) { html.receipt-html { font-size:10px; } .receipt { width:100%; } }
 </style><meta http-equiv="refresh" content="0;url=https://example.invalid/"><base href="https://example.invalid/"></head>
 <body class="receipt-body" style="margin:0"><div class="receipt"><div class="banner"><img id="illustration" height="160" width="auto" src="${image}"></div><div class="total">Total <strong>MXN$49.00</strong><div class="measure"></div></div></div>
-<img id="remote" src="https://example.invalid/pixel.png" onerror="window.unsafe=true" srcset="https://example.invalid/pixel2.png 2x"><div id="footer" style="height:800px">End of receipt</div><form><input></form><script>window.unsafe=true</script></body></html>`
+<img id="embedded" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH0kAAAAASUVORK5CYII="><img id="remote" src="https://example.invalid/pixel.png" onerror="window.unsafe=true" srcset="https://example.invalid/pixel2.png 2x"><div id="footer" style="height:800px">End of receipt</div><form><input></form><script>window.unsafe=true</script></body></html>`
 try {
   await writeFile(join(folder, 'index.html'), '<html><body><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>')
   await writeFile(join(folder, 'main.tsx'), `
@@ -54,8 +54,9 @@ app.whenReady().then(async()=>{
     await tick();await tick();
     const doc=frame.contentDocument,view=doc.defaultView;
     const image=doc.querySelector('#illustration'),total=doc.querySelector('.total');
-    return {width:innerWidth,frameWidth:frame.clientWidth,frameHeight:frame.clientHeight,contentBottom:doc.querySelector('#footer').getBoundingClientRect().bottom,imageHeight:image.getBoundingClientRect().height,imageBottom:image.getBoundingClientRect().bottom,totalTop:total.getBoundingClientRect().top,measure:doc.querySelector('.measure').getBoundingClientRect().width,theme:doc.documentElement.dataset.emailTheme,rootClass:doc.documentElement.className,bodyClass:doc.body.className,sheets:doc.querySelectorAll('style').length,unsafe:!!doc.querySelector('script,form,input,base,meta[http-equiv="refresh"],[onerror],[srcset]'),remote:doc.querySelector('#remote').src,csp:doc.querySelector('meta[http-equiv="Content-Security-Policy"]').content,sandbox:frame.getAttribute('sandbox')};
+    return {embedded:doc.querySelector('#embedded').naturalWidth,width:innerWidth,frameWidth:frame.clientWidth,frameHeight:frame.clientHeight,contentBottom:doc.querySelector('#footer').getBoundingClientRect().bottom,imageHeight:image.getBoundingClientRect().height,imageBottom:image.getBoundingClientRect().bottom,totalTop:total.getBoundingClientRect().top,measure:doc.querySelector('.measure').getBoundingClientRect().width,theme:doc.documentElement.dataset.emailTheme,rootClass:doc.documentElement.className,bodyClass:doc.body.className,sheets:doc.querySelectorAll('style').length,unsafe:!!doc.querySelector('script,form,input,base,meta[http-equiv="refresh"],[onerror],[srcset]'),remote:doc.querySelector('#remote').src,csp:doc.querySelector('meta[http-equiv="Content-Security-Policy"]').content,sandbox:frame.getAttribute('sandbox')};
    })()`)});
+   assert.equal(result.embedded,1,'inlined MIME images render even when remote images are blocked');
    assert.equal(result.theme,theme);assert.equal(result.rootClass,'receipt-html');assert.equal(result.bodyClass,'receipt-body');
    assert.equal(result.imageHeight,160);assert.ok(result.totalTop>=result.imageBottom,'Illustration must not overlap the total');
    assert.ok(result.frameHeight>=result.contentBottom,'Percentage-height emails must show their footer instead of clipping at 140px: '+JSON.stringify(result));

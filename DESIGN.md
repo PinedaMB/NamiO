@@ -47,6 +47,8 @@ Reglas de uso:
 
 ## 3. Paleta
 
+La aplicación ofrece **Claro, Oscuro y Sistema** en Configuración → General. Sistema es el valor inicial y sigue la apariencia del equipo en vivo. Los colores de los componentes se toman de los mismos tokens con pares `light-dark(claro, oscuro)`; `color-scheme` resuelve el modo y los controles nativos. El tema claro usa superficies blancas/gris lavanda, texto oscuro y acentos índigo con texto blanco sobre acciones principales. Las tablas siguientes documentan los valores oscuros originales; los pares vigentes están en `tokens.css`. El HTML de los correos mantiene su preferencia de lectura independiente.
+
 Cinco familias. El valor entre paréntesis es el contraste medido contra `--surface` (`#0f131c`),
 calculado con la fórmula WCAG.
 

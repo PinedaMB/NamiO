@@ -86,8 +86,11 @@ export type Language = 'es' | 'en'
 
 /** Lienzo del cuerpo HTML: papel claro del correo o invertido para leer de noche. */
 export type BodyTheme = 'light' | 'dark'
+export type AppTheme = 'light' | 'dark' | 'system'
 
 export interface AppSettings {
+  appTheme?: AppTheme
+  offlineDownload?: boolean
   keepInBackground?: boolean
   notifications?: boolean
   notificationSound?: boolean
@@ -253,6 +256,8 @@ export interface SyncMeta {
   syncedAt: number | null
   /** El mensaje está en caché pero sin cuerpo (se leyó sin conexión). */
   partial?: boolean
+  /** El HTML guardado aún contiene imágenes CID pendientes de resolver al abrirlo. */
+  inlineImagesPending?: boolean
 }
 
 export type CachedResult<T> = { ok: true; data: T; meta: SyncMeta } | { ok: false; code: ImapErrorCode; detail: string }

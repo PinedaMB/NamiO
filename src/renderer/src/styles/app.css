@@ -299,7 +299,7 @@
 }
 
 .compose-btn:hover {
-  background: #d4d5ff;
+  background: color-mix(in srgb, var(--primary) 90%, var(--on-surface));
 }
 
 .compose-btn__label {
@@ -1983,16 +1983,36 @@
 }
 
 .palette {
-  position: relative;
+  position: fixed;
+  inset: 64px 0 auto;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  color: var(--on-surface);
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 672px;
+  max-width: min(672px, calc(100vw - 24px));
   max-height: calc(100vh - 140px);
   border-radius: var(--r-xl);
   background: var(--surface-container-lowest);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+.palette:not([open]) { display: none; }
+
+.palette::backdrop {
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.palette.palette--closing {
+  animation: dialog-out 140ms var(--ease) forwards;
+}
+
+.palette--closing::backdrop {
+  animation: fade-out 140ms var(--ease) forwards;
 }
 
 .palette::before {
@@ -2072,10 +2092,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--outline);
-}
-
-.cmd-group__title--accent {
-  color: var(--primary);
 }
 
 .cmd {
@@ -2487,7 +2503,7 @@
 }
 
 .send-btn:hover {
-  background: #d4d5ff;
+  background: color-mix(in srgb, var(--primary) 90%, var(--on-surface));
 }
 
 .send-btn .kbd {

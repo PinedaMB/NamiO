@@ -1,6 +1,6 @@
 # Preparación de NamiO 1.0
 
-Estado al 30 de octubre de 2026. La candidata actual es `1.0.0-rc.4`; sus cambios están en el changelog. Los instalables Linux en `release/1.0.0-rc.4/` son compilaciones locales para realizar las pruebas pendientes, no una publicación estable 1.0. Los artefactos previos en `release/rc-validation/` corresponden a 0.4.7.
+Estado al 30 de octubre de 2026. La candidata actual es `1.0.0-rc.5`; sus cambios están en el changelog. Los instalables Linux en `release/1.0.0-rc.5/` son compilaciones locales para realizar las pruebas pendientes, no una publicación estable 1.0. Los artefactos previos en `release/rc-validation/` corresponden a 0.4.7.
 
 ## Alcance propuesto
 
@@ -9,6 +9,12 @@ Cliente IMAP/SMTP con lectura, redacción, respuesta y respuesta a todos, adjunt
 La bandeja unificada, la IA, traducción, impresión y bloqueo de remitentes quedan fuera de 1.0. Una plataforma solo debe anunciarse como soportada tras validar su instalador y su uso real.
 
 ## Comprobaciones locales
+
+- [x] Candidata `1.0.0-rc.5`: AppImage y `.deb` generados en `release/1.0.0-rc.5/`, SHA-256 en `SHA256SUMS`, versión Debian y contenido ASAR coincidentes. Se verificaron las licencias y 23 archivos compilados; el ejecutable reporta `1.0.0-rc.5` por IPC y pasa la prueba de arranque con un perfil temporal.
+- [x] Apariencia: Claro/Oscuro/Sistema, persistencia, cambios del equipo, contraste y preferencias nativas probados en Electron; revisión visual a 800 y 1440 píxeles.
+- [x] Modal de comandos: búsqueda en toda la caché de la cuenta, paginación, reintento, respuestas obsoletas y apertura de un resultado fuera de la lista visible comprobados.
+- [x] Imágenes CID: resolución al abrir un cuerpo guardado, persistencia y conservación del texto offline comprobadas con IMAP local y renderizado en Electron.
+- [x] Regresión de interfaz: 6 pruebas con `node scripts/test.mjs --ui`.
 
 - [x] Cuerpos offline: texto/HTML selectivos, caracteres UTF-8/Latin-1, adjuntos bajo demanda, estado de lectura y fallos/reanudación, comprobados con caché SQLite y un servidor IMAP local.
 
@@ -46,7 +52,7 @@ Las pruebas de Electron de este entorno usan modo headless y `--no-sandbox`. No 
 
 1. Registrar proveedor, sistema operativo, versión y resultado de las pruebas externas; no usar correos privados en capturas ni logs compartidos.
 2. Resolver los fallos encontrados y repetir las comprobaciones afectadas.
-3. Usar los instalables `1.0.0-rc.4` generados desde la versión y changelog de esta candidata; si se corrigen fallos, generar una nueva candidata identificable.
+3. Usar los instalables `1.0.0-rc.5` generados desde la versión y changelog de esta candidata; si se corrigen fallos, generar una nueva candidata identificable.
 4. Validar la candidata en uso diario y su actualización antes de publicar `1.0.0`.
 
 SMTP no permite garantizar entrega única si el servidor acepta un correo y se pierde su confirmación. Las pruebas simuladas no sustituyen las pruebas de recuperación con los proveedores reales.

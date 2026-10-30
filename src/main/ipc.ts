@@ -4,7 +4,7 @@ import { setBackgroundMode } from './background'
 import { testNotification } from './notifications'
 import { senderLogo } from './senderLogo'
 import { writeFile } from 'node:fs/promises'
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, nativeTheme } from 'electron'
 import { app } from 'electron'
 import { isSpamMailbox } from '@shared/mailboxes'
 import {
@@ -29,6 +29,7 @@ import {
   getAccountState,
   getMessage,
   getSyncProgress,
+  resumeOfflineDownload,
   listAccounts,
   listEnvelopes,
   listMailboxes,
@@ -115,12 +116,15 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.settingsGet, (): Promise<Partial<AppSettings>> => readSettings())
 
   ipcMain.handle(IPC.settingsSet, async (_event, patch: Partial<AppSettings>): Promise<void> => {
-    for (const key of ['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground'] as const) {
+    for (const key of ['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground', 'offlineDownload'] as const) {
       if (patch[key] !== undefined && typeof patch[key] !== 'boolean') throw new Error('Invalid notification setting')
     }
+    if (patch.appTheme !== undefined && !['light', 'dark', 'system'].includes(patch.appTheme)) throw new Error('Invalid app theme')
     if (patch.timeFormat !== undefined && patch.timeFormat !== '12h' && patch.timeFormat !== '24h') throw new Error('Invalid time format')
     if (patch.shortcutModifier !== undefined && patch.shortcutModifier !== 'ctrl' && patch.shortcutModifier !== 'command') throw new Error('Invalid shortcut modifier')
     await writeSettings(patch)
+    if (patch.appTheme !== undefined) nativeTheme.themeSource = patch.appTheme
+    if (patch.offlineDownload === true) resumeOfflineDownload()
     if (typeof patch.keepInBackground === 'boolean') setBackgroundMode(patch.keepInBackground)
   })
 

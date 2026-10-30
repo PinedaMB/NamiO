@@ -531,6 +531,7 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       }
     }
     if (generation !== syncGeneration) return
+    if ((await readSettings()).offlineDownload !== true) return
     const missingBodies = new Set(missingBodyUids(path))
     const bodyUids = uids.filter(uid => missingBodies.has(uid))
     let available = countBodies(path)
@@ -540,10 +541,12 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       const uid = bodyUids[index]!
       const downloaded = await serial(async () => {
         if (generation !== syncGeneration || !readEnvelope(path, uid) || readBody(path, uid).fetched) return false
+        if ((await readSettings()).offlineDownload !== true || generation !== syncGeneration) return false
         await cacheMessageBody(path, uid)
         return generation === syncGeneration
       })
       if (generation !== syncGeneration) return
+      if (!downloaded && (await readSettings()).offlineDownload !== true) break
       if (downloaded) available++
       if (index % chunk === 0) available = countBodies(path)
       if (downloaded || index % chunk === 0) {
@@ -567,6 +570,11 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       ensureFullSync(next)
     }
   }
+}
+
+export function resumeOfflineDownload(): void {
+  const mailbox = session?.client.mailbox
+  if (mailbox && session?.client.usable) ensureFullSync(mailbox.path)
 }
 
 /** Arranca (si hace falta) la descarga completa del buzón en segundo plano. */
@@ -775,9 +783,10 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
 export async function getMessage(path: string, uid: number, cachedOnly = false): Promise<CachedResult<MessageDetail>> {
   const generation = syncGeneration
   const body = readBody(path, uid)
-  if (body.fetched) {
+  const inlineImagesPending = /\bcid:/i.test(body.html ?? '')
+  if (body.fetched && (cachedOnly || !inlineImagesPending)) {
     const detail = cachedDetail(path, uid)
-    if (detail) return { ok: true, data: detail, meta: syncMeta() }
+    if (detail) return { ok: true, data: detail, meta: { ...syncMeta(), inlineImagesPending } }
   }
 
   if (cachedOnly) {
@@ -788,7 +797,8 @@ export async function getMessage(path: string, uid: number, cachedOnly = false):
   try {
     const detail = await serial(async () => {
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
-      if (readBody(path, uid).fetched) {
+      const current = readBody(path, uid)
+      if (current.fetched && !/\bcid:/i.test(current.html ?? '')) {
         const cached = cachedDetail(path, uid)
         if (cached) return cached
       }
@@ -806,7 +816,7 @@ export async function getMessage(path: string, uid: number, cachedOnly = false):
     const fallback = cachedDetail(path, uid)
     if (fallback && isOfflineError(code)) {
       offline = true
-      return { ok: true, data: fallback, meta: { ...syncMeta(), partial: true } }
+      return { ok: true, data: fallback, meta: { ...syncMeta(), partial: !body.fetched, inlineImagesPending } }
     }
     return { ok: false, code, detail: describe(error) }
   }

@@ -1,11 +1,11 @@
 import { join, resolve } from 'node:path'
-import { app, BrowserWindow, session, shell } from 'electron'
+import { app, BrowserWindow, session, shell, nativeTheme } from 'electron'
 import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
 import { checkAccountsActivity, setNewMailListener, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
 import { showNewMail } from './notifications'
-import { readActiveAccount } from './settings'
+import { readActiveAccount, readSettings } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 import { setupAutoUpdate } from './updater'
@@ -44,7 +44,7 @@ function createWindow(): void {
     minWidth: 760,
     minHeight: 700,
     show: false,
-    backgroundColor: '#0d1014',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f131c' : '#f5f6fb',
     autoHideMenuBar: true,
     title: 'NamiO',
     icon,
@@ -128,7 +128,12 @@ function hardenSession(): void {
 
 app.on('second-instance', openWindow)
 
-void app.whenReady().then(() => {
+void app.whenReady().then(async () => {
+  const { appTheme } = await readSettings()
+  nativeTheme.themeSource = appTheme === 'light' || appTheme === 'dark' ? appTheme : 'system'
+  nativeTheme.on('updated', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0f131c' : '#f5f6fb')
+  })
   app.setAppUserModelId('dev.namio.app')
   hardenSession()
   setupAutoUpdate()

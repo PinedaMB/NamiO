@@ -13,6 +13,17 @@ const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'namio-offline-bodies-')
 const db = {}
 vm.runInNewContext(compile(fs.readFileSync('src/main/db.ts', 'utf8')), { exports: db, require: id => id === 'electron' ? { app: { getPath: () => directory } } : require(id) })
 async function main() {
+  const resumed = []
+  const resumeContext = { session: null, ensureFullSync: mailbox => resumed.push(mailbox) }
+  const resume = vm.runInNewContext(compile(`${declarations.get('resumeOfflineDownload')}; resumeOfflineDownload`), resumeContext)
+  resume()
+  resumeContext.session = { client: { usable: false, mailbox: { path: 'INBOX' } } }
+  resume()
+  assert.equal(resumed.length,0,'enabling offline download while disconnected waits for normal reconnection')
+  resumeContext.session.client.usable = true
+  resume()
+  assert.deepEqual(resumed,['INBOX'],'enabling offline download starts the selected mailbox immediately')
+
   db.openAccountCache('one')
   db.upsertMailboxes([{ path: 'INBOX', name: 'INBOX', specialUse: null, messages: 2, unseen: 2 }])
   db.saveMailboxSync('INBOX', { uidValidity: 7, uidNext: 3, messages: 2, unseen: 2 })
@@ -37,11 +48,19 @@ async function main() {
       return { content: Readable.from([bytes.subarray(0,13),bytes.subarray(13)]) }
     }
   }
-  const context = { ...db, Buffer, simpleParser, console: { error() {} }, syncGeneration: 1, fullSyncRunning: false, pendingFullSync: new Set(), offline: false,
+  const context = { readSettings: async () => ({ offlineDownload: true }), ...db, Buffer, simpleParser, console: { error() {} }, syncGeneration: 1, fullSyncRunning: false, pendingFullSync: new Set(), offline: false,
     ensureClient: async () => client, serial: async fn => fn(), sleep: async () => {}, notify() {}, publishProgress: value => progress.push(value),
     fetchRange: async () => { throw new Error('Headers already exist; no envelope refetch expected') }, classify: error => error.code === 'ENETUNREACH' ? 'network' : 'unknown', isOfflineError: code => code === 'network', describe: error => error.message }
   const functions = ['toAddress','cacheMessageBody','fullSyncMailbox','ensureFullSync'].map(name => declarations.get(name)).join('\n')
   const api = vm.runInNewContext(compile(`${functions}; ({cacheMessageBody, fullSyncMailbox, ensureFullSync})`), context)
+  context.readSettings = async () => ({})
+  await api.fullSyncMailbox('INBOX',100)
+  assert.equal(downloads.length,0,'missing preference defaults to no background body downloads')
+  context.readSettings = async () => ({ offlineDownload: false })
+  await api.fullSyncMailbox('INBOX',100)
+  assert.equal(downloads.length,0,'explicit opt-out prevents background body downloads')
+  assert.equal(db.readBody('INBOX',1).text,'Already saved','opting out preserves cached content')
+  context.readSettings = async () => ({ offlineDownload: true })
   failure = true
   await api.fullSyncMailbox('INBOX',100)
   assert.equal(db.readBody('INBOX',2).fetched,false,'interrupted multipart bodies cannot be marked available offline')

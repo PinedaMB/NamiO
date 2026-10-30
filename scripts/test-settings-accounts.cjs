@@ -13,7 +13,7 @@ function settings(accounts, events, section = 'accounts') {
     if (id === 'react') return { ...React, useEffect: () => {}, useRef: () => ({ current: null }), useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }), useFormatCombo: () => combo => combo }
-    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ appTheme: 'system', setAppTheme: theme => events.push(theme), offlineDownload: false, setOfflineDownload: enabled => events.push(enabled), timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === './Icon') return { Icon: () => null }
@@ -70,10 +70,10 @@ console.log('About: project identity, license and external project/support actio
 
 const generalHtml = renderToStaticMarkup(settings(accounts, [], 'general'))
 assert.ok(generalHtml.includes('settings.notifications.title'))
-assert.equal((generalHtml.match(/role="switch"/g) || []).length, 4)
+assert.equal((generalHtml.match(/role="switch"/g) || []).length, 5)
 assert.ok(generalHtml.includes('settings.notifications.test'))
 const generalSections = [...generalHtml.matchAll(/<section class="settings-card" aria-labelledby="([^"]+)"/g)].map(match => match[1])
-assert.deepEqual(generalSections, ['settings-language-title', 'settings-time-title', 'settings-reading-title', 'settings-notifications-title'])
+assert.deepEqual(generalSections, ['settings-theme-title', 'settings-language-title', 'settings-time-title', 'settings-reading-title', 'settings-offline-title', 'settings-notifications-title'])
 assert.ok(!generalHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings-updates-title'))
@@ -91,3 +91,29 @@ function checkTimeButtons(node) {
 }
 checkTimeButtons(settings(accounts, timeEvents, 'general'))
 assert.deepEqual(timeEvents, ['12h', '24h'], 'time format buttons save both supported choices')
+
+const offlineEvents = []
+function checkOfflineSwitch(node) {
+  if (!React.isValidElement(node)) return
+  if (node.type === 'button' && node.props['aria-labelledby'] === 'settings-offline-title') {
+    assert.equal(node.props['aria-checked'],false)
+    assert.equal(node.props['aria-describedby'],'settings-offline-hint')
+    node.props.onClick()
+  }
+  React.Children.forEach(node.props.children, checkOfflineSwitch)
+}
+checkOfflineSwitch(settings(accounts, offlineEvents, 'general'))
+assert.deepEqual(offlineEvents,[true],'offline switch explicitly enables background downloads')
+
+const themeEvents = []
+function checkThemeButtons(node) {
+  if (!React.isValidElement(node)) return
+  if (node.type === 'button' && React.Children.toArray(node.props.children).some(child => typeof child === 'string' && /^settings.theme.(light|dark|system)$/.test(child))) {
+    const label=React.Children.toArray(node.props.children).find(child=>typeof child==='string')
+    assert.equal(node.props['aria-pressed'],label==='settings.theme.system')
+    node.props.onClick()
+  }
+  React.Children.forEach(node.props.children,checkThemeButtons)
+}
+checkThemeButtons(settings(accounts,themeEvents,'general'))
+assert.deepEqual(themeEvents,['light','dark','system'])

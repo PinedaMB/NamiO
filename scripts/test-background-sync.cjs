@@ -8,7 +8,7 @@ let code
 for (const node of ast.statements) {
   if (ts.isFunctionDeclaration(node) && node.name?.text === 'fullSyncMailbox') code = node.getText(ast)
 }
-async function check(initial, switchAccount = false, fail = false, metadata = false) {
+async function check(initial, switchAccount = false, fail = false, metadata = false, disableDuringDownload = false) {
   const server = [7, 8, 1000, 9000, 20000]
   const cached = new Set(initial)
   const bodies = new Set(initial)
@@ -16,7 +16,8 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   const requests = []
   let releases = 0
   const resumed = []
-  const context = {
+  let enabled = true
+  const context = { readSettings: async () => ({ offlineDownload: enabled }),
     syncGeneration: 0, fullSyncRunning: false, pendingFullSync: new Set(['Archive']), ensureFullSync: path => resumed.push(path),
     serial: async fn => fn(),
     ensureClient: async () => ({
@@ -26,7 +27,7 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
     missingBodyUids: () => server.filter(uid=>!bodies.has(uid)),
     readEnvelope: (_path, uid) => cached.has(uid) ? { uid } : null,
     readBody: (_path, uid) => ({ fetched: bodies.has(uid) }), countBodies: () => bodies.size,
-    cacheMessageBody: async (_path, uid) => { bodyRequests.push(uid); bodies.add(uid) },
+    cacheMessageBody: async (_path, uid) => { bodyRequests.push(uid); bodies.add(uid); if (disableDuringDownload) enabled = false },
     classify: () => 'network', isOfflineError: () => true,
     missingEnvelopeMetadata: () => metadata ? initial : [],
     messagesByUids: (_path, uids) => uids.filter(uid => cached.has(uid)).map(uid => ({ uid })),
@@ -54,12 +55,18 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
     const fetched = requests.flatMap(range => range.split(',').map(Number))
     assert.ok(fetched.every(uid => metadata || !initial.includes(uid)), 'already cached messages are not fetched again')
     assert.equal(fetched.length, server.length - (metadata ? 0 : initial.length))
+    if (disableDuringDownload) {
+      assert.equal(bodyRequests.length,1,'disabling during a pass stops further body downloads')
+      assert.ok(bodies.has(initial[0]),'previously saved content remains available')
+      return
+    }
     assert.deepEqual([...bodies].sort((a,b)=>a-b),server,'background synchronization saves missing bodies too')
     assert.ok(bodyRequests.every(uid=>!initial.includes(uid)),'saved bodies are not fetched again')
   }
 }
 (async () => {
   await check([20000])
+  await check([20000], false, false, false, true)
   await check([])
   await check([20000], false, false, true)
   await check([20000], true)

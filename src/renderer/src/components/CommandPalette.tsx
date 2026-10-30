@@ -1,6 +1,8 @@
-import { useFormatCombo } from '../settings/ShortcutsProvider'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFormatCombo, useShortcuts } from '../settings/ShortcutsProvider'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { SearchHit } from '@shared/ipc'
 import type { Thread } from '../data/demo'
+import type { FolderView } from '../data/live'
 import { useI18n } from '../i18n'
 import { usePresence } from '../lib/usePresence'
 import { Icon } from './Icon'
@@ -9,6 +11,10 @@ import { cx } from '../lib/cx'
 interface CommandPaletteProps {
   open: boolean
   threads: readonly Thread[]
+  folders: readonly FolderView[]
+  searchCache?: (query: string, limit: number, offset: number) => Promise<SearchHit[]>
+  onOpenSearchHit?: (hit: SearchHit) => void
+  canArchive: boolean
   onClose: () => void
   onOpenThread: (id: string) => void
   onCompose: () => void
@@ -22,21 +28,24 @@ interface Item {
   label: string
   hint?: string
   icon: string
-  badge?: string
   keys?: string[]
   run: () => void
 }
 
 interface Group {
   title: string
+  searchResults?: boolean
   icon: string
-  accent?: boolean
   items: Item[]
 }
 
 export function CommandPalette({
   open,
   threads,
+  folders,
+  canArchive,
+  searchCache,
+  onOpenSearchHit,
   onClose,
   onOpenThread,
   onCompose,
@@ -45,21 +54,69 @@ export function CommandPalette({
   onOpenSettings
 }: CommandPaletteProps): React.JSX.Element | null {
   const formatCombo = useFormatCombo()
+  const { bindings } = useShortcuts()
+  const listId = useId()
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const trimmed = query.trim()
+  const [offset, setOffset] = useState(0)
+  const [retry, setRetry] = useState(0)
+  const [search, setSearch] = useState<{ query: string; hits: SearchHit[]; more: boolean; loading: boolean; error: boolean }>({ query: '', hits: [], more: false, loading: false, error: false })
+  const cachedHits = search.query === trimmed ? search.hits : []
+  const cacheLoading = !!searchCache && !!trimmed && (search.query !== trimmed || search.loading)
+
+  useEffect(() => {
+    if (!open || !trimmed || !searchCache) return
+    let cancelled = false
+    setSearch(current => ({ query: trimmed, hits: offset === 0 ? [] : current.hits, more: offset > 0 && current.more, loading: true, error: false }))
+    const timer = window.setTimeout(() => {
+      void searchCache(trimmed, 61, offset).then(hits => {
+        if (cancelled) return
+        setSearch(current => ({ query: trimmed, hits: offset === 0 ? hits.slice(0, 60) : [...current.hits, ...hits.slice(0, 60)], more: hits.length > 60, loading: false, error: false }))
+      }).catch(() => {
+        if (!cancelled) setSearch(current => ({ ...current, loading: false, error: true }))
+      })
+    }, 200)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [open, trimmed, offset, retry, searchCache])
 
   useEffect(() => {
     if (!open) return
     setQuery('')
+    setOffset(0)
+    setSearch({ query: '', hits: [], more: false, loading: false, error: false })
     setActive(0)
-    inputRef.current?.focus()
   }, [open])
+
+  useLayoutEffect(() => {
+    if (!mounted) return
+    const dialog = dialogRef.current
+    const previous = document.activeElement
+    dialog?.showModal()
+    inputRef.current?.focus()
+    return () => {
+      const restore = document.activeElement === document.body || dialog?.contains(document.activeElement)
+      dialog?.close()
+      if (restore && previous instanceof HTMLElement && previous.isConnected) previous.focus()
+    }
+  }, [mounted])
+
+  useEffect(() => {
+    if (open && mounted) {
+      if (!dialogRef.current?.open) dialogRef.current?.showModal()
+      inputRef.current?.focus()
+    }
+  }, [open, mounted])
 
   const groups = useMemo<Group[]>(() => {
     const run = (action: () => void): (() => void) => () => {
+      // Libera el foco modal antes de abrir el editor o cambiar de vista.
+      dialogRef.current?.close()
       onClose()
       action()
     }
@@ -67,8 +124,13 @@ export function CommandPalette({
     return [
       {
         title: t('palette.threads'),
+        searchResults: !!searchCache && !!trimmed,
         icon: 'inbox',
-        items: threads.map((thread) => ({
+        items: searchCache && trimmed ? [
+          ...cachedHits.map(hit => ({ id: `cached-${hit.mailbox}-${hit.uid}`, label: hit.subject, hint: `${hit.from?.name || hit.from?.address || ''} · ${hit.mailboxName}`, icon: hit.unread ? 'mark_email_unread' : 'drafts', run: run(() => onOpenSearchHit?.(hit)) })),
+          ...(search.query === trimmed && search.more && !search.error ? [{ id: 'cache-more', label: t(cacheLoading ? 'search.searching' : 'list.loadMore'), icon: 'expand_more', run: () => { if (!cacheLoading) setOffset(offset + 60) } }] : []),
+          ...(search.query === trimmed && search.error ? [{ id: 'cache-retry', label: t('search.retry'), icon: 'refresh', run: () => setRetry(value => value + 1) }] : [])
+        ] : threads.map((thread) => ({
           id: `thread-${thread.id}`,
           label: thread.subject,
           hint: thread.participants[0]?.name ?? '',
@@ -77,67 +139,35 @@ export function CommandPalette({
         }))
       },
       {
-        title: t('palette.recent'),
-        icon: 'history',
-        items: [
-          {
-            id: 'search-elena',
-            label: 'from:elena "term sheet"',
-            hint: t('palette.query'),
-            icon: 'saved_search',
-            badge: t('palette.results', { count: 3 }),
-            run: onClose
-          },
-          {
-            id: 'search-legal',
-            label: 'has:attachment label:legal',
-            hint: t('palette.filter'),
-            icon: 'search',
-            badge: t('palette.results', { count: 12 }),
-            run: onClose
-          },
-          {
-            id: 'search-unread',
-            label: 'unread before:friday',
-            hint: t('palette.time'),
-            icon: 'filter_alt',
-            badge: t('palette.results', { count: 7 }),
-            run: onClose
-          }
-        ]
-      },
-      {
         title: t('palette.quick'),
         icon: 'bolt',
         items: [
-          { id: 'compose', label: t('palette.compose'), icon: 'edit_square', keys: ['C'], run: run(onCompose) },
-          { id: 'archive', label: t('palette.archiveCurrent'), icon: 'done_all', keys: ['E'], run: run(onArchive) },
-          { id: 'block', label: t('palette.block'), icon: 'block', keys: ['B', 'D'], run: onClose }
+          { id: 'compose', label: t('palette.compose'), icon: 'edit_square', keys: [formatCombo(bindings.compose)], run: run(onCompose) },
+          ...(canArchive ? [{ id: 'archive', label: t('palette.archiveCurrent'), icon: 'done_all', keys: [formatCombo(bindings.archive)], run: run(onArchive) }] : [])
         ]
       },
       {
         title: t('palette.nav'),
         icon: 'explore',
         items: [
-          { id: 'nav-inbox', label: t('palette.goInbox'), icon: 'inbox', keys: ['G', 'I'], run: run(() => onSelectFolder('inbox')) },
-          { id: 'nav-starred', label: t('palette.goStarred'), icon: 'star', keys: ['G', 'S'], run: run(() => onSelectFolder('starred')) },
-          { id: 'nav-drafts', label: t('palette.goDrafts'), icon: 'draft', keys: ['G', 'D'], run: run(() => onSelectFolder('drafts')) },
-          { id: 'nav-settings', label: t('palette.goSettings'), icon: 'settings', keys: ['G', ','], run: run(onOpenSettings) }
+          ...folders.map(folder => ({ id: `folder-${folder.id}`, label: folder.label, hint: t('palette.folder'), icon: folder.icon, run: run(() => onSelectFolder(folder.id)) })),
+          { id: 'nav-settings', label: t('palette.goSettings'), icon: 'settings', keys: [formatCombo(bindings.settings)], run: run(onOpenSettings) }
         ]
       }
     ]
-  }, [threads, onClose, onCompose, onArchive, onOpenThread, onSelectFolder, onOpenSettings, t])
+  }, [threads, onClose, onCompose, onArchive, onOpenThread, onSelectFolder, onOpenSettings, folders, canArchive, bindings, formatCombo, t, searchCache, trimmed, cachedHits, search, cacheLoading, onOpenSearchHit, offset])
 
   const filtered = useMemo<Group[]>(() => {
-    const needle = query.trim().toLowerCase()
+    const normalize = (text: string): string => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const needle = normalize(query.trim())
     return groups
       .map((group) => ({
         ...group,
-        items: needle
+        items: needle && !group.searchResults
           ? group.items.filter(
               (item) =>
-                item.label.toLowerCase().includes(needle) ||
-                (item.hint?.toLowerCase().includes(needle) ?? false)
+                normalize(item.label).includes(needle) ||
+                (item.hint ? normalize(item.hint).includes(needle) : false)
             )
           : group.items
       }))
@@ -150,38 +180,33 @@ export function CommandPalette({
     setActive((current) => (current >= flat.length ? 0 : current))
   }, [flat.length])
 
-  useEffect(() => {
-    if (!open) return
-
-    const handle = (event: KeyboardEvent): void => {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault()
-        setActive((current) => (flat.length === 0 ? 0 : (current + 1) % flat.length))
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        setActive((current) => (flat.length === 0 ? 0 : (current - 1 + flat.length) % flat.length))
-      } else if (event.key === 'Enter') {
-        event.preventDefault()
-        flat[active]?.run()
-      }
-    }
-
-    window.addEventListener('keydown', handle)
-    return () => window.removeEventListener('keydown', handle)
-  }, [open, flat, active])
-
   const activeId = flat[active]?.id
+
+  useEffect(() => {
+    if (open && mounted) listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [open, mounted, activeId, query])
 
   if (!mounted) return null
 
   return (
-    <div
-      className={cx('overlay', closing && 'overlay--closing')}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+    <dialog ref={dialogRef} className={cx('palette', closing && 'palette--closing')} aria-label={t('palette.placeholder')}
+      onCancel={event => { event.preventDefault(); onClose() }}
+      onMouseDown={event => {
+        if (event.target !== event.currentTarget) return
+        const box = event.currentTarget.getBoundingClientRect()
+        if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose()
       }}
-    >
-      <div className="palette" role="dialog" aria-modal="true" aria-label={t('palette.placeholder')}>
+      onKeyDown={event => {
+        if (!open) { event.preventDefault(); event.stopPropagation(); return }
+        if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
+        else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault(); event.stopPropagation()
+          setActive(current => flat.length ? (current + (event.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length : 0)
+        } else if (event.key === 'Enter' && event.target === inputRef.current) {
+          event.preventDefault(); event.stopPropagation(); flat[active]?.run()
+        }
+      }}>
         <div className="palette__input-row">
           <Icon name="terminal" size={22} className="palette__prompt" />
           <input
@@ -189,7 +214,10 @@ export function CommandPalette({
             className="palette__input"
             placeholder={t('palette.placeholder')}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => { setQuery(event.target.value); setOffset(0); setActive(0) }}
+            role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+            aria-activedescendant={flat[active] ? `${listId}-${active}` : undefined}
+            aria-describedby={`${listId}-scope`}
             aria-label={t('palette.placeholder')}
           />
           <button className="tool-btn" type="button" onClick={onClose}>
@@ -198,17 +226,18 @@ export function CommandPalette({
         </div>
 
         <div className="palette__meta">
-          <span>
-            <span className="dot pulse" />
-            {t('palette.mode')}
+          <span id={`${listId}-scope`}>
+            {t(searchCache ? 'palette.cacheScope' : 'palette.mode')}
           </span>
-          <span>{t('palette.indexed')}</span>
+          <span>{searchCache ? (trimmed ? t('search.shown', { count: cachedHits.length }) : t('search.scope')) : t('palette.indexed', { count: threads.length })}</span>
         </div>
 
-        <div className="palette__list">
+        <div ref={listRef} id={listId} className="palette__list" role="listbox" aria-label={t('palette.resultsLabel')} tabIndex={-1} aria-busy={cacheLoading}>
+          {cacheLoading && <p role="status" className="muted">{t('search.searching')}</p>}
+          {searchCache && trimmed && search.query === trimmed && search.error && <p role="alert" className="muted">{t('search.failed')}</p>}
           {filtered.map((group) => (
-            <div key={group.title} className="cmd-group">
-              <div className={cx('cmd-group__title', group.accent && 'cmd-group__title--accent')}>
+            <div key={group.title} className="cmd-group" role="group" aria-label={group.title}>
+              <div className="cmd-group__title">
                 <Icon name={group.icon} size={14} />
                 {group.title}
               </div>
@@ -217,8 +246,9 @@ export function CommandPalette({
                   key={item.id}
                   className={cx('cmd', item.id === activeId && 'cmd--active')}
                   onMouseEnter={() => setActive(flat.findIndex((entry) => entry.id === item.id))}
-                  onClick={() => item.run()}
-                  role="button"
+                  onClick={() => { if (open) item.run() }}
+                  id={`${listId}-${flat.findIndex(entry => entry.id === item.id)}`}
+                  role="option" aria-selected={item.id === activeId} aria-disabled={item.id === 'cache-more' && cacheLoading || undefined}
                   tabIndex={-1}
                 >
                   <span className="cmd__main">
@@ -229,7 +259,6 @@ export function CommandPalette({
                     </span>
                   </span>
                   <span className="cmd__aside">
-                    {item.badge && <span>{item.badge}</span>}
                     {item.keys?.map((key) => (
                       <kbd key={key} className="kbd">
                         {key}
@@ -242,8 +271,8 @@ export function CommandPalette({
             </div>
           ))}
 
-          {filtered.length === 0 && (
-            <p className="muted" style={{ padding: '20px 8px' }}>
+          {filtered.length === 0 && !cacheLoading && (
+            <p role="status" className="muted" style={{ padding: '20px 8px' }}>
               {t('palette.noResults', { q: query })}
             </p>
           )}
@@ -258,14 +287,9 @@ export function CommandPalette({
             <kbd className="kbd">↵</kbd> {t('palette.run')}
           </span>
           <span>
-            <kbd className="kbd">Tab</kbd> {t('palette.autocomplete')}
+            <kbd className="kbd">Esc</kbd> {t('common.close')}
           </span>
-          <span>
-            <kbd className="kbd">{formatCombo('mod+enter')}</kbd> {t('palette.secondary')}
-          </span>
-          <span style={{ marginLeft: 'auto' }}>{t('palette.engine')}</span>
         </div>
-      </div>
-    </div>
+    </dialog>
   )
 }

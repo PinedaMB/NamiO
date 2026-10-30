@@ -47,6 +47,7 @@ export interface Message {
   html?: string
   /** Cuerpo no disponible (se leyó sin conexión y no estaba en la caché). */
   partial?: boolean
+  inlineImagesPending?: boolean
   summary?: { title: string; bullets: string[] }
   attachments?: Attachment[]
   signature?: { name: string; role: string; place: string }

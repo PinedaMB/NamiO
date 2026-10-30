@@ -5,7 +5,7 @@
   <p><strong>Tu correo, a tu ritmo.</strong></p>
   <p>Un cliente de correo de escritorio para leer, escribir y organizar tus mensajes.<br />Varias cuentas, acceso sin conexión y avisos de correo nuevo en una interfaz oscura.</p>
 
-  <p><strong>1.0.0-rc.4 · Candidata de prueba · Español (México) / English</strong></p>
+  <p><strong>1.0.0-rc.5 · Candidata de prueba · Español (México) / English</strong></p>
 
   <p>
     <a href="https://github.com/PinedaMB/NamiO/releases">Descargas</a> ·
@@ -29,7 +29,7 @@
 | 📂 **Automatizar el orden** | Crea reglas locales para mover, archivar, marcar como leído o eliminar mensajes según sus condiciones. |
 | 🔔 **Enterarte de lo nuevo** | Recibe notificaciones de tus cuentas, elige si llevan sonido y abre el mensaje desde el aviso. |
 | 📴 **Leer sin conexión** | Consulta los mensajes ya descargados. Los envíos aceptados en la cola quedan pendientes para reintentarse cuando vuelva la conexión. |
-| ⌨️ **Moverte a tu manera** | Personaliza los atajos y sus símbolos Ctrl o ⌘, usa la paleta de comandos y elige entre español e inglés. |
+| ⌨️ **Moverte a tu manera** | Personaliza los atajos y sus símbolos Ctrl o ⌘, usa la paleta de comandos y elige entre español e inglés. En Configuración → General puedes elegir apariencia Clara, Oscura o Sistema. |
 
 ### Más espacio para escribir y leer
 
@@ -43,9 +43,9 @@ Al iniciar se muestra una **bienvenida con acciones rápidas**. Abre un correo d
 
 Los adjuntos aparecen **colapsados**. Las imágenes, los PDF y los TXT admiten vista previa de hasta **20 MB**, con guardado y cierre mediante Esc. Los PDF con contraseña requieren guardarse para abrirlos en otro lector. Al descargar un archivo se muestra **«Preparando descarga…»** hasta terminar o cancelar.
 
-La búsqueda consulta **todas las carpetas guardadas de la cuenta activa**, sin limitarse a los mensajes visibles. El cuerpo del mensaje solo participa si ya se descargó; la búsqueda no consulta directamente el servidor.
+La búsqueda, incluida la del modal de comandos, consulta **todas las carpetas guardadas de la cuenta activa**, sin limitarse a los mensajes visibles. El modal muestra resultados por tandas y permite cargar más. El cuerpo del mensaje solo participa si ya se descargó; la búsqueda no consulta directamente el servidor.
 
-El lector permite elegir un **fondo claro u oscuro para los mensajes**, independientemente del aspecto oscuro de la aplicación. Las animaciones respetan la preferencia de movimiento reducido de tu sistema.
+El lector permite elegir un **fondo claro u oscuro para los mensajes**, independientemente del tema de la aplicación. Las animaciones respetan la preferencia de movimiento reducido de tu sistema.
 
 Las fechas usan la **zona horaria del equipo** y hora de 24 horas. La lista y la búsqueda muestran la hora de hoy, «Ayer» o una fecha con año si corresponde. Al pasar el cursor sobre una fecha puedes consultar el detalle completo; el lector y las citas de respuesta incluyen el año y la zona horaria.
 
@@ -114,13 +114,15 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 
 ## Lectura sin conexión
 
-La sincronización guarda primero los encabezados y después el texto y HTML de los mensajes de la carpeta, en segundo plano y sin volver a descargar los cuerpos ya guardados. El contador «sin conexión» indica cuántos mensajes tienen contenido disponible en este equipo; la barra de progreso distingue encabezados y cuerpos.
+La descarga para lectura sin conexión está desactivada por defecto. Se activa en **Configuración → General → Descargar correos para leer sin conexión**. Al desactivarla se detienen las nuevas descargas en segundo plano, sin borrar el contenido guardado. Los correos abiertos se conservan en caché como antes.
+
+Con la opción activada, la sincronización guarda primero los encabezados y después el texto y HTML de los mensajes de la carpeta, en segundo plano y sin volver a descargar los cuerpos ya guardados. El contador «sin conexión» indica cuántos mensajes tienen contenido disponible en este equipo; la barra de progreso distingue encabezados y cuerpos.
 
 La primera descarga puede tardar y ocupar espacio según el historial. Mantén NamiO abierto y con conexión hasta completar el contador antes de desconectarte. Si se interrumpe, la siguiente sincronización retoma lo pendiente. Los archivos adjuntos y las imágenes externas o incrustadas no se descargan masivamente para uso sin conexión.
 
 ## 🌱 Estado actual
 
-**NamiO 1.0.0-rc.4 es una candidata de prueba.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es la versión estable 1.0.
+**NamiO 1.0.0-rc.5 es una candidata de prueba.** Ya incluye lectura, redacción, borradores, reglas, varias cuentas y notificaciones, pero todavía no es la versión estable 1.0.
 
 - La bandeja muestra **una cuenta a la vez**; no hay bandeja unificada.
 - La revisión de cuentas inactivas detecta nuevos mensajes para los avisos; no equivale a sincronizar todo su contenido continuamente.

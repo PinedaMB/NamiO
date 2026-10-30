@@ -1,5 +1,14 @@
 # Cambios
 
+## 1.0.0-rc.5 — 2026-10-30
+
+- Apariencia Claro, Oscuro y Sistema, guardada en preferencias y aplicada a la interfaz y al tema nativo. Sistema sigue los cambios del equipo; el contenido de los correos conserva su tema de lectura independiente.
+- Descarga para lectura sin conexión opcional y desactivada por defecto. Al apagarla se detienen las nuevas descargas en segundo plano y se conserva lo guardado.
+- Al abrir correos guardados en segundo plano, se resuelven y conservan sus imágenes CID. Si falla la red, el texto descargado sigue visible.
+- El modal de comandos busca en toda la caché de la cuenta activa, con resultados de todas las carpetas, paginación, reintentos y apertura por carpeta/UID.
+- Se retiran del modal las búsquedas, acciones, contadores y atajos ficticios. Usa carpetas reales y atajos configurados; recibe y devuelve el foco y mantiene visible la selección con teclado.
+- Ctrl+Enter y Escape dentro del modal de comandos no envían ni cierran el borrador abierto detrás.
+
 ## 1.0.0-rc.4 — 2026-10-30
 
 - La sincronización guarda texto y HTML en segundo plano, empezando por los mensajes recientes. Reanuda los cuerpos faltantes tras una interrupción sin volver a descargar los ya guardados.

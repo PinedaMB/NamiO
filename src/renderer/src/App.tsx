@@ -770,7 +770,7 @@ export function App(): React.JSX.Element {
     const uid = uidOf(selected.id)
     if (uid === null) return
 
-    const missing = (selected.messageIds ?? [uid]).filter(messageUid => !selected.messages.some(message => message.id === `live:${messageUid}` && !message.partial))
+    const missing = (selected.messageIds ?? [uid]).filter(messageUid => !selected.messages.some(message => message.id === `live:${messageUid}` && !message.partial && !message.inlineImagesPending))
     if (missing.length === 0) return
     let cancelled = false
     const generation = accountGeneration.current
@@ -783,7 +783,7 @@ export function App(): React.JSX.Element {
     const applyMessage = (result: Awaited<ReturnType<typeof window.api.getMessage>>): void => {
       if (!result.ok) return
       if (result.meta.offline) setSync(current => current.offline ? current : { ...current, offline: true })
-      const message = detailToMessage(result.data, locale, result.meta.partial === true)
+      const message = { ...detailToMessage(result.data, locale, result.meta.partial === true), inlineImagesPending: result.meta.inlineImagesPending === true }
       if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
       setThreads(current => current.map(thread => {
         if (thread.id !== selected.id) return thread
@@ -799,7 +799,7 @@ export function App(): React.JSX.Element {
       cached.forEach((result, index) => {
         const messageUid = ordered[index]!
         if (result?.ok && (!result.meta.partial || disconnected)) applyMessage(result)
-        if (!result?.ok || result.meta.partial) pending.push(messageUid)
+        if (!result?.ok || result.meta.partial || result.meta.inlineImagesPending) pending.push(messageUid)
       })
       if (disconnected) return
       for (const messageUid of pending) {
@@ -1563,8 +1563,13 @@ export function App(): React.JSX.Element {
       </div>
 
       <CommandPalette
+        key={accountIdentity.current ?? 'demo'}
+        searchCache={live ? window.api.search : undefined}
+        onOpenSearchHit={hit => { setView('mailbox'); setQuery(''); openHit(hit) }}
         open={paletteOpen}
         threads={visible}
+        folders={folderViews}
+        canArchive={!!selected && !selected.id.startsWith('draft:')}
         onClose={() => setPaletteOpen(false)}
         onOpenThread={select}
         onCompose={openCompose}

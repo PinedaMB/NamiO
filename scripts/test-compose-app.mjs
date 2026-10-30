@@ -8,10 +8,10 @@ const require = createRequire(import.meta.url)
 const folder = await mkdtemp(join(tmpdir(), 'namio-compose-app-'))
 try {
   await writeFile(join(folder, 'preload.cjs'), `
-const {contextBridge}=require('electron');const noop=()=>()=>{};const updateListeners=new Set();let updateState={phase:'downloading',version:'0.4.4',percent:42};let installs=0;
+const {contextBridge}=require('electron');const noop=()=>()=>{};const updateListeners=new Set();let updateState={phase:'downloading',version:'0.4.4',percent:42};let installs=0;let settings={onboarded:true,language:'es'};
 contextBridge.exposeInMainWorld('api',{
  updateStatus:async()=>updateState,onUpdateChanged:fn=>{updateListeners.add(fn);return()=>updateListeners.delete(fn)},checkForUpdates:async()=>{},installUpdate:async()=>{installs++},testUpdate:async next=>{updateState=next;updateListeners.forEach(fn=>fn(next))},testInstalls:async()=>installs,
- getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},
+ getSettings:async()=>settings,setSettings:async patch=>{settings={...settings,...patch}},
  getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:false,connected:false,account:null}),
  accounts:async()=>[],checkAccounts:async()=>[],listOutbox:async()=>[],
@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('api',{
   await writeFile(join(folder, 'drafts-preload.cjs'), `
 const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];const progressListeners=[];let syncProgressState=null;let deletionJob=null;const meta={offline:false,syncedAt:1};let testOffline=false,bodyCached=true,networkReads=0;
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
-let draftSequence=0;let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
+const messageRequests=[];let draftSequence=0;let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
 const boxes=[{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0},{path:'Spam',name:'Spam',specialUse:String.fromCharCode(92)+'Junk',messages:2,unseen:0},{path:'Trash',name:'Trash',specialUse:String.fromCharCode(92)+'Trash',messages:2,unseen:0}];
 const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
@@ -30,7 +30,9 @@ contextBridge.exposeInMainWorld('api',{
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
  accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>syncProgressState,senderLogo:async()=>null,
  listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>{const data=path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[];return{ok:true,data,meta,counts:{total:data.length,unread:0,availableOffline:bodyCached?data.length:0}}},
- getMessage:async(path,uid,cachedOnly=false)=>{
+ search:async query=>query==='contenido cacheado'?[{...envelope,uid:777,subject:'Correo fuera de la lista',mailbox:'Spam',mailboxName:'Spam',snippet:'contenido cacheado'}]:[],
+ inspectMessageRequests:async()=>messageRequests,
+ getMessage:async(path,uid,cachedOnly=false)=>{messageRequests.push({path,uid});
  const data={...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[{name:"Visible copy",address:"copy@example.test"}],text:remote.body,html:remote.html,attachments:[]};
  if(!bodyCached&&(cachedOnly||testOffline))return{ok:true,data:{...data,text:'',html:null},meta:{...meta,partial:true}};
  if(!cachedOnly){networkReads++;bodyCached=true;notify()}return{ok:true,data,meta:{...meta}}},
@@ -65,6 +67,36 @@ app.whenReady().then(async()=>{
  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  const until=async fn=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,30))}throw new Error('Update notice missing')};
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+ await until(()=>document.querySelector('.palette:modal'));
+ if(document.activeElement!==document.querySelector('.palette__input'))throw new Error('Palette must focus search in the app');
+ document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+ await until(()=>!document.querySelector('.palette'));
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+ await until(()=>document.querySelector('.palette:modal'));
+ document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true,cancelable:true}));
+ await until(()=>!document.querySelector('.palette'));
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+ await until(()=>document.querySelector('.palette:modal'));
+ const commandInput=document.querySelector('.palette__input');
+ Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(commandInput,'Nuevo correo');
+ commandInput.dispatchEvent(new Event('input',{bubbles:true}));
+ await until(()=>document.querySelectorAll('.palette [role="option"]').length===1);
+ commandInput.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+ await until(()=>document.querySelector('.composer')&&!document.querySelector('.palette'));
+ const composeInput=document.querySelector('.composer input');composeInput.focus();
+ if(!document.querySelector('.composer').contains(document.activeElement))throw new Error('Palette must release modal focus for the editor');
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+ await until(()=>document.querySelector('.palette:modal'));
+ const previousComposeError=document.querySelector('.composer [role="alert"]')?.textContent;
+ document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true,cancelable:true}));
+ await new Promise(r=>setTimeout(r,50));
+ if(document.querySelector('.composer [role="alert"]')?.textContent!==previousComposeError)throw new Error('Ctrl+Enter in palette must not send the underlying draft');
+ document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+ await until(()=>!document.querySelector('.palette'));
+ if(!document.querySelector('.composer'))throw new Error('Escape in palette must preserve underlying draft');
+ document.querySelector('.composer__head [aria-label="Cerrar"]').click();
+ await until(()=>!document.querySelector('.composer'));
  await until(()=>document.querySelector('.update-notice [role="progressbar"]'));
  const bar=document.querySelector('.update-notice [role="progressbar"]');if(bar.getAttribute('aria-valuenow')!=='42')throw new Error('Incorrect update progress');
  await window.api.testUpdate({phase:'ready',version:'0.4.4'});
@@ -74,6 +106,15 @@ app.whenReady().then(async()=>{
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('.rail [aria-label="Configuración"]').click();
  for(let i=0;i<100&&!document.querySelector('.settings-nav');i++)await new Promise(r=>setTimeout(r,30));
+ const offline=()=>document.querySelector('[aria-labelledby="settings-offline-title"][role="switch"]');
+ for(let i=0;i<100&&!offline();i++)await new Promise(r=>setTimeout(r,30));
+ if(offline()?.getAttribute('aria-checked')!=='false')throw new Error('Offline download must default off');
+ offline().click();
+ for(let i=0;i<100&&offline().getAttribute('aria-checked')!=='true';i++)await new Promise(r=>setTimeout(r,30));
+ if((await window.api.getSettings()).offlineDownload!==true)throw new Error('Offline opt-in must persist');
+ offline().click();
+ for(let i=0;i<100&&offline().getAttribute('aria-checked')!=='false';i++)await new Promise(r=>setTimeout(r,30));
+ if((await window.api.getSettings()).offlineDownload!==false)throw new Error('Offline opt-out must persist');
  const about=[...document.querySelectorAll('.settings-nav__item')].find(button=>button.textContent.includes('Acerca de'));
  if(!about)throw new Error('About settings navigation missing');
  about.click();
@@ -445,6 +486,17 @@ app.whenReady().then(async()=>{
  await live.webContents.executeJavaScript(${JSON.stringify(`(()=>{const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='Spam');target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:240,clientY:180}));})()`)});
  await captureMenu(live,'/tmp/namio-context-menu-folder.png');
  await live.webContents.executeJavaScript(${JSON.stringify(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`)});
+ await live.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async predicate=>{for(let i=0;i<150;i++){if(await predicate())return;await new Promise(r=>setTimeout(r,30))}throw new Error('Global palette result did not open')};
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+ await until(()=>document.querySelector('.palette:modal'));
+ const input=document.querySelector('.palette__input');
+ Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'contenido cacheado');input.dispatchEvent(new Event('input',{bubbles:true}));
+ await until(()=>document.querySelector('.palette')?.textContent.includes('Correo fuera de la lista'));
+ input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+ await until(async()=>{const requests=await window.api.inspectMessageRequests();return requests.some(request=>request.path==='Spam'&&request.uid===777)&&!document.querySelector('.palette')});
+})()`)});
+ console.log('Global command search: cached body match outside visible mail opens its actual folder and UID');
  if(errors.length)throw new Error(errors.join('\\n'));
  console.log('Drafts folder: remote editing, local pending drafts, independent discard and multiple saved drafts passed');
  console.log('Full app compose regression: lazy load, typing, formatting and four close/reopen cycles preserve the mailbox without renderer errors');app.exit(0);

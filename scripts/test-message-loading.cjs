@@ -35,7 +35,7 @@ async function progressive(individualMessageId=null, stale=false) {
     assert.equal(threads[0].messages.length,1,'late body cannot overwrite a different selection')
   }
 }
-async function cachedFirst(disconnected) {
+async function cachedFirst(disconnected, inlineOnly=false) {
   let connection={offline:disconnected}
   let threads=[{id:'live:1',messageIds:[1,2,3],messages:[]}]
   const network=[]
@@ -43,16 +43,17 @@ async function cachedFirst(disconnected) {
     activeFolderRef:{current:'INBOX'},folderRequest:{current:1},accountGeneration:{current:1},navigator:{onLine:!disconnected},
     uidOf:id=>Number(id.slice(5)),detailToMessage:(data,_locale,partial)=>({id:`live:${data.uid}`,partial}),setToast(){},setLiveError(){},setSync:update=>{connection=update(connection)},t:key=>key,
     setThreads:update=>{threads=update(threads)},window:{api:{getMessage:async(_folder,uid,cachedOnly)=>{
-      if(cachedOnly)return {ok:true,data:{uid},meta:{partial:uid===3}}
+      if(cachedOnly)return {ok:true,data:{uid},meta:{partial:uid===3&&!inlineOnly,inlineImagesPending:uid===3&&inlineOnly}}
       network.push(uid)
       return disconnected ? {ok:true,data:{uid},meta:{partial:false,offline:false}} : new Promise(()=>{})
     }}}}
   const run=vm.runInNewContext(compile(`(${effect})`),context)
   const cleanup=run();await flush()
-  assert.equal(threads[0].messages.length,disconnected?3:2,'saved bodies appear even while the newest message waits on the network')
+  assert.equal(threads[0].messages.length,(disconnected||inlineOnly)?3:2,'saved bodies appear even while the newest message waits on the network')
   assert.equal(network.length,disconnected?0:1,'offline reading must not queue network work')
   if(disconnected){
-    assert.ok(threads[0].messages.find(message=>message.id==='live:3').partial,'missing offline body has an explicit partial state')
+    assert.equal(threads[0].messages.find(message=>message.id==='live:3').partial,!inlineOnly,'pending images must not hide the saved body')
+    if(inlineOnly)assert.equal(threads[0].messages.find(message=>message.id==='live:3').inlineImagesPending,true)
     cleanup();context.navigator.onLine=true;context.selected=threads[0]
     run();await flush()
     assert.equal(network.length,1,'reconnection retries the partial message')
@@ -81,9 +82,23 @@ async function deduplicate(changeAccount=false) {
   assert.equal(writes,changeAccount?0:1,'stale fetch cannot write into the new account cache')
   assert.ok(results.every(result=>result.ok===!changeAccount))
 }
+async function inlineOfflineFallback() {
+  const detail={uid:7,text:'Cached text',html:'<p>Cached text<img src="cid:logo"></p>',attachments:[],to:[],cc:[]}
+  let requests=0
+  const context={syncGeneration:1,offline:false,readBody:()=>({...detail,fetched:true}),cachedDetail:()=>detail,
+    syncMeta:()=>({offline:context.offline}),serial:fn=>fn(),fetchMessage:async()=>{requests++;throw new Error('Network down')},
+    classify:()=> 'network',isOfflineError:()=>true,describe:error=>error.message}
+  const get=vm.runInNewContext(compile(`${source};getMessage`),context)
+  const cached=await get('INBOX',7,true)
+  assert.equal(requests,0);assert.equal(cached.meta.inlineImagesPending,true);assert.notEqual(cached.meta.partial,true)
+  const fallback=await get('INBOX',7)
+  assert.equal(requests,1);assert.equal(fallback.ok,true);assert.equal(fallback.data.text,'Cached text')
+  assert.equal(fallback.meta.partial,false,'an image network failure cannot hide an already saved body')
+  assert.equal(fallback.meta.offline,true);assert.equal(fallback.meta.inlineImagesPending,true)
+}
 ;(async()=>{
-  await cachedFirst(false);await cachedFirst(true)
+  await cachedFirst(false);await cachedFirst(true);await cachedFirst(false,true);await cachedFirst(true,true)
   await progressive();await progressive('live:1');await progressive(null,true)
-  await deduplicate();await deduplicate(true)
+  await deduplicate();await deduplicate(true);await inlineOfflineFallback()
   console.log('Message loading: newest/explicit first, progressive display, cancellation, duplicate suppression and account isolation verified')
 })().catch(error=>{console.error(error);process.exitCode=1})

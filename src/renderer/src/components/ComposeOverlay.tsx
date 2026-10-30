@@ -218,6 +218,7 @@ export function ComposeOverlay({
   useEffect(() => {
     if (!open || minimized) return
     const onKey = (event: KeyboardEvent): void => {
+      if ((event.target as HTMLElement | null)?.closest?.('dialog:modal')) return
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void send(); return }
       if (event.key !== 'Escape') return
       if ((event.target as HTMLElement | null)?.closest?.('[data-recipient-popup="true"], [data-editor-popup]')) return

@@ -47,7 +47,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
   const formatCombo = useFormatCombo()
   const { t, locale, setLocale, saveError: localeError } = useI18n()
   const { bindings, modifier, setModifier, save, reset, saveError: shortcutsError } = useShortcuts()
-  const { notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, timeFormat, setTimeFormat, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
+  const { appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, timeFormat, setTimeFormat, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
   const saveError = localeError || shortcutsError || preferencesError
   const activeAccount = accounts.find((account) => account.active)
   const formatSize = (bytes: number): string => bytes < 1024 * 1024
@@ -331,6 +331,24 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     if (section === 'general') {
       return (
         <div className="settings-stack">
+          <section className="settings-card" aria-labelledby="settings-theme-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-theme-title" className="settings-card__title">{t('settings.theme.title')}</h2>
+                <p className="settings-card__subtitle">{t('settings.theme.hint')}</p>
+              </div>
+            </div>
+            <div className="seg" role="group" aria-label={t('settings.theme.title')}>
+              {(['light', 'dark', 'system'] as const).map(theme => (
+                <button key={theme} type="button" className={cx('seg__btn', appTheme === theme && 'seg__btn--active')}
+                  onClick={() => void setAppTheme(theme)} aria-pressed={appTheme === theme}>
+                  <Icon name={theme === 'light' ? 'light_mode' : theme === 'dark' ? 'dark_mode' : 'desktop_windows'} size={16} />
+                  {t(`settings.theme.${theme}`)}
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="settings-card" aria-labelledby="settings-language-title">
             <div className="settings-card__head">
               <div>
@@ -430,6 +448,21 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                   {t('settings.images.allow')}
                 </button>
               </div>
+            </div>
+          </section>
+
+          <section className="settings-card" aria-labelledby="settings-offline-title">
+            <div className="notification-option">
+              <div className="notification-option__text">
+                <h2 id="settings-offline-title" className="settings-card__title">{t('settings.offline.title')}</h2>
+                <p id="settings-offline-hint">{t('settings.offline.hint')}</p>
+              </div>
+              <button type="button" role="switch" aria-checked={offlineDownload}
+                aria-labelledby="settings-offline-title" aria-describedby="settings-offline-hint"
+                className={cx('rules__switch', offlineDownload && 'rules__switch--on')}
+                onClick={() => void setOfflineDownload(!offlineDownload)}>
+                <span className="rules__knob" />
+              </button>
             </div>
           </section>
 
