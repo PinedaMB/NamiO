@@ -22,7 +22,7 @@ function sanitize(html: string): string {
     WHOLE_DOCUMENT: true,
     // Defensa en profundidad: el iframe ya corre sin scripts.
     FORBID_TAGS: ['form', 'input', 'textarea', 'select', 'option', 'object', 'embed', 'base', 'meta', 'link'],
-    FORBID_ATTR: ['srcset', 'formaction', 'ping'],
+    FORBID_ATTR: ['srcset', 'formaction', 'ping', 'contenteditable'],
     ALLOW_DATA_ATTR: false
   })
 }

@@ -18,6 +18,7 @@ async function main() {
   try {
     db.storePickedAttachment('file1','report.txt',Buffer.from('Attachment contents'))
     const draft = {priority:'high',to:'to@example.com',cc:'copy@example.com',bcc:'hidden@example.com',subject:'Test',body:'Hello',html:'<p><strong>Hello</strong> <u>team</u></p>',attachments:[{id:'file1',name:'report.txt',size:19}],inReplyTo:'<parent@example.com>',references:['<root@example.com>','<parent@example.com>'],updatedAt:1}
+ draft.html += '<img width="120" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGNsaP7PQApgIkn1qIZRDUNKAwBWBwIi7kQ8QgAAAABJRU5ErkJggg==" alt="Pasted image">'
     db.saveDraft(draft)
     db.closeCache(); db.openAccountCache('one')
     assert.equal(db.readDraft().priority,'high')
@@ -52,10 +53,24 @@ async function main() {
     assert.equal(parsed.cc.value[0].address,'copy@example.com')
     assert.equal(parsed.inReplyTo,draft.inReplyTo)
     assert.equal(parsed.references[0],'<root@example.com>')
-    assert.equal(parsed.attachments[0].content.toString(),'Attachment contents')
+    assert.equal(parsed.attachments.find(file=>file.filename==='report.txt').content.toString(),'Attachment contents')
+    assert.ok(parsed.html.includes('width="120"'),'SMTP retains image sizing')
+    assert.ok(parsed.attachments.some(file=>file.related&&file.contentType==='image/png'))
+    assert.ok(parsed.html.includes('data:image/png;base64,'),'received inline image is available offline')
+    assert.ok((await simpleParser(sent[0].raw,{skipImageLinks:true})).html.includes('cid:'),'SMTP uses MIME content IDs, not data URLs')
     assert.ok(copies[0].equals(sent[0].raw))
     await mail.sendMail({...payload,priority:'low',attachments:[]})
     assert.equal((await simpleParser(sent.at(-1).raw)).headers.get('priority'),'low')
+    const copiesPayload={...payload,to:'first@example.com, second@example.com',cc:'copy@example.com, copy2@example.com',bcc:'hidden@example.com, hidden2@example.com'}
+    assert.equal((await mail.sendMail(copiesPayload)).ok,true)
+    const delivery=sent.at(-1)
+    assert.deepEqual(Array.from(delivery.envelope.to),['first@example.com','second@example.com','copy@example.com','copy2@example.com','hidden@example.com','hidden2@example.com'])
+    const copiedMail=await simpleParser(delivery.raw)
+    assert.deepEqual(copiedMail.cc.value.map(address=>address.address),['copy@example.com','copy2@example.com'])
+    assert.equal(copiedMail.bcc,undefined)
+    assert.ok(!delivery.raw.toString().includes('hidden@example.com')&&!delivery.raw.toString().includes('hidden2@example.com'),'BCC addresses never appear in the shared MIME message')
+    assert.equal(copiedMail.attachments.find(file=>file.filename==='report.txt').content.toString(),'Attachment contents','All envelope recipients receive the same complete attachment')
+    assert.ok(copiedMail.attachments.some(file=>file.related&&file.contentType==='image/png'),'Copies receive inline images too')
     failSentCopy = true
     const sentBefore = sent.length
     assert.equal((await mail.sendMail({...payload,attachments:[]})).queued,false)

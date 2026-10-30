@@ -2389,6 +2389,35 @@
   margin-top: 18px;
 }
 
+.composer__attachments {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: var(--sp-sm);
+  padding: var(--sp-md) var(--sp-lg);
+  max-height: 25vh;
+  overflow-y: auto;
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--surface-container-highest);
+}
+
+.composer__attachments .attach-row { margin-top: 0; }
+.composer__attachment-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  margin: 0;
+  color: var(--primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.composer__attachments .attach-pill { min-width: 0; max-width: 100%; }
+.composer__attachments .attach-pill > span { min-width: 0; }
+.composer__attachments .attach-pill__name { overflow-wrap: anywhere; }
+.composer__attachments .attach-pill > .icon,
+.composer__attachments .attach-pill > button { flex-shrink: 0; }
+
 .attach-pill {
   display: flex;
   align-items: center;
@@ -5289,6 +5318,52 @@
 }
 
 .rich-editor__content ul { list-style: disc; }
+.rich-editor__content img { display: block; max-width: 100%; height: auto; margin: var(--sp-md) 0; }
+.rich-editor__content [data-resize-container] { max-width: calc(100% - 2 * var(--sp-md)); margin: var(--sp-md); vertical-align: middle; }
+/* Chromium paints only the ends of its native caret beside a noneditable inline image. */
+.rich-editor__content [data-image-caret] { position: relative; }
+.rich-editor__content.ProseMirror-focused:has([data-image-caret]) { caret-color: transparent; }
+.rich-editor__content.ProseMirror-focused [data-image-caret]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 1.65em;
+  min-height: 24px;
+  transform: translateY(-50%);
+  background: var(--primary);
+  pointer-events: none;
+}
+@keyframes image-caret-blink {
+  50% { opacity: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rich-editor__content.ProseMirror-focused [data-image-caret]::after {
+    animation: image-caret-blink 1s step-end infinite;
+  }
+}
+.rich-editor__content [data-image-caret="before"]::after { left: calc(-1 * var(--sp-sm)); }
+.rich-editor__content [data-image-caret="after"]::after { right: calc(-1 * var(--sp-sm)); }
+.rich-editor__content [data-resize-wrapper] { max-width: 100%; }
+.rich-editor__content [data-resize-wrapper] img { margin: 0; }
+.rich-editor__content [data-resize-container].ProseMirror-selectednode [data-resize-wrapper] { outline: 1px solid var(--primary); }
+.rich-editor__content [data-resize-handle] {
+  width: var(--sp-md);
+  height: var(--sp-md);
+  background: var(--primary);
+  border: 1px solid var(--on-primary);
+  border-radius: var(--r-sm);
+  cursor: nwse-resize;
+  opacity: 0;
+  pointer-events: none;
+}
+.rich-editor__content [data-resize-container]:hover [data-resize-handle],
+.rich-editor__content [data-resize-container].ProseMirror-selectednode [data-resize-handle] { opacity: 1; pointer-events: auto; }
+.rich-editor__image-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-md); padding: var(--sp-sm) var(--sp-lg); font-size: 12px; }
+.rich-editor__image-tools label { display: flex; align-items: center; gap: var(--sp-sm); }
+.rich-editor__image-tools input { width: 9ch; padding: var(--sp-xs) var(--sp-sm); border: 1px solid var(--outline-variant); border-radius: var(--r-sm); background: var(--surface-container); color: var(--on-surface); font: inherit; }
+.rich-editor__image-tools input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rich-editor__image-tools > span { color: var(--on-surface-variant); }
 .rich-editor__content ol { list-style: decimal; }
 .rich-editor__content li > p { margin-bottom: var(--sp-xs); }
 .rich-editor__content a { color: var(--primary); text-decoration: underline; }
@@ -5844,3 +5919,9 @@
 
 .topbar, .rail, .list, .reading__toolbar, .statusbar { user-select: none; }
 input, textarea, [contenteditable="true"], .search-results-list { user-select: text; }
+
+.composer__history { flex-shrink: 0; padding: 0 var(--sp-xl); border-top: 1px solid var(--outline-variant); }
+.composer__history-toggle { display: flex; align-items: center; gap: var(--sp-sm); width: 100%; padding: var(--sp-md) 0; background: transparent; border: 0; color: var(--on-surface); text-align: left; cursor: pointer; }
+.composer__history-toggle span:last-child { margin-left: auto; color: var(--on-surface-variant); font-size: 12px; }
+.composer__history-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.composer__history-content { max-height: 40vh; overflow: auto; border-top: 1px solid var(--outline-variant); padding: var(--sp-md) 0; }

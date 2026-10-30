@@ -261,6 +261,7 @@ export function ThreadPane({
             [...thread.messages].reverse().map((message, messageIndex) => {
               const from = message.from
               const toLine = message.to.map(person => person.email).join(', ')
+              const ccLine = message.cc?.map(person => person.email).join(', ')
               return (
               <details className="thread-message" key={message.id} open={messageIndex === 0}>
               <summary className="participants">
@@ -276,6 +277,10 @@ export function ThreadPane({
                         <span>{t('thread.to')}</span>
                         <span className="participants__recipients" title={toLine}>{toLine}</span>
                       </div>
+                      {ccLine && <div className="participants__to">
+                        <span>{t('compose.cc')}</span>
+                        <span className="participants__recipients" title={ccLine}>{ccLine}</span>
+                      </div>}
                     </div>
                   </div>
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import MailComposer from 'nodemailer/lib/mail-composer'
+import { createTransport } from 'nodemailer'
 import { simpleParser } from 'mailparser'
 import type { Draft } from '@shared/ipc'
 import { cacheAccountId, clearDraft, deleteOutbox, enqueueOutbox, listDrafts, listOutbox, readDraft, readPickedAttachment, saveDraft, storePickedAttachment, updateOutbox } from './db'
@@ -40,9 +40,9 @@ export async function syncDraft(id: string): Promise<void> {
   const account = await readActiveAccount()
   if (!account || account.id !== owner || owner !== cacheAccountId()) throw new Error('La cuenta activa cambió')
   const messageId = `<namio-draft-${draft.id}-${draft.updatedAt}@namio.local>`
-  const message = new MailComposer({
+  const compiled = await createTransport({ streamTransport: true, buffer: true }).sendMail({
     from: account.user, to: draft.to, cc: draft.cc, bcc: draft.bcc,
-    subject: draft.subject, text: draft.body, html: draft.html,
+    subject: draft.subject, text: draft.body, html: draft.html, attachDataUrls: true,
     messageId, inReplyTo: draft.inReplyTo, references: draft.references,
     headers: { 'X-NamiO-Draft-Id': draft.id!, Importance: draft.priority ?? 'normal' },
     attachments: (draft.attachments ?? []).map(file => {
@@ -50,9 +50,8 @@ export async function syncDraft(id: string): Promise<void> {
       if (!stored) throw new Error('Falta un adjunto del borrador')
       return { filename: stored.name, content: Buffer.from(stored.data) }
     })
-  }).compile()
-  message.keepBcc = true // Los otros dispositivos necesitan recuperar también los destinatarios CCO del borrador.
-  const raw = await message.build()
+  })
+  const raw = Buffer.isBuffer(compiled.message) ? compiled.message : Buffer.from(String(compiled.message), 'utf8')
   if (owner !== cacheAccountId()) throw new Error('La cuenta activa cambió')
   await uploadDraft(draft, raw, messageId)
 }
@@ -75,7 +74,7 @@ export async function openServerDraft(path: string, uid: number): Promise<Draft>
     subject: parsed.subject ?? '', body: parsed.text ?? '', html: typeof parsed.html === 'string' ? parsed.html : undefined,
     inReplyTo: parsed.inReplyTo, references: typeof parsed.references === 'string' ? [parsed.references] : parsed.references,
     updatedAt, syncedAt: updatedAt,
-    attachments: parsed.attachments.map(file => {
+    attachments: parsed.attachments.filter(file => !file.related || !/^image\/(png|jpeg|gif|webp)$/.test(file.contentType)).map(file => {
       const fileId = randomUUID()
       const name = file.filename ?? 'attachment'
       storePickedAttachment(fileId, name, file.content)

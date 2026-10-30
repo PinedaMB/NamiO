@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('api',{
   await writeFile(join(folder, 'drafts-preload.cjs'), `
 const {contextBridge}=require('electron');const listeners=[];const syncs=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];let deletionJob=null;const meta={offline:false,syncedAt:1};
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
-let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
+let draftSequence=0;let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
 const boxes=[{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0},{path:'Spam',name:'Spam',specialUse:String.fromCharCode(92)+'Junk',messages:2,unseen:0},{path:'Trash',name:'Trash',specialUse:String.fromCharCode(92)+'Trash',messages:2,unseen:0}];
 const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
@@ -30,14 +30,14 @@ contextBridge.exposeInMainWorld('api',{
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
  accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>null,senderLogo:async()=>null,
  listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>({ok:true,data:path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[],meta}),
- getMessage:async(path,uid)=>({ok:true,data:{...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[],text:remote.body,html:remote.html,attachments:[]},meta}),
+ getMessage:async(path,uid)=>({ok:true,data:{...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[{name:"Visible copy",address:"copy@example.test"}],text:remote.body,html:remote.html,attachments:[]},meta}),
  deleteMessage:async(path,uid)=>{if(path!=='INBOX'||uid!==11)throw new Error('Wrong delete target');deleteCalls++;return new Promise(resolve=>{finishDelete=()=>{inboxPresent=false;notify();resolve({ok:true,queued:false})}})},finishTestDelete:async()=>finishDelete(),inspectTestDeleteCalls:async()=>deleteCalls,
  deleteMessages:async(path,uids)=>{backgroundDeletes.push({path,uids});deletionJob={id:'delete-job',kind:'delete-many',status:'queued',attempts:0,lastError:null,createdAt:1,label:path,deletionProgress:{completed:0,total:250,running:true}};outboxListeners.forEach(fn=>fn());return{ok:true,queued:true}},inspectTestBackgroundDeletes:async()=>backgroundDeletes,
  advanceTestDeletion:async(completed,running=true)=>{deletionJob.deletionProgress={completed,total:250,running};outboxListeners.forEach(fn=>fn())},finishTestDeletion:async()=>{deletionJob=null;outboxListeners.forEach(fn=>fn())},
  syncMailbox:async path=>{syncs.push(path);return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
- saveDraft:async input=>{const previous=drafts.find(item=>item.id===input.id);drafts=drafts.filter(item=>item.id!==input.id);drafts.push({...previous,...input,id:input.id??'new-draft'});notify();return{id:input.id??'new-draft',queued:true}},
+ saveDraft:async input=>{const id=input.id??'new-draft-'+ ++draftSequence;const previous=drafts.find(item=>item.id===id);drafts=drafts.filter(item=>item.id!==id);drafts.push({...previous,...input,id});notify();return{id,queued:true}},
  clearDraft:async id=>{drafts=drafts.filter(item=>item.id!==id);notify()},inspectTestDrafts:async()=>drafts,
  onCacheChanged:fn=>{listeners.push(fn);return()=>{}},onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:fn=>{outboxListeners.push(fn);return()=>{}},onRulesChanged:noop
 });`)
@@ -313,6 +313,7 @@ app.whenReady().then(async()=>{
  await until(()=>!document.querySelector('.deletion-progress'),'Completed deletion did not clear the indicator');
 
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body not ready');
+ if(![...document.querySelectorAll('.participants__recipients')].some(node=>node.textContent==='copy@example.test'))throw new Error('Received CC is not visible in the reader');
  const bodyFrame=document.querySelector('.email-body iframe'), bodyDocument=bodyFrame.contentDocument;
  const detail=document.querySelector('.thread-message');detail.open=false;
  document.querySelector('[aria-label="Sincronizar"]').click();await wait();
@@ -361,7 +362,20 @@ app.whenReady().then(async()=>{
  document.querySelector('.composer__head [aria-label="Restaurar mensaje"]').click();await until(()=>!document.querySelector('.composer-dock'),'Live draft did not restore');
  if(document.querySelector('.tiptap').editor!==editor||!editor.getText().includes('New draft body'))throw new Error('Saved minimize lost draft state');
  document.querySelector('.composer__head [aria-label="Cerrar"]').click();await until(()=>!document.querySelector('.composer'),'New draft did not save');
- saved=await window.api.inspectTestDrafts();if(saved.length!==2||!saved.some(item=>item.id==='new-draft'))throw new Error('Multiple drafts not preserved');
+ saved=await window.api.inspectTestDrafts();if(saved.length!==2||!saved.some(item=>item.id==='new-draft-1'))throw new Error('Multiple drafts not preserved');
+ document.querySelector('[aria-label="Redactar"]').click();await until(()=>document.querySelector('.tiptap')?.editor,'Image composer missing');
+ await settle();
+ editor=document.querySelector('.tiptap').editor;
+ const imageClipboard=new DataTransfer();imageClipboard.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGNsaP7PQApgIkn1qIZRDUNKAwBWBwIi7kQ8QgAAAABJRU5ErkJggg=='),character=>character.charCodeAt(0))],'Image.png',{type:'image/png'}));
+ editor.view.dom.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:imageClipboard}));
+ await until(()=>editor.view.dom.querySelector('img[src]'),'Image-only draft did not render');
+ if(editor.getText().trim()!=='')throw new Error('Image-only draft unexpectedly has text');
+ document.querySelector('.composer__head [aria-label="Minimizar"]').click();await until(()=>document.querySelector('.composer-dock'),'Image draft did not minimize');
+ saved=await window.api.inspectTestDrafts();if(!saved.find(item=>item.id==='new-draft-2')?.html?.includes('<img'))throw new Error('Minimizing lost image-only draft');
+ document.querySelector('.composer__head [aria-label="Restaurar mensaje"]').click();await until(()=>!document.querySelector('.composer-dock'),'Image draft did not restore');
+ document.querySelector('.composer__head [aria-label="Cerrar"]').click();await until(()=>!document.querySelector('.composer'),'Image draft did not close');
+ saved=await window.api.inspectTestDrafts();if(!saved.find(item=>item.id==='new-draft-2')?.html?.includes('<img'))throw new Error('Closing lost image-only draft');
+
 })()`)});
  console.log('Folder context sync: clicked folder is synchronized without changing the open folder');
  await live.webContents.executeJavaScript('window.api.deleteMessages("Spam").then(()=>window.api.advanceTestDeletion(100))');

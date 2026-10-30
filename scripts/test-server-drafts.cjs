@@ -31,6 +31,7 @@ async function main(){
  }})
  db.storePickedAttachment('file-one','report.txt',Buffer.from('Persisted file'))
  const input={priority:'high',to:'to@example.com',cc:'copy@example.com',bcc:'hidden@example.com',subject:'First draft',body:'Hello',html:'<p><strong>Hello</strong></p>',attachments:[{id:'file-one',name:'report.txt',size:14}],updatedAt:1}
+ input.html += '<img width="120" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGNsaP7PQApgIkn1qIZRDUNKAwBWBwIi7kQ8QgAAAABJRU5ErkJggg==" alt="Pasted image">'
  assert.throws(()=>service.queueDraftSave({...input,inReplyTo:'bad\r\nHeader: value'}),/Cabeceras/)
  assert.throws(()=>service.queueDraftSave({...input,priority:'urgent'}),/Importancia/)
  const first=service.queueDraftSave(input),second=service.queueDraftSave({...input,subject:'Second draft',attachments:[]})
@@ -39,7 +40,10 @@ async function main(){
  await service.syncDraft(first.id)
  assert.equal(remote.size,1);assert.ok(db.readDraft(first.id).server)
  let parsed=await simpleParser([...remote.values()][0].raw)
- assert.equal(parsed.bcc.value[0].address,'hidden@example.com');assert.ok(parsed.html.includes('<strong>'));assert.equal(parsed.attachments[0].content.toString(),'Persisted file')
+ assert.equal(parsed.bcc.value[0].address,'hidden@example.com');assert.ok(parsed.html.includes('<strong>'));assert.equal(parsed.attachments.find(file=>file.filename==='report.txt').content.toString(),'Persisted file')
+ assert.ok(parsed.attachments.some(file=>file.related&&file.contentType==='image/png'))
+ assert.ok(parsed.html.includes('data:image/png;base64,'))
+ assert.ok(parsed.html.includes('width="120"'),'MIME draft retains image sizing')
  await service.syncDraft(first.id);assert.equal(appendCount,1,'retrying the same revision does not duplicate it')
  const edited=service.queueDraftSave({...db.readDraft(first.id),body:'Updated body'})
  assert.ok(edited.updatedAt>first.updatedAt)
@@ -56,6 +60,8 @@ async function main(){
  db.clearDraft(first.id)
  const reopened=await service.openServerDraft('Drafts',uid)
  assert.equal(reopened.priority,'high');assert.equal((await simpleParser([...remote.values()][0].raw)).headers.get('priority'),'high');assert.equal(reopened.bcc,'hidden@example.com');assert.equal(reopened.attachments[0].name,'report.txt');assert.equal(reopened.server.uid,uid)
+ assert.ok(reopened.html.includes('data:image/png;base64,'),'reopened server drafts retain inline images')
+ assert.equal(reopened.attachments.length,1,'inline images do not become duplicate file attachments')
  service.queueDraftDelete(reopened.id)
  assert.equal(db.readDraft(reopened.id),null);assert.ok(db.readDraft(second.id),'discarding one draft preserves others')
  assert.ok(db.listOutbox().some(row=>row.kind==='draft-delete'))

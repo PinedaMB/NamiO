@@ -66,9 +66,11 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { expo
   if (id === '../assets/logo.png') return { default: 'logo.png' }
   return require(id)
 } })
-const messages = envelopes.slice(0, 3).reverse().map(item => live.detailToMessage({ ...item, to: [], text: 'Message body', html: '<p>Message body</p>', attachments: [{name: 'file.pdf', type: 'application/pdf', size: 12, index: 0}] }, 'es'))
+const messages = envelopes.slice(0, 3).reverse().map(item => live.detailToMessage({ ...item, to: [], cc: item.uid===2 ? [{name:'Copy',address:'copy@example.com'}] : [], text: 'Message body', html: '<p>Message body</p>', attachments: [{name: 'file.pdf', type: 'application/pdf', size: 12, index: 0}] }, 'es'))
 messages[0].priority = 'low'
 messages[2].priority = 'high'
+assert.equal(messages[1].cc[0].email,'copy@example.com','CC survives the message conversion')
+const ccRows=[]
 const priorityBadges = []
 const tree = pane.ThreadPane({ thread: { ...threads[0], messages }, mailbox: 'INBOX', bindings: {}, onOpenAttachment: (...args) => clicked.push(args) })
 const cards = []
@@ -76,12 +78,14 @@ const attachmentSections = []
 function visit(node) {
   if (!React.isValidElement(node)) return
   if (node.props.className?.startsWith('mail-priority')) priorityBadges.push(node)
+  if (node.props.className === 'participants__recipients' && node.props.title === 'copy@example.com') ccRows.push(node)
   if (node.props.className === 'thread-message') cards.push(node)
   if (node.props.className === 'thread-message__files') attachmentSections.push(node)
   if (node.props.className === 'attachment') node.props.onClick()
   React.Children.forEach(node.props.children, visit)
 }
 visit(tree)
+assert.equal(ccRows.length,1,'CC is visible only on the message that contains it')
 assert.equal(priorityBadges.length, 2, 'high and low importance are visible; normal is unbadged')
 assert.equal(priorityBadges.filter(node=>node.props.className.includes('mail-priority--high')).length,1)
 assert.equal(cards.length, 3)

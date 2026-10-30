@@ -1,13 +1,42 @@
-import { EditorContent, Mark, useEditor, useEditorState } from '@tiptap/react'
+import { EditorContent, Mark, Node, ResizableNodeView, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { useEffect, useState } from 'react'
 import { useI18n, type TranslationKey } from '../i18n'
-import { cleanComposeHtml, isComposeLink, textToEditorContent } from '../lib/composeHtml'
+import { cleanComposeHtml, composeImageWidth, isComposeImage, isComposeLink, MAX_COMPOSE_IMAGE_BYTES, textToEditorContent } from '../lib/composeHtml'
 import { Icon } from './Icon'
 import { TooltipButton } from './Tooltip'
 
 import { Select } from './Select'
 import { ColorPicker } from './ColorPicker'
+
+const ImageNode = Node.create({
+  name: 'image', group: 'inline', inline: true, atom: true, draggable: true,
+  addAttributes() { return { src: { default: null }, alt: { default: '' }, width: { default: null, parseHTML: element => composeImageWidth(element.getAttribute('width')) } } },
+  parseHTML() { return [{ tag: 'img[src]', getAttrs: element => isComposeImage(element.getAttribute('src') ?? '') ? null : false }] },
+  renderHTML({ HTMLAttributes }) { return ['img', HTMLAttributes] },
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      const image = document.createElement('img')
+      const updateImage = (current: typeof node): void => {
+        image.src = current.attrs.src
+        image.alt = current.attrs.alt
+        image.style.width = current.attrs.width ? `${current.attrs.width}px` : ''
+        image.style.height = 'auto'
+      }
+      updateImage(node)
+      return new ResizableNodeView({
+        element: image, node, editor, getPos,
+        options: { preserveAspectRatio: true, directions: ['bottom-right'], max: { width: 4096 } },
+        onCommit: width => {
+          const position = getPos()
+          if (position !== undefined) editor.chain().setNodeSelection(position).updateAttributes('image', { width: Math.max(1, Math.round(width)) }).setNodeSelection(position).run()
+        },
+        onUpdate: current => { updateImage(current); return true }
+      })
+    }
+  }
+})
 
 const TextStyle = Mark.create({
   name: 'textStyle',
@@ -42,22 +71,53 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
   const [linkOpen, setLinkOpen] = useState(false)
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState(false)
+  const [pasteError, setPasteError] = useState<string | null>(null)
   const instance = useEditor({
     immediatelyRender: false, // Suspense puede descartar una instancia creada durante el render.
     extensions: [StarterKit.configure({
       heading: false, codeBlock: false, horizontalRule: false, strike: false,
       link: { openOnClick: false, defaultProtocol: 'https', isAllowedUri: isComposeLink }
-    }), TextStyle],
+    }), TextStyle, ImageNode],
     content: html ? cleanComposeHtml(html) : textToEditorContent(text),
     editable: !disabled,
     editorProps: {
       attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('compose.placeholder'), 'data-placeholder': t('compose.placeholder'), spellcheck: 'true' },
-      transformPastedHTML: cleanComposeHtml
+      transformPastedHTML: cleanComposeHtml,
+      decorations(state) {
+        const { empty, $from } = state.selection
+        if (!empty) return null
+        const after = $from.nodeBefore?.type.name === 'image'
+        if (!after && $from.nodeAfter?.type.name !== 'image') return null
+        const position = $from.pos - (after ? 1 : 0)
+        return DecorationSet.create(state.doc, [Decoration.node(position, position + 1, { 'data-image-caret': after ? 'after' : 'before' })])
+      },
+      handlePaste(view, event) {
+        const files = [...(event.clipboardData?.files ?? [])].filter(file => file.type.startsWith('image/'))
+        setPasteError(null)
+        if (!files.length) return false
+        event.preventDefault()
+        if (files.some(file => !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > MAX_COMPOSE_IMAGE_BYTES)) {
+          setPasteError(t('compose.imageLimit'))
+          return true
+        }
+        void Promise.all(files.map(file => new Promise<{ src: string; alt: string }>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => typeof reader.result === 'string' && isComposeImage(reader.result)
+            ? resolve({ src: reader.result, alt: file.name || t('compose.pastedImage') }) : reject(new Error(t('compose.imageFailed')))
+          reader.onerror = () => reject(new Error(t('compose.imageFailed')))
+          reader.readAsDataURL(file)
+        }))).then(images => {
+          if (view.isDestroyed || !view.editable) return
+          for (const image of images) view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.image!.create(image)))
+          view.focus()
+        }).catch(() => { if (!view.isDestroyed) setPasteError(t('compose.imageFailed')) })
+        return true
+      }
     },
     onUpdate: ({ editor }) => onChange(editor.getText({ blockSeparator: '\n' }), cleanComposeHtml(editor.getHTML()))
   })
   const editor = instance && !instance.isDestroyed ? instance : null
-  useEditorState({ editor, selector: ({ editor }) => editor ? { textStyle: editor.getAttributes('textStyle'), active: ['bold', 'italic', 'underline', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
+  useEditorState({ editor, selector: ({ editor }) => editor ? { textStyle: editor.getAttributes('textStyle'), image: editor.isActive('image') ? editor.getAttributes('image') : null, active: ['bold', 'italic', 'underline', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -71,6 +131,11 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
   const style = editor?.getAttributes('textStyle') ?? {}
   const changeStyle = (attribute: string, value: string | null): void => {
     editor?.chain().focus().setMark('textStyle', { [attribute]: value }).run()
+  }
+  const resizeImage = (width: number | null): void => {
+    if (!editor?.isActive('image')) return
+    const position = editor.state.selection.from
+    editor.chain().updateAttributes('image', { width }).setNodeSelection(position).run()
   }
 
   const tools: { label: TranslationKey; icon: string; active?: boolean; disabled?: boolean; run: () => void }[] = [
@@ -120,6 +185,13 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
       <button className="tool-btn" type="button" onClick={() => setLinkOpen(false)}>{t('common.close')}</button>
       {linkError && <span role="alert">{t('compose.format.invalidLink')}</span>}
     </form>}
+    {editor?.isActive('image') && <div className="rich-editor__image-tools" data-editor-popup>
+      <label>{t('compose.imageWidth')} <input type="number" min="1" max="4096" step="1" value={editor.getAttributes('image').width ?? ''} placeholder={t('compose.imageOriginal')}
+        disabled={disabled} onChange={event => resizeImage(composeImageWidth(event.target.value))} /></label>
+      <button type="button" className="tool-btn" disabled={disabled} onClick={() => resizeImage(null)}>{t('compose.imageOriginal')}</button>
+      <span>{t('compose.imageResizeHint')}</span>
+    </div>}
+    {pasteError && <p className="account-error" role="alert">{pasteError}</p>}
     <div className="composer__body">
       <EditorContent editor={editor} className="rich-editor" />
       {children}

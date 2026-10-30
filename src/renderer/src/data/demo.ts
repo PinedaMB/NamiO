@@ -40,6 +40,7 @@ export interface Message {
   id: string
   from: Person
   to: Person[]
+  cc?: Person[]
   sentAt: string
   body: string[]
   /** HTML crudo del correo; se sanitiza y se pinta en un iframe aislado. */

@@ -40,7 +40,8 @@ const {app,BrowserWindow}=require('electron');const assert=require('node:assert/
 app.setPath('userData',${JSON.stringify(join(folder, 'profile'))});app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:900,height:700,useContentSize:true,webPreferences:{offscreen:true}});
- win.webContents.on('console-message',event=>{if(event.level==='error')console.error(event.message)});
+ const errors=[];
+ win.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message)});
  await win.loadFile(${JSON.stringify(join(folder,'dist/index.html'))});
  for(const width of [900,400]){
   win.setContentSize(width,700);
@@ -71,6 +72,7 @@ app.whenReady().then(async()=>{
    assert.ok(grew,'Late content growth must resize percentage-height emails');
   }
  }
+ assert.deepEqual(errors,[],'Email resizing and theme toggles must not produce renderer errors');
  console.log('Email rendering: head CSS, root/body classes, authored image height, no overlap, responsive rules, theme toggles and security passed');app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1)});
 `)

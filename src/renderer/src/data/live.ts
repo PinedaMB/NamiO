@@ -119,6 +119,7 @@ export function detailToMessage(detail: MessageDetail, locale: string, partial =
     inReplyTo: detail.inReplyTo,
     from: personFrom(detail.from),
     to: detail.to.map((address) => personFrom(address)),
+    cc: (detail.cc ?? []).map((address) => personFrom(address)),
     date: detail.date,
     sentAt: formatMessageDateTime(detail.date, locale),
     body: body.length > 0 ? body : [''],

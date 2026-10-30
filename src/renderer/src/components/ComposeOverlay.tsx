@@ -1,12 +1,13 @@
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { validRecipients } from '@shared/mailAddresses'
 import type { Draft, PickedAttachment, MailPriority } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
-import { composeEmailHtml } from '../lib/composeHtml'
+import { composeEmailHtml, splitReplyHtml } from '../lib/composeHtml'
+import { EmailBody } from './EmailBody'
 import { RecipientInput } from './RecipientInput'
 import { Icon } from './Icon'
 import { Select } from './Select'
@@ -36,6 +37,12 @@ interface ComposeOverlayProps {
   onSend: (payload: Omit<Draft, 'updatedAt'>) => Promise<void>
   /** Abre el diálogo del sistema; solo existe con cuenta real. */
   onPickAttachments?: () => Promise<PickedAttachment[]>
+}
+
+function replyPlainHtml(text: string): string {
+  const paragraph = document.createElement('p')
+  paragraph.textContent = text
+  return `<p>${paragraph.innerHTML.replace(/\n/g, '<br>')}</p>`
 }
 
 const TONES: ReadonlyArray<{ id: TranslationKey }> = [
@@ -75,9 +82,21 @@ export function ComposeOverlay({
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
   const [priorityValue, setPriorityValue] = useState<MailPriority>(priority)
-  const bodyRef = useRef({ body, html })
-  const [bodyValue, setBodyValue] = useState(body)
-  const [htmlValue, setHtmlValue] = useState(html)
+  const initialReply = useMemo(() => splitReplyHtml(html), [html])
+  const [quote, setQuote] = useState(initialReply.quote)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const history = useMemo(() => {
+    if (!quote) return { preview: '', text: '' }
+    const document_ = new DOMParser().parseFromString(quote, 'text/html')
+    const preview = document_.body.querySelector('blockquote')?.innerHTML ?? ''
+    document_.body.querySelectorAll('style, script').forEach(node => node.remove())
+    document_.body.querySelectorAll('br').forEach(node => node.replaceWith('\n'))
+    document_.body.querySelectorAll('p, tr, li').forEach(node => node.append('\n'))
+    return { preview, text: (document_.body.textContent ?? '').trim() }
+  }, [quote])
+  const bodyRef = useRef({ body: initialReply.text ?? body, html: initialReply.html })
+  const [bodyValue, setBodyValue] = useState(initialReply.text ?? body)
+  const [htmlValue, setHtmlValue] = useState(initialReply.html)
   const [ccValue, setCcValue] = useState(cc)
   const [bccValue, setBccValue] = useState(bcc)
   const [bccOpen, setBccOpen] = useState(Boolean(bcc))
@@ -94,6 +113,7 @@ export function ComposeOverlay({
   const [generating, setGenerating] = useState(false)
   const [applied, setApplied] = useState(false)
   const [picked, setPicked] = useState<PickedAttachment[]>([])
+  const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<ReadonlyArray<{ name: string; detail: string; icon: string }>>(
     copilot
       ? [
@@ -108,12 +128,16 @@ export function ComposeOverlay({
     setToValue(to)
     setSubjectValue(subject)
     setPriorityValue(priority)
-    bodyRef.current = { body, html }
-    setBodyValue(body)
-    setHtmlValue(html)
+    const reply = splitReplyHtml(html)
+    setQuote(reply.quote)
+    setHistoryOpen(false)
+    bodyRef.current = { body: reply.text ?? body, html: reply.html }
+    setBodyValue(reply.text ?? body)
+    setHtmlValue(reply.html)
     setApplied(false)
     setGenerating(false)
     setPicked(initialAttachments ?? [])
+    setAttachmentNotice(null)
     setCcValue(cc)
     setBccValue(bcc)
     setCcOpen(Boolean(cc))
@@ -133,7 +157,10 @@ export function ComposeOverlay({
 
   const values = (): Omit<Draft, 'updatedAt'> => ({
     to: toValue, cc: ccValue, bcc: bccValue, priority: priorityValue,
-    subject: subjectValue, body: bodyRef.current.body, html: bodyRef.current.html, attachments: picked
+    subject: subjectValue,
+    body: [bodyRef.current.body, history.text].filter(Boolean).join('\n\n'),
+    html: quote ? `${bodyRef.current.html ?? replyPlainHtml(bodyRef.current.body)}${quote}` : bodyRef.current.html,
+    attachments: picked
   })
 
   const closeWithDraft = async (): Promise<void> => {
@@ -265,11 +292,11 @@ export function ComposeOverlay({
             </div>
           </div>
 
-          {ccOpen && <div className="field-row">
+          {(ccOpen || ccValue.trim()) && <div className="field-row">
             <span className="field-label">{t('compose.cc')}</span>
             <RecipientInput key={`${open}:${cc}`} field="cc" initialValue={ccValue} onChange={setCcValue} suggest={!copilot} />
           </div>}
-          {bccOpen && <div className="field-row">
+          {(bccOpen || bccValue.trim()) && <div className="field-row">
             <span className="field-label">{t('compose.bcc')}</span>
             <RecipientInput key={`${open}:${bcc}`} field="bcc" initialValue={bccValue} onChange={setBccValue} suggest={!copilot} />
           </div>}
@@ -286,61 +313,80 @@ export function ComposeOverlay({
 
         </div>
 
+        {(picked.length > 0 || attachments.length > 0) && <div className="composer__attachments" inert={sending}>
+          {attachmentNotice && <p className="composer__attachment-notice" role="status"><Icon name="check_circle" size={16} />{attachmentNotice}</p>}
+          <div className="attach-row">
+            {picked.map((file) => (
+              <span key={file.id} className="attach-pill">
+                <Icon name="attach_file" size={18} className="attach-pill__icon" />
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span className="attach-pill__name">{file.name}</span>
+                  <span className="attach-pill__detail">
+                    {Math.max(1, Math.round(file.size / 1024))} KB
+                  </span>
+                </span>
+                <TooltipButton
+                  type="button"
+                  title={t('compose.removeAttachment')}
+                  onClick={() => { setPicked((list) => list.filter((item) => item.id !== file.id)); setAttachmentNotice(null) }}
+                >
+                  <Icon name="close" size={14} />
+                </TooltipButton>
+              </span>
+            ))}
+            {attachments.map((attachment) => (
+              <span key={attachment.name} className="attach-pill">
+                <Icon name={attachment.icon} size={18} className="attach-pill__icon" />
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span className="attach-pill__name">{attachment.name}</span>
+                  <span className="attach-pill__detail">{attachment.detail}</span>
+                </span>
+                <TooltipButton
+                  type="button"
+                  title={t('compose.removeAttachment')}
+                  onClick={() => setAttachments((list) => list.filter((item) => item.name !== attachment.name))}
+                >
+                  <Icon name="close" size={14} />
+                </TooltipButton>
+              </span>
+            ))}
+          </div>
+        </div>}
+
         <div className={cx('composer__split', !copilot && 'composer__split--solo')} inert={sending}>
           <div className="editor">
             <Suspense fallback={<div className="letter-loading" role="status">{t('compose.loadingEditor')}</div>}>
             <RichTextEditor text={bodyValue} html={htmlValue} disabled={sending}
               onChange={(text, markup) => { bodyRef.current = { body: text, html: markup }; setBodyValue(text); setHtmlValue(markup) }}
               onAttach={onPickAttachments ? () => {
+                setAttachmentNotice(null)
+                setError(null)
                 void onPickAttachments().then(files => {
-                  if (files.length) setPicked(current => [...current, ...files])
+                  if (files.length) {
+                    setPicked(current => [...current, ...files])
+                    setAttachmentNotice(files.length === 1 ? t('compose.attachmentAdded', { name: files[0]!.name }) : t('compose.attachmentsAdded', { count: files.length }))
+                  }
                 }).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))
               } : undefined}>
+
               {copilot && (
                 <div className="composer__sign">
                   <strong>Alex Rivera</strong>
                   <span>{t('compose.signatureRole')}</span>
                 </div>
               )}
-
-              <div className="attach-row">
-                {picked.map((file) => (
-                  <span key={file.id} className="attach-pill">
-                    <Icon name="attach_file" size={18} className="attach-pill__icon" />
-                    <span style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span className="attach-pill__name">{file.name}</span>
-                      <span className="attach-pill__detail">
-                        {Math.max(1, Math.round(file.size / 1024))} KB
-                      </span>
-                    </span>
-                    <TooltipButton
-                      type="button"
-                      title={t('compose.removeAttachment')}
-                      onClick={() => setPicked((list) => list.filter((item) => item.id !== file.id))}
-                    >
-                      <Icon name="close" size={14} />
-                    </TooltipButton>
-                  </span>
-                ))}
-                {attachments.map((attachment) => (
-                  <span key={attachment.name} className="attach-pill">
-                    <Icon name={attachment.icon} size={18} className="attach-pill__icon" />
-                    <span style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span className="attach-pill__name">{attachment.name}</span>
-                      <span className="attach-pill__detail">{attachment.detail}</span>
-                    </span>
-                    <TooltipButton
-                      type="button"
-                      title={t('compose.removeAttachment')}
-                      onClick={() => setAttachments((list) => list.filter((item) => item.name !== attachment.name))}
-                    >
-                      <Icon name="close" size={14} />
-                    </TooltipButton>
-                  </span>
-                ))}
-              </div>
             </RichTextEditor>
             </Suspense>
+              {quote && <section className="composer__history">
+                <button type="button" className="composer__history-toggle" aria-expanded={historyOpen} onClick={() => setHistoryOpen(value => !value)}>
+                  <Icon name={historyOpen ? 'expand_less' : 'expand_more'} size={18} />
+                  {t(historyOpen ? 'compose.hideHistory' : 'compose.showHistory')}
+                  <span>{t('compose.historyReadOnly')}</span>
+                </button>
+                {historyOpen && <div className="composer__history-content" role="region" aria-label={t('compose.originalMessage')}>
+                  <EmailBody html={history.preview} />
+                </div>}
+              </section>}
           </div>
 
           <div className="copilot">

@@ -160,6 +160,7 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     subject: payload.subject,
     text: payload.text,
     html: payload.html,
+    attachDataUrls: true,
     attachments: files.map((file) => ({ filename: file.name, content: file.data }))
   })
 

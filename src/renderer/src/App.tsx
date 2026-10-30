@@ -990,7 +990,7 @@ export function App(): React.JSX.Element {
       inReplyTo: message?.messageId,
       references: [message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)),
       body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n'),
-      html: replyComposeHtml(body, attribution, original, t('compose.originalMessage'))
+      html: replyComposeHtml(body, attribution, original, t('compose.originalMessage'), message?.html)
     })
   }
 
@@ -1481,7 +1481,7 @@ export function App(): React.JSX.Element {
         onRestore={() => setComposeMinimized(false)}
         onMinimize={async values => {
           const generation = accountGeneration.current
-          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.attachments?.length
+          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length
           if (live && hasContent) {
             const result = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
             if (generation !== accountGeneration.current) return
@@ -1501,7 +1501,7 @@ export function App(): React.JSX.Element {
         copilot={!live}
         onRestoreDraft={live ? restoreDraft : undefined}
         onClose={async values => {
-          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.attachments?.length
+          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length
           let queued = false
           if (live && hasContent) ({ queued } = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() }))
           setCompose(null)
