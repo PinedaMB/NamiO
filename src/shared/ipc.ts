@@ -439,7 +439,7 @@ export interface MailApi {
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
   listEnvelopes(path: string, limit: number, sync?: boolean, options?: EnvelopeListOptions): Promise<EnvelopeListResult>
-  getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>>
+  getMessage(path: string, uid: number, cachedOnly?: boolean): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>
   /** Marca/desmarca `\Seen` (leído) en el servidor y en la caché. */

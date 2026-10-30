@@ -13,6 +13,8 @@ async function main() {
   try {
     db.openAccountCache('one')
     db.upsertEnvelopes('INBOX', [{ uid: 1, subject: 'Keep envelope', from: null, date: new Date().toISOString(), size: 1, unread: true, flagged: true }])
+    db.saveBody('INBOX', 1, { text: '', html: null, to: [], cc: [], attachments: [] })
+    assert.equal(db.readBody('INBOX', 1).fetched, true, 'a downloaded empty body is still cached')
     db.saveBody('INBOX', 1, { text: 'cachedword '.repeat(100000), html: '<p>Cached body</p>', to: [], cc: [], attachments: [{name:'file.pdf',size:1,type:'application/pdf'}] })
     db.saveDraft({ to: 'person@example.com', cc: '', subject: 'Draft', body: 'Keep draft', updatedAt: 1 })
     const { DatabaseSync } = require('node:sqlite')

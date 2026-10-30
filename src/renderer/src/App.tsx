@@ -178,12 +178,19 @@ export function App(): React.JSX.Element {
   const [settings, setSettings] = useState<Partial<AppSettings>>({})
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
+  const [messageRetry, setMessageRetry] = useState(0)
   const [liveError, setLiveError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
   const [loadingFolder, setLoadingFolder] = useState(false)
   const [sync, setSync] = useState<{ offline: boolean; syncedAt: number | null }>({
     offline: false,
     syncedAt: null
   })
+  const connectionError = liveError !== null && ['dns', 'refused', 'timeout', 'network'].includes(liveError.code)
+  useEffect(() => {
+    if (!connectionError) return
+    setSync(current => current.offline ? current : { ...current, offline: true })
+    setLiveError(null)
+  }, [connectionError, liveError])
   const [now, setNow] = useState(() => Date.now())
   const [outbox, setOutbox] = useState<readonly OutboxItem[]>([])
   const [query, setQueryValue] = useState('')
@@ -557,6 +564,16 @@ export function App(): React.JSX.Element {
     }
   }
 
+  useEffect(() => {
+    if (!live) return
+    const reconnect = (): void => { setMessageRetry(value => value + 1); void handleSync() }
+    const disconnect = (): void => { setSync(current => ({ ...current, offline: true })); setMessageRetry(value => value + 1) }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) disconnect()
+    window.addEventListener('online', reconnect)
+    window.addEventListener('offline', disconnect)
+    return () => { window.removeEventListener('online', reconnect); window.removeEventListener('offline', disconnect) }
+  }, [live, folder, locale, listLimit])
+
   /** Trae otra tanda de la caché (la descarga completa ya está en disco). */
   const loadMore = useCallback(async (): Promise<void> => {
     if (!live || loadingFolder || loadingMoreRef.current || folder !== activeFolderRef.current) return
@@ -753,7 +770,7 @@ export function App(): React.JSX.Element {
     const uid = uidOf(selected.id)
     if (uid === null) return
 
-    const missing = (selected.messageIds ?? [uid]).filter(messageUid => !selected.messages.some(message => message.id === `live:${messageUid}`))
+    const missing = (selected.messageIds ?? [uid]).filter(messageUid => !selected.messages.some(message => message.id === `live:${messageUid}` && !message.partial))
     if (missing.length === 0) return
     let cancelled = false
     const generation = accountGeneration.current
@@ -763,8 +780,29 @@ export function App(): React.JSX.Element {
       ordered.splice(ordered.indexOf(firstUid), 1)
       ordered.unshift(firstUid)
     }
+    const applyMessage = (result: Awaited<ReturnType<typeof window.api.getMessage>>): void => {
+      if (!result.ok) return
+      if (result.meta.offline) setSync(current => current.offline ? current : { ...current, offline: true })
+      const message = detailToMessage(result.data, locale, result.meta.partial === true)
+      if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
+      setThreads(current => current.map(thread => {
+        if (thread.id !== selected.id) return thread
+        const loaded = new Map([...thread.messages, message].map(item => [item.id, item]))
+        return { ...thread, messages: (thread.messageIds ?? [uid]).flatMap(messageUid => loaded.get(`live:${messageUid}`) ?? []) }
+      }))
+    }
     void (async () => {
-      for (const messageUid of ordered) {
+      const cached = await Promise.all(ordered.map(messageUid => window.api.getMessage(folder, messageUid, true).catch(() => null)))
+      if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
+      const disconnected = typeof navigator !== 'undefined' && navigator.onLine === false
+      const pending: number[] = []
+      cached.forEach((result, index) => {
+        const messageUid = ordered[index]!
+        if (result?.ok && (!result.meta.partial || disconnected)) applyMessage(result)
+        if (!result?.ok || result.meta.partial) pending.push(messageUid)
+      })
+      if (disconnected) return
+      for (const messageUid of pending) {
         if (cancelled) return
         const result = await window.api.getMessage(folder, messageUid).catch(() => null)
         if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
@@ -772,20 +810,15 @@ export function App(): React.JSX.Element {
           setLiveError({ code: result && !result.ok ? result.code : 'unknown', detail: result && !result.ok ? result.detail : 'IPC' })
           continue
         }
-        const message = detailToMessage(result.data, locale, result.meta.partial === true)
-        if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
-        setThreads(current => current.map(thread => {
-          if (thread.id !== selected.id) return thread
-          const loaded = new Map([...thread.messages, message].map(item => [item.id, item]))
-          return { ...thread, messages: (thread.messageIds ?? [uid]).flatMap(messageUid => loaded.get(`live:${messageUid}`) ?? []) }
-        }))
+        if (!result.meta.offline) setSync(current => current.offline ? { ...current, offline: false } : current)
+        applyMessage(result)
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view])
+  }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view, sync.offline, sync.syncedAt, messageRetry])
 
   const select = (id: string, messageId?: string): void => {
     if (!draftsFolder) setMessageOpen(true)
@@ -1613,7 +1646,7 @@ export function App(): React.JSX.Element {
         />
       )}
 
-      {liveError && (
+      {liveError && !connectionError && (
         <div className="live-banner" role="alert">
           <Icon name="error" size={16} />
           <div>

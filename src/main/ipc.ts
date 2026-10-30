@@ -258,7 +258,7 @@ export function registerIpcHandlers(): void {
     }
     return listEnvelopes(path, limit, sync, options)
   })
-  ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number) => getMessage(path, uid))
+  ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number, cachedOnly = false) => getMessage(path, uid, cachedOnly === true))
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)
   )
@@ -368,11 +368,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.outboxRetry, (_event, id: string) => retryOutbox(id))
   ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
 
-  ipcMain.handle(IPC.syncMailbox, (_event, path: string) => {
+  ipcMain.handle(IPC.syncMailbox, async (_event, path: string) => {
     if (typeof path !== 'string' || path.trim() === '') {
       return { ok: false, code: 'unknown', detail: 'Carpeta inválida' }
     }
-    return syncMailbox(path)
+    const result = await syncMailbox(path)
+    if (result.ok) void processOutbox().catch(error => console.error('[outbox] reconnect retry failed:', error))
+    return result
   })
   ipcMain.handle(IPC.senderLogo, (_event, email: string, mailbox: string) => senderLogo(email, mailbox))
   ipcMain.handle(IPC.syncProgress, () => getSyncProgress())

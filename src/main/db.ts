@@ -660,7 +660,7 @@ export function readBody(mailbox: string, uid: number): CachedBody {
     to: parseAddresses(row?.to_json ?? null),
     cc: parseAddresses(row?.cc_json ?? null),
     attachments: parseAttachments(row?.attachments_json ?? null),
-    fetched: Boolean(row?.body_text || row?.body_html)
+    fetched: row != null && (row.body_text !== null || row.body_html !== null)
   }
 }
 

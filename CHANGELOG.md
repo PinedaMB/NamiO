@@ -2,6 +2,10 @@
 
 ## Sin publicar
 
+- En el lector, los fallos temporales de red o DNS activan el aviso de desconexión en lugar de sugerir que la cuenta tiene mal configurado el servidor. Los errores de autenticación y certificados conservan su aviso.
+
+- El lector consulta los cuerpos guardados antes de esperar a la red; muestra cuándo falta contenido sin conexión y reintenta los mensajes parciales al reconectar. La reconexión sincroniza la carpeta abierta y reactiva la cola pendiente.
+
 - Reconectar o detectar borrados en el servidor conserva los cuerpos de los correos ya descargados; la caché solo se reconstruye si cambia la identidad de la carpeta o se reinician sus UID.
 
 - Los fallos de red de OAuth/Fetch se reconocen como desconexión y permiten usar la copia guardada del correo, en lugar de mostrar un error genérico «fetch failed».

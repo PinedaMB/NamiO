@@ -111,6 +111,9 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
     secure: config.secure,
     // XOAUTH2 cuando la cuenta es OAuth2; si no, SASL PLAIN con la contraseña.
     auth: 'accessToken' in auth ? { user: config.user, accessToken: auth.accessToken } : { user: config.user, pass: auth.password },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
     logger: false,
     tls: { rejectUnauthorized: true }
   })
@@ -696,12 +699,17 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
   }
 }
 
-export async function getMessage(path: string, uid: number): Promise<CachedResult<MessageDetail>> {
+export async function getMessage(path: string, uid: number, cachedOnly = false): Promise<CachedResult<MessageDetail>> {
   const generation = syncGeneration
   const body = readBody(path, uid)
   if (body.fetched) {
     const detail = cachedDetail(path, uid)
     if (detail) return { ok: true, data: detail, meta: syncMeta() }
+  }
+
+  if (cachedOnly) {
+    const detail = cachedDetail(path, uid)
+    return detail ? { ok: true, data: detail, meta: { ...syncMeta(), partial: true } } : { ok: false, code: 'unknown', detail: 'No se encontró el mensaje en la caché' }
   }
 
   try {
