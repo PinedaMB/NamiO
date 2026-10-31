@@ -66,16 +66,16 @@ function findLoadMore(node) {
 }
 findLoadMore(appAst)
 async function checkPagination(fail, stale) {
-  let limit = 2050, count = 0, calls = 0
+  let limit = 950, count = 0, calls = 0
   const context = {
     live: true, loadingFolder: false, loadingMoreRef: { current: false }, folder: 'INBOX', activeFolderRef: { current: 'INBOX' },
-    folderRequest: { current: 1 }, accountGeneration: { current: 1 }, listLimit: limit, locale: 'es',
+    folderRequest: { current: 1 }, accountGeneration: { current: 1 }, listLimit: limit, locale: 'es', MAX_LIST_LIMIT: 1000,
     listOptions: { current: { filter: 'unread', oldestFirst: true } }, useCallback: fn => fn,
     setListLimit: next => { limit = next }, setListCounts: value => { count = value.total },
     setThreads() {}, setSelectedId() {}, envelopesToThreads: value => value,
     window: { api: { listEnvelopes: async (folder, next, sync, options) => {
       calls++
-      assert.equal(next, 2150, 'pagination continues beyond 2000')
+      assert.equal(next, 1000, 'pagination stops at the DOM ceiling')
       assert.equal(sync, false, 'pagination only queries cache')
       assert.equal(options.filter, 'unread')
       assert.equal(options.oldestFirst, true)
@@ -87,14 +87,14 @@ async function checkPagination(fail, stale) {
   await more()
   assert.equal(calls, 1)
   assert.equal(context.loadingMoreRef.current, false)
-  assert.equal(limit, fail || stale ? 2050 : 2150, 'failed or obsolete query does not advance pagination')
+  assert.equal(limit, fail || stale ? 950 : 1000, 'failed or obsolete query does not advance pagination')
   assert.equal(count, fail || stale ? 0 : 2505)
 }
 ;(async () => {
   await checkPagination(false, false)
   await checkPagination(true, false)
   await checkPagination(false, true)
-  console.log('Pagination: query forwarding, >2000, retry and obsolete filter/folder response verified')
+  console.log('Pagination: query forwarding, DOM ceiling, retry and obsolete filter/folder response verified')
 })().catch(error => { console.error(error); process.exitCode = 1 })
 
 let reloadQuery

@@ -31,6 +31,7 @@ function newMessageId(user: string | undefined): string {
 
 let processing = false
 let outboxPaused = false
+let wakeTimer: ReturnType<typeof setTimeout> | null = null
 let processingDone: Promise<void> | null = null
 
 export async function pauseOutbox(): Promise<void> {
@@ -133,8 +134,14 @@ function isTransientOutboxError(error: unknown): boolean {
 function registerFailure(row: OutboxRow, error: unknown): void {
   const transient = isTransientOutboxError(error)
   const attempts = transient ? row.attempts : row.attempts + 1
+  const failures = transient ? row.failures + 1 : row.failures
+  // 30 s, 1 min, 2 min, 4 min, 8 min… hasta 15 min. Un fallo de red no consume
+  // intentos, pero tampoco martilla el servidor cada minuto para siempre.
+  const delay = transient ? Math.min(30_000 * 2 ** Math.min(Math.max(failures - 1, 0), 5), 15 * 60_000) : 0
   updateOutbox(row.id, {
     attempts,
+    failures,
+    nextAttemptAt: delay > 0 ? Date.now() + delay : null,
     lastError: describeError(error),
     status: attempts >= MAX_ATTEMPTS ? 'failed' : 'queued'
   })
@@ -345,8 +352,29 @@ async function runOne(row: OutboxRow): Promise<void> {
 }
 
 /** Procesa la cola en orden. Es idempotente y no corre en paralelo consigo misma. */
+function scheduleOutboxWake(): void {
+  if (wakeTimer !== null) {
+    if (typeof clearTimeout === 'function') clearTimeout(wakeTimer)
+    wakeTimer = null
+  }
+  if (outboxPaused || typeof setTimeout !== 'function') return
+  const now = Date.now()
+  const next = listOutbox()
+    .filter((row) => row.status !== 'failed' && row.nextAttemptAt !== null && row.nextAttemptAt > now)
+    .reduce<number | null>((earliest, row) => Math.min(earliest ?? row.nextAttemptAt!, row.nextAttemptAt!), null)
+  if (next === null) return
+  wakeTimer = setTimeout(() => {
+    wakeTimer = null
+    void processOutbox().catch((error: unknown) => console.error('[outbox]', error))
+  }, Math.max(1000, Math.min(60_000, next - now)))
+}
+
 export async function processOutbox(): Promise<void> {
   if (processing || outboxPaused) return
+  if (wakeTimer !== null) {
+    if (typeof clearTimeout === 'function') clearTimeout(wakeTimer)
+    wakeTimer = null
+  }
   processing = true
   let done!: () => void
   processingDone = new Promise(resolve => { done = resolve })
@@ -355,7 +383,12 @@ export async function processOutbox(): Promise<void> {
   try {
     const attempted = new Set<string>()
     while (!outboxPaused) {
-      const row = listOutbox().find(item => item.status !== 'failed' && !attempted.has(item.id))
+      const now = Date.now()
+      const row = listOutbox().find(item =>
+        item.status !== 'failed' &&
+        !attempted.has(item.id) &&
+        (item.nextAttemptAt == null || item.nextAttemptAt <= now)
+      )
       if (!row) break
       attempted.add(row.id)
       if (owner !== cacheAccountId()) return
@@ -375,6 +408,7 @@ export async function processOutbox(): Promise<void> {
     processingDone = null
     done()
     notify()
+    scheduleOutboxWake()
   }
 }
 
@@ -457,7 +491,7 @@ export async function deleteMessageAction(path: string, uid: number, permanent =
 export async function retryOutbox(id: string): Promise<void> {
   // Un reintento manual abre un ciclo nuevo: si no se reinicia, el primer fallo
   // vuelve a dejar la fila en `failed` sin haber agotado los intentos.
-  updateOutbox(id, { status: 'queued', attempts: 0, lastError: null })
+  updateOutbox(id, { status: 'queued', attempts: 0, failures: 0, nextAttemptAt: null, lastError: null })
   notify()
   await processOutbox()
 }

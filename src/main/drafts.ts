@@ -18,7 +18,7 @@ export function queueDraftSave(input: Draft): Draft {
   const draft: Draft = { ...input, id: input.id ?? randomUUID(), server: existing?.server, previousServer: existing?.previousServer, syncedAt: existing?.syncedAt, updatedAt: Math.max(Date.now(), (existing?.updatedAt ?? 0) + 1) }
   saveDraft(draft)
   const pending = listOutbox().find(row => row.kind === 'draft-save' && JSON.parse(row.payload ?? '{}').draftId === draft.id)
-  if (pending) updateOutbox(pending.id, { status: 'queued', attempts: 0, lastError: null })
+  if (pending) updateOutbox(pending.id, { status: 'queued', attempts: 0, failures: 0, nextAttemptAt: null, lastError: null })
   else enqueueOutbox({ kind: 'draft-save', payload: { draftId: draft.id }, accountId: cacheAccountId() })
   notifyDraftsChanged()
   return draft

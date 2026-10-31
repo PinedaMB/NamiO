@@ -71,6 +71,7 @@ import { decryptSecret, encryptSecret, readSettings, readActiveAccount, readAcco
 const MAX_MESSAGE_BYTES = 50 * 1024 * 1024
 const MAX_BODY_BYTES = 30 * 1024 * 1024
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+const MAX_ENVELOPE_LIMIT = 1000
 const MAX_OFFLINE_MESSAGE_BYTES = 30 * 1024 * 1024
 
 interface Session {
@@ -723,6 +724,7 @@ export async function listEnvelopes(
   sync = true,
   options: EnvelopeListOptions = {}
 ): Promise<EnvelopeListResult> {
+  limit = Math.min(Math.max(1, Math.trunc(limit)), MAX_ENVELOPE_LIMIT)
   const result = (): EnvelopeListResult => ({ ok: true, data: readEnvelopes(path, limit, options), meta: syncMeta(), counts: { total: countMessages(path), unread: countUnread(path), availableOffline: countBodies(path) } })
   const cached = result()
 
@@ -759,7 +761,7 @@ async function cacheMessageBody(path: string, uid: number): Promise<void> {
     const message = await client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true }, { uid: true })
     if (!message || message.uid !== uid || !message.bodyStructure) throw new Error('No se encontró la estructura del mensaje')
     const parts: { part: string; type: string }[] = []
-    const attachments: { name: string; size: number; type: string }[] = []
+    const attachments: { name: string; size: number; type: string; part?: string }[] = []
     const collect = (node: MessageStructureObject): void => {
       const filename = node.dispositionParameters?.filename ?? node.parameters?.name
       const attached = node.disposition?.toLowerCase() === 'attachment' || Boolean(filename) || node.type.toLowerCase() === 'message/rfc822'
@@ -767,7 +769,7 @@ async function cacheMessageBody(path: string, uid: number): Promise<void> {
       if (!attached && ['text/plain', 'text/html'].includes(node.type.toLowerCase())) {
         parts.push({ part: node.part || '1', type: node.type.toLowerCase() })
       } else {
-        attachments.push({ name: filename || `adjunto-${attachments.length + 1}`, size: node.size ?? 0, type: node.type })
+        attachments.push({ name: filename || `adjunto-${attachments.length + 1}`, size: node.size ?? 0, type: node.type, part: node.part || undefined })
       }
     }
     collect(message.bodyStructure)
@@ -897,7 +899,14 @@ export async function getMessage(path: string, uid: number, cachedOnly = false):
       }
       const fetched = await fetchMessage(path, uid)
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
-      saveBody(path, uid, { text: fetched.text, html: fetched.html, to: fetched.to, cc: fetched.cc, attachments: fetched.attachments })
+      // El parser completo no conoce la numeración MIME del servidor; se
+      // conserva la parte que ya había guardado la sincronización de cuerpo.
+      const previous = readBody(path, uid)?.attachments ?? []
+      const attachments = fetched.attachments.map((attachment, index) => ({
+        ...attachment,
+        part: previous[index]?.part
+      }))
+      saveBody(path, uid, { text: fetched.text, html: fetched.html, to: fetched.to, cc: fetched.cc, attachments })
       notify(path)
       offline = false
       return fetched
@@ -1013,6 +1022,15 @@ export function readAttachment(
 
     try {
       const cachedEnvelope = readEnvelope(path, uid)
+      const cachedAttachment = readBody(path, uid)?.attachments[index]
+      // Con la parte MIME cacheada se baja solo el adjunto, no el mensaje entero.
+      if (cachedAttachment?.part) {
+        if (cachedAttachment.size > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
+        const part = await client.download(String(uid), cachedAttachment.part, { uid: true })
+        if (!part.content) throw new Error('El adjunto no tiene contenido')
+        const content = await readLimited(part.content, MAX_ATTACHMENT_BYTES, 'El adjunto supera el límite de 25 MB')
+        return { type: cachedAttachment.type, name: cachedAttachment.name, content }
+      }
       if (cachedEnvelope && cachedEnvelope.size > MAX_MESSAGE_BYTES) throw new Error('El mensaje supera el límite de 50 MB; no se puede extraer el adjunto')
       const download = await client.download(String(uid), undefined, { uid: true })
       if (!download.content) throw new Error('El mensaje no tiene contenido')

@@ -30,7 +30,10 @@ async function main() {
     assert.equal((await exports.readAccounts()).accounts[0].label, 'Trabajo')
     await exports.updateAccount('deleted', { refreshToken: 'ignored' })
     assert.equal((await exports.readAccounts()).accounts.length, 1)
-    console.log('Settings persistence: concurrent name/token/preferences and reconnect preserve the account name')
+    await fs.writeFile(join(dir, 'settings.json'), '{broken')
+    assert.equal(Object.keys(await exports.readSettings()).length, 0, 'a corrupt file falls back to defaults')
+    assert.ok((await fs.readdir(dir)).some(name => name.includes('.corrupt-')), 'the corrupt file is preserved for recovery')
+    console.log('Settings persistence: concurrent name/token/preferences, reconnect and corrupt-file backup preserve data')
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
   }

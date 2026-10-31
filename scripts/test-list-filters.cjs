@@ -85,4 +85,8 @@ for (const kind of ['sort', 'filter']) {
   popup.props.onClose()
   assert.equal(menu, null)
 }
+const appSource = fs.readFileSync('src/renderer/src/App.tsx', 'utf8')
+assert.match(appSource, /MAX_LIST_LIMIT = 1000/, 'the list has a DOM ceiling')
+assert.match(appSource, /listLimit < MAX_LIST_LIMIT/, 'the list stops growing at the ceiling')
+assert.match(fs.readFileSync('src/main/imap.ts', 'utf8'), /MAX_ENVELOPE_LIMIT = 1000/, 'the main process clamps IPC list requests')
 console.log('List menus: open, select sort/filter, close and live/demo options verified')

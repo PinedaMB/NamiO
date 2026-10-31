@@ -74,6 +74,7 @@ async function main() {
     assert.equal(typeof row.attemptedAt, 'number', 'the first attempt is recorded before sending')
 
     // El servidor pudo aceptar el mensaje y perderse la respuesta: está en Enviados.
+    db.updateOutbox(row.id, { nextAttemptAt: 0 })
     alreadySent = true
     fail = false
     await mail.processOutbox()
@@ -91,6 +92,7 @@ async function main() {
     fail = true
     await mail.sendMail({ ...payload, subject: 'Tercero' })
     const retry = JSON.parse(db.listOutbox()[0].payload).messageId
+    db.updateOutbox(db.listOutbox()[0].id, { nextAttemptAt: 0 })
     fail = false
     await mail.processOutbox()
     assert.equal(sent, 2)

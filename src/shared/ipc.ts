@@ -238,6 +238,8 @@ export interface MessageAttachment {
   type: string
   /** Posición en el mensaje original; la usa el guardado. */
   index: number
+  /** Parte MIME (p. ej. "2.1") para descargar solo estos bytes. */
+  part?: string
 }
 
 export interface MessageDetail extends Envelope {

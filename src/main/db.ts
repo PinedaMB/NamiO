@@ -129,6 +129,8 @@ export function openAccountCache(accountId: string): void {
       uid_validity TEXT,
       status TEXT NOT NULL DEFAULT 'queued',
       attempts INTEGER NOT NULL DEFAULT 0,
+      failures INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at INTEGER,
       last_error TEXT,
       attempted_at INTEGER,
       created_at INTEGER NOT NULL
@@ -194,7 +196,7 @@ export function openAccountCache(accountId: string): void {
   // operación. Las filas antiguas se asignan a la cuenta de esta caché; su
   // UIDVALIDITY se resuelve al procesarlas.
   const outboxColumns = db.prepare('PRAGMA table_info(outbox)').all() as unknown as { name: string }[]
-  for (const [column, type] of [['account_id', 'TEXT'], ['uid_validity', 'TEXT'], ['attempted_at', 'INTEGER']] as const) {
+  for (const [column, type] of [['account_id', 'TEXT'], ['uid_validity', 'TEXT'], ['attempted_at', 'INTEGER'], ['next_attempt_at', 'INTEGER'], ['failures', 'INTEGER NOT NULL DEFAULT 0']] as const) {
     if (!outboxColumns.some((item) => item.name === column)) db.exec(`ALTER TABLE outbox ADD COLUMN ${column} ${type}`)
   }
   db.prepare('UPDATE outbox SET account_id = ? WHERE account_id IS NULL').run(accountId)
@@ -590,6 +592,10 @@ export interface OutboxRow {
   uidValidity: string | null
   status: string
   attempts: number
+  /** Fallos transitorios consecutivos; alimentan el backoff y no consumen intentos. */
+  failures: number
+  /** Epoch ms; la fila no se reintenta antes de esta hora. */
+  nextAttemptAt: number | null
   lastError: string | null
   /** Momento del primer intento de envío; si existe, hay que verificar Enviados. */
   attemptedAt: number | null
@@ -606,6 +612,8 @@ interface OutboxDbRow {
   uid_validity: string | null
   status: string
   attempts: number
+  failures: number
+  next_attempt_at: number | null
   last_error: string | null
   attempted_at: number | null
   created_at: number
@@ -622,6 +630,8 @@ function toOutboxRow(row: OutboxDbRow): OutboxRow {
     uidValidity: row.uid_validity,
     status: row.status,
     attempts: row.attempts,
+    failures: row.failures,
+    nextAttemptAt: row.next_attempt_at,
     lastError: row.last_error,
     attemptedAt: row.attempted_at,
     createdAt: row.created_at
@@ -669,15 +679,17 @@ export function getOutbox(id: string): OutboxRow | null {
 
 export function updateOutbox(
   id: string,
-  patch: { status?: string; attempts?: number; lastError?: string | null; attemptedAt?: number | null }
+  patch: { status?: string; attempts?: number; failures?: number; nextAttemptAt?: number | null; lastError?: string | null; attemptedAt?: number | null }
 ): void {
   const current = getOutbox(id)
   if (!current) return
   handle()
-    .prepare('UPDATE outbox SET status = ?, attempts = ?, last_error = ?, attempted_at = ? WHERE id = ?')
+    .prepare('UPDATE outbox SET status = ?, attempts = ?, failures = ?, next_attempt_at = ?, last_error = ?, attempted_at = ? WHERE id = ?')
     .run(
       patch.status ?? current.status,
       patch.attempts ?? current.attempts,
+      patch.failures ?? current.failures,
+      patch.nextAttemptAt === undefined ? current.nextAttemptAt : patch.nextAttemptAt,
       patch.lastError === undefined ? current.lastError : patch.lastError,
       patch.attemptedAt === undefined ? current.attemptedAt : patch.attemptedAt,
       id
@@ -715,7 +727,7 @@ export interface CachedBody {
   html: string | null
   to: { name: string; address: string }[]
   cc: { name: string; address: string }[]
-  attachments: { name: string; size: number; type: string }[]
+  attachments: { name: string; size: number; type: string; part?: string }[]
   fetched: boolean
 }
 
@@ -774,7 +786,7 @@ export function saveBody(
     html: string | null
     to: { name: string; address: string }[]
     cc: { name: string; address: string }[]
-    attachments: { name: string; size: number; type: string }[]
+    attachments: { name: string; size: number; type: string; part?: string }[]
   }
 ): void {
   handle()

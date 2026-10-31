@@ -33,6 +33,9 @@ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'namio-offline-mime-'));const 
  const previousRequests=requests.length;await api.getMessage('INBOX',1);
  assert.equal(requests.length,previousRequests,'already resolved images do not download again');
  assert.equal((await client.fetchOne('1',{flags:true},{uid:true})).flags.has('\\Seen'),false,'opening inline images must not mark mail read in the parser');
+ const attachments=db.readBody('INBOX',1).attachments;
+ assert.ok(attachments.length>=3&&attachments.every(item=>item.part),'attachment metadata keeps the MIME part');
  const file=await api.readAttachment('INBOX',1,2);assert.equal(file.content.toString(),parsed.attachments[2].content.toString(),'cached attachment index must match on-demand MIME parsing');
+ assert.equal(requests.at(-1),attachments[2].part,'on-demand attachments download only their MIME part');
  console.log('Real IMAP MIME: Latin-1/UTF-8, plain/HTML parts, no background binary transfers, unchanged Seen flag and on-demand attachment index passed');
 }finally{if(client)await client.logout().catch(()=>client.close());await new Promise(r=>server.close(r));db.closeCache?.();fs.rmSync(folder,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -43,10 +43,16 @@ function settingsPath(): string {
 export async function readSettings(): Promise<StoredSettings> {
   try {
     const raw = await readFile(settingsPath(), 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as StoredSettings) : {}
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      return typeof parsed === 'object' && parsed !== null ? (parsed as StoredSettings) : {}
+    } catch {
+      // No se descarta el archivo corrupto: se aparta para poder recuperarlo.
+      await rename(settingsPath(), `${settingsPath()}.corrupt-${Date.now()}`).catch(() => undefined)
+      return {}
+    }
   } catch {
-    // Primera ejecución o archivo corrupto: se arranca con los valores por defecto.
+    // Primera ejecución: todavía no hay archivo.
     return {}
   }
 }

@@ -79,8 +79,18 @@ async function main() {
     let row = db.listOutbox()[0]
     assert.equal(row.status, 'queued', 'network failures never become permanent by elapsed retries')
     assert.equal(row.attempts, 0, 'network failures do not consume attempts')
+    assert.equal(row.failures, 1, 'repeated process calls respect the backoff window')
     assert.match(row.lastError ?? '', /ECONNREFUSED/)
+    const firstDelay = row.nextAttemptAt
+    assert.ok(firstDelay && firstDelay > Date.now(), 'the first transient failure schedules a retry')
 
+    db.updateOutbox(row.id, { nextAttemptAt: 0 })
+    await mail.processOutbox()
+    row = db.listOutbox()[0]
+    assert.equal(row.failures, 2)
+    assert.ok((row.nextAttemptAt ?? 0) > (firstDelay ?? 0), 'backoff grows with repeated transient failures')
+
+    db.updateOutbox(row.id, { nextAttemptAt: 0 })
     mode = 'permanent'
     for (let index = 0; index < 5; index++) await mail.processOutbox()
     row = db.listOutbox()[0]

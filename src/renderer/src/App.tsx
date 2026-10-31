@@ -50,6 +50,9 @@ type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string; reply?: Rep
 type View = 'mailbox' | 'settings'
 
 const PAGE_SIZE = 50
+// Tope de DOM de la lista: por encima de esto la ventana deja de crecer y se
+// navega con los filtros, en vez de mantener miles de filas en el árbol.
+const MAX_LIST_LIMIT = 1000
 
 function matchesFilter(thread: Thread, filter: FilterId): boolean {
   switch (filter) {
@@ -646,8 +649,9 @@ export function App(): React.JSX.Element {
   /** Trae otra tanda de la caché (la descarga completa ya está en disco). */
   const loadMore = useCallback(async (): Promise<void> => {
     if (!live || loadingFolder || loadingMoreRef.current || folder !== activeFolderRef.current) return
+    if (listLimit >= MAX_LIST_LIMIT) return
     const request = folderRequest.current
-    const next = listLimit + 100
+    const next = Math.min(listLimit + 100, MAX_LIST_LIMIT)
 
     const generation = accountGeneration.current
     loadingMoreRef.current = true
@@ -1543,7 +1547,7 @@ export function App(): React.JSX.Element {
                 onSelect={select}
                 showVip={!live}
                 live={live}
-                hasMore={live && threads.length >= listLimit}
+                hasMore={live && listLimit < MAX_LIST_LIMIT && threads.length >= listLimit}
                 onLoadMore={loadMore}
               />
               )}

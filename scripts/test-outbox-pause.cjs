@@ -10,7 +10,8 @@ let release, started
 const running = new Promise(resolve => { started = resolve })
 const rows = [{ id: 'first', status: 'queued' }, { id: 'second', status: 'queued' }]
 const seen = []
-const api = vm.runInNewContext(ts.transpile(`let processing = false, outboxPaused = false, processingDone = null;
+const api = vm.runInNewContext(ts.transpile(`let processing = false, outboxPaused = false, wakeTimer = null, processingDone = null;
+const scheduleOutboxWake = () => {};
 ${functions}
 ({pauseOutbox, resumeOutbox, processOutbox})`, { target: ts.ScriptTarget.ES2022 }), {
   console, cacheAccountId: () => 'one', listOutbox: () => rows, notify: () => {},

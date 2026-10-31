@@ -88,6 +88,7 @@ async function main() {
     db.closeCache(); db.openAccountCache('one')
     assert.equal(db.listOutbox()[0].id,pendingId,'offline send survives reopening the persistent cache')
     failSmtp = false
+    db.updateOutbox(pendingId, { nextAttemptAt: 0 })
     const deliveriesBeforeRetry = sent.length
     await Promise.all([mail.processOutbox(),mail.processOutbox()])
     assert.equal(sent.length,deliveriesBeforeRetry+1,'concurrent retries deliver the queued message once')
@@ -103,6 +104,7 @@ async function main() {
     assert.equal(mail.outboxItems()[0].deletionProgress.running,false,'a disconnected deletion is pending, not still running')
     db.closeCache();db.openAccountCache('one')
     failBatch = false
+    db.updateOutbox(db.listOutbox()[0].id, { nextAttemptAt: 0 })
     await mail.processOutbox()
     assert.equal(db.listOutbox().length,0,'background deletion resumes after reopening the cache')
     assert.equal(deletedBatches.length,1)

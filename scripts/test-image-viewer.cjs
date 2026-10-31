@@ -111,6 +111,7 @@ async function main() {
   const readerContext = {Buffer, Error, syncGeneration: 1, serial: fn => Promise.resolve().then(fn),
     MAX_MESSAGE_BYTES: 50 * 1024 * 1024, MAX_ATTACHMENT_BYTES: 25 * 1024 * 1024,
     readEnvelope: () => ({ size: 0 }),
+    readBody: () => ({ attachments: [] }),
     ensureClient: async () => ({getMailboxLock: async () => ({release: () => {releasedLock = true}}), download: async () => ({content: (async function* () {yield Buffer.from('mime')})()})}),
     simpleParser: () => new Promise(resolve => {releaseParse = resolve})}
   const readLimited = imapAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'readLimited').getText(imapAst)
