@@ -83,7 +83,7 @@ async function main(){
   if(id==='./settings')return{readActiveAccount:async()=>({id:'one'})}
   if(id==='electron')return{dialog:{},BrowserWindow:{}}
   if(id==='nodemailer')return{createTransport:options=>options.streamTransport?require('nodemailer').createTransport(options):{sendMail:async()=>{if(smtpFails)throw new Error('SMTP offline');smtpSent++},close(){}}}
-  if(id==='./imap')return{getCredentials:async()=>({account:{user:'author@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async()=>{},removeServerDraft:async reference=>context.removeDraftWithClient(client,reference)}
+  if(id==='./imap')return{getCredentials:async()=>({account:{user:'author@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async()=>{},sentContains:async()=>false,removeServerDraft:async reference=>context.removeDraftWithClient(client,reference)}
   return require(id)
  }})
  await mail.processOutbox()

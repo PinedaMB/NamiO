@@ -26,10 +26,10 @@ const api = vm.runInNewContext(ts.transpile(`${functions}; ({classify, isOffline
   for (const code of ['CERT_HAS_EXPIRED', 'ERR_TLS_CERT_ALTNAME_INVALID']) {
     failure = new TypeError('fetch failed', { cause: Object.assign(new Error('certificate error'), { code }) })
     assert.equal(api.classify(failure), 'tls')
-    fallback = null
+    assert.equal(api.isOfflineError('tls'), false, 'a certificate error is not a disconnection')
     const result = await api.getMessage('INBOX', 1)
-    assert.equal(result.ok, false); assert.equal(result.code, 'tls', 'certificate errors are not reclassified as network failures')
-    fallback = cached
+    assert.equal(result.ok, false, 'a certificate error is not hidden behind cached mail')
+    assert.equal(result.code, 'tls', 'certificate errors are not reclassified as network failures')
   }
   failure = Object.assign(new Error('Invalid credentials'), { authenticationFailed: true })
   assert.equal(api.classify(failure), 'auth'); assert.equal((await api.getMessage('INBOX', 1)).ok, false)

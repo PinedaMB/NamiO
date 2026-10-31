@@ -1,4 +1,5 @@
 import type { Rule, RuleDraft } from '@shared/ipc'
+import { isDraftMailbox, isSpamMailbox, isTrashMailbox } from '@shared/mailboxes'
 import {
   allCachedMessages,
   archiveMailboxPath,
@@ -6,9 +7,11 @@ import {
   deleteRuleRow,
   enqueueOutbox,
   getMailboxMeta,
+  inTransaction,
   insertRule,
   listRules,
   messagesByUids,
+  readMailboxes,
   updateRule,
   type CachedMessage,
   type RuleRow
@@ -87,39 +90,65 @@ export function applyRulesTo(messages: readonly CachedMessage[]): number {
   const rules = listRules().filter((rule) => rule.enabled === 1)
   if (rules.length === 0 || messages.length === 0) return 0
 
-  let matched = 0
-  for (const message of messages) {
-    const rule = rules.find((candidate) => matches(candidate, message))
-    if (!rule) continue
+  // Encolar la acción y sumar el hit de la regla son una sola escritura lógica:
+  // si algo falla a mitad, no quedan acciones sin contador ni al revés.
+  return inTransaction(() => {
+    let matched = 0
+    for (const message of messages) {
+      const rule = rules.find((candidate) => matches(candidate, message))
+      if (!rule) continue
 
-    const action = actionOf(rule)
-    if (!action) continue
-    // Mover a la carpeta donde ya está no es una acción, es ruido.
-    if (action.destination && action.destination === message.mailbox) continue
+      const action = actionOf(rule)
+      if (!action) continue
+      // Mover a la carpeta donde ya está no es una acción, es ruido.
+      if (action.destination && action.destination === message.mailbox) continue
 
-    const uidValidity = getMailboxMeta(message.mailbox)?.uidValidity
-    enqueueOutbox({
-      kind: action.kind,
-      mailbox: message.mailbox,
-      uid: message.uid,
-      payload: action.payload,
-      uidValidity: uidValidity == null ? null : String(uidValidity)
-    })
-    bumpRuleHits(rule.id)
-    matched += 1
-  }
-  return matched
+      const uidValidity = getMailboxMeta(message.mailbox)?.uidValidity
+      enqueueOutbox({
+        kind: action.kind,
+        mailbox: message.mailbox,
+        uid: message.uid,
+        payload: action.payload,
+        uidValidity: uidValidity == null ? null : String(uidValidity)
+      })
+      bumpRuleHits(rule.id)
+      matched += 1
+    }
+    return matched
+  })
+}
+
+function rulesMayApplyTo(mailbox: string): boolean {
+  const box = readMailboxes().find((item) => item.path === mailbox)
+  if (!box) return false
+  // Spam, Papelera, Borradores y Enviados no se mueven/borran solos: una regla
+  // mal puesta no debe vaciar una carpeta destructiva mientras llega correo.
+  return !isDraftMailbox(box) && !isSpamMailbox(box) && !isTrashMailbox(box) && box.specialUse !== '\\Sent'
 }
 
 /** Mensajes recién llegados al buzón (los que el motor acaba de descubrir). */
 export function applyRulesToNew(mailbox: string, uids: readonly number[]): number {
-  if (uids.length === 0) return 0
+  if (uids.length === 0 || !rulesMayApplyTo(mailbox)) return 0
   return applyRulesTo(messagesByUids(mailbox, uids))
 }
 
-/** Repaso manual sobre todo lo cacheado (botón "aplicar a los existentes"). */
+/** Repaso manual sobre todo lo cacheado, por páginas para no cargar todo en memoria. */
 export function applyRulesToCache(): number {
-  return applyRulesTo(allCachedMessages())
+  const boxes = new Map(readMailboxes().map((box) => [box.path, box]))
+  let matched = 0
+  const pageSize = 1000
+  for (let offset = 0; ; offset += pageSize) {
+    const page = allCachedMessages(pageSize, offset)
+    if (page.length === 0) break
+    const eligible = page.filter((message) => {
+      const box = boxes.get(message.mailbox)
+      if (!box) return false
+      return !isDraftMailbox(box) && !isSpamMailbox(box) && !isTrashMailbox(box) && box.specialUse !== '\\Sent'
+    })
+    if (eligible.length > 0) matched += applyRulesTo(eligible)
+    if (page.length < pageSize) break
+  }
+  return matched
 }
 
 function toRule(row: RuleRow): Rule {

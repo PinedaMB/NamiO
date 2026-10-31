@@ -23,3 +23,10 @@ export function sidebarMailboxes(mailboxes: readonly MailboxInfo[]): readonly Ma
 export function isDraftMailbox(mailbox: { path: string; name?: string; specialUse?: string | null }): boolean {
   return mailbox.specialUse === '\\Drafts' || /^(drafts?|borradores)$/i.test(mailbox.name ?? mailbox.path.split('/').at(-1) ?? '')
 }
+
+export function isTrashMailbox(mailbox: { path: string; name?: string; specialUse?: string | null }): boolean {
+  if (mailbox.specialUse === '\\Trash') return true
+  return [mailbox.name ?? '', ...mailbox.path.split(/[\/\\]/)].some((name) =>
+    /^(trash|deleted items|deleted messages|papelera|elementos eliminados)$/i.test(name.trim())
+  )
+}

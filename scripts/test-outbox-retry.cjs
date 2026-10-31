@@ -62,6 +62,7 @@ async function main() {
             password: 'test'
           }),
           appendToSent: async () => {},
+          sentContains: async () => false,
           deleteMessageBatch: async () => {}
         }
         return require(id)

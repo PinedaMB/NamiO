@@ -286,6 +286,8 @@ export interface SendMailPayload {
   priority?: MailPriority
   draftId?: string
   draftUpdatedAt?: number
+  /** Identidad estable generada al encolar; el reintento reutiliza la misma. */
+  messageId?: string
   html?: string
   bcc?: string
   inReplyTo?: string

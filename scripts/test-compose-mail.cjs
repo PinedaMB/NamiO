@@ -35,7 +35,7 @@ async function main() {
       if(id==='./settings')return {readActiveAccount:async()=>({id:'one'})}
       if(id==='electron')return {dialog:{},BrowserWindow:{}}
       if(id==='nodemailer')return {createTransport:options=>options.streamTransport ? nodemailer.createTransport(options) : {sendMail:async message=>{if(failSmtp)throw new Error('Offline');sent.push(message)},close(){}}}
-      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)},deleteMessageBatch:async(...args)=>{if(failBatch)throw new Error('IMAP offline');args[4](1);args[4](args[1].length);deletedBatches.push(args)}}
+      if(id==='./imap')return {getCredentials:async()=>({account:{user:'from@example.com',smtp:{host:'localhost',port:465,secure:true}},password:'test'}),appendToSent:async raw=>{if(failSentCopy)throw new Error('IMAP offline after SMTP accepted');copies.push(raw)},sentContains:async()=>false,deleteMessageBatch:async(...args)=>{if(failBatch)throw new Error('IMAP offline');args[4](1);args[4](args[1].length);deletedBatches.push(args)}}
       return require(id)
     }})
     const payload = {priority:draft.priority,to:draft.to,cc:draft.cc,bcc:draft.bcc,subject:draft.subject,text:draft.body,html:draft.html,attachments:['file1'],inReplyTo:draft.inReplyTo,references:draft.references}

@@ -20,7 +20,7 @@ async function check(scenario) {
   let server = scenario === 'deleted' || scenario === 'search-failed' ? [1, 3] : scenario === 'new-mail' ? [1, 2, 3, 4] : [1, 2, 3]
   const uidValidity = scenario === 'identity-changed' ? 8 : 7
   const uidNext = scenario === 'uid-reset' || scenario === 'stale-fallback' || scenario === 'partial-status' ? 3 : scenario === 'new-mail' ? 5 : 4
-  let cleared = false, released = false, searches = 0
+  let cleared = false, released = false, searches = 0, ruleCalls = 0
   const requests = []
   const client = {
     mailbox: { path: 'Another folder', uidValidity: 999n, uidNext: 999n, exists: 0 },
@@ -37,7 +37,7 @@ async function check(scenario) {
     search: async () => { searches++; return scenario === 'search-failed' ? false : server }
   }
   const context = { ...db, ensureClient: async () => client, readActiveAccount: async () => null, ensureFullSync() {}, isDraftMailbox: () => false,
-    clearMailbox: folder => { cleared = true; db.clearMailbox(folder) }, applyRulesToNew: () => 0,
+    clearMailbox: folder => { cleared = true; db.clearMailbox(folder) }, applyRulesToNew: () => { ruleCalls++; return 0 },
     fetchRange: async (_client, range, byUid) => {
       requests.push({ range, byUid })
       const from = Number(range.split(':')[0])
@@ -50,6 +50,8 @@ async function check(scenario) {
   assert.ok(released, 'folder locks release even if status or reconciliation fails')
   const reset = scenario === 'identity-changed' || scenario === 'uid-reset'
   assert.equal(cleared, reset, 'only confirmed identity/UID resets invalidate the cache')
+  if (reset) assert.equal(ruleCalls, 0, 'historical refill is never fed to automatic rules')
+  else if (scenario === 'new-mail') assert.equal(ruleCalls, 1, 'only the newly arrived message reaches the rules')
   for (const uid of [1, 3]) assert.equal(db.readBody('INBOX', uid).text, reset ? null : `Saved body ${uid}`, 'unchanged message bodies survive reconnect and deletion reconciliation')
   if (scenario === 'deleted') { assert.equal(db.readEnvelope('INBOX', 2), null); assert.equal(searches, 1) }
   if (scenario === 'search-failed') assert.ok(db.readEnvelope('INBOX', 2), 'failed UID search cannot prune the cache')

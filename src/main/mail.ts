@@ -8,7 +8,7 @@ import { createTransport } from 'nodemailer'
 import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
 import { readMailboxes, readEnvelope, getMailboxMeta, readDraft, cacheAccountId, rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
 import { readActiveAccount } from './settings'
-import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCredentials, moveMessage, removeServerDraft, setSeen, syncInbox } from './imap'
+import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCredentials, moveMessage, removeServerDraft, sentContains, setSeen, syncInbox } from './imap'
 
 /**
  * Cola de salida: todo lo que modifica el servidor (enviar, archivar, eliminar)
@@ -21,6 +21,13 @@ const MAX_ATTEMPTS = 5
 /** Los adjuntos se copian a SQLite y viajan por SMTP; 25 MB por archivo y 50 MB por envío. */
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 const MAX_ATTACHMENT_TOTAL_BYTES = 50 * 1024 * 1024
+
+/** `Message-ID` estable desde el encolado: el reintento no crea otro mensaje. */
+function newMessageId(user: string | undefined): string {
+  const domain = (user ?? '').split('@')[1]?.trim().toLowerCase() ?? ''
+  const safe = /^[a-z0-9.-]+$/.test(domain) ? domain : 'namio.local'
+  return `<${randomUUID()}@${safe}>`
+}
 
 let processing = false
 let outboxPaused = false
@@ -206,6 +213,7 @@ async function sendWithSmtp(payload: SendMailPayload, accountId: string | null):
     inReplyTo: payload.inReplyTo,
     references: payload.references,
     priority: payload.priority,
+    messageId: payload.messageId,
     subject: payload.subject,
     text: payload.text,
     html: payload.html,
@@ -279,8 +287,20 @@ async function runOne(row: OutboxRow): Promise<void> {
     if (!reference || typeof reference.path !== 'string' || !Number.isInteger(reference.uid) || typeof reference.uidValidity !== 'string') throw new Error('Borrador inválido')
     await removeServerDraft(reference, expectedAccount)
   } else if (row.kind === 'send') {
-    await sendWithSmtp(payloadOf(row) as unknown as SendMailPayload, expectedAccount)
-    if (owner === cacheAccountId() && typeof payloadOf(row).draftId === 'string' && readDraft(payloadOf(row).draftId as string)?.updatedAt === payloadOf(row).draftUpdatedAt) queueDraftDelete(payloadOf(row).draftId as string)
+    const payload = payloadOf(row) as unknown as SendMailPayload
+    const messageId = typeof payload.messageId === 'string' && payload.messageId !== ''
+      ? payload.messageId
+      : `<${row.id}@namio.local>`
+    if (row.attemptedAt != null) {
+      // Un intento anterior pudo ser aceptado por el servidor aunque se perdiera
+      // la confirmación. Si ya está en Enviados, no se vuelve a mandar.
+      const alreadySent = await sentContains(messageId, expectedAccount)
+      if (!alreadySent) await sendWithSmtp({ ...payload, messageId }, expectedAccount)
+    } else {
+      updateOutbox(row.id, { attemptedAt: Date.now() })
+      await sendWithSmtp({ ...payload, messageId }, expectedAccount)
+    }
+    if (owner === cacheAccountId() && typeof payload.draftId === 'string' && readDraft(payload.draftId)?.updatedAt === payload.draftUpdatedAt) queueDraftDelete(payload.draftId)
   } else if (row.kind === 'archive') {
     const path = row.mailbox ?? 'INBOX'
     const target = archivePath()
@@ -373,7 +393,7 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
   if ((payload.inReplyTo !== undefined && (typeof payload.inReplyTo !== 'string' || /[\r\n]/.test(payload.inReplyTo))) || (payload.references !== undefined && (!Array.isArray(payload.references) || payload.references.some(id => typeof id !== 'string' || /[\r\n]/.test(id))))) {
     return { ok: false, queued: false, error: 'Cabeceras de respuesta inválidas' }
   }
-  payload = { ...payload, draftUpdatedAt: payload.draftId ? readDraft(payload.draftId)?.updatedAt : undefined, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
+  payload = { ...payload, messageId: newMessageId((await readActiveAccount())?.user), draftUpdatedAt: payload.draftId ? readDraft(payload.draftId)?.updatedAt : undefined, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
   const id = enqueueOutbox({ kind: 'send', payload })
   try {
     rememberRecipients([payload.to, payload.cc, payload.bcc ?? ''].flatMap(splitRecipients))

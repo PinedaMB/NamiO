@@ -130,6 +130,7 @@ export function openAccountCache(accountId: string): void {
       status TEXT NOT NULL DEFAULT 'queued',
       attempts INTEGER NOT NULL DEFAULT 0,
       last_error TEXT,
+      attempted_at INTEGER,
       created_at INTEGER NOT NULL
     );
 
@@ -193,8 +194,8 @@ export function openAccountCache(accountId: string): void {
   // operación. Las filas antiguas se asignan a la cuenta de esta caché; su
   // UIDVALIDITY se resuelve al procesarlas.
   const outboxColumns = db.prepare('PRAGMA table_info(outbox)').all() as unknown as { name: string }[]
-  for (const column of ['account_id', 'uid_validity']) {
-    if (!outboxColumns.some((item) => item.name === column)) db.exec(`ALTER TABLE outbox ADD COLUMN ${column} TEXT`)
+  for (const [column, type] of [['account_id', 'TEXT'], ['uid_validity', 'TEXT'], ['attempted_at', 'INTEGER']] as const) {
+    if (!outboxColumns.some((item) => item.name === column)) db.exec(`ALTER TABLE outbox ADD COLUMN ${column} ${type}`)
   }
   db.prepare('UPDATE outbox SET account_id = ? WHERE account_id IS NULL').run(accountId)
 }
@@ -202,6 +203,20 @@ export function openAccountCache(accountId: string): void {
 function handle(): DatabaseSync {
   if (!db) throw new Error('La caché no está inicializada')
   return db
+}
+
+/** Ejecuta varias escrituras como una sola unidad atómica. */
+export function inTransaction<T>(fn: () => T): T {
+  const database = handle()
+  database.exec('BEGIN')
+  try {
+    const result = fn()
+    database.exec('COMMIT')
+    return result
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 export function closeCache(): void {
@@ -576,6 +591,8 @@ export interface OutboxRow {
   status: string
   attempts: number
   lastError: string | null
+  /** Momento del primer intento de envío; si existe, hay que verificar Enviados. */
+  attemptedAt: number | null
   createdAt: number
 }
 
@@ -590,6 +607,7 @@ interface OutboxDbRow {
   status: string
   attempts: number
   last_error: string | null
+  attempted_at: number | null
   created_at: number
 }
 
@@ -605,6 +623,7 @@ function toOutboxRow(row: OutboxDbRow): OutboxRow {
     status: row.status,
     attempts: row.attempts,
     lastError: row.last_error,
+    attemptedAt: row.attempted_at,
     createdAt: row.created_at
   }
 }
@@ -650,16 +669,17 @@ export function getOutbox(id: string): OutboxRow | null {
 
 export function updateOutbox(
   id: string,
-  patch: { status?: string; attempts?: number; lastError?: string | null }
+  patch: { status?: string; attempts?: number; lastError?: string | null; attemptedAt?: number | null }
 ): void {
   const current = getOutbox(id)
   if (!current) return
   handle()
-    .prepare('UPDATE outbox SET status = ?, attempts = ?, last_error = ? WHERE id = ?')
+    .prepare('UPDATE outbox SET status = ?, attempts = ?, last_error = ?, attempted_at = ? WHERE id = ?')
     .run(
       patch.status ?? current.status,
       patch.attempts ?? current.attempts,
       patch.lastError === undefined ? current.lastError : patch.lastError,
+      patch.attemptedAt === undefined ? current.attemptedAt : patch.attemptedAt,
       id
     )
 }
@@ -1111,14 +1131,14 @@ export function messagesByUids(mailbox: string, uids: readonly number[]): Cached
   return rows.map(mapMessage)
 }
 
-export function allCachedMessages(limit: number = 5000): CachedMessage[] {
+export function allCachedMessages(limit: number = 5000, offset = 0): CachedMessage[] {
   const rows = handle()
     .prepare(
       `SELECT mailbox, uid, subject, from_name, from_addr, to_json
        FROM messages WHERE mailbox NOT IN (SELECT path FROM mailboxes WHERE special_use = '\\Sent')
-       ORDER BY date DESC LIMIT ?`
+       ORDER BY date DESC LIMIT ? OFFSET ?`
     )
-    .all(limit) as unknown as {
+    .all(limit, offset) as unknown as {
     mailbox: string
     uid: number
     subject: string

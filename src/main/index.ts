@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, session, shell, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, session, shell, nativeTheme } from 'electron'
 import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
@@ -56,6 +56,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
+      // Las DevTools solo existen en desarrollo; en la app instalada no hay
+      // una consola para ejecutar código con el preload cargado.
+      devTools: isDev,
       spellcheck: true
     }
   })
@@ -125,6 +128,12 @@ function createWindow(): void {
 /** CSP estricta en producción; en dev la relaja el servidor de Vite (HMR por websocket). */
 function hardenSession(): void {
   if (isDev) return
+
+  // Sin el menú por defecto no quedan aceleradores como Ctrl+Shift+I (DevTools)
+  // ni Ctrl+Shift+R. En macOS se conservan app/edición/ventana.
+  Menu.setApplicationMenu(process.platform === 'darwin'
+    ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }])
+    : null)
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({

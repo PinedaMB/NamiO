@@ -115,7 +115,9 @@ function syncMeta(): SyncMeta {
 }
 
 function isOfflineError(code: ImapErrorCode): boolean {
-  return code === 'dns' || code === 'refused' || code === 'timeout' || code === 'network' || code === 'tls'
+  // `tls` y `auth` no son falta de conexión: son fallos de configuración o
+  // credenciales y deben mostrarse como tales, no reintentarse como offline.
+  return code === 'dns' || code === 'refused' || code === 'timeout' || code === 'network'
 }
 
 type ImapAuth = { password: string } | { accessToken: string }
@@ -427,7 +429,9 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       clearMailbox(path)
       const start = Math.max(1, exists - limit + 1)
       const envelopes = await fetchRange(client, `${start}:*`, false)
-      nuevos.push(...upsertEnvelopes(path, envelopes))
+      // El relleno histórico no es "correo nuevo": no se evalúan reglas sobre
+      // él para que una regla no archive/elimine en masa correo antiguo.
+      upsertEnvelopes(path, envelopes)
       if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
     } else {
       const fromUid = cached.uidNext ?? 1
@@ -459,7 +463,9 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     // Refresca flags y cabeceras del tramo visible, también para cachés anteriores.
     if (exists > 0) {
       const recentStart = Math.max(1, exists - limit + 1)
-      nuevos.push(...upsertEnvelopes(path, await fetchRange(client, `${recentStart}:*`, false)))
+      const recent = await fetchRange(client, `${recentStart}:*`, false)
+      if (fullSync) upsertEnvelopes(path, recent)
+      else nuevos.push(...upsertEnvelopes(path, recent))
     }
 
     // Reconciliación: si el servidor cuenta más mensajes de los que tenemos, el
@@ -468,7 +474,8 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     if (countMessages(path) < exists) {
       const start = Math.max(1, exists - limit + 1)
       const envelopes = await fetchRange(client, `${start}:*`, false)
-      nuevos.push(...upsertEnvelopes(path, envelopes))
+      if (fullSync) upsertEnvelopes(path, envelopes)
+      else nuevos.push(...upsertEnvelopes(path, envelopes))
       // Si el tramo cubre todo el buzón, también se poda lo que ya no existe.
       if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
       saveMailboxSync(path, {
@@ -657,8 +664,9 @@ export async function listMailboxes(sync = true): Promise<CachedResult<MailboxIn
     // Con caché, se responde ya y se actualiza en segundo plano.
     void serial(syncMailboxes)
       .then(() => notify('*'))
-      .catch(() => {
-        offline = true
+      .catch((error: unknown) => {
+        // Un certificado o una contraseña inválidos no significan "sin conexión".
+        offline = isOfflineError(classify(error))
         // Sin este aviso la UI no se entera de que pasó a modo offline.
         notify('*')
       })
@@ -692,8 +700,8 @@ export async function listEnvelopes(
 
   void serial(() => syncMessages(path, limit))
     .then(() => notify(path))
-    .catch(() => {
-      offline = true
+    .catch((error: unknown) => {
+      offline = isOfflineError(classify(error))
       notify(path)
     })
 
@@ -1021,6 +1029,27 @@ export function appendToSent(raw: Buffer, accountId?: string): Promise<void> {
     const sent = readMailboxes().find((box) => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
     if (!sent) return
     await client.append(sent, raw, ['\\Seen'])
+  })
+}
+
+/**
+ * ¿El mensaje con este `Message-ID` ya está en Enviados? Se consulta antes de
+ * reintentar un envío cuyo intento anterior pudo aceptarse sin confirmación.
+ */
+export function sentContains(messageId: string, accountId?: string): Promise<boolean> {
+  if (!/^<[^<>\r\n]+@[^<>\r\n]+>$/.test(messageId)) return Promise.resolve(false)
+  return serial(async () => {
+    if (accountId && accountId !== cacheAccountId()) throw accountChangedError()
+    const client = await ensureClient()
+    const sent = readMailboxes().find((box) => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
+    if (!sent) return false
+    const lock = await client.getMailboxLock(sent)
+    try {
+      const uids = await client.search({ header: { 'Message-ID': messageId } }, { uid: true })
+      return Array.isArray(uids) && uids.length > 0
+    } finally {
+      lock.release()
+    }
   })
 }
 

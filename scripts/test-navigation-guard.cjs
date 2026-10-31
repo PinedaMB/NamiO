@@ -11,6 +11,9 @@ assert.match(main, /candidate\.protocol === 'file:' && candidate\.pathname === n
 assert.doesNotMatch(main, /url\.startsWith\('file:\/\/'\)/, 'any file:// URL must not be considered valid')
 assert.match(main, /webContents\.on\('will-navigate'/)
 assert.match(main, /new URL\(url\)\.protocol === 'https:'/, 'window.open only forwards https')
+assert.match(main, /devTools: isDev/, 'DevTools only exist in development')
+assert.match(main, /Menu\.setApplicationMenu\(process\.platform === 'darwin'/)
+assert.match(main, /role: 'appMenu'/, 'macOS keeps the standard application menu')
 
 const renderer = fs.readFileSync('src/renderer/src/main.tsx', 'utf8')
 assert.match(renderer, /addEventListener\('dragover', \(event\) => event\.preventDefault\(\)\)/)
@@ -20,4 +23,4 @@ const body = fs.readFileSync('src/renderer/src/components/EmailBody.tsx', 'utf8'
 assert.match(body, /const blockDrop = \(event: Event\): void => event\.preventDefault\(\)/)
 assert.match(body, /inner\.addEventListener\('drop', blockDrop\)/)
 
-console.log('Navigation guard: app-only file URLs, https-only window.open and drop blocked in app and email frame')
+console.log('Navigation guard: app-only file URLs, https-only window.open, drop blocked and no DevTools/menu in production')
