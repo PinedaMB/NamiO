@@ -35,6 +35,10 @@ export function setupAutoUpdate(): void {
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  // Un cliente estable no debe saltar a una release candidate; uno que ya corre
+  // una -rc sí puede recibir la siguiente.
+  autoUpdater.allowPrerelease = app.getVersion().includes('-')
+  autoUpdater.allowDowngrade = false
   autoUpdater.on('update-available', info => publish({ phase: 'available', version: info.version, releaseDate: info.releaseDate, checkedAt: Date.now() }))
   autoUpdater.on('update-not-available', info => publish({ phase: 'idle', version: info?.version, releaseDate: info?.releaseDate, checkedAt: Date.now() }))
   autoUpdater.on('download-progress', progress => publish({ ...state, phase: 'downloading', percent: Math.max(0, Math.min(100, Math.round(progress.percent))), transferred: progress.transferred, total: progress.total, bytesPerSecond: progress.bytesPerSecond }))

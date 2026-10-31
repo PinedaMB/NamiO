@@ -36,6 +36,9 @@ jobs:
       - name: Auditar el CSS
         run: pnpm run css:audit
 
+      - name: Pruebas de regresión
+        run: pnpm test
+
       - name: Compilar
         run: pnpm run build
 
@@ -45,6 +48,9 @@ jobs:
       - name: Listar los instalables
         run: ls -lh release/*.AppImage release/*.deb
 
+      - name: Generar sumas SHA-256
+        run: cd release && sha256sum *.AppImage *.deb > SHA256SUMS
+
       - name: Publicar artefactos
         uses: actions/upload-artifact@v4
         with:
@@ -53,6 +59,7 @@ jobs:
           path: |
             release/*.AppImage
             release/*.deb
+            release/SHA256SUMS
 
       # Con un tag, además del artefacto del run, queda una Release con los
       # instalables adjuntos (descarga directa, sin entrar a Actions).
@@ -64,4 +71,8 @@ jobs:
             release/*.AppImage
             release/*.deb
             release/latest-linux.yml
+            release/SHA256SUMS
           generate_release_notes: true
+          # Una -rc no debe convertirse en la Release "latest" que consume el
+          # canal estable del actualizador.
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}

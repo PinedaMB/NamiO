@@ -187,6 +187,11 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
 
+    // Un archivo soltado sobre el iframe no debe convertirlo en una página local.
+    const blockDrop = (event: Event): void => event.preventDefault()
+    inner.addEventListener('dragover', blockDrop)
+    inner.addEventListener('drop', blockDrop)
+
     inner.addEventListener('click', (event) => {
       const target = event.target as HTMLElement | null
       const image = target?.closest('img')

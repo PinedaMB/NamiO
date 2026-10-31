@@ -55,7 +55,7 @@ async function main() {
     db.openAccountCache('two'); mail = loadMail(); await mail.processOutbox()
     assert.equal(moved.length, 0, 'another account cannot replay this move')
     db.openAccountCache('one'); mail = loadMail(); await mail.processOutbox()
-    assert.deepEqual(moved, [['INBOX', 1, 'Spam', '7']])
+    assert.deepEqual(moved, [['INBOX', 1, 'Spam', '7', 'one']])
     assert.equal(db.listOutbox().length, 0)
     assert.equal(db.readEnvelope('INBOX', 1), null)
   } finally { db.closeCache(); fs.rmSync(directory, { recursive: true, force: true }) }

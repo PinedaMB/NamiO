@@ -2,7 +2,11 @@
 
 ## Sin publicar
 
+- La UI solo recibe y puede escribir ajustes públicos: `settings:get` ya no envía cuentas, credenciales ni cursores internos, y `settings:set` rechaza claves internas y valores fuera de tipo. Se mantienen las preferencias, atajos y opciones existentes.
+- La ventana no navega fuera del bundle: cualquier `file://` distinto de la página de la app se cancela, los enlaces https se abren en el navegador y soltar un archivo (en la app o en el iframe del correo) ya no puede cargar una página local con acceso al preload.
+- Las releases `-rc` se publican como *prerelease* y no sustituyen el canal estable; los workflows de release ejecutan las pruebas antes de empaquetar y adjuntan `SHA256SUMS`. La firma del instalador Windows se activa con los secretos `WINDOWS_CSC_LINK` y `WINDOWS_CSC_KEY_PASSWORD`; sin ellos el artefacto queda sin firma.
 - La cola de salida distingue fallos de red de rechazos del servidor: los envíos y operaciones que solo esperan conexión dejan de marcarse como fallidos por el paso del tiempo, no consumen intentos y el reintento manual abre un ciclo nuevo.
+- Cada operación encolada guarda su cuenta y la identidad de la carpeta (UIDVALIDITY). Cambiar de cuenta cierra la sesión y reapunta la caché en una sola unidad serializada, así una tarea pendiente no puede mover, borrar ni marcar un mensaje de otra cuenta. Las colas heredadas se asignan a su caché al abrirla.
 - El índice de búsqueda usa identificadores estables y solo se reindexa cuando cambia el asunto, el remitente o el cuerpo. Refrescar una carpeta y guardar cuerpos deja de bloquear el proceso principal; las cachés existentes se migran una vez al abrirlas.
 
 ## 1.0.0-rc.5 — 2026-10-30

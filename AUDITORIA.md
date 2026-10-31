@@ -29,7 +29,10 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 
 - ✅ **P0 #1 — cola de salida:** los errores transitorios (red/offline) ya no consumen intentos ni marcan la fila como `failed`; `retryOutbox` reinicia el ciclo. Cubierto por `scripts/test-outbox-retry.cjs`.
 - ✅ **P0 #2 — índice FTS:** identificadores estables (`search_ids`), reindexado solo cuando cambia el texto, borrado por id y limpieza de huérfanos. Medición local (20.000 mensajes): 10 refrescos de 50 sobres bajan de ~8,8 s a **7 ms**; guardar 50 cuerpos, de ~0,9 s a **49 ms**. Cubierto por `scripts/test-search-index.cjs` y la suite completa.
-- ⏳ Pendientes: P0 #3–#5 y todos los P1/P2.
+- ✅ **P0 #3 — identidad de cuenta en la cola:** cada trabajo guarda `accountId` y `UIDVALIDITY`; la sesión IMAP recuerda su cuenta; cambiar de cuenta (activar, seleccionar) cierra la sesión y reapunta la caché dentro de la cadena serial. Cubierto por `scripts/test-outbox-identity.cjs`, `test-move-message.cjs` y la suite completa.
+- ✅ **P0 #4 — frontera de confianza:** `settings:get` proyecta solo ajustes públicos; `settings:set` usa lista blanca y validación de tipos; la navegación `file://` queda restringida a la página de la app y se bloquea el drop de archivos en la ventana y en el iframe del correo. Cubierto por `scripts/test-settings-allowlist.cjs`, `scripts/test-navigation-guard.cjs` y la suite completa.
+- 🟡 **P0 #5 — release:** los tags `-rc` se publican como *prerelease*, los workflows ejecutan pruebas y adjuntan `SHA256SUMS`, y el updater distingue candidate/estable. **Falta** el certificado de firma y `publisherName` en Windows para que `electron-updater` verifique el editor; sin esos secretos el instalador sigue sin firma.
+- ⏳ Pendientes: firma de Windows y todos los P1/P2.
 
 ---
 

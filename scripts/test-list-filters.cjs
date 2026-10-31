@@ -32,7 +32,8 @@ assert.deepEqual(ids(sortThreads([], true)), [])
 assert.equal(sortThreads([{ ...rows[0], date: 'invalid' }], false).length, 1)
 function visible(filter, selectedId, live = true, folder = 'inbox') {
   return vm.runInNewContext(ts.transpile(code.filteredThreads, { target: ts.ScriptTarget.ES2022 }), {
-    useMemo: fn => fn(), live, listedThreads: rows, filter, folder, selectedId, matchesFilter, matchesFolder
+    useMemo: fn => fn(), live, listedThreads: rows, conversationThreads: rows, filter, folder, selectedId, matchesFilter, matchesFolder,
+    threadMatchesId: (thread, id) => thread.id === id
   })
 }
 assert.deepEqual(ids(visible('focused', null)), ['old', 'middle'])

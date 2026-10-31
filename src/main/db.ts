@@ -125,6 +125,8 @@ export function openAccountCache(accountId: string): void {
       mailbox TEXT,
       uid INTEGER,
       payload TEXT,
+      account_id TEXT,
+      uid_validity TEXT,
       status TEXT NOT NULL DEFAULT 'queued',
       attempts INTEGER NOT NULL DEFAULT 0,
       last_error TEXT,
@@ -186,6 +188,15 @@ export function openAccountCache(accountId: string): void {
 
   // El índice de búsqueda usa identificadores estables.
   migrateSearchIndex(db)
+
+  // La cola guarda a qué cuenta y a qué identidad de carpeta pertenece cada
+  // operación. Las filas antiguas se asignan a la cuenta de esta caché; su
+  // UIDVALIDITY se resuelve al procesarlas.
+  const outboxColumns = db.prepare('PRAGMA table_info(outbox)').all() as unknown as { name: string }[]
+  for (const column of ['account_id', 'uid_validity']) {
+    if (!outboxColumns.some((item) => item.name === column)) db.exec(`ALTER TABLE outbox ADD COLUMN ${column} TEXT`)
+  }
+  db.prepare('UPDATE outbox SET account_id = ? WHERE account_id IS NULL').run(accountId)
 }
 
 function handle(): DatabaseSync {
@@ -558,6 +569,10 @@ export interface OutboxRow {
   mailbox: string | null
   uid: number | null
   payload: string | null
+  /** Cuenta a la que pertenece la operación; nunca se ejecuta en otra. */
+  accountId: string | null
+  /** Identidad de la carpeta al encolar (UIDVALIDITY), para no tocar un UID reciclado. */
+  uidValidity: string | null
   status: string
   attempts: number
   lastError: string | null
@@ -570,6 +585,8 @@ interface OutboxDbRow {
   mailbox: string | null
   uid: number | null
   payload: string | null
+  account_id: string | null
+  uid_validity: string | null
   status: string
   attempts: number
   last_error: string | null
@@ -583,6 +600,8 @@ function toOutboxRow(row: OutboxDbRow): OutboxRow {
     mailbox: row.mailbox,
     uid: row.uid,
     payload: row.payload,
+    accountId: row.account_id,
+    uidValidity: row.uid_validity,
     status: row.status,
     attempts: row.attempts,
     lastError: row.last_error,
@@ -595,12 +614,14 @@ export function enqueueOutbox(input: {
   payload?: unknown
   mailbox?: string | null
   uid?: number | null
+  accountId?: string | null
+  uidValidity?: string | null
 }): string {
   const id = randomUUID()
   handle()
     .prepare(
-      `INSERT INTO outbox (id, kind, mailbox, uid, payload, status, attempts, created_at)
-       VALUES (?, ?, ?, ?, ?, 'queued', 0, ?)`
+      `INSERT INTO outbox (id, kind, mailbox, uid, payload, account_id, uid_validity, status, attempts, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?)`
     )
     .run(
       id,
@@ -608,6 +629,8 @@ export function enqueueOutbox(input: {
       input.mailbox ?? null,
       input.uid ?? null,
       input.payload === undefined ? null : JSON.stringify(input.payload),
+      input.accountId ?? (openedAccountId || null),
+      input.uidValidity ?? null,
       Date.now()
     )
   return id

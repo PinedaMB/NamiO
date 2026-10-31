@@ -21,6 +21,7 @@ const context = {
   isSelectAll: () => false,
   paletteOpen: false, compose: null, composeMinimized: false, accountOpen: false, view: 'mailbox',
   selectedId: 'one', visible: [{ id: 'one' }], listedThreads: [{ id: 'one' }], mapped: [{ id: 'one' }],
+  threadMatchesId: (thread, id) => thread.id === id,
   setSelectedId: value => { id = value }, setIndividualMessageId: value => { individual = value }, setMessageOpen: value => { open = value },
   setPaletteOpen: () => { paletteClosed = true }, setAccountOpen: () => {}, setView: () => {},
   document: { querySelector: () => ({ focus: () => { focused = true } }) }

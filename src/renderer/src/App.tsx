@@ -109,6 +109,34 @@ function uidOf(threadId: string): number | null {
   return Number.isInteger(uid) ? uid : null
 }
 
+/** Clave de conversación: todos los mensajes del grupo comparten `messageIds`. */
+function conversationKey(thread: Thread): string {
+  return thread.messageIds?.join(',') ?? thread.id
+}
+
+/**
+ * `envelopesToThreads` devuelve un hilo por sobre. Para navegar, contar y
+ * seleccionar se usa una sola entrada por conversación; el representante es el
+ * primero de la lista (el mensaje más reciente).
+ */
+function collapseConversations(threads: readonly Thread[]): Thread[] {
+  const seen = new Set<string>()
+  return threads.filter((thread) => {
+    const key = conversationKey(thread)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** ¿La fila de la conversación contiene este id de mensaje? */
+function threadMatchesId(thread: Thread, id: string | null): boolean {
+  if (id === null) return false
+  if (thread.id === id) return true
+  const uid = uidOf(id)
+  return uid !== null && (thread.messageIds?.includes(uid) ?? false)
+}
+
 export function App(): React.JSX.Element {
   const { timeFormat } = usePreferences()
   const { t, locale } = useI18n()
@@ -293,18 +321,20 @@ export function App(): React.JSX.Element {
     ? pendingDraftThreads(threads, localDrafts, folder, locale, t('draft.local')) : threads,
   [draftsFolder, threads, localDrafts, folder, locale, t])
 
+  const conversationThreads = useMemo(() => collapseConversations(listedThreads), [listedThreads])
+
   const filteredThreads = useMemo(() => {
     if (live) {
       // El hilo abierto sigue visible aunque se marque leído: si desapareciera
       // del filtro, la selección saltaría al siguiente y lo marcaría leído
       // también (cascada de mensajes "leídos" sin abrir).
-      if (filter === 'focused') return listedThreads.filter((thread) => thread.unread || thread.id === selectedId)
-      if (filter === 'other') return listedThreads.filter((thread) => !thread.unread || thread.id === selectedId)
-      if (filter === 'all') return listedThreads
-      return listedThreads
+      if (filter === 'focused') return conversationThreads.filter((thread) => thread.unread || threadMatchesId(thread, selectedId))
+      if (filter === 'other') return conversationThreads.filter((thread) => !thread.unread || threadMatchesId(thread, selectedId))
+      if (filter === 'all') return conversationThreads
+      return conversationThreads
     }
-    return listedThreads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
-  }, [live, listedThreads, filter, folder, selectedId])
+    return conversationThreads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
+  }, [live, conversationThreads, filter, folder, selectedId])
   const visible = useMemo(() => sortThreads(filteredThreads, oldestFirst), [filteredThreads, oldestFirst])
 
   useEffect(() => {
@@ -316,6 +346,11 @@ export function App(): React.JSX.Element {
     setCheckedIds((current) => current.filter((id) => threads.some((thread) => thread.id === id)))
   }, [threads])
 
+  const uidsInThread = (thread: Thread): number[] => {
+    const uids = thread.messageIds ?? (uidOf(thread.id) === null ? [] : [uidOf(thread.id)!])
+    return [...new Set(uids)]
+  }
+
   const bulkAction = async (action: 'read' | 'archive' | 'delete'): Promise<void> => {
     if (bulkRunning.current || deletingMessage.current) return
     bulkRunning.current = true
@@ -323,39 +358,46 @@ export function App(): React.JSX.Element {
     const generation = accountGeneration.current
     const request = folderRequest.current
     try {
+      const selectedThreads = checkedIds
+        .map(id => threads.find(thread => thread.id === id))
+        .filter((thread): thread is Thread => thread !== undefined)
       if (live && action === 'delete') {
-        const ids = checkedIds.filter(id => threads.some(thread => thread.id === id))
-        const uids = ids.map(uidOf).filter((uid): uid is number => uid !== null)
+        const uids = [...new Set(selectedThreads.flatMap(uidsInThread))]
         if (!uids.length) return
         const result = await window.api.deleteMessages(folder, uids)
         if (!result.ok) throw new Error(result.error ?? 'IPC')
         if (result.canceled || generation !== accountGeneration.current || request !== folderRequest.current) return
-        setCheckedIds(current => current.filter(id => !ids.includes(id)))
+        setCheckedIds([])
         setToast(t('toast.deletingBackground'))
         return
       }
-      for (const id of checkedIds) {
+      for (const thread of selectedThreads) {
         if (generation !== accountGeneration.current || request !== folderRequest.current) break
-        if (!threads.some((thread) => thread.id === id)) continue
         if (live) {
-          const uid = uidOf(id)
-          if (uid === null) continue
-          const result = action === 'read'
-            ? await window.api.setSeen(folder, uid, true)
-            : await window.api.archiveMessage(folder, uid)
-          if (generation !== accountGeneration.current || request !== folderRequest.current) break
-          if (!result.ok) throw new Error('detail' in result ? result.detail : result.error ?? 'IPC')
-          if ('canceled' in result && result.canceled) break
-          if ('queued' in result && result.queued) {
+          const uids = uidsInThread(thread)
+          if (!uids.length) continue
+          let queued = false
+          let canceled = false
+          for (const uid of uids) {
+            const result = action === 'read'
+              ? await window.api.setSeen(folder, uid, true)
+              : await window.api.archiveMessage(folder, uid)
+            if (generation !== accountGeneration.current || request !== folderRequest.current) return
+            if (!result.ok) throw new Error('detail' in result ? result.detail : result.error ?? 'IPC')
+            if ('canceled' in result && result.canceled) { canceled = true; break }
+            if ('queued' in result && result.queued) queued = true
+          }
+          if (canceled) break
+          if (queued) {
             setToast(t('toast.queued'))
-            setCheckedIds((current) => current.filter((checked) => checked !== id))
+            setCheckedIds((current) => current.filter((checked) => checked !== thread.id))
             continue
           }
         }
         setThreads((current) => action === 'read'
-          ? current.map((thread) => thread.id === id ? { ...thread, unread: false } : thread)
-          : current.filter((thread) => thread.id !== id))
-        setCheckedIds((current) => current.filter((checked) => checked !== id))
+          ? current.map((item) => threadMatchesId(item, thread.id) ? { ...item, unread: false } : item)
+          : current.filter((item) => !threadMatchesId(item, thread.id)))
+        setCheckedIds((current) => current.filter((checked) => checked !== thread.id))
       }
     } catch (error) {
       if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))
@@ -367,10 +409,14 @@ export function App(): React.JSX.Element {
     }
   }
 
-  const selected = useMemo(
-    () => selectedId === null ? null : listedThreads.find((thread) => thread.id === selectedId) ?? visible[0] ?? null,
-    [listedThreads, selectedId, visible]
-  )
+  const selected = useMemo(() => {
+    if (selectedId === null) return null
+    const direct = listedThreads.find((thread) => thread.id === selectedId)
+    if (direct) return direct
+    // Un resultado de búsqueda o una notificación apunta a un mensaje concreto
+    // que puede no ser el representante de su conversación.
+    return listedThreads.find((thread) => threadMatchesId(thread, selectedId)) ?? visible[0] ?? null
+  }, [listedThreads, selectedId, visible])
 
   const unreadCount = live && listCounts ? listCounts.unread : listedThreads.filter((thread) => thread.unread).length
   const otherCount = live && listCounts ? listCounts.total - listCounts.unread : listedThreads.filter((thread) => !thread.unread).length
@@ -746,7 +792,7 @@ export function App(): React.JSX.Element {
   }
 
   useEffect(() => {
-    if (selectedId === null || visible.some((thread) => thread.id === selectedId)) return
+    if (selectedId === null || visible.some((thread) => threadMatchesId(thread, selectedId))) return
     setSelectedId(visible[0]?.id ?? null)
   }, [visible, selectedId])
 
@@ -850,8 +896,10 @@ export function App(): React.JSX.Element {
 
   const step = (delta: number): void => {
     if (visible.length === 0) return
-    const current = visible.findIndex((thread) => thread.id === selected?.id)
-    const next = visible[(current + delta + visible.length) % visible.length]
+    const current = visible.findIndex((thread) => threadMatchesId(thread, selected?.id ?? null))
+    const next = current === -1
+      ? visible[delta > 0 ? 0 : visible.length - 1]
+      : visible[(current + delta + visible.length) % visible.length]
     if (next) select(next.id)
   }
 
@@ -1486,7 +1534,7 @@ export function App(): React.JSX.Element {
                   thread={individualMessageId && selected.messages.some(message => message.id === individualMessageId) ? { ...selected, messages: selected.messages.filter(message => message.id === individualMessageId) } : selected}
                   mailbox={folder}
                   spam={folderViews.some((item) => item.id === folder && item.spam)}
-                  position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
+                  position={Math.max(1, visible.findIndex((thread) => threadMatchesId(thread, selected.id)) + 1)}
                   total={visible.length}
                   bindings={bindings}
                   readingFocused={readingFocused}

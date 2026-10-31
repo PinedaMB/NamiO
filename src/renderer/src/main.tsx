@@ -17,6 +17,11 @@ import { PreferencesProvider } from './settings/PreferencesProvider'
 const container = document.getElementById('root')
 if (!container) throw new Error('Falta el nodo #root en index.html')
 
+// Soltar un archivo sobre la ventana no debe navegar a file:// (esa página
+// heredaría el preload). Los adjuntos se eligen con el diálogo del compositor.
+window.addEventListener('dragover', (event) => event.preventDefault())
+window.addEventListener('drop', (event) => event.preventDefault())
+
 createRoot(container).render(
   <StrictMode>
     <I18nProvider>

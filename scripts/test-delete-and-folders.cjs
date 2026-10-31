@@ -19,6 +19,7 @@ async function main() {
     }
     const remove = vm.runInNewContext(ts.transpile(`${fn}; deleteMessage`, { target: ts.ScriptTarget.ES2022 }), {
       serial: async fn => fn(), ensureClient: async () => client, trashPath: () => 'Trash',
+      cacheAccountId: () => 'one', accountChangedError: () => Object.assign(new Error('La cuenta activa cambió'), { code: 'ACCOUNT_CHANGED' }),
       syncMailboxes: async () => {}, deleteMessageRow: () => { removed = true; return { unread: true } },
       adjustMailboxUnseen() {}, notify() {}, describe: error => error.message, console
     })

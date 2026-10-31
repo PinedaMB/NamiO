@@ -14,7 +14,7 @@ async function run(supported) {
   vm.runInNewContext(source, {
     exports: exported, process: { platform: 'win32', env: {} }, setInterval() {},
     require(name) {
-      if (name === 'electron') return { app: { isPackaged: supported }, ipcMain: { handle: (key, fn) => handlers[key] = fn }, BrowserWindow: { getAllWindows: () => [{ isDestroyed: () => false, webContents: { send: (...args) => broadcasts.push(args) } }] } }
+      if (name === 'electron') return { app: { isPackaged: supported, getVersion: () => '1.0.0-rc.5' }, ipcMain: { handle: (key, fn) => handlers[key] = fn }, BrowserWindow: { getAllWindows: () => [{ isDestroyed: () => false, webContents: { send: (...args) => broadcasts.push(args) } }] } }
       if (name === 'electron-updater') return { autoUpdater: updater }
       return { IPC: { updateStatus: 'status', updateCheck: 'check', updateInstall: 'install', updateChanged: 'changed' } }
     }
@@ -23,6 +23,8 @@ async function run(supported) {
   await Promise.resolve()
   if (!supported) { assert.equal(handlers.status(), null); handlers.install(); assert.equal(installs, 0); assert.equal(checks, 0); return }
   assert.equal(checks, 1)
+  assert.equal(updater.allowPrerelease, true, 'a candidate client can receive the next release candidate')
+  assert.equal(updater.allowDowngrade, false)
   assert.equal(handlers.status().version, '0.4.6')
   assert.equal(typeof handlers.status().checkedAt, 'number')
   handlers.install(); assert.equal(installs, 0)

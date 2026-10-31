@@ -102,6 +102,8 @@ function isTransientOutboxError(error: unknown): boolean {
   } | null
 
   if (value?.authenticationFailed) return false
+  // La operación no falló: se quedó sin la cuenta a la que pertenece.
+  if ((value?.code ?? '').toUpperCase() === 'ACCOUNT_CHANGED') return true
   // SMTP: 4xx es temporal, 5xx es un rechazo definitivo.
   if (typeof value?.responseCode === 'number') return value.responseCode >= 400 && value.responseCode < 500
 
@@ -164,8 +166,10 @@ export async function registerAttachments(window: BrowserWindow | null): Promise
   return picked
 }
 
-async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
-  const credentials = await getCredentials()
+async function sendWithSmtp(payload: SendMailPayload, accountId: string | null): Promise<void> {
+  // `getCredentials` revalida la cuenta: si cambió, no se envían credenciales
+  // (ni el correo) desde el buzón equivocado.
+  const credentials = await getCredentials(accountId ?? undefined)
   if (!credentials) throw new Error('La cuenta no tiene credenciales guardadas')
 
   const { account, password, accessToken } = credentials
@@ -221,7 +225,7 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
     })
 
     // Copia en Enviados: si falla, el mensaje ya salió y no debe reintentarse.
-    await appendToSent(raw).catch((error: unknown) => {
+    await appendToSent(raw, accountId ?? undefined).catch((error: unknown) => {
       console.error('[sent-copy]', error)
     })
 
@@ -241,10 +245,19 @@ async function sendWithSmtp(payload: SendMailPayload): Promise<void> {
 
 async function runOne(row: OutboxRow): Promise<void> {
   const owner = cacheAccountId()
+  // Una tarea de otra cuenta pertenece a su propia caché: se deja pendiente
+  // para cuando esa cuenta vuelva a estar activa.
+  if (row.accountId && row.accountId !== owner) return
+  const expectedAccount = row.accountId ?? owner
+  const validityOf = (path: string): string | null => {
+    const value = getMailboxMeta(path)?.uidValidity
+    return value == null ? null : String(value)
+  }
+
   if (row.kind === 'draft-save') {
     const id = payloadOf(row).draftId
     if (typeof id !== 'string') throw new Error('Borrador inválido')
-    await syncDraft(id)
+    await syncDraft(id, expectedAccount)
     const current = owner === cacheAccountId() ? readDraft(id) : null
     if (current && current.syncedAt !== current.updatedAt && !listOutbox().some(item => item.id !== row.id && item.kind === 'draft-save' && payloadOf(item).draftId === id)) {
       enqueueOutbox({ kind: 'draft-save', payload: { draftId: id } })
@@ -252,16 +265,22 @@ async function runOne(row: OutboxRow): Promise<void> {
   } else if (row.kind === 'draft-delete') {
     const reference = payloadOf(row).server as import('@shared/ipc').DraftServerRef
     if (!reference || typeof reference.path !== 'string' || !Number.isInteger(reference.uid) || typeof reference.uidValidity !== 'string') throw new Error('Borrador inválido')
-    await removeServerDraft(reference)
+    await removeServerDraft(reference, expectedAccount)
   } else if (row.kind === 'send') {
-    await sendWithSmtp(payloadOf(row) as unknown as SendMailPayload)
+    await sendWithSmtp(payloadOf(row) as unknown as SendMailPayload, expectedAccount)
     if (owner === cacheAccountId() && typeof payloadOf(row).draftId === 'string' && readDraft(payloadOf(row).draftId as string)?.updatedAt === payloadOf(row).draftUpdatedAt) queueDraftDelete(payloadOf(row).draftId as string)
   } else if (row.kind === 'archive') {
+    const path = row.mailbox ?? 'INBOX'
     const target = archivePath()
     if (!target) throw new Error('El servidor no expone un buzón de archivo')
-    await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target)
+    const uidValidity = row.uidValidity ?? validityOf(path)
+    if (uidValidity == null) throw new Error('Sincroniza la carpeta antes de archivar')
+    await moveMessage(path, row.uid ?? 0, target, uidValidity, expectedAccount)
   } else if (row.kind === 'delete') {
-    await deleteMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, payloadOf(row).permanent === true)
+    const path = row.mailbox ?? 'INBOX'
+    const uidValidity = row.uidValidity ?? validityOf(path)
+    if (uidValidity == null) throw new Error('Sincroniza la carpeta antes de eliminar')
+    await deleteMessage(path, row.uid ?? 0, payloadOf(row).permanent === true, { accountId: expectedAccount, uidValidity })
   } else if (row.kind === 'delete-many') {
     const payload = payloadOf(row)
     if (!row.mailbox || !Array.isArray(payload.uids) || payload.uids.some(uid => !Number.isInteger(uid) || uid <= 0) || typeof payload.uidValidity !== 'string' || !/^\d+$/.test(payload.uidValidity)) throw new Error('Lote de borrado inválido')
@@ -271,7 +290,7 @@ async function runOne(row: OutboxRow): Promise<void> {
       await deleteMessageBatch(row.mailbox, payload.uids as number[], payload.permanent === true, payload.uidValidity, completed => {
         deletionProgress = { id: row.id, completed }
         notify()
-      })
+      }, expectedAccount)
     } finally {
       deletionProgress = null
       notify()
@@ -279,11 +298,13 @@ async function runOne(row: OutboxRow): Promise<void> {
   } else if (row.kind === 'move') {
     const target = payloadOf(row).target
     if (typeof target !== 'string' || target === '') throw new Error('La regla no tiene buzón destino')
-    const uidValidity = payloadOf(row).uidValidity
-    if (uidValidity !== undefined && (typeof uidValidity !== 'string' || !/^\d+$/.test(uidValidity))) throw new Error('Identidad de carpeta inválida')
-    await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target, uidValidity as string | undefined)
+    const payloadValidity = payloadOf(row).uidValidity
+    if (payloadValidity !== undefined && (typeof payloadValidity !== 'string' || !/^\d+$/.test(payloadValidity))) throw new Error('Identidad de carpeta inválida')
+    const uidValidity = row.uidValidity ?? (typeof payloadValidity === 'string' ? payloadValidity : validityOf(row.mailbox ?? 'INBOX'))
+    if (uidValidity == null) throw new Error('Sincroniza la carpeta antes de mover el mensaje')
+    await moveMessage(row.mailbox ?? 'INBOX', row.uid ?? 0, target, uidValidity, expectedAccount)
   } else if (row.kind === 'seen') {
-    await setSeen(row.mailbox ?? 'INBOX', row.uid ?? 0, true)
+    await setSeen(row.mailbox ?? 'INBOX', row.uid ?? 0, true, expectedAccount)
   }
 
   if (owner !== cacheAccountId()) return
@@ -306,10 +327,14 @@ export async function processOutbox(): Promise<void> {
       if (!row) break
       attempted.add(row.id)
       if (owner !== cacheAccountId()) return
+      // Tareas de otra cuenta: se conservan para su propia sesión.
+      if (row.accountId && row.accountId !== owner) continue
       try {
         await runOne(row)
       } catch (error) {
         if (owner !== cacheAccountId()) return
+        // La cuenta cambió mientras la tarea esperaba su turno: no es un fallo.
+        if ((error as { code?: string } | null)?.code === 'ACCOUNT_CHANGED') return
         registerFailure(row, error)
       }
     }
@@ -361,7 +386,7 @@ export async function moveMessageAction(path: string, uid: number, target: strin
   if (uidValidity == null) return { ok: false, queued: false, error: 'Sincroniza la carpeta antes de mover el mensaje' }
   const existing = remaining('move', row => row.mailbox === path && row.uid === uid)
   if (existing) return { ok: false, queued: true, error: 'El mensaje ya tiene un movimiento pendiente' }
-  const id = enqueueOutbox({ kind: 'move', mailbox: path, uid, payload: { target, uidValidity: String(uidValidity) } })
+  const id = enqueueOutbox({ kind: 'move', mailbox: path, uid, payload: { target, uidValidity: String(uidValidity) }, uidValidity: String(uidValidity) })
   notify()
   await processOutbox()
   const pending = listOutbox().find(row => row.id === id)
@@ -370,7 +395,9 @@ export async function moveMessageAction(path: string, uid: number, target: strin
 }
 
 export async function archiveMessage(path: string, uid: number): Promise<MailAction> {
-  enqueueOutbox({ kind: 'archive', mailbox: path, uid })
+  const uidValidity = getMailboxMeta(path)?.uidValidity
+  if (uidValidity == null) return { ok: false, queued: false, error: 'Sincroniza la carpeta antes de archivar' }
+  enqueueOutbox({ kind: 'archive', mailbox: path, uid, uidValidity: String(uidValidity) })
   notify()
   await processOutbox()
 
@@ -382,7 +409,9 @@ export async function archiveMessage(path: string, uid: number): Promise<MailAct
 }
 
 export async function deleteMessageAction(path: string, uid: number, permanent = false): Promise<MailAction> {
-  enqueueOutbox({ kind: 'delete', mailbox: path, uid, payload: { permanent } })
+  const uidValidity = getMailboxMeta(path)?.uidValidity
+  if (uidValidity == null) return { ok: false, queued: false, error: 'Sincroniza la carpeta antes de eliminar' }
+  enqueueOutbox({ kind: 'delete', mailbox: path, uid, payload: { permanent }, uidValidity: String(uidValidity) })
   notify()
   await processOutbox()
 

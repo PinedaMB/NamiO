@@ -1,4 +1,5 @@
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell, nativeTheme } from 'electron'
 import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
@@ -80,23 +81,40 @@ function createWindow(): void {
     mainWindow = null
   })
 
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  const indexUrl = pathToFileURL(join(__dirname, '../renderer/index.html')).href
+  /**
+   * La ventana solo puede quedarse en la página de la app. Cualquier otra
+   * navegación (file:// de un archivo arrastrado, data:, http:) se cancela;
+   * los enlaces https se abren en el navegador del sistema.
+   */
+  const allowedNavigation = (target: string): boolean => {
+    try {
+      const candidate = new URL(target)
+      if (devUrl) return candidate.origin === new URL(devUrl).origin
+      return candidate.protocol === 'file:' && candidate.pathname === new URL(indexUrl).pathname
+    } catch {
+      return false
+    }
+  }
+
   // Ningún link abre una ventana de Electron: siempre al navegador del sistema.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    try {
+      if (new URL(url).protocol === 'https:') void shell.openExternal(url)
+    } catch {
+      // URL inválida: se descarta.
+    }
     return { action: 'deny' }
   })
 
   // La UI no navega nunca fuera de la app.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const devUrl = process.env['ELECTRON_RENDERER_URL']
-    const allowed = devUrl ? url.startsWith(devUrl) : url.startsWith('file://')
-    if (!allowed) {
-      event.preventDefault()
-      if (url.startsWith('https://')) void shell.openExternal(url)
-    }
+    if (allowedNavigation(url)) return
+    event.preventDefault()
+    if (url.startsWith('https://')) void shell.openExternal(url)
   })
 
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (isDev && devUrl) {
     void mainWindow.loadURL(devUrl)
   } else {

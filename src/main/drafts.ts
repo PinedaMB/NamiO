@@ -19,7 +19,7 @@ export function queueDraftSave(input: Draft): Draft {
   saveDraft(draft)
   const pending = listOutbox().find(row => row.kind === 'draft-save' && JSON.parse(row.payload ?? '{}').draftId === draft.id)
   if (pending) updateOutbox(pending.id, { status: 'queued', attempts: 0, lastError: null })
-  else enqueueOutbox({ kind: 'draft-save', payload: { draftId: draft.id } })
+  else enqueueOutbox({ kind: 'draft-save', payload: { draftId: draft.id }, accountId: cacheAccountId() })
   notifyDraftsChanged()
   return draft
 }
@@ -28,17 +28,21 @@ export function queueDraftDelete(id?: string): void {
   const draft = readDraft(id)
   if (!draft) return
   for (const row of listOutbox()) if (row.kind === 'draft-save' && JSON.parse(row.payload ?? '{}').draftId === draft.id) deleteOutbox(row.id)
-  for (const server of [draft.previousServer, draft.server]) if (server) enqueueOutbox({ kind: 'draft-delete', payload: { server } })
+  for (const server of [draft.previousServer, draft.server]) if (server) enqueueOutbox({ kind: 'draft-delete', payload: { server }, accountId: cacheAccountId(), uidValidity: server.uidValidity })
   clearDraft(draft.id)
   notifyDraftsChanged()
 }
 
-export async function syncDraft(id: string): Promise<void> {
+export async function syncDraft(id: string, expectedAccountId?: string): Promise<void> {
   const owner = cacheAccountId()
   const draft = readDraft(id)
   if (!draft) return
   const account = await readActiveAccount()
-  if (!account || account.id !== owner || owner !== cacheAccountId()) throw new Error('La cuenta activa cambió')
+  if (!account || account.id !== owner || owner !== cacheAccountId() || (expectedAccountId && account.id !== expectedAccountId)) {
+    const error = new Error('La cuenta activa cambió') as Error & { code?: string }
+    error.code = 'ACCOUNT_CHANGED'
+    throw error
+  }
   const messageId = `<namio-draft-${draft.id}-${draft.updatedAt}@namio.local>`
   const compiled = await createTransport({ streamTransport: true, buffer: true }).sendMail({
     from: account.user, to: draft.to, cc: draft.cc, bcc: draft.bcc,
@@ -53,7 +57,7 @@ export async function syncDraft(id: string): Promise<void> {
   })
   const raw = Buffer.isBuffer(compiled.message) ? compiled.message : Buffer.from(String(compiled.message), 'utf8')
   if (owner !== cacheAccountId()) throw new Error('La cuenta activa cambió')
-  await uploadDraft(draft, raw, messageId)
+  await uploadDraft(draft, raw, messageId, owner)
 }
 
 export async function openServerDraft(path: string, uid: number): Promise<Draft> {

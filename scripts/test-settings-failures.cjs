@@ -118,7 +118,12 @@ async function checkTimeFormatIpc() {
   }
   visit(ast)
   const writes = []
-  const save = vm.runInNewContext(compile(`(${handler})`), { Error, writeSettings: async patch => writes.push(patch), setBackgroundMode() {} })
+  const settingsModule = {}
+  vm.runInNewContext(compile(fs.readFileSync('src/main/settings.ts', 'utf8')), {
+    exports: settingsModule,
+    require: id => id === 'electron' ? { app: { getPath: () => '' }, safeStorage: {} } : require(id)
+  })
+  const save = vm.runInNewContext(compile(`(${handler})`), { Error, writeSettings: async patch => writes.push(patch), setBackgroundMode() {}, sanitizeSettingsPatch: settingsModule.sanitizeSettingsPatch })
   for (const timeFormat of ['12h', '24h']) await save(null, { timeFormat })
   assert.equal(writes.length, 2)
   for (const timeFormat of ['12', 'auto', null, true, 24]) await assert.rejects(save(null, { timeFormat }), /Invalid time format/)

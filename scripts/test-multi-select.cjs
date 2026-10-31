@@ -16,6 +16,8 @@ async function check(action, behavior = 'success') {
     live: behavior !== 'demo', checkedIds: ['live:1', 'live:2'], threads: [{ id: 'live:1', unread: true }, { id: 'live:2', unread: true }],
     setPendingDelete() {}, bulkRunning: { current: false }, deletingMessage: { current: false }, accountGeneration: { current: 0 }, folderRequest: { current: 0 }, folder: 'INBOX',
     uidOf: id => Number(id.slice(5)), t: key => key, refreshOutbox: async () => {},
+    uidsInThread: thread => thread.messageIds ?? [Number(thread.id.slice(5))],
+    threadMatchesId: (thread, id) => thread.id === id || (thread.messageIds?.includes(Number(id.slice(5))) ?? false),
     setBulkBusy() {}, setToast() {},
     setThreads: update => { context.threads = update(context.threads) },
     setCheckedIds: update => { context.checkedIds = update(context.checkedIds) }

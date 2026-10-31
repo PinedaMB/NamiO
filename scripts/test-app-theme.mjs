@@ -42,7 +42,7 @@ const {app,BrowserWindow,ipcMain,nativeTheme}=require('electron'),assert=require
 app.setPath('userData',${JSON.stringify(folder)});app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
  const settings={};vm.runInNewContext(${JSON.stringify(compile(await readFile('src/main/settings.ts','utf8')))},{exports:settings,require});
- const setSettings=vm.runInNewContext(${JSON.stringify(compile(`(${setHandler})`))},{writeSettings:settings.writeSettings,nativeTheme,resumeOfflineDownload(){},setBackgroundMode(){}});
+ const setSettings=vm.runInNewContext(${JSON.stringify(compile(`(${setHandler})`))},{writeSettings:settings.writeSettings,nativeTheme,resumeOfflineDownload(){},setBackgroundMode(){},sanitizeSettingsPatch:settings.sanitizeSettingsPatch});
  ipcMain.handle('settings:get',()=>settings.readSettings());ipcMain.handle('settings:set',setSettings);
  const win=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{preload:${JSON.stringify(join(folder,'preload.cjs'))},offscreen:true,sandbox:true,contextIsolation:true}});
  win.webContents.on('before-input-event',vm.runInNewContext(${JSON.stringify(compile(`(${inputHandler})`))},{mainWindow:win,IPC:{zoomChanged:'window:zoom-changed'}}));

@@ -49,6 +49,117 @@ export async function readSettings(): Promise<StoredSettings> {
   }
 }
 
+/**
+ * Claves que la UI puede leer y escribir. `accounts`, `activeAccount` y
+ * `mailNotificationCursors` viven en el mismo archivo, pero son del núcleo:
+ * el renderer no debe recibirlos ni poder sustituirlos.
+ */
+const APP_SETTING_KEYS = [
+  'appTheme',
+  'offlineDownload',
+  'keepInBackground',
+  'notifications',
+  'notificationSound',
+  'notificationPrivate',
+  'language',
+  'shortcuts',
+  'shortcutModifier',
+  'contextPanel',
+  'remoteImages',
+  'timeFormat',
+  'bodyTheme',
+  'onboarded'
+] as const satisfies readonly (keyof AppSettings)[]
+
+const BOOLEAN_SETTINGS = [
+  'offlineDownload',
+  'keepInBackground',
+  'notifications',
+  'notificationSound',
+  'notificationPrivate',
+  'contextPanel',
+  'onboarded'
+] as const
+
+const ENUM_SETTINGS: Partial<Record<keyof AppSettings, readonly string[]>> = {
+  appTheme: ['light', 'dark', 'system'],
+  language: ['es', 'en'],
+  shortcutModifier: ['ctrl', 'command'],
+  remoteImages: ['block', 'allow'],
+  timeFormat: ['12h', '24h'],
+  bodyTheme: ['light', 'dark']
+}
+
+/** Devuelve solo los ajustes públicos, sin cuentas ni cursores internos. */
+export function pickAppSettings(settings: StoredSettings): Partial<AppSettings> {
+  const result: Partial<AppSettings> = {}
+  for (const key of APP_SETTING_KEYS) {
+    const value = settings[key]
+    if (value !== undefined) (result as Record<string, unknown>)[key] = value
+  }
+  return result
+}
+
+export async function readAppSettings(): Promise<Partial<AppSettings>> {
+  return pickAppSettings(await readSettings())
+}
+
+/**
+ * Valida y reconstruye un patch de ajustes. Rechaza claves internas y valores
+ * fuera de tipo para que un renderer comprometido no pueda reescribir cuentas
+ * ni persistir datos arbitrarios en `settings.json`.
+ */
+export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
+  if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+    throw new Error('Invalid settings')
+  }
+
+  const source = patch as Record<string, unknown>
+  const allowed = new Set<string>(APP_SETTING_KEYS)
+  for (const key of Object.keys(source)) {
+    if (!allowed.has(key)) throw new Error(`Unknown setting: ${key}`)
+  }
+
+  const result: Partial<AppSettings> = {}
+  const target = result as Record<string, unknown>
+
+  for (const key of BOOLEAN_SETTINGS) {
+    if (source[key] === undefined) continue
+    if (typeof source[key] !== 'boolean') throw new Error('Invalid setting value')
+    target[key] = source[key]
+  }
+
+  for (const [key, values] of Object.entries(ENUM_SETTINGS)) {
+    if (source[key] === undefined) continue
+    if (typeof source[key] !== 'string' || !values.includes(source[key])) {
+      if (key === 'appTheme') throw new Error('Invalid app theme')
+      if (key === 'timeFormat') throw new Error('Invalid time format')
+      if (key === 'shortcutModifier') throw new Error('Invalid shortcut modifier')
+      throw new Error('Invalid setting value')
+    }
+    target[key] = source[key]
+  }
+
+  if (source.shortcuts !== undefined) {
+    if (typeof source.shortcuts !== 'object' || source.shortcuts === null || Array.isArray(source.shortcuts)) {
+      throw new Error('Invalid shortcuts')
+    }
+    const entries = Object.entries(source.shortcuts as Record<string, unknown>)
+    if (entries.length > 32) throw new Error('Invalid shortcuts')
+    const shortcuts: Record<string, string> = {}
+    for (const [action, combo] of entries) {
+      if (!/^[a-z][a-z0-9-]{0,31}$/i.test(action)) throw new Error('Invalid shortcuts')
+      if (typeof combo !== 'string' || combo.length === 0 || combo.length > 32 || /[\r\n]/.test(combo)) {
+        throw new Error('Invalid shortcuts')
+      }
+      shortcuts[action] = combo
+    }
+    result.shortcuts = shortcuts
+  }
+
+  return result
+}
+
 let settingsWrites: Promise<void> = Promise.resolve()
 
 export function writeSettings(patch: Partial<StoredSettings> | ((current: StoredSettings) => Partial<StoredSettings>)): Promise<void> {

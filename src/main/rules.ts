@@ -5,6 +5,7 @@ import {
   bumpRuleHits,
   deleteRuleRow,
   enqueueOutbox,
+  getMailboxMeta,
   insertRule,
   listRules,
   messagesByUids,
@@ -96,11 +97,13 @@ export function applyRulesTo(messages: readonly CachedMessage[]): number {
     // Mover a la carpeta donde ya está no es una acción, es ruido.
     if (action.destination && action.destination === message.mailbox) continue
 
+    const uidValidity = getMailboxMeta(message.mailbox)?.uidValidity
     enqueueOutbox({
       kind: action.kind,
       mailbox: message.mailbox,
       uid: message.uid,
-      payload: action.payload
+      payload: action.payload,
+      uidValidity: uidValidity == null ? null : String(uidValidity)
     })
     bumpRuleHits(rule.id)
     matched += 1

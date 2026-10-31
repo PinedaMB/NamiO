@@ -55,6 +55,7 @@ import {
   setFlagged as cacheFlagged,
   setMeta,
   setUnread as cacheUnread,
+  cacheAccountId,
   upsertEnvelopes,
 } from './db'
 import { authorize, getAccessToken } from './oauth'
@@ -64,6 +65,8 @@ import { decryptSecret, encryptSecret, readSettings, readActiveAccount, readAcco
 interface Session {
   client: ImapFlow
   config: ImapAccountConfig
+  /** Cuenta dueña de la conexión; nunca se reutiliza para otra. */
+  accountId: string
 }
 
 let session: Session | null = null
@@ -129,11 +132,11 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
   return client
 }
 
-async function openSession(config: ImapAccountConfig, auth: ImapAuth): Promise<void> {
+async function openSession(config: ImapAccountConfig, auth: ImapAuth, accountId: string): Promise<void> {
   await closeSession()
   const client = createClient(config, auth)
   await client.connect()
-  session = { client, config }
+  session = { client, config, accountId }
   offline = false
 }
 
@@ -175,7 +178,10 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
 
 /** Conecta con la cuenta activa si hace falta. Lanza si no hay credenciales usables. */
 async function ensureClient(): Promise<ImapFlow> {
-  if (session?.client.usable) return session.client
+  if (session?.client.usable && session.accountId === cacheAccountId()) return session.client
+  // Una sesión de otra cuenta no se reutiliza jamás: se cierra antes de abrir
+  // la de la cuenta que la caché tiene abierta.
+  if (session) await closeSession()
 
   const stored = await readActiveAccount()
   if (!stored) throw new Error('No account configured')
@@ -189,7 +195,8 @@ async function ensureClient(): Promise<ImapFlow> {
       secure: stored.secure,
       user: stored.user
     },
-    auth
+    auth,
+    stored.id
   )
 
   if (!session) throw new Error('Connection failed')
@@ -218,11 +225,15 @@ export async function activateAccount(account: StoredAccount): Promise<void> {
   syncGeneration += 1
   pendingFullSync.clear()
   publishProgress(null)
-  await saveAccount(account)
-  await setActiveAccount(account.id)
-  await serial(closeSession)
-  openAccountCache(account.id)
-  notify('*')
+  // Guardar, activar, cerrar la sesión y reapuntar la caché forman una sola
+  // unidad serial: la UI nunca ve una cuenta activa con la caché de otra.
+  await serial(async () => {
+    await saveAccount(account)
+    if (!(await setActiveAccount(account.id))) throw new Error('No se pudo activar la cuenta')
+    await closeSession()
+    openAccountCache(account.id)
+    notify('*')
+  })
 }
 
 function classify(error: unknown): ImapErrorCode {
@@ -248,6 +259,13 @@ function describe(error: unknown): string {
   const detail = typeof value?.responseText === 'string' ? value.responseText.trim() : ''
   if (detail !== '' && !base.includes(detail)) return `${base} — ${detail}`
   return base
+}
+
+/** La tarea pertenece a una cuenta que dejó de ser la activa. */
+function accountChangedError(): Error {
+  const error = new Error('La cuenta activa cambió') as Error & { code?: string }
+  error.code = 'ACCOUNT_CHANGED'
+  return error
 }
 
 function toDate(value: string | Date | undefined): Date {
@@ -891,8 +909,9 @@ export async function syncInbox(limit = 50): Promise<void> {
   }
 }
 
-export function setSeen(path: string, uid: number, seen: boolean): Promise<ImapResult<boolean>> {
+export function setSeen(path: string, uid: number, seen: boolean, accountId?: string): Promise<ImapResult<boolean>> {
   return serial(async () => {
+    if (accountId && accountId !== cacheAccountId()) throw accountChangedError()
     try {
       const client = await ensureClient()
       const lock = await client.getMailboxLock(path)
@@ -962,8 +981,9 @@ export function trashPath(): string | null {
 }
 
 /** Copia el mensaje en Enviados después de un envío correcto (best effort). */
-export function appendToSent(raw: Buffer): Promise<void> {
+export function appendToSent(raw: Buffer, accountId?: string): Promise<void> {
   return serial(async () => {
+    if (accountId && accountId !== cacheAccountId()) throw accountChangedError()
     const client = await ensureClient()
     const sent = readMailboxes().find((box) => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
     if (!sent) return
@@ -971,8 +991,9 @@ export function appendToSent(raw: Buffer): Promise<void> {
   })
 }
 
-export function moveMessage(path: string, uid: number, target: string, uidValidity?: string): Promise<void> {
+export function moveMessage(path: string, uid: number, target: string, uidValidity?: string, accountId?: string): Promise<void> {
   return serial(async () => {
+    if (accountId && accountId !== cacheAccountId()) throw accountChangedError()
     const client = await ensureClient()
     const lock = await client.getMailboxLock(path)
     try {
@@ -990,8 +1011,14 @@ export function moveMessage(path: string, uid: number, target: string, uidValidi
   })
 }
 
-export function deleteMessage(path: string, uid: number, permanent = false): Promise<void> {
+export function deleteMessage(
+  path: string,
+  uid: number,
+  permanent = false,
+  identity?: { accountId?: string; uidValidity?: string }
+): Promise<void> {
   return serial(async () => {
+    if (identity?.accountId && identity.accountId !== cacheAccountId()) throw accountChangedError()
     const client = await ensureClient()
     if (!trashPath()) await syncMailboxes()
     const trash = trashPath()
@@ -999,6 +1026,11 @@ export function deleteMessage(path: string, uid: number, permanent = false): Pro
     if (path === trash && !permanent) throw new Error('El borrado definitivo requiere confirmación')
     const lock = await client.getMailboxLock(path)
     try {
+      // Un UID puede reciclarse si la carpeta se recreó: antes de borrar hay que
+      // comprobar que sigue siendo la misma carpeta que cuando se encoló.
+      if (identity?.uidValidity && (!client.mailbox || String(client.mailbox.uidValidity) !== identity.uidValidity)) {
+        throw new Error('La identidad de la carpeta cambió; no se eliminó el mensaje')
+      }
       if (!client.capabilities.has('UIDPLUS') && (path === trash || !client.capabilities.has('MOVE'))) {
         throw new Error('El servidor no permite eliminar solo este mensaje de forma segura')
       }
@@ -1031,11 +1063,11 @@ export function mailboxDeletionSnapshot(path: string): Promise<{ uids: number[];
   })
 }
 
-export async function deleteMessageBatch(path: string, uids: number[], permanent: boolean, uidValidity: string, onProgress?: (completed: number) => void): Promise<void> {
+export async function deleteMessageBatch(path: string, uids: number[], permanent: boolean, uidValidity: string, onProgress?: (completed: number) => void, accountId?: string): Promise<void> {
   const generation = syncGeneration
   for (let offset = 0; offset < uids.length; offset += 100) {
     await serial(async () => {
-      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+      if (generation !== syncGeneration || (accountId && accountId !== cacheAccountId())) throw accountChangedError()
       const client = await ensureClient()
       const trash = trashPath()
       const box = readMailboxes().find(item => item.path === path)
@@ -1178,26 +1210,39 @@ export async function selectAccount(id: string): Promise<ImapResult<AccountState
   syncGeneration += 1
   pendingFullSync.clear()
   publishProgress(null)
+  const previous = (await readAccounts()).active
   try {
-    const ok = await setActiveAccount(id)
-    if (!ok) return { ok: false, code: 'unknown', detail: 'Esa cuenta no existe' }
-
-    await serial(closeSession)
-    openAccountCache(id)
-    notify('*')
+    // Cambiar la cuenta activa, cerrar la sesión y reapuntar la caché son una
+    // sola operación serial: ninguna tarea pendiente puede observar una cuenta
+    // nueva con la caché anterior (ni al revés).
+    const changed = await serial(async () => {
+      const ok = await setActiveAccount(id)
+      if (!ok) return false
+      await closeSession()
+      openAccountCache(id)
+      notify('*')
+      return true
+    })
+    if (!changed) return { ok: false, code: 'unknown', detail: 'Esa cuenta no existe' }
 
     return { ok: true, data: await getAccountState() }
   } catch (error) {
+    // Si la caché no se pudo abrir, se intenta volver a la cuenta anterior.
+    if (previous && previous !== id) {
+      await setActiveAccount(previous).catch(() => undefined)
+      try { openAccountCache(previous) } catch { /* la siguiente apertura lo reintenta */ }
+    }
     return { ok: false, code: classify(error), detail: describe(error) }
   }
 }
 
 /** Credenciales para el motor de envío (contraseña o access token OAuth). */
-export async function getCredentials(): Promise<
+export async function getCredentials(expectedAccountId?: string): Promise<
   { account: AccountConfig; password: string | null; accessToken: string | null } | null
 > {
   const stored = await readActiveAccount()
   if (!stored) return null
+  if (expectedAccountId && stored.id !== expectedAccountId) throw accountChangedError()
 
   const account: AccountConfig = {
     host: stored.host,
@@ -1222,10 +1267,12 @@ export async function connectAccount(
   password: string
 ): Promise<ImapResult<AccountState>> {
   try {
+    const accountId = await accountIdFor(config.host, config.port, config.user)
     await serial(() =>
       openSession(
         { host: config.host, port: config.port, secure: config.secure, user: config.user },
-        { password }
+        { password },
+        accountId
       )
     )
     return { ok: true, data: await getAccountState() }
@@ -1248,17 +1295,19 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
       return { ok: false, code: 'unknown', detail: 'El proveedor no devolvió el correo de la cuenta' }
     }
 
+    const accountId = await accountIdFor(config.host, config.port, user)
     await serial(() =>
       openSession(
         { host: config.host, port: config.port, secure: config.secure, user },
-        { accessToken: tokens.accessToken }
+        { accessToken: tokens.accessToken },
+        accountId
       )
     )
 
     // El refresh token es lo único que permite reconectar sin volver al navegador.
     const encrypted = tokens.refreshToken ? await encryptSecret(tokens.refreshToken) : null
     await activateAccount({
-      id: await accountIdFor(config.host, config.port, user),
+      id: accountId,
       host: config.host,
       port: config.port,
       secure: config.secure,
@@ -1334,22 +1383,22 @@ async function removeDraftWithClient(client: ImapFlow, reference: DraftServerRef
   } finally { lock.release() }
 }
 
-export function removeServerDraft(reference: DraftServerRef): Promise<void> {
+export function removeServerDraft(reference: DraftServerRef, accountId?: string): Promise<void> {
   const generation = syncGeneration
   return serial(async () => {
+    if (generation !== syncGeneration || (accountId && accountId !== cacheAccountId())) throw accountChangedError()
     const client = await ensureClient()
-    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
     await removeDraftWithClient(client, reference)
     await syncMessages(reference.path, 50)
     notify(reference.path)
   })
 }
 
-export function uploadDraft(draft: Draft, raw: Buffer, messageId: string): Promise<void> {
+export function uploadDraft(draft: Draft, raw: Buffer, messageId: string, accountId?: string): Promise<void> {
   const generation = syncGeneration
   return serial(async () => {
+    if (generation !== syncGeneration || (accountId && accountId !== cacheAccountId())) throw accountChangedError()
     const client = await ensureClient()
-    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
     if (!readMailboxes().some(isDraftMailbox)) await syncMailboxes()
     const folder = readMailboxes().find(box => box.path === draft.server?.path && isDraftMailbox(box)) ?? readMailboxes().find(box => box.specialUse === '\\Drafts') ?? readMailboxes().find(isDraftMailbox)
     if (!folder) throw new Error('No se encontró la carpeta de borradores del servidor')
@@ -1370,7 +1419,7 @@ export function uploadDraft(draft: Draft, raw: Buffer, messageId: string): Promi
         const reference = { path: folder.path, uid, uidValidity: String(client.mailbox.uidValidity) }
         const current = readLocalDraft(draft.id)
         if (!current) {
-          enqueueOutbox({ kind: 'draft-delete', payload: { server: reference } })
+          enqueueOutbox({ kind: 'draft-delete', payload: { server: reference }, accountId, uidValidity: reference.uidValidity })
           notify(folder.path)
           return
         }

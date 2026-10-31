@@ -45,7 +45,7 @@ import {
 import { moveMessageAction, archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, pauseOutbox, resumeOutbox, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
 import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments, readMailboxes, getMailboxMeta, cacheAccountId, enqueueOutbox } from './db'
 import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
-import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readSettings, writeSettings } from './settings'
+import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readAppSettings, readSettings, sanitizeSettingsPatch, writeSettings } from './settings'
 
 function validConfig(config: AccountConfig): boolean {
   const smtp = config.smtp
@@ -113,19 +113,17 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.notificationTest, () => testNotification())
 
-  ipcMain.handle(IPC.settingsGet, (): Promise<Partial<AppSettings>> => readSettings())
+  ipcMain.handle(IPC.settingsGet, (): Promise<Partial<AppSettings>> => readAppSettings())
 
   ipcMain.handle(IPC.settingsSet, async (_event, patch: Partial<AppSettings>): Promise<void> => {
-    for (const key of ['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground', 'offlineDownload'] as const) {
-      if (patch[key] !== undefined && typeof patch[key] !== 'boolean') throw new Error('Invalid notification setting')
-    }
-    if (patch.appTheme !== undefined && !['light', 'dark', 'system'].includes(patch.appTheme)) throw new Error('Invalid app theme')
-    if (patch.timeFormat !== undefined && patch.timeFormat !== '12h' && patch.timeFormat !== '24h') throw new Error('Invalid time format')
-    if (patch.shortcutModifier !== undefined && patch.shortcutModifier !== 'ctrl' && patch.shortcutModifier !== 'command') throw new Error('Invalid shortcut modifier')
-    await writeSettings(patch)
-    if (patch.appTheme !== undefined) nativeTheme.themeSource = patch.appTheme
-    if (patch.offlineDownload === true) resumeOfflineDownload()
-    if (typeof patch.keepInBackground === 'boolean') setBackgroundMode(patch.keepInBackground)
+    // Solo se persisten las claves públicas y bien tipadas; el patch crudo del
+    // renderer nunca llega a `settings.json`.
+    const settings = sanitizeSettingsPatch(patch)
+    if (Object.keys(settings).length === 0) return
+    await writeSettings(settings)
+    if (settings.appTheme !== undefined) nativeTheme.themeSource = settings.appTheme
+    if (settings.offlineDownload === true) resumeOfflineDownload()
+    if (typeof settings.keepInBackground === 'boolean') setBackgroundMode(settings.keepInBackground)
   })
 
   ipcMain.handle(IPC.accountStatus, () => getAccountState())
@@ -322,7 +320,7 @@ export function registerIpcHandlers(): void {
       const choice = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
       if (choice.response !== 1) return { ok: true, queued: false, canceled: true }
       if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
-      enqueueOutbox({ kind: 'delete-many', mailbox: path, payload: { uids, uidValidity, permanent } })
+      enqueueOutbox({ kind: 'delete-many', mailbox: path, payload: { uids, uidValidity, permanent }, accountId: account.id, uidValidity })
       void processOutbox()
       return { ok: true, queued: true }
     } catch (error) {

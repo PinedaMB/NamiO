@@ -18,7 +18,7 @@ async function main(){
  }
  const source=await fs.readFile('src/main/imap.ts','utf8'),ast=ts.createSourceFile('imap.ts',source,ts.ScriptTarget.Latest,true)
  const declarations=new Map(ast.statements.filter(ts.isFunctionDeclaration).map(node=>[node.name?.text,node.getText(ast)]))
- const context={syncGeneration:0,serial:fn=>fn(),ensureClient:async()=>client,isDraftMailbox:mailboxes.isDraftMailbox,
+ const context={syncGeneration:0,serial:fn=>fn(),ensureClient:async()=>client,isDraftMailbox:mailboxes.isDraftMailbox,cacheAccountId:()=> 'one',accountChangedError:()=>Object.assign(new Error('La cuenta activa cambió'),{code:'ACCOUNT_CHANGED'}),
  readMailboxes:db.readMailboxes,readLocalDraft:db.readDraft,enqueueOutbox:db.enqueueOutbox,storeDraft:db.saveDraft,deleteMessageRow:db.deleteMessageRow,syncMessages:async()=>{},syncMailboxes:async()=>{},notify(){}}
  const load=name=>vm.runInNewContext(compile(`(${declarations.get(name).replace(/^export /,'')})`),context)
  context.removeDraftWithClient=load('removeDraftWithClient')
