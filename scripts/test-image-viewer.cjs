@@ -109,9 +109,12 @@ async function main() {
   const readSource = imapAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'readAttachment').getText(imapAst).replace(/^export /, '')
   let releaseParse, releasedLock = false
   const readerContext = {Buffer, Error, syncGeneration: 1, serial: fn => Promise.resolve().then(fn),
+    MAX_MESSAGE_BYTES: 50 * 1024 * 1024, MAX_ATTACHMENT_BYTES: 25 * 1024 * 1024,
+    readEnvelope: () => ({ size: 0 }),
     ensureClient: async () => ({getMailboxLock: async () => ({release: () => {releasedLock = true}}), download: async () => ({content: (async function* () {yield Buffer.from('mime')})()})}),
     simpleParser: () => new Promise(resolve => {releaseParse = resolve})}
-  const readAttachment = vm.runInNewContext(compile(`(${readSource})`), readerContext)
+  const readLimited = imapAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'readLimited').getText(imapAst)
+  const readAttachment = vm.runInNewContext(compile(`${readLimited}; (${readSource})`), readerContext)
   const reading = readAttachment('INBOX', 1, 0)
   await new Promise(resolve => setImmediate(resolve))
   readerContext.syncGeneration++

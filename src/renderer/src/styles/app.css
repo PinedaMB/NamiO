@@ -4741,6 +4741,10 @@
 .thread-group {
   position: relative;
   min-width: 0;
+  /* Las filas fuera de pantalla no se maquetan ni pintan; el tamaño se recuerda
+     tras la primera visita para que el scroll no salte. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
 }
 
 .thread-group__messages > summary {

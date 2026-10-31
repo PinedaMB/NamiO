@@ -1,7 +1,7 @@
 import { SenderAvatar } from './SenderAvatar'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { ContextMenu, type ContextAnchor } from './ContextMenu'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TooltipButton } from './Tooltip'
 import type { Thread } from '../data/demo'
 import type { FilterId } from './Topbar'
@@ -56,6 +56,22 @@ const QUEUE_LABEL: Record<FilterId, TranslationKey> = {
   vip: 'list.vipOnly',
   files: 'list.withAttachments',
   'needs-reply': 'list.needsReply'
+}
+
+const uidOf = (id: string): number | null => {
+  if (!id.startsWith('live:')) return null
+  const uid = Number(id.slice(5))
+  return Number.isInteger(uid) ? uid : null
+}
+
+const conversationKey = (thread: Thread): string => thread.messageIds?.join(',') ?? thread.id
+
+interface MemberRow {
+  id: string
+  messageId: string
+  sender: Thread['participants'][number] | undefined
+  date: string
+  unread: boolean
 }
 
 export function ThreadList({
@@ -127,13 +143,60 @@ export function ThreadList({
         : filter === 'focused' ? focusedLabel : t(QUEUE_LABEL[filter])
     : t(QUEUE_LABEL[filter])
 
-  const seen = new Set<string>()
-  const conversations = threads.filter(thread => {
-    const key = thread.messageIds?.join(',') ?? thread.id
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  const minute = Math.floor(Date.now() / 60_000)
+  // Basta recalcular las fechas cuando cambia el minuto, no en cada render.
+  const now = useMemo(() => Date.now(), [minute])
+  const checkedSet = useMemo(() => new Set(checkedIds), [checkedIds])
+
+  const conversations = useMemo(() => {
+    const seen = new Set<string>()
+    return threads.filter(thread => {
+      const key = conversationKey(thread)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [threads])
+
+  // Una sola pasada por todos los mensajes; antes cada fila filtraba el array
+  // completo y el coste era O(n²) en listas largas.
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Thread[]>()
+    for (const thread of allThreads) {
+      const key = conversationKey(thread)
+      const group = groups.get(key)
+      if (group) group.push(thread)
+      else groups.set(key, [thread])
+    }
+    return groups
+  }, [allThreads])
+
+  const memberRows = useMemo(() => {
+    const rows = new Map<string, MemberRow[]>()
+    for (const [key, group] of grouped) {
+      const order = new Map((group[0]?.messageIds ?? []).map((uid, index) => [uid, index]))
+      const sorted = [...group].sort((a, b) =>
+        (order.get(uidOf(a.id) ?? -1) ?? Number.MAX_SAFE_INTEGER) - (order.get(uidOf(b.id) ?? -1) ?? Number.MAX_SAFE_INTEGER))
+      rows.set(key, sorted.map(item => ({
+        id: item.id,
+        messageId: item.id,
+        sender: item.participants[0],
+        date: item.date !== undefined ? formatMessageDate(item.date, locale, now, timeFormat) : item.receivedAt,
+        unread: item.unread
+      })))
+    }
+    return rows
+  }, [grouped, locale, timeFormat, now])
+
+  const filesByConversation = useMemo(() => {
+    const files = new Map<string, boolean>()
+    for (const [key, group] of grouped) {
+      files.set(key, group.some(item => item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
+    }
+    return files
+  }, [grouped])
+
+  const allChecked = threads.length > 0 && threads.every(thread => checkedSet.has(thread.id))
 
   return (
     <section className="list" aria-label={t('list.queue', { name: activeLabel })}>
@@ -160,8 +223,8 @@ export function ThreadList({
         <div className="list-selection">
           <label className="list-selection__all" data-tooltip={t('list.selectLoaded')}>
             <input type="checkbox" aria-label={t('list.selectLoaded')}
-              checked={threads.length > 0 && threads.every((thread) => checkedIds.includes(thread.id))}
-              ref={(node) => { if (node) node.indeterminate = !threads.every((thread) => checkedIds.includes(thread.id)) }}
+              checked={allChecked}
+              ref={(node) => { if (node) node.indeterminate = !allChecked }}
               onChange={onCheckAll} disabled={bulkBusy || threads.length === 0} />
             <span className="list-selection__count" role="status">
               {t(checkedIds.length === 1 ? 'list.selectedOne' : 'list.selectedCount', { count: checkedIds.length })}
@@ -194,14 +257,17 @@ export function ThreadList({
 
         {conversations.map((thread) => {
           const sender = thread.participants[0]
-          const members = thread.messageIds
-            ? allThreads.filter(item => thread.messageIds!.includes(Number(item.id.slice(5))))
-                .sort((a, b) => thread.messageIds!.indexOf(Number(a.id.slice(5))) - thread.messageIds!.indexOf(Number(b.id.slice(5))))
-                .map(item => ({ id: item.id, messageId: item.id, sender: item.participants[0], date: item.date !== undefined ? formatMessageDate(item.date, locale, Date.now(), timeFormat) : item.receivedAt, unread: item.unread }))
-            : thread.messages.map(message => ({ id: thread.id, messageId: message.id, sender: message.from, date: message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt, unread: thread.unread }))
-          const hasFiles = allThreads.some(item =>
-            (item.id === thread.id || thread.messageIds?.includes(Number(item.id.slice(5)))) &&
-            (item.hasAttachments || item.messages.some(message => (message.attachments?.length ?? 0) > 0)))
+          const key = conversationKey(thread)
+          const members: MemberRow[] = thread.messageIds
+            ? memberRows.get(key) ?? []
+            : thread.messages.map(message => ({
+                id: thread.id,
+                messageId: message.id,
+                sender: message.from,
+                date: message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt,
+                unread: thread.unread
+              }))
+          const hasFiles = filesByConversation.get(key) ?? false
           const active = thread.id === selectedId || members.some(member => member.id === selectedId)
           const arrivingIds = [thread.id, ...members.map(member => member.id)].filter(id => arrivals.has(id))
           const deleting = deletingId === thread.id || members.some(member => member.id === deletingId)
@@ -236,7 +302,7 @@ export function ThreadList({
                   <div className="thread__avatar-wrap">
                     <label className="thread__select" onClick={event => event.stopPropagation()}
                       onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') event.stopPropagation() }}>
-                      <input className="thread__check" type="checkbox" checked={checkedIds.includes(thread.id)}
+                      <input className="thread__check" type="checkbox" checked={checkedSet.has(thread.id)}
                         onChange={() => onCheck(thread.id)} disabled={bulkBusy || thread.id.startsWith('draft:')}
                         aria-label={t('list.selectMessage', { subject: thread.subject })} />
                     </label>
@@ -260,7 +326,7 @@ export function ThreadList({
                       <span className="dot" />
                     </span>
                   )}
-                  <span className="thread__time" title={thread.date !== undefined ? formatMessageDateTime(thread.date, locale, false, timeFormat) : undefined}>{thread.date !== undefined ? formatMessageDate(thread.date, locale, Date.now(), timeFormat) : thread.receivedAt}</span>
+                  <span className="thread__time" title={thread.date !== undefined ? formatMessageDateTime(thread.date, locale, false, timeFormat) : undefined}>{thread.date !== undefined ? formatMessageDate(thread.date, locale, now, timeFormat) : thread.receivedAt}</span>
                 </div>
               </div>
 
@@ -283,7 +349,7 @@ export function ThreadList({
                 <div className="thread-group__items">
                   {members.map(member => (
                     <div className="thread-group__item" key={member.messageId}>
-                    {live && <input type="checkbox" checked={checkedIds.includes(member.id)} disabled={bulkBusy}
+                    {live && <input type="checkbox" checked={checkedSet.has(member.id)} disabled={bulkBusy}
                       onChange={() => onCheck(member.id)} aria-label={t('list.selectMessage', { subject: `${thread.subject} · ${member.sender?.name ?? ''}` })} />}
                     <button type="button"
                       aria-busy={deletingId === member.id}

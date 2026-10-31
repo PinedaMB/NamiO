@@ -19,6 +19,7 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   let enabled = true
   const context = { readSettings: async () => ({ offlineDownload: enabled }),
     syncGeneration: 0, fullSyncRunning: false, pendingFullSync: new Set(['Archive']), ensureFullSync: path => resumed.push(path),
+    MAX_OFFLINE_MESSAGE_BYTES: 30 * 1024 * 1024,
     serial: async fn => fn(),
     ensureClient: async () => ({
       search: async () => server.slice(),

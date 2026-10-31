@@ -32,8 +32,10 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 - ✅ **P0 #3 — identidad de cuenta en la cola:** cada trabajo guarda `accountId` y `UIDVALIDITY`; la sesión IMAP recuerda su cuenta; cambiar de cuenta (activar, seleccionar) cierra la sesión y reapunta la caché dentro de la cadena serial. Cubierto por `scripts/test-outbox-identity.cjs`, `test-move-message.cjs` y la suite completa.
 - ✅ **P0 #4 — frontera de confianza:** `settings:get` proyecta solo ajustes públicos; `settings:set` usa lista blanca y validación de tipos; la navegación `file://` queda restringida a la página de la app y se bloquea el drop de archivos en la ventana y en el iframe del correo. Cubierto por `scripts/test-settings-allowlist.cjs`, `scripts/test-navigation-guard.cjs` y la suite completa.
 - ✅ **P1 #6 — conversaciones:** `visible` deduplica por `messageIds`; `j`/`k`, posición, “1 de N” y selección masiva trabajan por hilo, y las acciones se expanden a todos los mensajes del grupo. Cubierto por `scripts/test-conversation-navigation.cjs`, `test-list-filters`, `test-multi-select` y `test-conversation`.
+- 🟡 **P1 #13 — rendimiento de la lista:** se eliminó el O(n²) por fila con mapas de conversación/miembros/adjuntos, se memoizaron los formateadores `Intl` y se usa `content-visibility: auto` para filas fuera de pantalla. **Falta** virtualización real y un tope/ventana para `listLimit` si se quieren miles de filas simultáneas.
+- ✅ **P1 #7 — topes de memoria:** mensajes de 50 MB, cuerpos offline de 30 MB, adjuntos de 25 MB y 50 MB por envío; los streams se cortan al superar el límite, los adjuntos se validan antes de copiarlos a SQLite y la descarga offline omite mensajes enormes. Cubierto por `scripts/test-memory-limits.cjs` y la suite completa.
 - 🟡 **P0 #5 — release:** los tags `-rc` se publican como *prerelease*, los workflows ejecutan pruebas y adjuntan `SHA256SUMS`, y el updater distingue candidate/estable. **Falta** el certificado de firma y `publisherName` en Windows para que `electron-updater` verifique el editor; sin esos secretos el instalador sigue sin firma.
-- ⏳ Pendientes: firma de Windows y P1/P2 restantes (rendimiento de lista, memoria de adjuntos, reglas históricas, accesibilidad).
+- ⏳ Pendientes: firma de Windows, virtualización real de la lista, extracción de adjuntos por parte y P2 de accesibilidad/documentación.
 
 ---
 
@@ -43,13 +45,13 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 |---|---|
 | `pnpm run typecheck` | ✅ Sin errores (node + web) |
 | `pnpm run build` | ✅ Compila; renderer 1,09 MB JS + 142 KB CSS; editor y PDF en chunks lazy |
-| `node scripts/test.mjs` | ✅ 64/64 archivos, 0 fallos, ~85 s |
+| `node scripts/test.mjs` | ✅ 71/71 archivos, 0 fallos (~60 s) |
 | `node scripts/css-audit.mjs` | ✅ Sin variables indefinidas, clases rotas ni URLs rotas |
 | Paridad i18n `es`/`en` | ✅ 614/614 claves |
 | Pruebas de interfaz Electron (`--ui`) | ⚠️ No ejecutadas en esta auditoría (requieren Electron/entorno gráfico) |
 | IMAP/SMTP/instaladores reales | ⚠️ No verificados aquí |
 
-> **Matiz importante sobre las pruebas:** `node --test` cuenta **1 caso por archivo** porque los 64 scripts usan aserciones de nivel superior, no `test()/describe()`. "64 pruebas" significa 64 archivos con muchos asserts, no 64 casos aislados; un assert fallido aborta el resto del archivo.
+> **Matiz importante sobre las pruebas:** `node --test` cuenta **1 caso por archivo** porque los scripts usan aserciones de nivel superior, no `test()/describe()`. "71 pruebas" significa 71 archivos con muchos asserts, no 71 casos aislados; un assert fallido aborta el resto del archivo.
 
 ---
 

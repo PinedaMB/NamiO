@@ -62,6 +62,17 @@ import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
 import { decryptSecret, encryptSecret, readSettings, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, updateAccount, writeSettings, type StoredAccount } from './settings'
 
+/**
+ * Topes de memoria/red. Un cliente de correo procesa contenido de terceros:
+ * estos límites evitan que un mensaje o adjunto grande tumbe el proceso antes
+ * de poder mostrar un error. Los cuerpos que se guardan para lectura offline
+ * omiten los mensajes enormes.
+ */
+const MAX_MESSAGE_BYTES = 50 * 1024 * 1024
+const MAX_BODY_BYTES = 30 * 1024 * 1024
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+const MAX_OFFLINE_MESSAGE_BYTES = 30 * 1024 * 1024
+
 interface Session {
   client: ImapFlow
   config: ImapAccountConfig
@@ -266,6 +277,22 @@ function accountChangedError(): Error {
   const error = new Error('La cuenta activa cambió') as Error & { code?: string }
   error.code = 'ACCOUNT_CHANGED'
   return error
+}
+
+/**
+ * Acumula un stream con un tope. Al superarlo se corta la descarga en vez de
+ * esperar a tener cientos de MB en memoria para recién validar el tamaño.
+ */
+async function readLimited(stream: AsyncIterable<Uint8Array>, maxBytes: number, message: string): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of stream) {
+    const buffer = Buffer.from(chunk)
+    total += buffer.length
+    if (total > maxBytes) throw new Error(message)
+    chunks.push(buffer)
+  }
+  return Buffer.concat(chunks)
 }
 
 function toDate(value: string | Date | undefined): Date {
@@ -558,7 +585,9 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       if (generation !== syncGeneration) return
       const uid = bodyUids[index]!
       const downloaded = await serial(async () => {
-        if (generation !== syncGeneration || !readEnvelope(path, uid) || readBody(path, uid).fetched) return false
+        const envelope = readEnvelope(path, uid)
+        if (generation !== syncGeneration || !envelope || readBody(path, uid).fetched) return false
+        if (envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return false
         if ((await readSettings()).offlineDownload !== true || generation !== syncGeneration) return false
         await cacheMessageBody(path, uid)
         return generation === syncGeneration
@@ -674,6 +703,9 @@ export async function listEnvelopes(
 /** Guarda únicamente los cuerpos de lectura; los binarios siguen bajo demanda. */
 async function cacheMessageBody(path: string, uid: number): Promise<void> {
   const generation = syncGeneration
+  const envelope = readEnvelope(path, uid)
+  // Los mensajes enormes no se guardan para offline: se abren bajo demanda.
+  if (!envelope || envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return
   const client = await ensureClient()
   const lock = await client.getMailboxLock(path)
   try {
@@ -698,9 +730,7 @@ async function cacheMessageBody(path: string, uid: number): Promise<void> {
     for (const part of parts) {
       const download = await client.download(String(uid), part.part, { uid: true })
       if (!download.content) throw new Error('El cuerpo del mensaje no está disponible')
-      const chunks: Buffer[] = []
-      for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
-      const content = Buffer.concat(chunks).toString('utf8')
+      const content = (await readLimited(download.content, MAX_BODY_BYTES, 'El cuerpo del mensaje supera el límite de tamaño')).toString('utf8')
       if (part.type === 'text/html') html.push(content)
       else text.push(content)
     }
@@ -721,12 +751,12 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
   const lock = await client.getMailboxLock(path)
 
   try {
+    const cachedEnvelope = readEnvelope(path, uid)
+    if (cachedEnvelope && cachedEnvelope.size > MAX_MESSAGE_BYTES) throw new Error('El mensaje supera el límite de 50 MB para abrirlo')
     const download = await client.download(String(uid), undefined, { uid: true })
     if (!download.content) throw new Error('Message body unavailable')
 
-    const chunks: Buffer[] = []
-    for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
-    const raw = Buffer.concat(chunks)
+    const raw = await readLimited(download.content, MAX_MESSAGE_BYTES, 'El mensaje supera el límite de 50 MB para abrirlo')
 
     const parsed = await simpleParser(raw)
     const priority = parsed.headers.get('priority')
@@ -752,7 +782,7 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
       index
     }))
 
-    const envelope = readEnvelope(path, uid)
+    const envelope = cachedEnvelope
 
     return {
       uid,
@@ -944,21 +974,24 @@ export function readAttachment(
     const lock = await client.getMailboxLock(path)
 
     try {
+      const cachedEnvelope = readEnvelope(path, uid)
+      if (cachedEnvelope && cachedEnvelope.size > MAX_MESSAGE_BYTES) throw new Error('El mensaje supera el límite de 50 MB; no se puede extraer el adjunto')
       const download = await client.download(String(uid), undefined, { uid: true })
       if (!download.content) throw new Error('El mensaje no tiene contenido')
 
-      const chunks: Buffer[] = []
-      for await (const chunk of download.content) chunks.push(Buffer.from(chunk))
+      const raw = await readLimited(download.content, MAX_MESSAGE_BYTES, 'El mensaje supera el límite de 50 MB; no se puede extraer el adjunto')
 
-      const parsed = await simpleParser(Buffer.concat(chunks))
+      const parsed = await simpleParser(raw)
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
       const attachment = parsed.attachments[index]
       if (!attachment?.content) throw new Error('Adjunto no encontrado')
+      const content = Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content)
+      if (content.length > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
 
       return {
         type: attachment.contentType,
         name: attachment.filename ?? `adjunto-${index + 1}`,
-        content: Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content)
+        content
       }
     } finally {
       lock.release()
@@ -1363,10 +1396,9 @@ export function downloadDraft(path: string, uid: number): Promise<{ raw: Buffer;
     try {
       const result = await client.download(String(uid), undefined, { uid: true })
       if (!result.content || !client.mailbox) throw new Error('No se pudo abrir el borrador')
-      const chunks: Buffer[] = []
-      for await (const chunk of result.content) chunks.push(Buffer.from(chunk))
+      const raw = await readLimited(result.content, MAX_MESSAGE_BYTES, 'El borrador supera el límite de 50 MB')
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
-      return { raw: Buffer.concat(chunks), server: { path, uid, uidValidity: String(client.mailbox.uidValidity) } }
+      return { raw, server: { path, uid, uidValidity: String(client.mailbox.uidValidity) } }
     } finally { lock.release() }
   })
 }

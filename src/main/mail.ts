@@ -18,6 +18,9 @@ import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCreden
  */
 
 const MAX_ATTEMPTS = 5
+/** Los adjuntos se copian a SQLite y viajan por SMTP; 25 MB por archivo y 50 MB por envío. */
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+const MAX_ATTACHMENT_TOTAL_BYTES = 50 * 1024 * 1024
 
 let processing = false
 let outboxPaused = false
@@ -149,8 +152,12 @@ export async function registerAttachments(window: BrowserWindow | null): Promise
   if (result.canceled) return []
 
   const picked: PickedAttachment[] = []
+  let totalBytes = 0
   for (const filePath of result.filePaths) {
     const info = await stat(filePath)
+    if (info.size > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
+    totalBytes += info.size
+    if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('El total de adjuntos supera el límite de 50 MB')
     const entry: PendingAttachment = {
       id: randomUUID(),
       path: filePath,
@@ -158,6 +165,7 @@ export async function registerAttachments(window: BrowserWindow | null): Promise
       size: info.size
     }
     const data = await readFile(filePath)
+    if (data.length > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
     if ((await readActiveAccount())?.id !== accountId) throw new Error('La cuenta activa cambió')
     storePickedAttachment(entry.id, entry.name, data)
     picked.push({ id: entry.id, name: entry.name, size: entry.size })
@@ -181,8 +189,12 @@ async function sendWithSmtp(payload: SendMailPayload, accountId: string | null):
     .map((id) => {
       const file = readPickedAttachment(id)
       if (!file) throw new Error('Falta un adjunto. Vuelve a adjuntarlo antes de enviar.')
+      if (file.data.byteLength > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
       return { name: file.name, data: Buffer.from(file.data) }
     })
+  if (files.reduce((total, file) => total + file.data.byteLength, 0) > MAX_ATTACHMENT_TOTAL_BYTES) {
+    throw new Error('El total de adjuntos supera el límite de 50 MB')
+  }
 
   // Se compila con nodemailer (multipart si hay adjuntos) y se envía el crudo:
   // así la copia en Enviados es byte a byte el mensaje que salió.

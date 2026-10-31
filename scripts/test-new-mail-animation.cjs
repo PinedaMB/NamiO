@@ -31,7 +31,7 @@ context.live = true; context.allThreads = []; update(); context.allThreads = [ma
 
 const out = {}
 vm.runInNewContext(ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }), { exports: out, require: id => {
-  if (id === 'react') return { ...React, useEffect() {}, useRef: value => ({ current: value }), useCallback: fn => fn, useState: value => typeof value?.has === 'function' ? [new Set(['live:2']), update => { arrivals = update(new Set(['live:2'])) }] : [null, () => {}] }
+  if (id === 'react') return { ...React, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn(), useCallback: fn => fn, useState: value => typeof value?.has === 'function' ? [new Set(['live:2']), update => { arrivals = update(new Set(['live:2'])) }] : [null, () => {}] }
   if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h' }) }
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }

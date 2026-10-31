@@ -49,9 +49,10 @@ async function main() {
     }
   }
   const context = { readSettings: async () => ({ offlineDownload: true }), ...db, Buffer, simpleParser, console: { error() {} }, syncGeneration: 1, fullSyncRunning: false, pendingFullSync: new Set(), offline: false,
+    MAX_MESSAGE_BYTES: 50 * 1024 * 1024, MAX_BODY_BYTES: 30 * 1024 * 1024, MAX_ATTACHMENT_BYTES: 25 * 1024 * 1024, MAX_OFFLINE_MESSAGE_BYTES: 30 * 1024 * 1024,
     ensureClient: async () => client, serial: async fn => fn(), sleep: async () => {}, notify() {}, publishProgress: value => progress.push(value),
     fetchRange: async () => { throw new Error('Headers already exist; no envelope refetch expected') }, classify: error => error.code === 'ENETUNREACH' ? 'network' : 'unknown', isOfflineError: code => code === 'network', describe: error => error.message }
-  const functions = ['toAddress','cacheMessageBody','fullSyncMailbox','ensureFullSync'].map(name => declarations.get(name)).join('\n')
+  const functions = ['toAddress','readLimited','cacheMessageBody','fullSyncMailbox','ensureFullSync'].map(name => declarations.get(name)).join('\n')
   const api = vm.runInNewContext(compile(`${functions}; ({cacheMessageBody, fullSyncMailbox, ensureFullSync})`), context)
   context.readSettings = async () => ({})
   await api.fullSyncMailbox('INBOX',100)
