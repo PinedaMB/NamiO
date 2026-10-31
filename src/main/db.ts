@@ -528,10 +528,16 @@ export function pruneExcept(mailbox: string, uids: readonly number[]): void {
   if (uids.length === 0) {
     database.prepare('DELETE FROM messages WHERE mailbox = ?').run(mailbox)
   } else {
-    const placeholders = uids.map(() => '?').join(', ')
-    database
-      .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid NOT IN (${placeholders})`)
-      .run(mailbox, ...uids)
+    const keep = new Set(uids)
+    const remove = cachedUids(mailbox).filter((uid) => !keep.has(uid))
+    // Las listas de UIDs pueden superar el límite de variables de SQLite; se
+    // borra por tandas en vez de construir un `NOT IN` gigante.
+    for (let offset = 0; offset < remove.length; offset += 500) {
+      const batch = remove.slice(offset, offset + 500)
+      database
+        .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid IN (${batch.map(() => '?').join(', ')})`)
+        .run(mailbox, ...batch)
+    }
   }
   // Los ids de `search` siguen a `messages`: lo que ya no tiene mensaje se
   // retira del índice en la misma pasada (antes quedaba como huérfano).
@@ -712,6 +718,13 @@ export function countMessages(mailbox: string): number {
     .prepare('SELECT COUNT(*) AS total FROM messages WHERE mailbox = ?')
     .get(mailbox) as unknown as { total: number }
   return row.total
+}
+
+export function cachedUids(mailbox: string): number[] {
+  const rows = handle()
+    .prepare('SELECT uid FROM messages WHERE mailbox = ? ORDER BY uid')
+    .all(mailbox) as unknown as { uid: number }[]
+  return rows.map((row) => row.uid)
 }
 
 /** UID más bajo cacheado: desde ahí se sigue bajando en la sync completa. */

@@ -66,6 +66,12 @@ const uidOf = (id: string): number | null => {
 
 const conversationKey = (thread: Thread): string => thread.messageIds?.join(',') ?? thread.id
 
+// A partir de este tamaño solo se montan las filas visibles (más un margen).
+// Las listas pequeñas se pintan enteras: menos complejidad y cero saltos.
+const VIRTUAL_THRESHOLD = 120
+const VIRTUAL_OVERSCAN = 6
+const BASE_ROW_HEIGHT = 82
+
 interface MemberRow {
   id: string
   messageId: string
@@ -109,6 +115,10 @@ export function ThreadList({
   const [menu, setMenu] = useState<{ kind: 'sort' | 'filter'; anchor: ContextAnchor } | null>(null)
   const [arrivals, setArrivals] = useState<Set<string>>(new Set())
   const arrivalBaseline = useRef<{ key: string; uid: number | null }>({ key: arrivalKey, uid: null })
+  const listRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef({ top: 0, height: 900 })
+  const rowHeights = useRef(new Map<string, number>())
+  const measureFrame = useRef(0)
   useEffect(() => {
     if (arrivalBaseline.current.key !== arrivalKey || !live) {
       arrivalBaseline.current = { key: arrivalKey, uid: null }
@@ -157,6 +167,77 @@ export function ThreadList({
       return true
     })
   }, [threads])
+
+  const virtual = conversations.length > VIRTUAL_THRESHOLD
+  const layout = useMemo(() => {
+    if (!virtual) return { start: 0, end: conversations.length, top: 0, bottom: 0 }
+    const len = conversations.length
+    const offsets = new Array<number>(len)
+    let total = 0
+    for (let index = 0; index < len; index += 1) {
+      offsets[index] = total
+      total += rowHeights.current.get(conversationKey(conversations[index]!)) ?? BASE_ROW_HEIGHT
+    }
+    const height = Math.max(viewportRef.current.height, 320)
+    const top = viewportRef.current.top
+    let start = 0
+    while (start < len && offsets[start]! + (rowHeights.current.get(conversationKey(conversations[start]!)) ?? BASE_ROW_HEIGHT) < top) start += 1
+    start = Math.max(0, start - VIRTUAL_OVERSCAN)
+    let end = start
+    while (end < len && offsets[end]! < top + height) end += 1
+    end = Math.min(len, end + VIRTUAL_OVERSCAN)
+    return {
+      start,
+      end,
+      top: offsets[start] ?? 0,
+      bottom: Math.max(0, total - (offsets[end] ?? total))
+    }
+  }, [conversations, virtual, arrivals])
+
+  const measureRow = useCallback((key: string, node: HTMLDivElement | null) => {
+    if (!virtual || !node) return
+    const height = node.getBoundingClientRect().height
+    const rowHeight = height + 2 // incluye el gap de 2 px de `.thread-list`
+    if (height <= 0 || Math.abs(rowHeight - (rowHeights.current.get(key) ?? BASE_ROW_HEIGHT)) <= 1) return
+    rowHeights.current.set(key, rowHeight)
+    if (measureFrame.current !== 0) return
+    measureFrame.current = requestAnimationFrame(() => {
+      measureFrame.current = 0
+      setArrivals(current => new Set(current))
+    })
+  }, [virtual])
+
+  useEffect(() => {
+    const element = listRef.current
+    if (!virtual || !element) return
+    const syncHeight = (): void => {
+      viewportRef.current.height = element.clientHeight
+      setArrivals(current => new Set(current))
+    }
+    syncHeight()
+    const observer = new ResizeObserver(syncHeight)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [virtual])
+
+  // Si j/k lleva la selección fuera de la ventana montada, la lista la sigue.
+  useEffect(() => {
+    const element = listRef.current
+    if (!virtual || !selectedId || !element) return
+    const index = conversations.findIndex(thread => thread.id === selectedId || thread.messageIds?.some(id => String(id) === selectedId))
+    if (index < 0) return
+    let top = 0
+    for (let cursor = 0; cursor < index; cursor += 1) {
+      top += rowHeights.current.get(conversationKey(conversations[cursor]!)) ?? BASE_ROW_HEIGHT
+    }
+    const height = rowHeights.current.get(conversationKey(conversations[index]!)) ?? BASE_ROW_HEIGHT
+    const viewport = viewportRef.current
+    if (top < viewport.top || top + height > viewport.top + viewport.height) {
+      element.scrollTop = Math.max(0, top - viewport.height / 2)
+      viewport.top = element.scrollTop
+      setArrivals(current => new Set(current))
+    }
+  }, [selectedId, virtual, conversations])
 
   // Una sola pasada por todos los mensajes; antes cada fila filtraba el array
   // completo y el coste era O(n²) en listas largas.
@@ -240,10 +321,14 @@ export function ThreadList({
       )}
 
       <div
+        ref={listRef}
         className="thread-list"
         onScroll={(event) => {
-          if (!hasMore || !onLoadMore) return
           const element = event.currentTarget
+          viewportRef.current.top = element.scrollTop
+          viewportRef.current.height = element.clientHeight
+          if (virtual) setArrivals(current => new Set(current))
+          if (!hasMore || !onLoadMore) return
           // A 300 px del final se pide la siguiente tanda (ya está en la caché).
           if (element.scrollTop + element.clientHeight >= element.scrollHeight - 300) onLoadMore()
         }}
@@ -255,7 +340,9 @@ export function ThreadList({
           </div>
         )}
 
-        {conversations.map((thread) => {
+        {virtual && layout.top > 0 && <div aria-hidden="true" style={{ height: layout.top }} />}
+
+        {conversations.slice(layout.start, layout.end).map((thread) => {
           const sender = thread.participants[0]
           const key = conversationKey(thread)
           const members: MemberRow[] = thread.messageIds
@@ -272,7 +359,7 @@ export function ThreadList({
           const arrivingIds = [thread.id, ...members.map(member => member.id)].filter(id => arrivals.has(id))
           const deleting = deletingId === thread.id || members.some(member => member.id === deletingId)
           return (
-            <div className="thread-group" key={thread.id}>
+            <div className="thread-group" key={thread.id} ref={node => measureRow(key, node)}>
             <article
               onContextMenu={event => { if (!onContextMenu) return; event.preventDefault(); onContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLElement>('.thread__content')! }, thread.id) }}
               aria-busy={deleting}
@@ -373,6 +460,8 @@ export function ThreadList({
             </div>
           )
         })}
+
+        {virtual && layout.bottom > 0 && <div aria-hidden="true" style={{ height: layout.bottom }} />}
 
         {threads.length === 0 && !loading && (
           <p className="muted" style={{ padding: '24px 12px', textAlign: 'center' }}>

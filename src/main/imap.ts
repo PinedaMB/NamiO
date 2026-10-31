@@ -29,6 +29,7 @@ import {
   clearMailbox,
   clearAccountCache,
   deleteAccountCache,
+  cachedUids,
   countMessages,
   countBodies,
   countUnread,
@@ -449,9 +450,25 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     }
 
     if (!fullSync && countMessages(path) > exists) {
-      const uids = await client.search({ all: true }, { uid: true })
-      if (!uids) throw new Error('No se pudo comprobar qué mensajes siguen en la carpeta')
-      pruneExcept(path, uids)
+      const cached = cachedUids(path)
+      // En buzones pequeños una sola búsqueda es lo más barato. En uno grande,
+      // se pregunta por tandas de UIDs cacheados: la respuesta queda acotada y
+      // no se materializa la lista completa del servidor en memoria.
+      if (cached.length <= 2000) {
+        const uids = await client.search({ all: true }, { uid: true })
+        if (!uids) throw new Error('No se pudo comprobar qué mensajes siguen en la carpeta')
+        pruneExcept(path, uids)
+      } else {
+        const existing = new Set<number>()
+        for (let offset = 0; offset < cached.length; offset += 1000) {
+          const batch = cached.slice(offset, offset + 1000)
+          const batchSet = new Set(batch)
+          const found = await client.search({ uid: batch.join(',') }, { uid: true })
+          if (!found) throw new Error('No se pudo comprobar qué mensajes siguen en la carpeta')
+          for (const uid of found) if (batchSet.has(uid)) existing.add(uid)
+        }
+        pruneExcept(path, [...existing])
+      }
     }
 
     saveMailboxSync(path, {

@@ -59,7 +59,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h' }) }
     if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
-    if (id === '../lib/dates') return {}
+    if (id === '../lib/dates') return { formatMessageDate: () => 'date', formatMessageDateTime: () => 'date' }
     return require(id)
   }
 })
@@ -85,6 +85,36 @@ for (const kind of ['sort', 'filter']) {
   popup.props.onClose()
   assert.equal(menu, null)
 }
+
+const manyThreads = Array.from({ length: 200 }, (_, index) => ({
+  id: `live:${index + 1}`,
+  subject: `Mensaje ${index + 1}`,
+  participants: [{ name: 'Remitente', email: 'sender@example.com' }],
+  date: new Date(2026, 0, 1, 12, index % 60).toISOString(),
+  receivedAt: '',
+  unread: false,
+  starred: false,
+  vip: false,
+  hasAttachments: false,
+  messageIds: [index + 1],
+  messages: []
+}))
+const virtualTree = exportsList.ThreadList({
+  threads: manyThreads, checkedIds: [], filter: 'all', live: true, oldestFirst: false,
+  folderLabel: 'Inbox', mailbox: 'INBOX', spam: false, selectedId: null,
+  allCount: manyThreads.length, vipCount: 0, unreadCount: 0, otherCount: 0,
+  onCheck() {}, onCheckAll() {}, onClearChecked() {}, onBulkAction() {}, bulkBusy: false,
+  onFilter() {}, onSort() {}, onSelect() {}
+})
+let renderedGroups = 0
+function countGroups(node) {
+  if (!React.isValidElement(node)) return
+  if (node.props.className === 'thread-group') renderedGroups += 1
+  React.Children.forEach(node.props.children, countGroups)
+}
+countGroups(virtualTree)
+assert.ok(renderedGroups > 0 && renderedGroups < manyThreads.length, 'large lists mount only the visible window')
+
 const appSource = fs.readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(appSource, /MAX_LIST_LIMIT = 1000/, 'the list has a DOM ceiling')
 assert.match(appSource, /listLimit < MAX_LIST_LIMIT/, 'the list stops growing at the ceiling')

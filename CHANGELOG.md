@@ -6,7 +6,8 @@
 - La lista calcula miembros y adjuntos en una sola pasada (sin O(n²) por fila), reutiliza los formateadores de fecha y difiere el pintado de las filas fuera de pantalla. Las fechas relativas se actualizan por minuto.
 - La sincronización ya no repite un `SEARCH ALL` en cada vuelta cuando la descarga offline está apagada, no vuelve a pedir la ventana visible que acaba de bajar, coalesce navegaciones seguidas sobre la misma carpeta y suelta el lock antes de evaluar reglas, avisos y refrescar carpetas.
 - Los diálogos no nativos atrapan el foco y lo restauran al cerrarse, el encabezado de cada mensaje es un `summary` alcanzable con teclado y las scrollbars vuelven a ser visibles.
-- La lista tiene un techo de 1.000 filas y el proceso principal recorta cualquier límite que llegue por IPC; las filas siguen usando `content-visibility` para no maquetar las que están fuera de pantalla.
+- La lista tiene un techo de 1.000 filas y el proceso principal recorta cualquier límite que llegue por IPC; a partir de 120 hilos solo se montan las filas visibles con medición de altura real, y las pequeñas siguen pintándose enteras.
+- La reconciliación de mensajes borrados ya no materializa todos los UIDs del servidor en buzones grandes: pregunta por tandas de 1.000 UIDs cacheados y poda por tandas de 500, sin el límite de variables de SQLite.
 - Los adjuntos se descargan por su parte MIME cuando la caché la conoce, sin bajar el mensaje completo. Las cachés antiguas siguen funcionando con el método anterior.
 - La cola reintenta con backoff persistente de 30 s a 15 min; un fallo de red ya no se reintenta cada minuto ni consume intentos, y el temporizador se reprograma al arrancar.
 - Un `settings.json` corrupto ya no se descarta en silencio: se aparta con marca `.corrupt-<fecha>` y la app arranca con valores por defecto.
