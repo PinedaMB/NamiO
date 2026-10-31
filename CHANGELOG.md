@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- La bandeja cuenta y navega por conversación: `j`/`k`, la posición del lector y la selección masiva ya no repiten cada mensaje del hilo. Abrir un hilo marca leídos todos sus mensajes y las acciones de selección se aplican a la conversación completa, no solo al mensaje más reciente.
 - La UI solo recibe y puede escribir ajustes públicos: `settings:get` ya no envía cuentas, credenciales ni cursores internos, y `settings:set` rechaza claves internas y valores fuera de tipo. Se mantienen las preferencias, atajos y opciones existentes.
 - La ventana no navega fuera del bundle: cualquier `file://` distinto de la página de la app se cancela, los enlaces https se abren en el navegador y soltar un archivo (en la app o en el iframe del correo) ya no puede cargar una página local con acceso al preload.
 - Las releases `-rc` se publican como *prerelease* y no sustituyen el canal estable; los workflows de release ejecutan las pruebas antes de empaquetar y adjuntan `SHA256SUMS`. La firma del instalador Windows se activa con los secretos `WINDOWS_CSC_LINK` y `WINDOWS_CSC_KEY_PASSWORD`; sin ellos el artefacto queda sin firma.

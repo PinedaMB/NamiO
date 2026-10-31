@@ -31,8 +31,9 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 - ✅ **P0 #2 — índice FTS:** identificadores estables (`search_ids`), reindexado solo cuando cambia el texto, borrado por id y limpieza de huérfanos. Medición local (20.000 mensajes): 10 refrescos de 50 sobres bajan de ~8,8 s a **7 ms**; guardar 50 cuerpos, de ~0,9 s a **49 ms**. Cubierto por `scripts/test-search-index.cjs` y la suite completa.
 - ✅ **P0 #3 — identidad de cuenta en la cola:** cada trabajo guarda `accountId` y `UIDVALIDITY`; la sesión IMAP recuerda su cuenta; cambiar de cuenta (activar, seleccionar) cierra la sesión y reapunta la caché dentro de la cadena serial. Cubierto por `scripts/test-outbox-identity.cjs`, `test-move-message.cjs` y la suite completa.
 - ✅ **P0 #4 — frontera de confianza:** `settings:get` proyecta solo ajustes públicos; `settings:set` usa lista blanca y validación de tipos; la navegación `file://` queda restringida a la página de la app y se bloquea el drop de archivos en la ventana y en el iframe del correo. Cubierto por `scripts/test-settings-allowlist.cjs`, `scripts/test-navigation-guard.cjs` y la suite completa.
+- ✅ **P1 #6 — conversaciones:** `visible` deduplica por `messageIds`; `j`/`k`, posición, “1 de N” y selección masiva trabajan por hilo, y las acciones se expanden a todos los mensajes del grupo. Cubierto por `scripts/test-conversation-navigation.cjs`, `test-list-filters`, `test-multi-select` y `test-conversation`.
 - 🟡 **P0 #5 — release:** los tags `-rc` se publican como *prerelease*, los workflows ejecutan pruebas y adjuntan `SHA256SUMS`, y el updater distingue candidate/estable. **Falta** el certificado de firma y `publisherName` en Windows para que `electron-updater` verifique el editor; sin esos secretos el instalador sigue sin firma.
-- ⏳ Pendientes: firma de Windows y todos los P1/P2.
+- ⏳ Pendientes: firma de Windows y P1/P2 restantes (rendimiento de lista, memoria de adjuntos, reglas históricas, accesibilidad).
 
 ---
 

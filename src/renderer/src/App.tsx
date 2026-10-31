@@ -120,13 +120,32 @@ function conversationKey(thread: Thread): string {
  * primero de la lista (el mensaje más reciente).
  */
 function collapseConversations(threads: readonly Thread[]): Thread[] {
-  const seen = new Set<string>()
-  return threads.filter((thread) => {
+  const groups = new Map<string, Thread[]>()
+  for (const thread of threads) {
     const key = conversationKey(thread)
-    if (seen.has(key)) return false
+    const group = groups.get(key)
+    if (group) group.push(thread)
+    else groups.set(key, [thread])
+  }
+
+  const seen = new Set<string>()
+  const result: Thread[] = []
+  for (const thread of threads) {
+    const key = conversationKey(thread)
+    if (seen.has(key)) continue
     seen.add(key)
-    return true
-  })
+    const group = groups.get(key) ?? [thread]
+    // El representante es el mensaje más reciente, pero el estado del hilo es
+    // la unión de sus mensajes: un no leído antiguo sigue contando.
+    const unread = group.some((item) => item.unread)
+    const starred = group.some((item) => item.starred)
+    const vip = group.some((item) => item.vip)
+    const hasAttachments = group.some((item) => item.hasAttachments)
+    result.push(unread === thread.unread && starred === thread.starred && vip === thread.vip && hasAttachments === thread.hasAttachments
+      ? thread
+      : { ...thread, unread, starred, vip, hasAttachments })
+  }
+  return result
 }
 
 /** ¿La fila de la conversación contiene este id de mensaje? */
@@ -367,7 +386,7 @@ export function App(): React.JSX.Element {
         const result = await window.api.deleteMessages(folder, uids)
         if (!result.ok) throw new Error(result.error ?? 'IPC')
         if (result.canceled || generation !== accountGeneration.current || request !== folderRequest.current) return
-        setCheckedIds([])
+        setCheckedIds(() => [])
         setToast(t('toast.deletingBackground'))
         return
       }
@@ -497,13 +516,18 @@ export function App(): React.JSX.Element {
     if (junk) void loadFolder(junk.path)
   }, [live, mailboxes, folder, loadFolder])
 
-  /** Marca leído un hilo concreto (estado local + `\Seen` en el servidor). */
+  /** Marca leído un hilo completo (estado local + `\Seen` en el servidor). */
   const markRead = useCallback(
     (path: string, uid: number, id: string): void => {
-      setThreads((current) => current.map((thread) => (thread.id === id ? { ...thread, unread: false } : thread)))
-      if (live) void window.api.setSeen(path, uid, true).catch(() => undefined)
+      const group = threads.filter((thread) => threadMatchesId(thread, id))
+      const uids = group
+        .filter((thread) => thread.unread)
+        .map((thread) => uidOf(thread.id))
+        .filter((value): value is number => value !== null)
+      setThreads((current) => current.map((thread) => (threadMatchesId(thread, id) ? { ...thread, unread: false } : thread)))
+      if (live) for (const memberUid of new Set(uids.length ? uids : [uid])) void window.api.setSeen(path, memberUid, true).catch(() => undefined)
     },
-    [live]
+    [live, threads]
   )
 
   /** Carga el resultado explícito aunque esté fuera de la tanda visible. */
@@ -871,9 +895,9 @@ export function App(): React.JSX.Element {
       }).catch(error => setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })))
       return
     }
-    const thread = threads.find((item) => item.id === id)
     const uid = uidOf(id)
-    if (thread?.unread && uid !== null) markRead(folder, uid, id)
+    const unread = threads.some((item) => threadMatchesId(item, id) && item.unread)
+    if (unread && uid !== null) markRead(folder, uid, id)
   }
 
   const selectFolder = (id: string): void => {
