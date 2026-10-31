@@ -1,9 +1,9 @@
+import { SenderAvatar } from './SenderAvatar'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { ContextMenu, type ContextAnchor } from './ContextMenu'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { SenderAvatar } from './SenderAvatar'
 import { TooltipButton } from './Tooltip'
-import type { Tag, Thread } from '../data/demo'
+import type { Thread } from '../data/demo'
 import type { FilterId } from './Topbar'
 import { useI18n, type TranslationKey } from '../i18n'
 import { Icon } from './Icon'
@@ -11,6 +11,7 @@ import { cx } from '../lib/cx'
 import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 
 interface ThreadListProps {
+  folderLabel: string
   threads: readonly Thread[]
   allThreads?: readonly Thread[]
   arrivalKey?: string
@@ -57,28 +58,15 @@ const QUEUE_LABEL: Record<FilterId, TranslationKey> = {
   'needs-reply': 'list.needsReply'
 }
 
-function tagClass(tag: Tag): string {
-  switch (tag.tone) {
-    case 'secondary':
-    case 'primary':
-      return 'chip chip--primary'
-    case 'tertiary':
-      return 'chip chip--tertiary'
-    case 'error':
-      return 'chip chip--error'
-    default:
-      return 'chip'
-  }
-}
-
 export function ThreadList({
+  folderLabel,
   threads,
   allThreads = threads,
   selectedId,
   selectedMessageId,
   mailbox,
-  arrivalKey = mailbox,
   spam,
+  arrivalKey = mailbox,
   checkedIds,
   onCheck,
   onCheckAll,
@@ -87,14 +75,10 @@ export function ThreadList({
   bulkBusy,
   deletingId,
   filter,
-  unreadCount,
-  otherCount,
   allCount,
   availableOffline = 0,
-  vipCount,
   loading = false,
   emptyLabel,
-  showVip = true,
   live = false,
   hasMore = false,
   onLoadMore,
@@ -155,69 +139,14 @@ export function ThreadList({
     <section className="list" aria-label={t('list.queue', { name: activeLabel })}>
       <div className="list__filters">
         <div className="list__filters-row">
-          <div className="seg" role="tablist">
-            {live && (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filter === 'all'}
-                className={cx('seg__btn', filter === 'all' && 'seg__btn--active')}
-                onClick={() => onFilter('all')}
-              >
-                {t('list.all')} <span className="seg__count">{allCount}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === 'focused'}
-              className={cx('seg__btn', filter === 'focused' && 'seg__btn--active')}
-              onClick={() => onFilter('focused')}
-            >
-              {focusedLabel} <span className="seg__count">{unreadCount}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === 'other'}
-              className={cx('seg__btn', filter === 'other' && 'seg__btn--active')}
-              onClick={() => onFilter('other')}
-            >
-              {otherLabel} <span className="seg__count">{otherCount}</span>
-            </button>
-            {showVip !== false && (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filter === 'vip'}
-                className={cx('seg__btn', filter === 'vip' && 'seg__btn--active')}
-                onClick={() => onFilter('vip')}
-              >
-                <Icon name="star" size={13} className="seg__star" />
-                {t('list.vip')} <span className="seg__count">{vipCount}</span>
-              </button>
-            )}
-          </div>
-
-
-        </div>
-
-        <div className="list__queue">
-          <span>
-            {live
-              ? t('list.liveQueue', { count: allCount, loaded: threads.length, offline: availableOffline }).toUpperCase()
-              : t('list.queue', { name: t(QUEUE_LABEL[filter]).toUpperCase() })}
-          </span>
-          {!live && <strong>{t('list.triaged')}</strong>}
+          <h2 className="list__title">{folderLabel}</h2>
           <div className="list__tools">
-            <TooltipButton className="icon-btn" type="button" title={t(oldestFirst ? 'list.oldestFirst' : 'list.newestFirst')} aria-label={t('list.sort')} aria-haspopup="menu" aria-expanded={menu?.kind === 'sort'} onClick={event => openMenu('sort', event.currentTarget)}>
-              <Icon name="swap_vert" size={15} />
-            </TooltipButton>
-            <TooltipButton className="icon-btn" type="button" title={t('list.filter')} aria-label={t('list.filter')} aria-haspopup="menu" aria-expanded={menu?.kind === 'filter'} onClick={event => openMenu('filter', event.currentTarget)}>
-              <Icon name="filter_list" size={15} />
-            </TooltipButton>
+            <TooltipButton className="icon-btn" type="button" title={t(oldestFirst ? 'list.oldestFirst' : 'list.newestFirst')} aria-label={t('list.sort')} aria-haspopup="menu" aria-expanded={menu?.kind === 'sort'} onClick={event => openMenu('sort', event.currentTarget)}><Icon name="swap_vert" size={18} /></TooltipButton>
+            <TooltipButton className={cx('icon-btn', filter !== 'all' && 'tool-btn--active')} type="button" title={`${t('list.filter')}: ${activeLabel}`} aria-label={t('list.filter')} aria-haspopup="menu" aria-expanded={menu?.kind === 'filter'} onClick={event => openMenu('filter', event.currentTarget)}><Icon name="filter_list" size={18} /></TooltipButton>
           </div>
         </div>
+        <span className="sr-only list__queue">{live ? t('list.liveQueue', { count: allCount, loaded: threads.length, offline: availableOffline }).toUpperCase() : activeLabel}</span>
+        {filter !== 'all' && <button className="list__active-filter" type="button" onClick={() => onFilter('all')}>{activeLabel}<Icon name="close" size={14} /></button>}
       </div>
       {menu && <ContextMenu anchor={menu.anchor} label={t(menu.kind === 'sort' ? 'list.sort' : 'list.filter')} onClose={closeMenu}
         actions={menu.kind === 'sort'
@@ -311,12 +240,11 @@ export function ThreadList({
                         onChange={() => onCheck(thread.id)} disabled={bulkBusy || thread.id.startsWith('draft:')}
                         aria-label={t('list.selectMessage', { subject: thread.subject })} />
                     </label>
-                    <SenderAvatar email={sender?.email ?? ''} initials={sender?.initials ?? '??'} mailbox={mailbox} blocked={spam || !live} className={active ? 'avatar--accent' : 'avatar--tertiary'} />
+                    <SenderAvatar email={sender?.email ?? ''} initials={sender?.initials ?? '??'} mailbox={mailbox} blocked={spam || !live} />
                   </div>
                   <div className="thread__sender">
                     <div className="thread__identity">
                       <span className="thread__name" title={sender?.name}>{sender?.name ?? ''}</span>
-                      {sender?.org && <span className="thread__org">{sender.org}</span>}
                     </div>
                   </div>
                 </div>
@@ -329,7 +257,7 @@ export function ThreadList({
                   {hasFiles && <span role="img" aria-label={t('thread.attachments')} title={t('thread.attachments')}><Icon name="attach_file" size={15} /></span>}
                   {thread.unread && (
                     <span className="thread__unread" role="img" aria-label={t('list.unread')} title={t('list.unread')}>
-                      <Icon name="mark_email_unread" size={16} />
+                      <span className="dot" />
                     </span>
                   )}
                   <span className="thread__time" title={thread.date !== undefined ? formatMessageDateTime(thread.date, locale, false, timeFormat) : undefined}>{thread.date !== undefined ? formatMessageDate(thread.date, locale, Date.now(), timeFormat) : thread.receivedAt}</span>
@@ -343,14 +271,7 @@ export function ThreadList({
 
               {thread.preview !== '' && <p className="thread__preview">{thread.preview}</p>}
 
-              <div className="thread__tags">
-                {thread.tags.map((tag) => (
-                  <span key={tag.labelKey} className={tagClass(tag)}>
-                    {tag.icon && <Icon name={tag.icon} size={11} />}
-                    {t(tag.labelKey, tag.count !== undefined ? { count: tag.count } : undefined)}
-                  </span>
-                ))}
-              </div>
+
               </div>
             </article>
             {members.length > 1 && (

@@ -19,7 +19,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Rec
   }
 })
 const person = email => ({ name: '<script>', email })
-const message = { to: Array.from({ length: 100 }, (_, i) => person(`user${i}@example.com`)), cc: [person('copy@example.com'), person('user0@example.com')] }
+const message = { from: person('sender@example.com'), to: Array.from({ length: 100 }, (_, i) => person(`user${i}@example.com`)), cc: [person('copy@example.com'), person('user0@example.com')] }
 function findAll(node, predicate, result = []) {
   if (!React.isValidElement(node)) return result
   if (predicate(node)) result.push(node)
@@ -30,11 +30,12 @@ function findAll(node, predicate, result = []) {
   let dismissed = false
   const tree = exportsObject.RecipientsDialog({ message, onClose() { dismissed = true } })
   const cleanup = effect(); assert.ok(shown)
-  assert.equal(findAll(tree, node => node.type === 'li').length, 102, 'all To and CC recipients remain visible')
+  assert.equal(findAll(tree, node => node.type === 'li').length, 103, 'sender and all To and CC recipients remain visible')
   const all = findAll(tree, node => node.props.children === 'recipients.copyAll')[0]
   all.props.onClick(); await new Promise(resolve => setImmediate(resolve))
   assert.equal(copied.split('; ').length, 101, 'copy all includes both groups without duplicates')
   assert.ok(copied.includes('copy@example.com'))
+  assert.ok(!copied.includes('sender@example.com'), 'copy all copies recipients without adding the sender')
   assert.equal(status, 'copied')
   const one = findAll(tree, node => node.props.title === 'recipients.copy:user99@example.com')[0]
   one.props.onClick(); await new Promise(resolve => setImmediate(resolve))

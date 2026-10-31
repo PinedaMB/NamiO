@@ -15,7 +15,7 @@ export function UpdateNotice({ detailed = false }: { detailed?: boolean }): Reac
     void window.api?.updateStatus?.().then(next => { if (current) setState(next) }).catch(() => undefined)
     return () => { current = false; unsubscribe?.() }
   }, [])
-  if (!state) return null
+  if (!state || (!detailed && state.phase === 'idle')) return null
   const busy = ['checking', 'available', 'downloading'].includes(state.phase)
   const upToDate = state.phase === 'idle' && state.checkedAt !== undefined
   const label = state.phase === 'ready' ? t('update.install', { version: state.version ?? '' })

@@ -77,6 +77,7 @@ assert.deepEqual(generalSections, ['settings-theme-title', 'settings-language-ti
 assert.ok(!generalHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings-updates-title'))
+assert.ok(aboutHtml.includes('<details class="settings-card settings-about__details">'), 'support details remain available without permanent technical clutter')
 assert.ok(!generalHtml.includes('settings-updates-title'))
 console.log('Notification settings: labeled preferences and test action render')
 

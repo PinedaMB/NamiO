@@ -20,6 +20,8 @@ interface ThreadPaneProps {
   position: number
   total: number
   bindings: Bindings
+  readingFocused: boolean
+  onToggleFocus: () => void
   contextOpen: boolean
   canToggleContext: boolean
   /** Hay cuenta real: archivar, eliminar y leído aplican sobre el servidor. */
@@ -28,10 +30,6 @@ interface ThreadPaneProps {
   spam: boolean
   unread: boolean
   onToggleContext: () => void
-  onMove: () => void
-  onSpam: () => void
-  canMove: boolean
-  canSpam: boolean
   moving?: boolean
   onArchive: () => void
   onToggleRead: () => void
@@ -119,18 +117,16 @@ export function ThreadPane({
   position,
   total,
   bindings,
+  readingFocused,
+  onToggleFocus,
   contextOpen,
   canToggleContext,
   canMutate,
   spam,
   mailbox,
   unread,
-  onToggleContext,
-  onMove,
-  onSpam,
-  canMove,
-  canSpam,
   moving = false,
+  onToggleContext,
   onArchive,
   onToggleRead,
   onDelete,
@@ -158,13 +154,12 @@ export function ThreadPane({
   const [messageExpansion, setMessageExpansion] = useState<Record<string, boolean>>({})
   const [recipientsId, setRecipientsId] = useState<string | null>(null)
   const recipientsMessage = thread.messages.find(message => message.id === recipientsId)
-  const message = thread.messages[0]
-  const from = message?.from
 
   return (
     <main className="reading" aria-label={thread.subject}>
       <div className="reading__toolbar">
         <div className="toolbar-group">
+          {moving && <span className="mail-moving" role="status"><Icon name="progress_activity" size={16} className="spin" />{t('move.moving')}</span>}
           <TooltipButton className="tool-btn tool-btn--icon reading__back" type="button" onClick={onBack} title={t('thread.backToList')}>
             <Icon name="arrow_back" size={18} />
           </TooltipButton>
@@ -178,22 +173,13 @@ export function ThreadPane({
             <Icon name={unread ? 'mark_email_read' : 'mark_email_unread'} size={15} />
           </TooltipButton>
           <TooltipButton
-            className="tool-btn"
+            className="tool-btn tool-btn--icon"
             type="button"
             onClick={onArchive}
             disabled={!canMutate}
             title={canMutate ? `${t('common.archive')} (${formatCombo(bindings.archive)})` : t('toast.readOnly')}
           >
             <Icon name="archive" size={15} />
-            {t('common.archive')}
-            <kbd className="kbd">{formatCombo(bindings.archive)}</kbd>
-          </TooltipButton>
-          <TooltipButton className="tool-btn" type="button" onClick={onMove} disabled={!canMutate || !canMove} aria-busy={moving} title={t(moving ? 'move.moving' : 'common.move')}>
-            <Icon name={moving ? 'progress_activity' : 'drive_file_move'} size={15} className={moving ? 'spin' : undefined} />
-            {t(moving ? 'move.moving' : 'common.move')}
-          </TooltipButton>
-          <TooltipButton className="tool-btn tool-btn--icon btn--danger" type="button" onClick={onSpam} disabled={!canMutate || !canSpam} title={t(spam ? 'move.notSpam' : 'common.spam')}>
-            <Icon name={spam ? 'mark_email_read' : 'report'} size={15} />
           </TooltipButton>
           <TooltipButton
             className="tool-btn tool-btn--icon btn--danger"
@@ -214,7 +200,10 @@ export function ThreadPane({
         </div>
 
         <div className="toolbar-group">
-          <span className="reading__count">{t('thread.threadOf', { n: position, total })}</span>
+          <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onToggleFocus} title={t(readingFocused ? 'thread.exitFocus' : 'thread.focus')} aria-pressed={readingFocused}>
+            <Icon name={readingFocused ? 'left_panel_open' : 'left_panel_close'} size={18} />
+          </TooltipButton>
+          <span className="sr-only">{t('thread.threadOf', { n: position, total })}</span>
           <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onPrev} title={t('thread.previous')}>
             <Icon name="chevron_left" size={16} />
           </TooltipButton>
@@ -244,12 +233,6 @@ export function ThreadPane({
           <div className="letter__head">
             <h1 className="letter__subject">{thread.subject}</h1>
             <div className="letter__badges">
-              {thread.vip && (
-                <span className="badge-secure">
-                  <Icon name="verified" size={12} fill />
-                  {from?.org ?? 'VIP'}
-                </span>
-              )}
               <TooltipButton
                 className="icon-btn"
                 type="button"
@@ -273,7 +256,7 @@ export function ThreadPane({
             </div>
           </div>
 
-          {!message ? (
+          {thread.messages.length === 0 ? (
             <div className="letter-loading">
               <Icon name="progress_activity" size={18} className="spin" />
               {t('thread.loading')}
@@ -283,35 +266,21 @@ export function ThreadPane({
               const expansionKey = `${mailbox}:${message.id}`
               const expanded = messageExpansion?.[expansionKey] ?? messageIndex === 0
               const from = message.from
-              const toLine = message.to.map(person => person.email).join(', ')
-              const ccLine = message.cc?.map(person => person.email).join(', ')
               return (
               <details className="thread-message" key={message.id} open={expanded}>
               <summary className="participants" tabIndex={-1} onClick={event => event.preventDefault()}>
                 <div className="participants__top">
                   <div className="participants__who">
-                    <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam} className="avatar--lg avatar--accent" />
+                    <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam || !thread.id.startsWith('live:')} className="avatar--lg" />
                     <div>
                       <div className="participants__name">
                         <span className="t-headline-sm">{from?.name}</span>
-                        <span className="participants__addr">&lt;{from?.email}&gt;</span>
+
                       </div>
-                      <div className="participants__to">
-                        <span>{t('thread.to')}</span>
-                        <TooltipButton className="participants__recipients recipients-trigger" type="button" aria-haspopup="dialog" title={toLine}
-                          onClick={event => { event.preventDefault(); event.stopPropagation(); setRecipientsId(message.id) }}>
-                          <span>{message.to.slice(0, 2).map(person => person.email).join('; ')}</span>
-                          {message.to.length > 2 && <strong>{t('recipients.more', { count: message.to.length - 2 })}</strong>}
-                        </TooltipButton>
-                      </div>
-                      {ccLine && <div className="participants__to">
-                        <span>{t('compose.cc')}</span>
-                        <TooltipButton className="participants__recipients recipients-trigger" type="button" aria-haspopup="dialog" title={ccLine}
-                          onClick={event => { event.preventDefault(); event.stopPropagation(); setRecipientsId(message.id) }}>
-                          <span>{message.cc?.slice(0, 2).map(person => person.email).join('; ')}</span>
-                          {(message.cc?.length ?? 0) > 2 && <strong>{t('recipients.more', { count: message.cc!.length - 2 })}</strong>}
-                        </TooltipButton>
-                      </div>}
+                      <TooltipButton className="participants__details" type="button" title={t('recipients.title')} aria-haspopup="dialog"
+                        onClick={event => { event.preventDefault(); event.stopPropagation(); setRecipientsId(message.id) }}>
+                        {t('thread.details')}<Icon name="expand_more" size={14} />
+                      </TooltipButton>
                     </div>
                   </div>
 
@@ -321,10 +290,7 @@ export function ThreadPane({
                       {t(message.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')}
                     </span>}
                     <span title={message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt}>{message.date !== undefined ? formatMessageDateTime(message.date, locale, true, timeFormat) : message.sentAt}</span>
-                    <span className="participants__tls">
-                      <span className="dot" />
-                      {t('thread.encrypted')}
-                    </span>
+
                   </div>
                   <div className="thread-message__actions">
                     {messageIndex === 0 && (
@@ -368,19 +334,22 @@ export function ThreadPane({
                   <details className="thread-message__files">
                     <summary className="thread-message__files-label">
                       <Icon name="attach_file" size={16} />
-                      <span>{t('thread.attachments')} · {message.attachments.length}</span>
+                      <span className="thread-message__files-title">{t('thread.attachments')}<span className="thread-message__files-count">{message.attachments.length}</span></span>
+                      <span className="thread-message__files-preview">{message.attachments.map(attachment => attachment.name).join(' · ')}</span>
                       <Icon name="expand_more" size={18} className="thread-message__files-chevron" />
                     </summary>
                   <div className="attachments" aria-label={t('thread.attachments')}>
                     {message.attachments.map((attachment, index) => {
                       const meta = ATTACHMENT_ICON[attachment.kind]
+                      const previewable = ['image', 'pdf', 'text'].includes(attachment.kind)
                       const saving = savingAttachment?.mailbox === mailbox && savingAttachment.messageId === message.id && savingAttachment.index === index
                       return (
                         <TooltipButton
                           key={`${attachment.name}-${index}`}
                           className="attachment"
                           type="button"
-                          title={t(saving ? 'attachment.preparing' : ['image', 'pdf', 'text'].includes(attachment.kind) ? 'document.preview' : 'thread.download')}
+                          title={t(saving ? 'attachment.preparing' : previewable ? 'document.preview' : 'thread.download')}
+                          aria-label={`${attachment.name} · ${t(saving ? 'attachment.preparing' : previewable ? 'document.preview' : 'thread.download')}`}
                           disabled={savingAttachment !== null}
                           aria-busy={saving}
                           onClick={() => onOpenAttachment(index, message.id)}
@@ -392,7 +361,7 @@ export function ThreadPane({
                               {saving ? t('attachment.preparing') : `${attachment.size} · ${attachment.detail}`}
                             </span>
                           </span>
-                          <Icon name="download" size={15} />
+                          <Icon name={previewable ? 'visibility' : 'download'} size={18} />
                         </TooltipButton>
                       )
                     })}

@@ -78,13 +78,20 @@ const priorityBadges = []
 let replied = false, repliedAll = false
 let optionsAnchor
 const tree = pane.ThreadPane({ onReply: () => { replied = true }, onReplyAll: () => { repliedAll = true }, onOptions: anchor => { optionsAnchor = anchor }, optionsOpen: true, thread: { ...threads[0], messages }, mailbox: 'INBOX', bindings: {}, onOpenAttachment: (...args) => clicked.push(args) })
-let hasMoreRecipients = false
+let detailsCount = 0
 const cards = []
 const attachmentSections = []
+const senderAvatars = []
 function visit(node) {
   if (!React.isValidElement(node)) return
   if (node.props.title === 'thread.replySender' || node.props.title === 'thread.replyEveryone') node.props.onClick()
-  if (node.props.children === 'recipients.more') hasMoreRecipients = true
+  if (node.props.className === 'participants__details') {
+    detailsCount++
+    assert.equal(node.props['aria-haspopup'], 'dialog')
+    let prevented = false, stopped = false
+    node.props.onClick({ preventDefault() { prevented = true }, stopPropagation() { stopped = true } })
+    assert.ok(prevented && stopped, 'opening message details cannot collapse its message')
+  }
   if (node.type === 'summary' && node.props.className === 'participants') {
     let prevented = false
     node.props.onClick({ preventDefault() { prevented = true } })
@@ -111,14 +118,18 @@ function visit(node) {
   if (node.props.className?.includes('participants__recipients') && node.props.title === 'copy@example.com') ccRows.push(node)
   if (node.props.className === 'thread-message') cards.push(node)
   if (node.props.className === 'thread-message__files') attachmentSections.push(node)
-  if (node.props.className === 'attachment') node.props.onClick()
+  if (node.props.email !== undefined && node.props.initials !== undefined) senderAvatars.push(node)
+  if (node.props.className === 'attachment') {
+    assert.ok(node.props['aria-label'].includes('file.pdf'), 'attachment action names its file')
+    node.props.onClick()
+  }
   React.Children.forEach(node.props.children, visit)
 }
 visit(tree)
 assert.ok(replied && repliedAll, 'reply and reply-all buttons invoke separate actions')
-assert.ok(hasMoreRecipients, 'large recipient lists show a visible overflow count')
+assert.equal(detailsCount, 3, 'every message provides access to its complete details')
 assert.ok(optionsAnchor, 'message options button opens its anchored menu')
-assert.equal(ccRows.length,1,'CC is visible only on the message that contains it')
+assert.equal(ccRows.length,0,'recipient addresses stay in the details dialog')
 assert.equal(priorityBadges.length, 2, 'high and low importance are visible; normal is unbadged')
 assert.equal(priorityBadges.filter(node=>node.props.className.includes('mail-priority--high')).length,1)
 assert.equal(cards.length, 3)
@@ -130,6 +141,7 @@ assert.deepEqual(messages.map(message => message.id), ['live:1', 'live:2', 'live
 assert.deepEqual(clicked, [[0, 'live:3'], [0, 'live:2'], [0, 'live:1']])
 console.log('Conversation: reply links, independent subjects, cycles, additive cache migration, cards and attachment identity passed')
 
+assert.equal(senderAvatars.length, 3, 'each message shows its own sender avatar')
 assert.equal(attachmentSections.length, 3)
 for (const section of attachmentSections) {
   assert.equal(section.type, 'details')

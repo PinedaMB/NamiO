@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T17:06:19.055192+00:00",
+  "title": "Design System: NamiO Calma",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "shadow-sm",
+        "value": "0 1px 8px rgba(0, 0, 0, 0.04)",
+        "purpose": "Capas flotantes y diálogos; no filas de mensajes."
+      },
+      {
+        "name": "shadow-md",
+        "value": "0 2px 10px light-dark(rgba(35, 40, 70, 0.12), rgba(0, 0, 0, 0.28))",
+        "purpose": "Capas flotantes y diálogos; no filas de mensajes."
+      },
+      {
+        "name": "shadow-lg",
+        "value": "0 24px 50px -12px light-dark(rgba(30, 35, 60, 0.22), rgba(0, 0, 0, 0.85))",
+        "purpose": "Capas flotantes y diálogos; no filas de mensajes."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fast",
+        "value": "120ms",
+        "purpose": "Transiciones de estado; respetar movimiento reducido."
+      },
+      {
+        "name": "normal",
+        "value": "180ms",
+        "purpose": "Transiciones de estado; respetar movimiento reducido."
+      },
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.2, 0, 0.2, 1)",
+        "purpose": "Transiciones de estado; respetar movimiento reducido."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-navigation",
+        "value": "960px"
+      },
+      {
+        "name": "compact-list",
+        "value": "1280px"
+      },
+      {
+        "name": "icon-compose",
+        "value": "520px"
+      },
+      {
+        "name": "settings-stacked-navigation",
+        "value": "960px"
+      },
+      {
+        "name": "settings-two-column-navigation-and-compact-dialogs",
+        "value": "520px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Acción principal",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acciones principales en diálogos y redacción.",
+      "html": "<button class=\"ds-primary\">Guardar</button>",
+      "css": ".ds-primary { border: 0; height: 28px; padding: 0 10px; border-radius: var(--r-lg); background: var(--primary); color: var(--on-primary); font: 600 13px var(--font-sans); } .ds-primary:hover { background: color-mix(in srgb, var(--primary) 90%, var(--on-surface)); } .ds-primary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }"
+    },
+    {
+      "name": "Herramienta de lectura",
+      "kind": "button",
+      "refersTo": "tool-button",
+      "description": "Acción secundaria transparente.",
+      "html": "<button class=\"ds-tool\">Responder</button>",
+      "css": ".ds-tool { border: 0; height: 32px; padding: 0 9px; border-radius: var(--r-lg); background: transparent; color: var(--on-surface); font: 13px var(--font-sans); } .ds-tool:hover { background: var(--surface-container-high); } .ds-tool:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }"
+    },
+    {
+      "name": "Carpeta seleccionada",
+      "kind": "nav",
+      "refersTo": "navigation-selected",
+      "description": "La selección usa fondo suave y texto índigo.",
+      "html": "<button class=\"ds-nav\" aria-current=\"page\">Recibidos</button>",
+      "css": ".ds-nav { border: 0; min-height: 36px; padding: 6px; border-radius: var(--r-lg); background: var(--selection-surface); color: var(--primary); font: 13px var(--font-sans); } .ds-nav:hover { background: var(--selection-surface); } .ds-nav:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }"
+    },
+    {
+      "name": "Búsqueda",
+      "kind": "input",
+      "description": "Campo neutro de la barra superior.",
+      "html": "<input class=\"ds-search\" type=\"search\" aria-label=\"Buscar\" placeholder=\"Buscar mensajes…\">",
+      "css": ".ds-search { border: 0; height: 34px; padding: 0 12px; border-radius: var(--r-lg); background: var(--surface-container-low); color: var(--on-surface); font: 13px var(--font-sans); } .ds-search::placeholder { color: var(--outline); } .ds-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }"
+    },
+    {
+      "name": "Mensaje seleccionado",
+      "kind": "custom",
+      "refersTo": "message-selected",
+      "description": "Fila plana con avatar que se sustituye por la casilla al pasar el puntero, enfocar o seleccionar; sin etiquetas.",
+      "html": "<div class=\"ds-message\"><div class=\"ds-message-identity\"><label class=\"ds-avatar-select\"><input type=\"checkbox\" aria-label=\"Seleccionar Un poco más de aire\"><span class=\"ds-sender-avatar\" aria-hidden=\"true\">ML</span></label><strong>Mariana López</strong></div><span>Un poco más de aire</span><small>Te comparto la propuesta.</small></div>",
+      "css": ".ds-message { display: grid; gap: 3px; padding: 18px 12px; border-radius: var(--r-lg); background: var(--selection-surface); color: var(--on-surface); font: 13px var(--font-sans); text-align: left; } .ds-message-identity { display: flex; align-items: center; gap: 8px; min-width: 0; } .ds-message-identity input { width: 16px; height: 16px; margin: 0; accent-color: var(--primary); flex-shrink: 0; } .ds-message-identity strong { overflow-wrap: anywhere; } .ds-sender-avatar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r-full); background: var(--surface-container-high); color: var(--secondary); font-size: 12px; font-weight: 600; flex-shrink: 0; } .ds-message small { color: var(--outline); font-size: 12px; line-height: 19px; } .ds-message:hover { background: var(--selection-surface); } .ds-message input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; } .ds-avatar-select { position: relative; width: 28px; height: 28px; flex-shrink: 0; } .ds-avatar-select input { position: absolute; inset: 6px; opacity: 0; } .ds-avatar-select:hover input, .ds-avatar-select input:focus-visible, .ds-avatar-select input:checked { opacity: 1; } .ds-avatar-select:hover .ds-sender-avatar, .ds-avatar-select:has(input:focus-visible) .ds-sender-avatar, .ds-avatar-select:has(input:checked) .ds-sender-avatar { visibility: hidden; } @media (hover: none) and (pointer: coarse) { .ds-avatar-select input { opacity: 1; } .ds-avatar-select .ds-sender-avatar { visibility: hidden; } }"
+    },
+    {
+      "name": "Sección de ajustes",
+      "kind": "custom",
+      "description": "Grupo plano de configuración; espacio y divisores separan las secciones.",
+      "html": "<section class=\"ds-settings\"><h2>Apariencia</h2><p>Sigue la apariencia del sistema.</p></section>",
+      "css": ".ds-settings { display: flex; flex-direction: column; gap: 16px; padding: 0; border-radius: 0; background: transparent; color: var(--on-surface); font: 13px var(--font-sans); } .ds-settings + .ds-settings { padding-top: 28px; border-top: 1px solid var(--surface-container-highest); } .ds-settings h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.02em; } .ds-settings p { margin: 4px 0 0; color: var(--outline); line-height: 20px; max-width: 68ch; }",
+      "refersTo": "settings-section"
+    },
+    {
+      "name": "Etiqueta contextual",
+      "kind": "chip",
+      "description": "Primitiva conservada para superficies que la requieren; no añadirla a la lista principal.",
+      "html": "<span class=\"ds-chip\">Adjunto</span>",
+      "css": ".ds-chip { display: inline-flex; gap: 4px; padding: 2px 6px; border-radius: var(--r-md); background: var(--surface-container-high); color: var(--on-surface-variant); font: 11px/14px var(--font-mono); letter-spacing: 0.02em; }"
+    },
+    {
+      "name": "Diálogo de cuenta",
+      "kind": "custom",
+      "refersTo": "account-dialog",
+      "description": "Superficie base, título claro y pie separado; el formulario conserva validaciones y flujo OAuth.",
+      "html": "<section class=\"ds-dialog\" role=\"dialog\" aria-labelledby=\"ds-dialog-title\"><header><h2 id=\"ds-dialog-title\">Agregar cuenta</h2><p>Conecta tu correo.</p></header><label>Correo<input type=\"email\" autocomplete=\"email\" placeholder=\"correo@ejemplo.com\"></label><footer><button type=\"button\">Continuar</button></footer></section>",
+      "css": ".ds-dialog { display: flex; flex-direction: column; gap: 24px; width: min(600px, 100%); max-height: min(calc(100vh - 56px), 900px); overflow-y: auto; padding: 28px; border-radius: var(--r-xl); background: var(--surface); color: var(--on-surface); box-shadow: var(--shadow-lg); font: 13px var(--font-sans); } .ds-dialog h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.02em; } .ds-dialog p { margin: 4px 0 0; color: var(--outline); line-height: 20px; } .ds-dialog label { display: grid; gap: 6px; font-size: 12px; color: var(--on-surface-variant); } .ds-dialog input { height: 38px; padding: 0 10px; border: 1px solid var(--surface-container-highest); border-radius: var(--r-lg); background: var(--surface-container-low); color: var(--on-surface); font: 13px var(--font-sans); } .ds-dialog input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; } .ds-dialog footer { padding-top: 20px; border-top: 1px solid var(--surface-container-highest); } .ds-dialog button { border: 0; border-radius: var(--r-lg); padding: 0 10px; height: 28px; background: var(--primary); color: var(--on-primary); font: 600 13px var(--font-sans); } .ds-dialog button:hover { background: color-mix(in srgb, var(--primary) 90%, var(--on-surface)); } .ds-dialog button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; } @media (max-width: 520px) { .ds-dialog { padding: 20px; } }"
+    },
+    {
+      "name": "Navegación de configuración",
+      "kind": "nav",
+      "description": "Navegación plana: vertical en escritorio, tres columnas hasta 960 px y dos hasta 520 px.",
+      "html": "<nav class=\"ds-settings-nav\" aria-label=\"Configuración\"><button aria-current=\"page\">General</button><button>Cuentas</button><button>Atajos</button></nav>",
+      "css": ".ds-settings-nav { display: flex; flex-direction: column; gap: 4px; width: 190px; background: transparent; } .ds-settings-nav button { border: 0; padding: 10px 12px; border-radius: var(--r-lg); background: transparent; color: var(--on-surface-variant); font: 13px var(--font-sans); text-align: left; } .ds-settings-nav button:hover { background: var(--surface-container); color: var(--on-surface); } .ds-settings-nav button[aria-current] { background: var(--selection-surface); color: var(--primary); font-weight: 500; } .ds-settings-nav button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; } @media (max-width: 960px) { .ds-settings-nav { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); } .ds-settings-nav button { padding: 10px 8px; } } @media (max-width: 520px) { .ds-settings-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }"
+    },
+    {
+      "name": "Adjuntos desplegables",
+      "kind": "custom",
+      "refersTo": "attachment",
+      "description": "Resumen con cantidad y nombres; al abrir, rejilla adaptable de archivos con acción explícita.",
+      "html": "<details class=\"ds-files\"><summary><span>Adjuntos · 2</span><span class=\"ds-files-preview\">Propuesta.pdf · Notas.txt</span></summary><div class=\"ds-files-grid\"><button class=\"ds-attachment\" type=\"button\" aria-label=\"Propuesta.pdf · Vista previa\"><span><strong>Propuesta.pdf</strong><small>1.2 MB · PDF</small></span><span class=\"ds-file-action\">Vista previa</span></button><button class=\"ds-attachment\" type=\"button\" aria-label=\"Notas.txt · Vista previa\"><span><strong>Notas.txt</strong><small>8 KB · TXT</small></span><span class=\"ds-file-action\">Vista previa</span></button></div></details>",
+      "css": ".ds-files { color: var(--on-surface-variant); font: 13px var(--font-sans); padding: 12px 0 20px; } .ds-files summary { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; font-weight: 500; } .ds-files summary > span:first-child { white-space: nowrap; } .ds-files-preview { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--outline); font-size: 12px; } .ds-files[open] .ds-files-preview { visibility: hidden; } .ds-files-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 8px; padding-top: 12px; } .ds-attachment { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px; border: 0; border-radius: var(--r-lg); background: var(--surface-container-low); color: var(--on-surface); font: 13px var(--font-sans); text-align: left; } .ds-attachment > span:first-child { display: grid; gap: 4px; min-width: 0; flex: 1; } .ds-attachment strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; } .ds-attachment small { color: var(--outline); font-size: 12px; overflow-wrap: anywhere; } .ds-file-action { color: var(--outline); font-size: 12px; } .ds-attachment:hover { background: var(--surface-container); } .ds-files summary:focus-visible, .ds-attachment:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "NamiO Calma",
+    "overview": "Interfaz de correo minimalista inspirada en macOS: superficies neutras, herramientas discretas y contenido protagonista.",
+    "keyCharacteristics": [
+      "Lista plana",
+      "Detalles bajo demanda",
+      "Selección suave",
+      "Lectura enfocada",
+      "Configuración y diálogos planos",
+      "Remitentes reconocibles y adjuntos desplegables"
+    ],
+    "rules": [
+      {
+        "name": "La regla de la atención",
+        "body": "Reservar el acento para estados y acciones; no colorear cada fila ni cada sección.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Conservar teclado, foco y nombres accesibles.",
+      "Mantener visibles errores, operaciones pendientes y avances.",
+      "Usar los recursos empaquetados y el mapache original.",
+      "Mostrar avatar en reposo y casilla al pasar el puntero, enfocar o seleccionar; respetar la preferencia de imágenes remotas, spam y demostración."
+    ],
+    "donts": [
+      "Restaurar filtros duplicados, pie permanente de atajos o tarjetas para cada mensaje.",
+      "Eliminar funciones o validaciones al reducir etiquetas.",
+      "Añadir fuentes o iconos desde CDN.",
+      "Envolver cada sección de Configuración en tarjetas o añadir gradientes y blur a la paleta."
+    ]
+  }
+}

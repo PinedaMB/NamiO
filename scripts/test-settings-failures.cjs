@@ -75,6 +75,40 @@ async function checkRules() {
     if (action !== 'reload') { assert.equal(busy, false); assert.equal(status, null) }
   }
 }
+function checkRulePresentation() {
+  const state = [], exports = {}
+  let index = 0
+  vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/RulesSection.tsx', 'utf8')), {
+    exports, require: id => {
+      if (id === 'react') return { ...React, useEffect() {}, useCallback: fn => fn,
+        useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value }] }
+      }
+      if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
+      if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
+      if (id === './Icon' || id === './Select' || id === './Tooltip') return {}
+      return require(id)
+    }
+  })
+  const render = () => { index = 0; return exports.RulesSection() }
+  const find = (node, match) => {
+    if (!React.isValidElement(node)) return null
+    if (match(node)) return node
+    return React.Children.toArray(node.props.children).map(child => find(child, match)).find(Boolean)
+  }
+  let tree = render()
+  assert.ok(find(tree, node => node.props.className === 'rules__empty'))
+  assert.equal(find(tree, node => node.props.children?.includes?.('rules.apply')), undefined, 'no unavailable apply action in the empty state')
+  find(tree, node => node.props.className === 'btn btn--primary').props.onClick()
+  tree = render()
+  assert.ok(find(tree, node => node.props.className === 'rules__form'))
+  assert.equal(find(tree, node => node.props.className === 'rules__empty'), undefined, 'empty state recedes while editing')
+  state[0] = [{ id: 1, name: 'Newsletters', enabled: true, field: 'from', op: 'contains', value: 'news', action: 'archive', hits: 0 }]
+  state[3] = false
+  tree = render()
+  assert.ok(find(tree, node => node.props.className === 'rules__list'))
+  assert.ok(find(tree, node => node.props.children?.includes?.('rules.apply')), 'existing mail action remains available with rules')
+}
+
 async function checkTimeFormatIpc() {
   const ast = ts.createSourceFile('ipc.ts', fs.readFileSync('src/main/ipc.ts', 'utf8'), ts.ScriptTarget.Latest, true)
   let handler
@@ -94,6 +128,7 @@ async function checkTimeFormatIpc() {
   await checkTimeFormatIpc()
   await checkPreferences()
   await checkRules()
+  checkRulePresentation()
   assert.match(fs.readFileSync('src/renderer/src/components/Settings.tsx', 'utf8'), /<RulesSection key=\{accountKey\}/)
   assert.match(fs.readFileSync('src/renderer/src/App.tsx', 'utf8'), /accountKey=\{accountIdentity.current/)
   console.log('Settings failures: preferences preserve saved values, report failures, recover on retry; rule failures are visible and account keys reset rules')

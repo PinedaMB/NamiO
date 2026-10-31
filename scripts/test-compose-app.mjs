@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('api',{
  deleteMessage:async(path,uid)=>{if(path!=='INBOX'||uid!==11)throw new Error('Wrong delete target');deleteCalls++;return new Promise(resolve=>{finishDelete=()=>{inboxPresent=false;notify();resolve({ok:true,queued:false})}})},finishTestDelete:async()=>finishDelete(),inspectTestDeleteCalls:async()=>deleteCalls,
  deleteMessages:async(path,uids)=>{backgroundDeletes.push({path,uids});deletionJob={id:'delete-job',kind:'delete-many',status:'queued',attempts:0,lastError:null,createdAt:1,label:path,deletionProgress:{completed:0,total:250,running:true}};outboxListeners.forEach(fn=>fn());return{ok:true,queued:true}},inspectTestBackgroundDeletes:async()=>backgroundDeletes,
  advanceTestDeletion:async(completed,running=true)=>{deletionJob.deletionProgress={completed,total:250,running};outboxListeners.forEach(fn=>fn())},finishTestDeletion:async()=>{deletionJob=null;outboxListeners.forEach(fn=>fn())},
- syncMailbox:async path=>{syncs.push(path);if(testOffline)return{ok:false,code:'dns',detail:'fetch failed'};meta.offline=false;meta.syncedAt=Date.now();return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
+ syncMailbox:async path=>{syncs.push(path);await new Promise(resolve=>setTimeout(resolve,150));if(testOffline)return{ok:false,code:'dns',detail:'fetch failed'};meta.offline=false;meta.syncedAt=Date.now();return{ok:true,data:true}},inspectTestSyncs:async()=>syncs,
  listDrafts:async()=>drafts,getDraft:async id=>id?drafts.find(item=>item.id===id)??null:drafts[0]??null,
  openDraft:async()=>{if(!drafts.some(item=>item.id===remote.id))drafts.push(remote);return remote},
  saveDraft:async input=>{const id=input.id??'new-draft-'+ ++draftSequence;const previous=drafts.find(item=>item.id===id);drafts=drafts.filter(item=>item.id!==id);drafts.push({...previous,...input,id});notify();return{id,queued:true}},
@@ -152,7 +152,9 @@ app.whenReady().then(async()=>{
  const settle=async()=>{await new Promise(requestAnimationFrame);await Promise.all(document.querySelector('.composer').getAnimations().map(animation=>animation.finished.catch(()=>{})))};
  const compose=()=>[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Redactar'));
  await until(compose,'Application did not load');
- document.querySelector('.filter-chip:last-child').click();await wait();
+ document.querySelector('.list__tools [aria-label="Filtrar"]').click();
+ await until(()=>document.querySelector('.context-menu'),'Filter menu missing');
+ [...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.includes('Con adjuntos')).click();await wait();
  const menu=()=>document.querySelector('.context-menu');
  const menuAction=label=>[...menu().querySelectorAll('button')].find(button=>button.textContent.endsWith(label));
  let target=document.querySelector('.thread__content');
@@ -360,10 +362,19 @@ app.whenReady().then(async()=>{
  await until(()=>!document.querySelector('.deletion-progress'),'Completed deletion did not clear the indicator');
 
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body not ready');
- if(![...document.querySelectorAll('.participants__recipients')].some(node=>node.textContent==='copy@example.test'))throw new Error('Received CC is not visible in the reader');
- const moveButton=document.querySelector('.reading__toolbar [aria-label="Mover"]');
- if(!moveButton||moveButton.disabled)throw new Error('Move action must be enabled for live mail');
- moveButton.click();await until(()=>document.querySelector('.move-dialog[open]'),'Move folder picker did not open');
+ document.querySelector('.participants__details').click();
+ await until(()=>document.querySelector('.recipients-dialog[open]'),'Message details did not open');
+ if(!document.querySelector('.recipients-dialog').textContent.includes('copy@example.test'))throw new Error('Received CC is missing from message details');
+ document.querySelector('.recipients-dialog [aria-label="Cerrar"]').click();
+ await until(()=>!document.querySelector('.recipients-dialog'),'Message details did not close');
+ const openMessageAction=async label=>{
+  document.querySelector('.thread-message__actions [aria-haspopup="menu"]').click();
+  await until(()=>document.querySelector('.context-menu'),'Message actions did not open');
+  const action=[...document.querySelectorAll('.context-menu button')].find(item=>item.textContent.includes(label));
+  if(!action||action.disabled)throw new Error('Message action unavailable: '+label);
+  action.click();
+ };
+ await openMessageAction('Mover');await until(()=>document.querySelector('.move-dialog[open]'),'Move folder picker did not open');
  const picker=document.querySelector('.move-dialog select');
  if([...picker.options].some(option=>option.value==='INBOX'))throw new Error('Move picker includes the source folder');
  picker.value='Spam';picker.dispatchEvent(new Event('change',{bubbles:true}));await wait();
@@ -371,15 +382,15 @@ app.whenReady().then(async()=>{
  await until(()=>!document.querySelector('.move-dialog')&&!document.querySelector('.reading__toolbar [aria-busy="true"]'),'Queued move feedback did not finish');
  if((await window.api.inspectTestMoves()).at(-1)?.target!=='Spam')throw new Error('Move picker did not send selected target');
  if(!document.querySelector('.thread--active'))throw new Error('Queued move removed the visible message');
- document.querySelector('.reading__toolbar [aria-label="Marcar como spam"]').click();
+ await openMessageAction('Marcar como spam');
  await until(()=>!(document.querySelector('.reading__toolbar [aria-busy="true"]')),'Spam feedback did not finish');
  await wait();
  if((await window.api.inspectTestMoves()).at(-1)?.target!=='Spam')throw new Error('Spam did not use the junk folder');
  [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='Spam').click();
  await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent==='Spam'&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Spam messages missing');
  card('Inbox sample').click();
- await until(()=>document.querySelector('.reading__toolbar [aria-label="No es spam"]'),'Not-spam action missing');
- document.querySelector('.reading__toolbar [aria-label="No es spam"]').click();await wait();
+ await until(()=>document.querySelector('.thread-message__actions [aria-haspopup="menu"]'),'Message options missing');
+ await openMessageAction('No es spam');await wait();
  if((await window.api.inspectTestMoves()).at(-1)?.target!=='INBOX')throw new Error('Not-spam must move to Inbox');
  [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='INBOX').click();
  await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent==='INBOX'&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Inbox did not reload after checking Spam');
@@ -387,9 +398,14 @@ app.whenReady().then(async()=>{
  console.log('Move and Spam: folder picker excludes source, queued operations keep the message visible, destination passed to persistent API');
  const bodyFrame=document.querySelector('.email-body iframe'), bodyDocument=bodyFrame.contentDocument;
  const detail=document.querySelector('.thread-message');detail.open=false;
- document.querySelector('[aria-label="Sincronizar"]').click();await wait();
+ document.querySelector('.topbar [aria-haspopup="menu"]').click();
+ await until(()=>document.querySelector('.context-menu'),'App actions missing');
+ [...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.endsWith('Sincronizar')).click();
+ await until(()=>document.querySelector('.topbar [role="status"]'),'Manual sync feedback missing after menu closes');
+ await until(()=>!document.querySelector('.topbar [role="status"]'),'Manual sync feedback did not finish');
+
  if((await window.api.inspectTestSyncs()).join(',')!=='INBOX')throw new Error('Inbox synchronization did not run');
- await until(()=>document.querySelector('[aria-label="Sincronizar"]').getAttribute('aria-busy')==='false','Inbox synchronization not finished');
+
  if(document.querySelector('.email-body iframe')!==bodyFrame||bodyFrame.contentDocument!==bodyDocument)throw new Error('Synchronization reloaded the open email');
  if(detail.open)throw new Error('Synchronization reset message expansion');
  document.querySelector('.reading__toolbar [aria-label="Eliminar"]').click();
@@ -418,7 +434,12 @@ app.whenReady().then(async()=>{
  await until(()=>document.querySelector('.body')?.textContent.includes('cuerpo'),'Missing body did not show the offline placeholder');
  if(document.querySelector('.letter-loading'))throw new Error('Offline missing body must not spin forever');
  if(await window.api.inspectTestNetworkReads()!==offlineReads)throw new Error('Offline reader attempted network body reads');
- document.querySelector('[aria-label="Sincronizar"]').click();await wait();
+ document.querySelector('.topbar [aria-haspopup="menu"]').click();
+ await until(()=>document.querySelector('.context-menu'),'App actions missing');
+ [...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.endsWith('Sincronizar')).click();
+ await until(()=>document.querySelector('.topbar [role="status"]'),'Manual sync feedback missing after menu closes');
+ await until(()=>!document.querySelector('.topbar [role="status"]'),'Manual sync feedback did not finish');
+
  await until(()=>!document.querySelector('.live-banner'),'Offline DNS failure showed a configuration error');
  if(!document.querySelector('.offline-strip'))throw new Error('DNS failure must retain offline status');
  const syncsBefore=(await window.api.inspectTestSyncs()).length;

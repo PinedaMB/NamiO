@@ -22,8 +22,8 @@ export function RecipientsDialog({ message, onClose }: { message: Message; onClo
       setStatus('failed')
     }
   }
-  const groups = [{ label: t('thread.to'), people: message.to }, { label: t('compose.cc'), people: message.cc ?? [] }]
-  const emails = [...new Set(groups.flatMap(group => group.people.map(person => person.email)))]
+  const groups = [{ label: t('compose.from'), people: [message.from] }, { label: t('thread.to'), people: message.to }, { label: t('compose.cc'), people: message.cc ?? [] }]
+  const emails = [...new Set([...message.to, ...(message.cc ?? [])].map(person => person.email))]
   return <dialog ref={dialog} className={closing ? 'account-modal recipients-dialog recipients-dialog--closing' : 'account-modal recipients-dialog'} aria-labelledby="recipients-title"
     onAnimationEnd={event => { if (closing && event.target === event.currentTarget && event.animationName === 'dialog-out') onClose() }}
     onCancel={event => { event.preventDefault(); setClosing(true) }} onKeyDown={event => event.stopPropagation()}

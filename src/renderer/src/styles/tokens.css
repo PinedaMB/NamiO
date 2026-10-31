@@ -1,5 +1,5 @@
 /* ============================================================================
-   Identidad visual "Veloce" — tokens de diseño
+   Identidad visual "Calma" — tokens de diseño
    Extraídos de los mockups: paleta índigo sobre superficie casi negra,
    Inter para contenido, JetBrains Mono para metadatos y atajos.
    Nada de CDN: las fuentes se empaquetan con la app (CSP estricta).
@@ -7,24 +7,24 @@
 
 :root {
   /* Superficies (de más profunda a más elevada) */
-  --surface: light-dark(#f5f6fb, #0f131c);
-  --surface-dim: light-dark(#e1e4ed, #0f131c);
-  --surface-container-lowest: light-dark(#ffffff, #0a0e16);
-  --surface-container-low: light-dark(#ffffff, #181c24);
-  --surface-container: light-dark(#eceef6, #1c2028);
-  --surface-container-high: light-dark(#e3e6f0, #262a33);
-  --surface-container-highest: light-dark(#d8dce8, #31353e);
-  --surface-bright: light-dark(#ffffff, #353942);
+  --surface: light-dark(#ffffff, #202124);
+  --surface-dim: light-dark(#e7e7eb, #202124);
+  --surface-container-lowest: light-dark(#ffffff, #202124);
+  --surface-container-low: light-dark(#f5f5f7, #292a2e);
+  --surface-container: light-dark(#f0f0f3, #303136);
+  --surface-container-high: light-dark(#e9e9ef, #393a40);
+  --surface-container-highest: light-dark(#dedee5, #45464e);
+  --surface-bright: light-dark(#ffffff, #4b4c54);
 
   /* Texto y trazos */
-  --on-surface: light-dark(#202333, #dfe2ee);
-  --on-surface-variant: light-dark(#4f5368, #c7c4d7);
+  --on-surface: light-dark(#242428, #eeeef1);
+  --on-surface-variant: light-dark(#55555f, #c4c4ce);
   --inverse-on-surface: light-dark(#f5f6fb, #2c3039);
-  --outline: light-dark(#565b70, #908fa0);
-  --outline-variant: light-dark(#b9bfce, #464554);
+  --outline: light-dark(#66666f, #aaaab6);
+  --outline-variant: light-dark(#c8c8d2, #55555f);
 
   /* Acentos */
-  --primary: light-dark(#4e46b4, #c0c1ff);
+  --primary: light-dark(#5556b8, #b9baff);
   --on-primary: light-dark(#ffffff, #1000a9);
   --primary-container: light-dark(#e2dfff, #8083ff);
   --on-primary-container: light-dark(#30267e, #0d0096);
@@ -60,14 +60,17 @@
   --margin: 16px;
 
   /* Tipografía */
-  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter Variable', Inter, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Consolas, monospace;
 
   /* Estructura */
-  --rail-w: 224px;
-  --list-w: 380px;
+  --rail-w: 184px;
+  --list-w: 320px;
   --context-w: 320px;
-  --topbar-h: 48px;
+  --overlay-scrim: light-dark(rgb(20 20 30 / 28%), rgb(0 0 0 / 55%));
+  --sidebar-surface: light-dark(#f2f2f4, #292a2e);
+  --selection-surface: light-dark(#e7e7f4, #393952);
+  --topbar-h: 62px;
   --status-h: 36px;
 
   /* Sombras */
@@ -352,7 +355,7 @@ a {
 }
 
 .btn--primary:hover {
-  background: #d4d5ff;
+  background: color-mix(in srgb, var(--primary) 90%, var(--on-surface));
 }
 
 .btn--surface {

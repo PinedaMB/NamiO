@@ -148,25 +148,25 @@ export function RulesSection(): React.JSX.Element {
 
   return (
     <div className="settings-stack">
-      <div className="settings-card">
+      <div className="settings-card rules">
         <div className="settings-card__head">
           <div>
             <h2 className="settings-card__title">{t('rules.title')}</h2>
             <p className="settings-card__subtitle">{t('rules.subtitle')}</p>
           </div>
-          <div className="rules__head-actions">
-            <button className="tool-btn" type="button" onClick={() => void applyToCache()} disabled={busy || rules.length === 0}>
+          {(rules.length > 0 || creating) && <div className="rules__head-actions">
+            {rules.length > 0 && <button className="tool-btn" type="button" onClick={() => void applyToCache()} disabled={busy}>
               <Icon name="play_arrow" size={15} />
               {t('rules.apply')}
-            </button>
-            <button className="btn btn--primary" type="button" onClick={() => setCreating((open) => !open)}>
+            </button>}
+            <button className={creating ? 'tool-btn' : 'btn btn--primary'} type="button" onClick={() => setCreating((open) => !open)}>
               <Icon name={creating ? 'close' : 'add'} size={15} />
               {creating ? t('account.cancel') : t('rules.new')}
             </button>
-          </div>
+          </div>}
         </div>
 
-        {status && <p className="rules__status">{status}</p>}
+        {status && <p className="rules__status" role="status">{status}</p>}
         {error && (
           <p className="account-error" role="alert">
             <Icon name="error" size={15} />
@@ -268,14 +268,16 @@ export function RulesSection(): React.JSX.Element {
           </div>
         )}
 
-        {rules.length === 0 ? (
-          <div className="settings-card settings-card--empty rules__empty">
-            <span className="empty-state__icon">
-              <Icon name="filter_alt" size={24} />
-            </span>
-            <p className="settings-card__subtitle">{t('rules.empty')}</p>
-          </div>
-        ) : (
+        {rules.length === 0 ? (!creating && (
+          <section className="rules__empty" aria-labelledby="rules-empty-title">
+            <Icon name="filter_alt" size={24} />
+            <h3 id="rules-empty-title">{t('rules.emptyTitle')}</h3>
+            <p>{t('rules.empty')}</p>
+            <button className="btn btn--primary" type="button" onClick={() => setCreating(true)}>
+              <Icon name="add" size={16} />{t('rules.new')}
+            </button>
+          </section>
+        )) : (
           <ul className="rules__list">
             {rules.map((rule) => (
               <li key={rule.id} className={cx('rules__item', !rule.enabled && 'rules__item--off')}>
@@ -323,9 +325,11 @@ export function RulesSection(): React.JSX.Element {
           </ul>
         )}
 
-        <p className="settings-card__subtitle rules__note">
-          <Icon name="info" size={13} /> {t('rules.note')}
-        </p>
+        <details className="rules__help">
+          <summary>{t('rules.how')}</summary>
+          <p>{t('rules.delivery')}</p>
+          <p>{t('rules.note')}</p>
+        </details>
       </div>
     </div>
   )

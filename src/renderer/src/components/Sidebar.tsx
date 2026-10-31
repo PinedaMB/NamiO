@@ -26,7 +26,6 @@ interface SidebarProps {
   offline: boolean
   onFolderContextMenu?: (anchor: ContextAnchor, id: string) => void
   onSelectFolder: (id: string) => void
-  onCompose: () => void
   onOpenSettings: () => void
   onOpenAccount: () => void
   onExitDemo: () => void
@@ -51,7 +50,6 @@ export function Sidebar({
   offline,
   onSelectFolder,
   onFolderContextMenu,
-  onCompose,
   onOpenSettings,
   onOpenAccount,
   onExitDemo,
@@ -205,16 +203,6 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="rail__block">
-          <TooltipButton className="compose-btn" type="button" onClick={onCompose} title={collapsed ? t('sidebar.compose') : undefined} aria-label={t('sidebar.compose')}>
-            <span className="compose-btn__label">
-              <Icon name="edit_square" size={16} />
-              <span className="compose-btn__text">{t('sidebar.compose')}</span>
-            </span>
-            <kbd className="kbd">C</kbd>
-          </TooltipButton>
-        </div>
-
         <nav className="rail__nav" aria-label={t('sidebar.inbox')}>
           {folders.map((folder) => (
             <TooltipButton
@@ -269,9 +257,9 @@ export function Sidebar({
           </TooltipButton>
         )}
         <div className="sync-pill">
-          <span className="sync-pill__state" data-tooltip={`${accountLabel} · ${syncDetail}`} tabIndex={0}>
+          <span className={cx('sync-pill__state', !offline && 'sr-only')} data-tooltip={`${accountLabel} · ${syncDetail}`} tabIndex={offline ? 0 : undefined}>
             <span
-              className={cx('dot', offline ? 'dot--error' : 'dot--tertiary', accountConnected && !offline && 'pulse')}
+              className={cx('dot', offline ? 'dot--error' : 'dot--tertiary')}
             />
             <span className="sync-pill__text">{syncLabel}</span>
           </span>

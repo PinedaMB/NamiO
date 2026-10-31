@@ -34,6 +34,11 @@ import {
  * de seguridad, no un detalle de implementación.
  */
 const api: MailApi = {
+  onZoomChanged: listener => {
+    const handler = (_event: unknown, percent: number): void => listener(percent)
+    ipcRenderer.on(IPC.zoomChanged, handler)
+    return () => ipcRenderer.removeListener(IPC.zoomChanged, handler)
+  },
   updateStatus: () => ipcRenderer.invoke(IPC.updateStatus),
   checkForUpdates: () => ipcRenderer.invoke(IPC.updateCheck),
   installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),

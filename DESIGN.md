@@ -1,355 +1,233 @@
-# Identidad visual de NamiO
-
-Sistema **Veloce**: índigo sobre una superficie casi negra, tipografía Inter para contenido,
-JetBrains Mono para metadatos y atajos, y Material Symbols por ligadura. Está implementado en
-`src/renderer/src/styles/tokens.css` (tokens) y `app.css` (componentes). Este documento es la
-referencia: si un valor no está acá ni en los tokens, no debería existir.
-
+---
+name: "NamiO Calma"
+description: "Correo con más espacio para leer y menos información permanente."
+colors:
+  surface: "light-dark(#ffffff, #202124)"
+  surface-container-lowest: "light-dark(#ffffff, #202124)"
+  surface-container-low: "light-dark(#f5f5f7, #292a2e)"
+  surface-container: "light-dark(#f0f0f3, #303136)"
+  surface-container-high: "light-dark(#e9e9ef, #393a40)"
+  surface-container-highest: "light-dark(#dedee5, #45464e)"
+  sidebar-surface: "light-dark(#f2f2f4, #292a2e)"
+  selection-surface: "light-dark(#e7e7f4, #393952)"
+  on-surface: "light-dark(#242428, #eeeef1)"
+  on-surface-variant: "light-dark(#55555f, #c4c4ce)"
+  outline: "light-dark(#66666f, #aaaab6)"
+  outline-variant: "light-dark(#c8c8d2, #55555f)"
+  primary: "light-dark(#5556b8, #b9baff)"
+  on-primary: "light-dark(#ffffff, #1000a9)"
+  secondary: "light-dark(#525a9d, #bdc2ff)"
+  secondary-container: "light-dark(#e3e6ff, #2f3aa3)"
+  on-secondary-container: "light-dark(#273272, #a8afff)"
+  tertiary: "light-dark(#465b98, #b8c4ff)"
+  tertiary-container: "light-dark(#dfe6ff, #3f4a8a)"
+  error: "light-dark(#b3261e, #ffb4ab)"
+  error-container: "light-dark(#ffdad6, #93000a)"
+  on-error-container: "light-dark(#410002, #ffdad6)"
+  overlay-scrim: "light-dark(rgb(20 20 30 / 28%), rgb(0 0 0 / 55%))"
+typography:
+  body:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter Variable', Inter, 'Segoe UI', sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: "22px"
+    letterSpacing: "-0.006em"
+  title:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter Variable', Inter, 'Segoe UI', sans-serif"
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: "28px"
+    letterSpacing: "-0.02em"
+  headline:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter Variable', Inter, 'Segoe UI', sans-serif"
+    fontSize: "26px"
+    fontWeight: 600
+    lineHeight: "34px"
+    letterSpacing: "-0.025em"
+  label:
+    fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Consolas, monospace"
+    fontSize: "11px"
+    fontWeight: 500
+    lineHeight: "14px"
+    letterSpacing: "0.04em"
+rounded:
+  sm: "2px"
+  md: "6px"
+  lg: "8px"
+  xl: "12px"
+  full: "999px"
+spacing:
+  xs: "4px"
+  sm: "6px"
+  md: "12px"
+  lg: "20px"
+  xl: "28px"
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.lg}"
+    height: "28px"
+    padding: "0 10px"
+  tool-button:
+    backgroundColor: "transparent"
+    textColor: "{colors.on-surface}"
+    rounded: "{rounded.lg}"
+    height: "32px"
+    padding: "0 9px"
+  navigation-selected:
+    backgroundColor: "{colors.selection-surface}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.lg}"
+    padding: "6px"
+  message-selected:
+    backgroundColor: "{colors.selection-surface}"
+    textColor: "{colors.on-surface}"
+    rounded: "{rounded.lg}"
+    padding: "18px 12px"
+  sender-avatar:
+    backgroundColor: "{colors.surface-container-high}"
+    textColor: "{colors.secondary}"
+    rounded: "{rounded.full}"
+    width: "28px"
+    height: "28px"
+  attachment:
+    backgroundColor: "{colors.surface-container-low}"
+    textColor: "{colors.on-surface}"
+    rounded: "{rounded.lg}"
+    padding: "12px"
+  settings-section:
+    backgroundColor: "transparent"
+    textColor: "{colors.on-surface}"
+    rounded: "0"
+    padding: "0"
+  account-dialog:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.on-surface}"
+    rounded: "{rounded.xl}"
+    padding: "28px"
+    width: "min(600px, 100%)"
 ---
 
-## 1. Principios
-
-1. **La interfaz desaparece.** Superficies oscuras y de bajo contraste entre sí, para que el
-   contenido (y el correo, sobre papel claro) sea lo único que compite por la atención.
-2. **Densidad con aire.** Filas compactas, pero con `--sp-md` (12 px) de respiro interno; nada de
-   bloques apretados.
-3. **El teclado es de primera clase.** Cada acción importante tiene atajo, y el atajo se muestra
-   donde se usa (toolbar, pie) —y desaparece antes que el texto cuando falta ancho.
-4. **Mono para lo que se lee como dato.** Versiones, rutas, correos, contadores y combinaciones de
-   teclas van en JetBrains Mono; el contenido va en Inter.
-5. **Nada de red.** Fuentes e iconos se empaquetan; la CSP de producción lo prohíbe explícitamente.
+# Design System: NamiO Calma
 
----
-
-## 2. Marca
-
-El logo es un **mapache** índigo: la mascota da nombre y carácter a la app (NamiO → *nami* +
-raccoon), y funciona mejor que una letra porque se reconoce a 30 px y a 512 px por igual.
-
-| Pieza | Archivo | Uso |
-| --- | --- | --- |
-| Original de app | `build/icon-source.png` (1024², alfa) | mapache sobre fondo cuadrado redondeado |
-| Original de notificaciones | `build/notification-source.png` (1024², alfa) | mapache con campana |
-| Original de marca | `build/logo-source.png` (2000², alfa) | mapache con contorno blanco |
-| Icono de app | `build/icon.png` (512²) · `build/icon-1024.png` | `electron-builder` (Linux y Windows) |
-| Notificaciones | `build/notification.png` (256²) | avisos nativos de correo nuevo |
-| Marca en la UI | `src/renderer/src/assets/logo.png` (256²) | rail, bienvenida, inicio y Acerca de |
-
-Reglas de uso:
-
-- Se usa **tal cual**: sin recolorear, sin rotar, sin contorno ni sombra dura. El único efecto
-  admitido es un `drop-shadow` índigo muy tenue para separarlo de un fondo oscuro.
-- Se conserva la transparencia y el diseño de cada original, incluido el fondo del icono de app.
-- Tamaños: 30 px en el rail, 512/1024 en el sistema. No hay versión monocroma: el contraste lo dan
-  las franjas claras del hocico y las cejas.
-- Los tamaños se regeneran con `python scripts/make-icons.py` (requiere Pillow); el script recorta
-  el alfa de cada original y deja 4 % de respiro.
-
-## 3. Paleta
-
-La aplicación ofrece **Claro, Oscuro y Sistema** en Configuración → General. Sistema es el valor inicial y sigue la apariencia del equipo en vivo. Los colores de los componentes se toman de los mismos tokens con pares `light-dark(claro, oscuro)`; `color-scheme` resuelve el modo y los controles nativos. El tema claro usa superficies blancas/gris lavanda, texto oscuro y acentos índigo con texto blanco sobre acciones principales. Las tablas siguientes documentan los valores oscuros originales; los pares vigentes están en `tokens.css`. El HTML de los correos mantiene su preferencia de lectura independiente.
-
-Cinco familias. El valor entre paréntesis es el contraste medido contra `--surface` (`#0f131c`),
-calculado con la fórmula WCAG.
-
-### Superficies (de la más profunda a la más elevada)
-
-| Token | Valor | Uso |
-| --- | --- | --- |
-| `--surface-container-lowest` | `#0a0e16` | rail, barra de estado |
-| `--surface` | `#0f131c` | fondo de la app y del lector |
-| `--surface-container-low` | `#181c24` | tarjetas de ajustes, campos |
-| `--surface-container` | `#1c2028` | controles en reposo |
-| `--surface-container-high` | `#262a33` | chips, botones suaves, hover de teclas |
-| `--surface-container-highest` | `#31353e` | bordes, divisor de 1 px |
-
-Regla: **la elevación se expresa con superficie, no con sombra.** Las sombras
-(`--shadow-sm/md/lg`) son solo para lo que flota sobre el layout (diálogos, paleta, toasts).
-
-### Texto y trazos
-
-| Token | Valor | Uso | Contraste |
-| --- | --- | --- | --- |
-| `--on-surface` | `#dfe2ee` | texto principal | 14.38 : 1 |
-| `--on-surface-variant` | `#c7c4d7` | texto secundario, descripciones | 10.89 : 1 |
-| `--outline` | `#908fa0` | metadatos, placeholders, texto terciario | 5.86 : 1 |
-| `--outline-variant` | `#464554` | bordes de chips fantasma | — |
-
-Todo el texto de la app pasa AA (≥ 4.5 : 1). El texto de `--outline` sobre
-`--surface-container-low` sigue pasando (5.38 : 1); no bajarlo más.
-
-### Acentos
-
-| Token | Valor | Uso |
-| --- | --- | --- |
-| `--primary` | `#c0c1ff` | acción principal, selección, enlaces de UI |
-| `--on-primary` | `#1000a9` | texto sobre `--primary` (7.72 : 1) |
-| `--primary-container` | `#8083ff` | marca (logo), acentos de fondo |
-| `--secondary` / `--secondary-container` | `#bdc2ff` / `#2f3aa3` | avatares, chip primario, selección de texto |
-| `--tertiary` | `#b8c4ff` | estado "en cola", iconos de adjunto, estado offline |
-| `--tertiary-container` | `#3f4a8a` | fondo de avatar terciario (al 40 %) |
-
-### Error / destructivo
+## Overview
 
-| Token | Valor | Uso |
-| --- | --- | --- |
-| `--error` | `#ffb4ab` | icono y texto destructivo (10.94 : 1) |
-| `--error-container` | `#93000a` | fondo de acciones destructivas en hover |
-| `--on-error-container` | `#ffdad6` | texto sobre ese fondo |
+**Creative North Star: “NamiO Calma”.**
 
-### Semántica de color (no negociable)
+Una interfaz de correo minimalista, inspirada en macOS: superficies neutras, herramientas discretas y jerarquía basada en texto y espacio. El contenido del mensaje concentra la atención. La propuesta aprobada reemplaza Veloce sin cambiar el motor de correo.
 
-- **Índigo (`--primary`)** = acción o selección. Nunca decoración.
-- **Terciario (`--tertiary`)** = algo pendiente o fuera de línea (cola, caché, adjuntos).
-- **Rojo (`--error`)** = destructivo o falla. Un rojo nunca se usa para "importante" a secas.
-- **Verde**: no existe en la paleta. El éxito se comunica con icono (`check_circle`) y texto, no con
-  color —evita el falso verde/rojo en daltonismo.
+La implementación vive en `src/renderer/src/styles/tokens.css`, `app.css` y los componentes del renderer. Los tokens son normativos; esta guía describe su aplicación. Configuración, diálogos y redacción comparten las superficies planas y la jerarquía de Calma, conservando sus funciones.
 
----
+Características: lista plana, detalles bajo demanda, selección suave, navegación de tres columnas y lectura enfocada.
 
-## 4. Tipografía
+## Colors
 
-Familias empaquetadas (`@fontsource-variable`), sin CDN:
+### Primary
 
-- **Inter Variable** — contenido, títulos, botones. `letter-spacing` ligeramente negativa.
-- **JetBrains Mono Variable** — metadatos, contadores, `kbd`, rutas, versiones, correos.
-- **Material Symbols Outlined** — iconos por ligadura (no SVG en línea).
+El índigo primario indica selección, foco, enlaces y acciones principales. La superficie de selección aporta un fondo suave; no necesita un contorno adicional. La marca original conserva sus colores.
 
-Escala (definida como clases utilitarias en `tokens.css`):
+### Secondary
 
-| Clase | Tamaño / interlínea | Peso | Uso |
-| --- | --- | --- | --- |
-| `.t-headline-lg` | 28 / 36 | 600 | título del mensaje abierto |
-| `.t-headline-md` | 20 / 28 | 600 | títulos de pantalla |
-| `.t-headline-sm` | 16 / 24 | 600 | nombre del remitente |
-| `.t-body-lg` | 15 / 24 | 400 | cuerpo de lectura |
-| `.t-body-md` | 14 / 22 | 400 | base de la app |
-| `.t-body-sm` | 13 / 20 | 400 | listas, descripciones |
-| `.t-label` | 11 / 14 mono, `+0.04em` | 500 | etiquetas en mayúsculas |
-| `.t-kbd` | 11 / 12 mono, `+0.05em` | 600 | combinaciones de teclas |
+Los tonos secundarios existentes siguen disponibles para selección de texto, chips y avatares. La lista y el lector muestran el avatar del remitente para reconocerlo; las etiquetas decorativas no vuelven a la lista principal.
 
-Reglas:
+### Tertiary
 
-- **Nunca** más de dos pesos en un mismo bloque (400/500 + 600 de énfasis).
-- Las etiquetas de sección van en mono, mayúsculas, 10–11 px y `letter-spacing` positivo.
-- Los números de contadores y tiempos van en mono: alinean entre filas.
+Los tonos terciarios comunican operaciones pendientes y adjuntos. Los errores y las acciones destructivas usan la familia de error; la importancia alta conserva el tratamiento semántico existente del correo.
 
----
+### Neutral
 
-## 5. Espaciado, radios y sombras
+El lector y la lista comparten la superficie base. La navegación lateral usa su propia superficie gris. Los niveles de contenedor separan campos y menús; Configuración agrupa sus secciones con espacio y divisores finos, sin tarjetas rellenas. El velo compartido `overlay-scrim` atenúa el fondo de overlays, paleta y diálogos de destinatarios y movimiento, sin blur. La dedicatoria conserva su backdrop específico de superficie base con opacidad.
 
-```
-espaciado:  --sp-xs 4 · --sp-sm 6 · --sp-md 12 · --sp-lg 20 · --sp-xl 28
-radios:     --r-sm 2 · --r-md 6 · --r-lg 8 · --r-xl 12 · --r-full 999
-sombras:    --shadow-sm/md/lg (solo capas flotantes)
-```
+**La regla de la atención.** Reservar el acento para estados y acciones; no colorear cada fila ni cada sección.
 
-- Ritmo base **4 px**; los componentes usan 6/8/12.
-- Radios: **6 px** para chips y `kbd`, **8 px** para botones y filas, **12 px** para tarjetas,
-  el marco del correo y diálogos.
-- Bordes: **1 px** con `color-mix(...)` entre `--surface-container-highest` y transparente, para que
-  no compitan con el texto.
+Claro, Oscuro y Sistema se resuelven con `light-dark()` y `color-scheme`. El tema del correo HTML es independiente: no inferirlo de la apariencia de la aplicación.
 
----
+## Typography
 
-## 6. Layout
+Texto de sistema en macOS, con Inter Variable empaquetada como alternativa. Los nombres, fechas y contadores de la lista usan sans; JetBrains Mono queda disponible para atajos y datos en las superficies existentes que lo requieren.
 
-Rejilla de una sola fila y tres columnas dentro del `shell`:
+- Título de carpeta: rol `title`.
+- Asunto abierto: rol `headline`; en anchos de hasta 1520 px usa el ajuste existente a 24/32 px.
+- Lista: remitente y asunto (13 px), vista previa (12/19 px), fecha (11 px). Los no leídos refuerzan remitente y asunto con peso 650 y un punto de estado accesible.
+- Cuerpo de texto propio: lectura (15/27 px). El HTML recibido conserva su contenido y formato, sujeto al tratamiento de seguridad y tema del lector.
+- Botones y campos de configuración/cuenta: sans (13 px); etiquetas de cuenta (12 px). Evitar añadir etiquetas técnicas o atajos permanentes al lector.
+- Configuración: título de pantalla (26/34 px), títulos de sección (16/24 px), descripciones (13/20 px).
+- Diálogo de cuenta: título (20/28 px), descripción (13/20 px).
 
-```
-┌──── rail 224 ────┬──── lista 380 ────┬──── lectura (flex) ────┬── contexto 320 ──┐
-│ marca, carpetas  │ filtros + filas   │ toolbar + mensaje      │ IA (solo demo)   │
-└──────────────────┴───────────────────┴────────────────────────┴──────────────────┘
- topbar 48 px · barra de estado 36 px
-```
+## Layout
 
-| Medida | Token | Valor |
-| --- | --- | --- |
-| rail | `--rail-w` | 224 px |
-| lista | `--list-w` | 380 px |
-| panel de contexto | `--context-w` | 320 px (colapsable, oculto ≤ 1280) |
-| topbar | `--topbar-h` | 48 px |
-| barra de estado | `--status-h` | 36 px |
+En escritorio: navegación lateral (184 px), lista (320 px) y lector flexible. La barra superior (62 px) pertenece al área de trabajo y reúne búsqueda, Redactar y el menú de acciones. La lista baja a 300 px en anchos de hasta 1280 px.
 
-### Adaptación (mobile last, no "responsive" de teléfono)
+La navegación se colapsa por defecto a 64 px en ventanas de hasta 960 px; el usuario puede expandirla. En ese ancho se alterna lista y lector, con Volver disponible en el mensaje. Hasta 520 px, Redactar conserva su icono y nombre accesible y oculta solo el texto visible.
 
-La app es de escritorio: en vez de apilar, **quita** lo prescindible en este orden.
+El mensaje tiene una medida máxima de 760 px. La lectura enfocada oculta navegación, lista y contexto y mantiene una salida visible en la barra del lector. El panel contextual de demostración inicia cerrado salvo preferencia guardada; no aparece para cuentas reales.
 
-| Ancho | Qué cambia |
-| --- | --- |
-| ≤ 1560 | la cabecera del mensaje pasa a dos líneas |
-| ≤ 1520 | se ocultan los `kbd` de la toolbar y la leyenda secundaria del pie |
-| ≤ 1400 | la búsqueda se angosta |
-| ≤ 1280 | se oculta el panel de contexto y la lista baja a 360 px |
-| ≤ 1180 | ajustes y diagnóstico pasan a una columna |
-| ≤ 1080 | rail 200 / lista 330, se ocultan filtros inactivos y contadores |
+La barra de estado (36 px) aparece para operaciones pendientes, progreso y avisos de actualización. En reposo se oculta. La desconexión conserva su aviso específico y sus acciones de recuperación.
 
-Regla: **el texto nunca se corta antes que un atajo o un adorno**; primero desaparece el adorno.
+Configuración tiene un ancho máximo de 1120 px, padding de 32 × 36 px y una rejilla de navegación (190 px) y contenido flexible, separados por 40 px. Las secciones usan un stack de 28 px, con divisor y 28 px de espacio superior entre secciones. Hasta 960 px pasa a una columna con navegación en tres columnas y padding de 24 × 20 px; hasta 520 px la navegación usa dos columnas y el padding es de 24 × 16 px.
 
----
+Los diálogos de cuenta y remapeo usan padding de 28 px, reducido a 20 px hasta 520 px. El diálogo de cuenta separa sus grupos por 24 px y conserva scroll vertical cuando crece el formulario.
 
-## 7. Componentes
+## Elevation & Depth
 
-### Botones (`.btn`)
+La navegación y lectura son planas. El fondo seleccionado y los cambios de superficie dan jerarquía; no añadir sombras a los mensajes. Los tokens de sombra existentes se conservan para capas flotantes, paleta y diálogos. Sus valores y los de movimiento están en el sidecar.
 
-Altura 28 px, radio 8 px, 13 px/500. Variantes: `--primary` (fondo índigo, texto `--on-primary`),
-`--surface`, `--quiet`, `--ghost`, `--danger` (el rojo aparece **solo en hover**, nunca en reposo).
-`disabled` = opacidad 0.5 + `cursor: not-allowed`, sin cambiar de color.
+Las transiciones de estado usan los tiempos existentes (120 y 180 ms). Respetar `prefers-reduced-motion`; no introducir animación decorativa continua.
 
-### Botón de icono (`.icon-btn`)
+## Shapes
 
-32×32, radio 8, transparente; en hover toma `--surface-container`. Siempre con `title` y
-`aria-label`.
+Filas y botones con curvas suaves (radio `lg`); campos y menús usan los radios compartidos. Los mensajes abiertos son bloques de lectura sin borde exterior. Los diálogos mantienen el radio `xl`; las secciones de ajustes son planas, sin radio ni superficie propia. Evitar convertir cada dato en una píldora.
 
-### Herramientas de lectura (`.tool-btn`)
+## Components
 
-28 px de alto, 12–13 px, 500; el `kbd` a la derecha del texto. En ≤ 1520 el `kbd` se oculta:
-la acción sigue dictada por el pie de página.
+### Navigation and toolbar
 
-### Teclas (`.kbd`)
+La navegación conserva marca, cambio de cuenta, carpetas y acceso a configuración. Los contadores solo se renderizan cuando son mayores que cero. Redactar está en la barra superior. El menú de esa barra conserva comandos, sincronización y preferencias; idioma sigue en Configuración.
 
-Mono 11 px, fondo `--surface-container-high`, radio 2 px, `min-width` 16 px. Variantes `--quiet`,
-`--accent`, `--danger`.
+### Message list
 
-### Chips (`.chip`)
+Avatar del remitente, nombre, asunto, una línea de vista previa y fecha, sin organizaciones ni filas de etiquetas. El avatar de la lista conserva el tamaño base (28 px); la casilla aparece sobre el avatar al pasar el puntero y permanece visible mientras está seleccionada o tiene foco de teclado. En pantallas táctiles la casilla permanece disponible. Siguen disponibles las acciones masivas y las conversaciones desplegables. Los filtros y el orden se abren desde herramientas compactas; un filtro activo aparece con una acción para volver a Todos.
 
-Mono 11 px, radio 6, fondo alto. `--primary` para lo seleccionado, `--accent` para lo activo,
-`--outline` para lo neutro. Un chip nunca es un botón: si es clickeable, es `.seg__btn` o `.btn`.
+### Reader
 
-### Avatares (`.avatar`)
+Asunto, avatar del remitente (36 px), nombre y fecha conducen al contenido. Ver detalles abre el diálogo con De, Para y CC; cada dirección puede copiarse y Copiar todos sigue copiando destinatarios.
 
-Círculo con iniciales, 28/36/40 px. `--accent` (índigo) para el remitente activo, `--tertiary` para
-el resto, fondo de superficie como fallback. Las iniciales se derivan del nombre o del correo,
-descartando partes numéricas (`testuser@127.0.0.1` → `T`, no `T1`).
+Los avatares reutilizan `SenderAvatar`: iniciales como alternativa, imagen solo cuando la preferencia de imágenes remotas lo permite, sin solicitudes en spam ni en la demostración. Si falla una imagen se recuperan las iniciales. No introducir nuevas consultas de imágenes para completar la identidad visual.
 
-### Punto de estado (`.dot`)
+Los adjuntos permanecen cerrados por defecto. El resumen muestra cantidad y nombres, truncados cuando falta espacio; al desplegarse, los nombres del resumen se ocultan y aparecen los archivos en una rejilla adaptable. Cada columna tiene un mínimo de 240 px, limitado al ancho disponible para no desbordar ventanas estrechas. Las tarjetas suaves usan padding de 12 px y radio `lg`, nombre sans (13 px/500) y detalle sans (12 px). El nombre puede partirse si es largo.
 
-6 px. Índigo = activo, terciario = sincronizado/en cola, rojo = sin conexión, `--idle` = apagado.
-Con `pulse` solo cuando hay actividad real.
+Cada archivo distingue la vista previa (imagen, PDF o texto) de la descarga mediante icono y nombre accesible que incluye el archivo. Conservar los estados de preparación, deshabilitado y progreso, y las vistas previas y descargas existentes.
 
-### Campos
+La barra mantiene las acciones principales, navegación entre mensajes y lectura enfocada. Las acciones secundarias permanecen en el menú existente del mensaje. No mostrar afirmaciones técnicas de cifrado sin evidencia real.
 
-`input`/`textarea` sin borde propio: el contenedor es el campo. Foco = `:focus-within` con
-`outline` de 1 px en `--primary` al 45 %. Placeholder en `--outline`, nunca en `--on-surface`.
+Las reglas de correo muestran una sola acción principal cuando no hay reglas: Nueva regla. El estado vacío desaparece durante la edición; Aplicar a los existentes aparece con reglas guardadas. Las explicaciones de ejecución local, cola y alcance de la caché permanecen en Cómo funcionan las reglas.
 
-### Tarjetas de ajustes
+### Buttons and fields
 
-Fondo `--surface-container-low`, radio 12, padding `--sp-xl`, título 16/600 y subtítulo 13 en
-`--on-surface-variant`. Una tarjeta = una decisión.
+Herramientas transparentes con superficie suave al pasar el puntero; botones primarios con índigo y texto de contraste. Cada botón de icono tiene nombre accesible y tooltip. Conservar estados deshabilitados, foco y progreso. La búsqueda usa un campo de bajo contraste sobre la superficie base.
 
-### Lista de mensajes
+### Settings
 
-Fila de 76 px: avatar, remitente (16/600), hora en mono, asunto (14/500) y preview de una línea.
-No leído = remitente y asunto en peso 650 y `--on-surface`, sobre índigo junto a la hora;
-leído = peso 500 y asunto en `--on-surface-variant`. Fila activa = fondo con índigo al 12 %
-sobre `--surface-container-lowest` y contorno interior de 1 px con índigo al 55 %.
+Título simple y navegación sin contadores. La selección de sección usa la superficie suave compartida; el contenido se organiza en bloques transparentes con divisores. Evitar el encabezado técnico del motor y el perfil duplicado. Los campos y controles segmentados usan sans; los estados de error, guardado y operaciones mantienen sus mensajes y acciones.
 
-### Lector
+### Dialogs
 
-Cabecera con remitente, destinatarios, fecha y "Cifrado TLS 1.3"; luego el cuerpo. Título a 28/600
-(24 en ≤ 1520). La toolbar está arriba y no se mueve al scrollear el cuerpo.
+Cuenta y remapeo usan la superficie base y sombra compartida. El pie de cuenta separa sus acciones con un divisor y padding superior de 20 px. Los fieldsets de cuenta son planos, con divisores en las opciones avanzadas. El diálogo de destinatarios usa una lista transparente. La paleta mantiene su superficie base, sin gradiente ni blur, con búsqueda y navegación por teclado.
 
-### Compositor
+Conservar las validaciones, contraseñas protegidas, OAuth, foco inicial, cierre y recuperación de errores de los componentes existentes. La dedicatoria conserva su contenido e imagen; su contenedor comparte la superficie de Calma.
 
-Overlay centrado de 1180×900 máx. Barra de formato en mono, cuerpo en Inter 15/24, adjuntos como
-pills. Con cuenta real **no** se muestra el panel de copiloto ni adjuntos de ejemplo: esas piezas
-son de la demo.
+### Composer
 
-### Diálogos flotantes (paleta, cuenta)
+Reutilizar el editor y los selectores del proyecto. Cabecera, campos, editor y pie comparten la superficie base; los divisores separan grupos y la barra de formato usa un gris suave. La redacción conserva adjuntos, borradores, formato y opciones de envío. Los cambios se propagan por tokens sin modificar el HTML enviado ni añadir recursos externos.
 
-Fondo `--surface-container`, radio 12, `--shadow-lg`, entrada de 160 ms con `dialog-in`. El fondo se
-atenúa con un velo negro al 40 %, nunca con blur (cuesta GPU en equipos modestos).
+## Do's and Don'ts
 
----
-
-## 8. Iconografía
-
-- **Material Symbols Outlined** por ligadura: `<Icon name="inbox" />` → `<span class="icon">inbox</span>`.
-- Tamaños: 14/15/16/18/20/22 px (`font-size`), trazo 400. `fill` solo para estados activos
-  (estrella marcada, carpeta seleccionada).
-- Un icono **nunca** va solo si la acción es destructiva o poco frecuente: siempre con `title`.
-- No se mezclan iconos de otra familia ni SVG sueltos. Si falta un glifo, se usa el más cercano y
-  se anota; no se dibuja un SVG a mano.
-
----
-
-## 9. Movimiento
-
-```
---fast 120ms · --normal 180ms · --ease cubic-bezier(0.2, 0, 0.2, 1)
-```
-
-| Animación | Duración | Uso |
-| --- | --- | --- |
-| `fade-in` | 120 ms | aparición de contenido |
-| `view-in` / `content-in` | 180–220 ms | cambio de vista (bandeja ↔ ajustes) |
-| `dialog-in` / `dialog-out` | 160 ms | paleta, cuenta, compositor |
-| `toast-in` | 160 ms | avisos |
-| `pulse` | 2 s, infinito | sincronización activa |
-| `spin` | 800 ms, lineal | carga |
-
-Reglas:
-
-- El movimiento **acompaña un cambio de estado**, no decora. Nada de parallax ni rebotes.
-- Todo se desactiva con `prefers-reduced-motion: reduce` (duración 0.001 ms).
-- Los paneles colapsables animan `width`/`opacity` a 180 ms; el contenido no se reacomoda con
-  saltos.
-
----
-
-## 10. El correo es papel
-
-El HTML ajeno se dibuja en un iframe **sobre blanco** (`#ffffff`), con radio 12 px y borde de 1 px
-negro al 14 %, dentro de la UI oscura.
-
-- No se invierte ni se "tematiza" el correo: el 90 % de los correos asume fondo claro.
-- Imágenes remotas bloqueadas por defecto (política global en Ajustes, override por mensaje).
-- Links se abren en el navegador del sistema.
-- El iframe mide su contenido y crece; no hay scroll anidado.
-
----
-
-## 11. Accesibilidad
-
-- **Contraste**: pares de texto validados (ver tabla). Ningún texto por debajo de 4.5 : 1.
-- **Foco**: visible en campos y controles (`:focus-within`/`:focus-visible`); la navegación por
-  teclado no depende del ratón.
-- **Semántica**: `button` para acciones, `role="tab"`/`aria-selected` en filtros, `aria-label` en
-  botones de icono, `sr-only` para texto solo de lector.
-- **Estado por más de un canal**: no leído = color + punto; error = rojo + icono + texto.
-- **Sin hover como única vía**: toda acción tiene atajo y/o botón visible.
-
----
-
-## 12. Voz y microcopy
-
-- **Español de México (tuteo)**: "Presiona", "Elige", "Puedes". Inglés neutro en la variante `en`.
-- Frases cortas, en presente, sin signos de exclamación.
-- Se nombra lo que pasa: "Sin conexión · mostrando la última copia guardada" en lugar de "Error de
-  red". Los errores dicen qué falló y qué se puede hacer.
-- Los ids técnicos (correo, versión, ruta) van en mono y entre comillas angulares si son literales.
-- Nunca se traduce el contenido del correo; solo la interfaz.
-
----
-
-## 13. Implementación
-
-- **Tokens primero**: un color, radio o duración nueva se agrega en `tokens.css`; los componentes no
-  inventan valores.
-- **Cero red**: fuentes e iconos son dependencias empaquetadas. La CSP de producción bloquea
-  `style-src`/`font-src` externos.
-- **Verificación**: `pnpm run css:audit` cruza el CSS con el JSX y falla si hay una variable sin
-  definir, una clase usada sin regla, un `url()` roto o un asset faltante en el bundle.
-- **Deuda conocida**: 8 variables (`--surface-dim`, `--surface-bright`, `--inverse-on-surface`,
-  `--on-secondary`, `--on-tertiary`, `--on-error`, `--gutter`, `--margin`) y 15 clases
-  (`t-headline-*`, `kbd--quiet/accent/danger`, `chip--tertiary/error`, `btn--surface/quiet/ghost`,
-  etc.) que vienen de los mockups y no se usan. El auditor las lista con `--verbose`.
-
-### Checklist para cambios visuales
-
-- [ ] ¿Usa solo tokens existentes? Si no, ¿agregaste el token a `tokens.css`?
-- [ ] ¿El texto nuevo pasa 4.5 : 1 sobre su fondo?
-- [ ] ¿Funciona con teclado y con `prefers-reduced-motion`?
-- [ ] ¿Sobrevive a 1280 px y a 1080 px sin cortar el texto?
-- [ ] ¿`pnpm run css:audit` sigue en verde?
-- [ ] ¿La cadena nueva está en `es.ts` y `en.ts` (mismo largo aproximado)?
+- **Do** dejar el contenido como elemento dominante y desplazar metadatos al diálogo correspondiente.
+- **Do** mantener visibles errores, colas y avances cuando requieren atención.
+- **Do** conservar teclado, foco, nombres accesibles y traducciones en español e inglés.
+- **Do** usar Material Symbols Outlined empaquetados; conservar el mapache original sin recolorearlo.
+- **Don't** restaurar filtros duplicados, el pie permanente de atajos ni tarjetas para cada mensaje.
+- **Don't** eliminar validaciones o funciones al reducir etiquetas visibles.
+- **Don't** volver a envolver cada sección de Configuración en una tarjeta ni añadir gradientes o blur a la paleta.
+- **Don't** extender la paleta con valores locales o cargar fuentes e iconos desde CDN.

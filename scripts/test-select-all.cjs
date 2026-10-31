@@ -86,7 +86,9 @@ function findNative(node) {
 }
 findNative(mainAst)
 const ignored = []
-const native = vm.runInNewContext(compile(`(${nativeHandler})`), {mainWindow: {webContents: {setIgnoreMenuShortcuts: value => ignored.push(value)}}})
+let zoomLevel = 0
+const zoomNotifications = []
+const native = vm.runInNewContext(compile(`(${nativeHandler})`), {IPC: { zoomChanged: 'window:zoom-changed' }, mainWindow: {webContents: {getZoomFactor: () => 1.2 ** zoomLevel, send: (...args) => zoomNotifications.push(args), setIgnoreMenuShortcuts: value => ignored.push(value), getZoomLevel: () => zoomLevel, setZoomLevel: value => { zoomLevel = value }}}})
 for (const input of [{type: 'keyDown', key: 'a', control: true}, {type: 'keyUp', key: 'a', control: true}, {type: 'keyDown', key: 'c', control: true}, {type: 'keyDown', key: 'A', meta: true}]) native(null, input)
 assert.deepEqual(ignored, [true, false, false, true], 'only the select-all menu accelerator defers to renderer focus')
 for (const type of ['keyDown', 'keyUp']) {
@@ -102,5 +104,30 @@ for (const input of [{ key: 'r' }, { key: 'r', control: true, alt: true }, { key
   let prevented = false
   native({ preventDefault() { prevented = true } }, { type: 'keyDown', ...input })
   assert.equal(prevented, false, 'unrelated shortcuts remain available')
+}
+for (const modifier of ['control', 'meta']) {
+  for (const key of ['+', '=']) {
+    for (const shift of [false, true]) {
+      zoomLevel = -1
+      let prevented = 0
+      const input = { type: 'keyDown', key, [modifier]: true, shift }
+      native({ preventDefault() { prevented++ } }, input)
+      assert.equal(zoomLevel, -0.5, 'zoom-in accepts plus and equals across keyboard layouts')
+      assert.equal(prevented, 1, 'native zoom cannot apply a second time')
+      native({ preventDefault() { prevented++ } }, { ...input, type: 'keyUp' })
+      assert.equal(zoomLevel, -0.5, 'key-up cannot zoom a second time')
+    }
+  }
+}
+for (const input of [{ key: '+' }, { key: '=', control: true, alt: true }]) {
+  zoomLevel = 0
+  native({ preventDefault() { throw new Error('Unrelated input must keep its native behavior') } }, { type: 'keyDown', ...input })
+  assert.equal(zoomLevel, 0)
+}
+for (const [key, expectedLevel] of [['-', -0.5], ['0', 0], ['+', 0.5]]) {
+  zoomLevel = 0
+  native({ preventDefault() {} }, { type: 'keyDown', key, control: true })
+  assert.equal(zoomLevel, expectedLevel)
+  assert.deepEqual(zoomNotifications.at(-1), ['window:zoom-changed', Math.round(1.2 ** expectedLevel * 100)], 'notification reports the applied zoom percentage')
 }
 console.log('Select all: loaded mail, checkbox focus, fields/editors, HTML/plain bodies, TXT/image viewers and native-menu routing passed')

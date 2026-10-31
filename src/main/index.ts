@@ -59,9 +59,17 @@ function createWindow(): void {
     }
   })
 
-  // Ctrl+A se resuelve según el foco del lector, antes del menú nativo.
+  // Zoom y selección se resuelven antes del menú nativo para admitir distintos teclados.
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if ((input.control || input.meta) && !input.alt && !input.shift && input.key.toLowerCase() === 'r') event.preventDefault()
+    if (input.type === 'keyDown' && (input.control || input.meta) && !input.alt && ['+', '=', '-', '0'].includes(input.key)) {
+      event.preventDefault()
+      const contents = mainWindow?.webContents
+      if (contents) {
+        contents.setZoomLevel(input.key === '0' ? 0 : contents.getZoomLevel() + (input.key === '-' ? -0.5 : 0.5))
+        contents.send(IPC.zoomChanged, Math.round(contents.getZoomFactor() * 100))
+      }
+    }
     mainWindow?.webContents.setIgnoreMenuShortcuts(input.type === 'keyDown' && (input.control || input.meta) && !input.alt && !input.shift && input.key.toLowerCase() === 'a')
   })
 

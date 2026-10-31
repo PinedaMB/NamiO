@@ -1,157 +1,51 @@
-import { useShortcuts, useFormatCombo } from '../settings/ShortcutsProvider'
+import { useCallback, useState } from 'react'
+import { ContextMenu, type ContextAnchor } from './ContextMenu'
 import { TooltipButton } from './Tooltip'
-import { LOCALES, useI18n } from '../i18n'
+import { useI18n } from '../i18n'
 import { Icon } from './Icon'
-import { cx } from '../lib/cx'
 
 export type FilterId = 'focused' | 'other' | 'all' | 'vip' | 'files' | 'needs-reply'
 
 interface TopbarProps {
-  unreadCount: number
-  filter: FilterId
-  /** Cuenta real: se ocultan los filtros de demo y el resumen cambia de texto. */
-  live?: boolean
-  onFilter: (filter: FilterId) => void
+  live: boolean
   query: string
   onQuery: (value: string) => void
+  onCompose: () => void
   onOpenPalette: () => void
   onOpenSettings: () => void
   onSync: () => void
   syncing: boolean
 }
 
-const FILTERS: ReadonlyArray<{ id: FilterId; labelKey: 'topbar.unread' | 'topbar.needsReply' | 'topbar.vips' | 'topbar.files'; icon?: string }> = [
-  { id: 'focused', labelKey: 'topbar.unread', icon: 'mark_email_unread' },
-  { id: 'needs-reply', labelKey: 'topbar.needsReply' },
-  { id: 'vip', labelKey: 'topbar.vips' },
-  { id: 'files', labelKey: 'topbar.files', icon: 'attachment' }
-]
-
-export function Topbar({
-  unreadCount,
-  filter,
-  live = false,
-  onFilter,
-  query,
-  onQuery,
-  onOpenPalette,
-  onOpenSettings,
-  onSync,
-  syncing
-}: TopbarProps): React.JSX.Element {
-  const { bindings, modifier } = useShortcuts()
-  const formatCombo = useFormatCombo()
-  const { t, locale, setLocale } = useI18n()
-
+export function Topbar({ live, query, onQuery, onCompose, onOpenPalette, onOpenSettings, onSync, syncing }: TopbarProps): React.JSX.Element {
+  const { t } = useI18n()
+  const [menu, setMenu] = useState<ContextAnchor | null>(null)
+  const closeMenu = useCallback(() => setMenu(null), [])
   return (
     <header className="topbar">
-      <div className="topbar__left">
-        <div className={cx('zero-pill', live && 'zero-pill--live')}>
-          <span className="dot" />
-          {live ? (
-            <>
-              <strong>{t('topbar.unread')}</strong>
-              <span>{` · ${unreadCount}`}</span>
-            </>
-          ) : (
-            <>
-              <strong>{t('topbar.zero')}</strong>
-              <span>
-                ·{' '}
-                {unreadCount === 1 ? t('topbar.remainingOne') : t('topbar.remaining', { count: unreadCount })}
-              </span>
-            </>
-          )}
-        </div>
-
-        <div className="vsep" />
-
-        {/* En modo real los filtros de demo (VIP, adjuntos, respuesta) no tienen
-            datos: los reemplazan las pestañas "Sin leer / Leídos" de la lista. */}
-        {!live && (
-          <div className="filter-row">
-            {FILTERS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={cx('filter-chip', filter === item.id && 'filter-chip--active')}
-                onClick={() => onFilter(item.id)}
-              >
-                {item.icon && <Icon name={item.icon} size={14} />}
-                {t(item.labelKey)}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="search">
-        <Icon name="search" size={16} className="search__icon" />
-        <input
-          className="search__input"
-          type="search"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              onQuery('')
-              event.currentTarget.blur()
-            }
-          }}
-          placeholder={t('topbar.search')}
-          aria-label={t('topbar.search')}
-          spellCheck={false}
-          autoComplete="off"
-        />
-        {query === '' ? (
-          <span className="search__hint">
-            <kbd className="kbd">{formatCombo(bindings.palette)}</kbd>
-          </span>
-        ) : (
-          <TooltipButton className="search__clear" type="button" onClick={() => onQuery('')} title={t('common.close')}>
-            <Icon name="close" size={14} />
-          </TooltipButton>
-        )}
+        <Icon name="search" size={18} className="search__icon" />
+        <input className="search__input" type="search" value={query}
+          onChange={event => onQuery(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); onQuery(''); event.currentTarget.blur() } }}
+          placeholder={t('topbar.search')} aria-label={t('topbar.search')} spellCheck={false} autoComplete="off" />
+        {query !== '' && <TooltipButton className="search__clear" type="button" onClick={() => onQuery('')} title={t('common.close')}><Icon name="close" size={14} /></TooltipButton>}
       </div>
-
       <div className="topbar__right">
-        <TooltipButton
-          className="icon-btn"
-          type="button"
-          title={t('status.actions')}
-          aria-label={t('status.actions')}
-          onClick={onOpenPalette}
-        >
-          <span className="mono">{modifier === 'command' ? '⌘' : 'Ctrl'}</span>
-        </TooltipButton>
-        <div className="lang-switch" role="group" aria-label={t('topbar.language')}>
-          {LOCALES.map((item) => (
-            <TooltipButton
-              key={item.id}
-              type="button"
-              className={cx('lang-switch__btn', locale === item.id && 'lang-switch__btn--active')}
-              onClick={() => setLocale(item.id)}
-              aria-pressed={locale === item.id}
-              title={t('topbar.language')}
-            >
-              {item.label}
-            </TooltipButton>
-          ))}
-        </div>
-        <TooltipButton className="icon-btn" type="button" title={t('topbar.sync')} aria-label={t('topbar.sync')} onClick={onSync} disabled={!live || syncing} aria-busy={syncing}>
-          <Icon name="sync" size={18} className={syncing ? 'spin spin--reverse' : undefined} />
-        </TooltipButton>
-        <TooltipButton
-          className="icon-btn"
-          type="button"
-          title={t('topbar.preferences')}
-          aria-label={t('topbar.preferences')}
-          onClick={onOpenSettings}
-        >
-          <Icon name="tune" size={18} />
+        {syncing && <span className="mail-moving" role="status"><Icon name="sync" size={18} className="spin" /><span className="sr-only">{t('sidebar.syncing')}</span></span>}
+        <button className="compose-btn" type="button" onClick={onCompose} aria-label={t('sidebar.compose')}>
+          <Icon name="edit_square" size={18} /><span>{t('sidebar.compose')}</span>
+        </button>
+        <TooltipButton className="icon-btn" type="button" title={t('status.actions')} aria-haspopup="menu" aria-expanded={menu !== null}
+          onClick={event => { const trigger = event.currentTarget; const bounds = trigger.getBoundingClientRect(); setMenu({ x: bounds.right, y: bounds.bottom, trigger }) }}>
+          <Icon name="more_horiz" size={20} />
         </TooltipButton>
       </div>
+      {menu && <ContextMenu anchor={menu} label={t('status.actions')} onClose={closeMenu} actions={[
+        { label: t('status.actions'), icon: 'keyboard_command_key', run: onOpenPalette },
+        { label: t('topbar.sync'), icon: syncing ? 'progress_activity' : 'sync', disabled: !live || syncing, run: onSync },
+        { label: t('topbar.preferences'), icon: 'settings', run: onOpenSettings }
+      ]} />}
     </header>
   )
 }

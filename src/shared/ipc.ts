@@ -7,6 +7,7 @@
 
 export const IPC = {
   coreStatus: 'core:status',
+  zoomChanged: 'window:zoom-changed',
   updateStatus: 'update:status',
   updateChanged: 'update:changed',
   updateCheck: 'update:check',
@@ -415,6 +416,7 @@ export interface UpdateState {
 }
 
 export interface MailApi {
+  onZoomChanged(listener: (percent: number) => void): () => void
   updateStatus(): Promise<UpdateState | null>
   checkForUpdates(): Promise<void>
   installUpdate(): Promise<void>

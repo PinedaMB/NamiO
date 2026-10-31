@@ -10,7 +10,6 @@ import type {
   AccountActivity,
   AccountSummary,
   AppSettings,
-  CoreStatus,
   ImapErrorCode,
   MailboxInfo,
   OutboxItem,
@@ -128,7 +127,7 @@ export function App(): React.JSX.Element {
   const [bulkBusy, setBulkBusy] = useState(false)
   const bulkRunning = useRef(false)
   const togglingRead = useRef(false)
-  const [filter, setFilter] = useState<FilterId>('focused')
+  const [filter, setFilter] = useState<FilterId>('all')
   const [oldestFirst, setOldestFirst] = useState(false)
   const [folder, setFolder] = useState('inbox')
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -151,9 +150,8 @@ export function App(): React.JSX.Element {
   const [composeSession, setComposeSession] = useState(0)
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [appVersion, setAppVersion] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [compactWindow, setCompactWindow] = useState(() => window.matchMedia('(max-width: 1280px)').matches)
+  const [compactWindow, setCompactWindow] = useState(() => window.matchMedia('(max-width: 960px)').matches)
   const [compactNavExpanded, setCompactNavExpanded] = useState(false)
   const [messageOpen, setMessageOpen] = useState(false)
   const railCollapsed = compactWindow ? !compactNavExpanded : sidebarCollapsed
@@ -163,12 +161,13 @@ export function App(): React.JSX.Element {
     }
   }, [messageOpen])
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 1280px)')
+    const media = window.matchMedia('(max-width: 960px)')
     const update = (): void => { setCompactWindow(media.matches); setCompactNavExpanded(false) }
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
-  const [contextOpen, setContextOpen] = useState(true)
+  const [contextOpen, setContextOpen] = useState(false)
+  const [readingFocused, setReadingFocused] = useState(false)
 
   const [account, setAccount] = useState<AccountState | null>(null)
   const [accounts, setAccounts] = useState<readonly AccountSummary[]>([])
@@ -659,21 +658,7 @@ export function App(): React.JSX.Element {
     setLiveError(null)
   }, [loadMailboxes, applyAccount])
 
-  /** El núcleo reporta su versión; en un navegador (sin preload) simplemente no hay dato. */
-  useEffect(() => {
-    const bridge = (window as unknown as { api?: { getCoreStatus?: () => Promise<CoreStatus> } }).api
-    if (!bridge?.getCoreStatus) return
-    let alive = true
-    bridge
-      .getCoreStatus()
-      .then((status) => {
-        if (alive) setAppVersion(status.appVersion)
-      })
-      .catch(() => undefined)
-    return () => {
-      alive = false
-    }
-  }, [])
+
 
   useEffect(() => {
     void refreshAccount()
@@ -733,6 +718,8 @@ export function App(): React.JSX.Element {
     })
     return () => unsubscribe?.()
   }, [live, folder, refreshFromCache])
+
+  useEffect(() => window.api?.onZoomChanged?.(percent => setToast(t('toast.zoom', { percent }))), [t])
 
   useEffect(() => {
     if (!toast) return
@@ -1345,7 +1332,7 @@ export function App(): React.JSX.Element {
   if (booting) return <BootSplash />
 
   return (
-    <div className={railCollapsed ? 'app app--rail-collapsed' : 'app'}>
+    <div className={['app', railCollapsed && 'app--rail-collapsed', readingFocused && selected && view === 'mailbox' && 'app--reading-focused'].filter(Boolean).join(' ')}>
       <Sidebar
         collapsed={railCollapsed}
         onToggleCollapsed={() => compactWindow ? setCompactNavExpanded(current => !current) : setSidebarCollapsed(current => !current)}
@@ -1355,13 +1342,12 @@ export function App(): React.JSX.Element {
         accountConnected={live}
         accounts={accounts}
         activity={activity}
-        showTags={!live}
+        showTags={false}
         syncLabel={syncLabel}
         syncDetail={syncDetail}
         offline={live && sync.offline}
         onFolderContextMenu={(anchor, id) => setContextMenu({ ...anchor, kind: 'folder', id })}
         onSelectFolder={selectFolder}
-        onCompose={openCompose}
         onOpenSettings={openSettings}
         onOpenAccount={() => { setAddingAccount(false); setAccountOpen(true) }}
         onExitDemo={() => {
@@ -1383,21 +1369,17 @@ export function App(): React.JSX.Element {
 
       <div className="shell">
         <Topbar
-          unreadCount={unreadCount}
           onSync={() => void handleSync()}
           syncing={manualSyncing}
-          filter={filter}
           live={live}
           query={query}
           onQuery={(next) => {
+            setReadingFocused(false)
             setMessageOpen(false)
             setQuery(next)
             setView('mailbox')
           }}
-          onFilter={(next) => {
-            setFilter(next)
-            setView('mailbox')
-          }}
+          onCompose={openCompose}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenSettings={openSettings}
         />
@@ -1446,6 +1428,7 @@ export function App(): React.JSX.Element {
                 />
               ) : (
                 <ThreadList
+                folderLabel={folderViews.find(item => item.id === folder)?.label ?? folder}
                 threads={visible}
                 allThreads={listedThreads}
                 arrivalKey={JSON.stringify([accountIdentity.current, folder, filter, oldestFirst, listLimit])}
@@ -1496,6 +1479,7 @@ export function App(): React.JSX.Element {
               {selected ? (
                 <ThreadPane
                   onBack={() => {
+                    setReadingFocused(false)
                     setMessageOpen(false)
                     requestAnimationFrame(() => document.querySelector<HTMLElement>('.thread--active button, .thread--active [tabindex="0"]')?.focus())
                   }}
@@ -1505,17 +1489,15 @@ export function App(): React.JSX.Element {
                   position={Math.max(1, visible.findIndex((thread) => thread.id === selected.id) + 1)}
                   total={visible.length}
                   bindings={bindings}
+                  readingFocused={readingFocused}
+                  onToggleFocus={() => setReadingFocused(current => !current)}
                   contextOpen={contextOpen}
                   canToggleContext={!live}
                   canMutate={!selected.id.startsWith('draft:') && !bulkBusy && pendingDelete === null}
                   deleting={deletingId === selected.id}
                   unread={selected.unread}
                   onToggleContext={toggleContext}
-                  onMove={() => setMoveOpen(true)}
-                  canMove={live && moveFolders.length > 0}
                   moving={movingId === selected.id}
-                  onSpam={() => { if (spamTarget) moveSelected(spamTarget) }}
-                  canSpam={live && Boolean(spamTarget)}
                   onArchive={archive}
                   onToggleRead={toggleRead}
                   onDelete={deleteSelected}
@@ -1554,8 +1536,6 @@ export function App(): React.JSX.Element {
         </div>
 
         <StatusBar
-          appVersion={appVersion}
-          bindings={bindings}
           pending={outbox.length}
           deletion={outbox.find(item => item.deletionProgress?.running) ?? outbox.find(item => item.kind === 'delete-many' && item.status !== 'failed')}
           progress={syncProgress}

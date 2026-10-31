@@ -49,7 +49,6 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
   const { bindings, modifier, setModifier, save, reset, saveError: shortcutsError } = useShortcuts()
   const { appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, timeFormat, setTimeFormat, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
   const saveError = localeError || shortcutsError || preferencesError
-  const activeAccount = accounts.find((account) => account.active)
   const formatSize = (bytes: number): string => bytes < 1024 * 1024
     ? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / 1024)} KiB`
     : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MiB`
@@ -259,48 +258,46 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
 
     if (section === 'about') {
       return (
-        <div className="settings-stack">
+        <div className="settings-stack settings-about-page">
           <div className="settings-card settings-about">
             <div className="settings-about__identity">
               <img src={logo} alt="" width={64} height={64} />
               <div>
                 <h2 className="settings-about__name">NamiO</h2>
-                <span className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</span>
+                <span className="settings-about__version">{status?.appVersion ? `v${status.appVersion}` : '—'}</span>
               </div>
             </div>
-            <p className="settings-about__description">{t('settings.about.description')}</p>
-            <p className="settings-card__subtitle">{t('settings.about.features')}</p>
-            <dl className="diag">
+            <p className="settings-about__description">{t('settings.about.tagline')}</p>
+            <dl className="settings-about__credits">
               <div className="diag__row"><dt>{t('settings.about.author')}</dt><dd>PinedaMB</dd></div>
               <div className="diag__row"><dt>{t('settings.about.license')}</dt><dd>MIT</dd></div>
             </dl>
             <div className="settings-about__links">
-              <button className="btn btn--primary" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO')}>
+              <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO')}>
                 <Icon name="code" size={16} />{t('settings.about.repository')}
               </button>
               <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal('https://github.com/PinedaMB/NamiO/issues')}>
                 <Icon name="bug_report" size={16} />{t('settings.about.report')}
               </button>
             </div>
-            <p className="settings-card__note"><Icon name="construction" size={16} />{t('settings.about.development')}</p>
           </div>
           <section className="settings-card" aria-labelledby="settings-updates-title">
             <div className="settings-card__head">
               <div>
                 <h2 id="settings-updates-title" className="settings-card__title">{t('update.title')}</h2>
-                <p className="settings-card__subtitle">{t('update.current', { version: status?.appVersion ?? '—' })}</p>
               </div>
             </div>
             <UpdateNotice detailed />
-            <p className="settings-card__note">{t('update.hint')}</p>
+            <details className="settings-about__help">
+              <summary>{t('settings.about.updateHelp')}</summary>
+              <p>{t('update.hint')}</p>
+            </details>
           </section>
-          <section className="settings-card" aria-labelledby="settings-diagnostics-title">
-            <div className="settings-card__head">
-              <div>
-                <h2 id="settings-diagnostics-title" className="settings-card__title">{t('settings.general.diagnostics')}</h2>
-                <p className="settings-card__subtitle">{t('settings.general.diagnosticsHint')}</p>
-              </div>
-            </div>
+          <details className="settings-card settings-about__details">
+            <summary id="settings-diagnostics-title">{t('settings.general.diagnostics')}</summary>
+            <div className="settings-about__technical">
+              <p className="settings-card__subtitle">{t('settings.about.description')}</p>
+              <p className="settings-card__subtitle">{t('settings.about.features')}</p>
             <dl className="diag">
               <div className="diag__row">
                 <dt>{t('settings.general.app')}</dt>
@@ -323,7 +320,9 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               <Icon name="lock" size={14} />
               {t('settings.general.dataHint')}
             </p>
-          </section>
+              <p className="settings-card__subtitle">{t('settings.about.development')}</p>
+            </div>
+          </details>
         </div>
       )
     }
@@ -579,12 +578,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     <div className="settings">
       <header className="settings__hero">
         <div className="settings__hero-text">
-          <span className="settings__eyebrow">
-            <span className="dot" />
-            {t('settings.engine', { stage: status?.stage ?? '—' })}
-          </span>
           <h1 className="settings__title">{t('settings.title')}</h1>
-          <p className="settings__subtitle">{t('settings.subtitle')}</p>
         </div>
         <button className="tool-btn" type="button" onClick={onBack}>
           <Icon name="chevron_left" size={16} />
@@ -605,39 +599,11 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               >
                 <Icon name={item.icon} size={18} />
                 <span className="settings-nav__label">{t(item.labelKey)}</span>
-                {item.id === 'accounts' ? (
-                  <span className="settings-nav__meta">{accounts.length}</span>
-                ) : item.id === 'shortcuts' ? (
-                  <span className="settings-nav__meta">{SHORTCUTS.length}</span>
-                ) : null}
               </button>
             ))}
           </nav>
 
-          <section className="settings-card settings-card--profile" aria-label={t('settings.profile.title')}>
-            <div className="profile-row">
-              <span className="avatar avatar--lg avatar--accent" aria-hidden="true">{activeAccount ? activeAccount.user.slice(0, 2).toUpperCase() : 'N'}</span>
-              <div className="profile-row__identity">
-                <h2 className="profile-row__name">{activeAccount?.label || activeAccount?.user || t('account.demo')}</h2>
-                <span className="profile-row__caption">{t(activeAccount ? 'settings.accounts.active' : 'settings.profile.title')}</span>
-              </div>
-            </div>
-            <p className="profile-row__mail">{activeAccount?.user ?? t('sidebar.demo')}</p>
-            <dl className="profile-details">
-              <div className="profile-fact">
-                <dt>{t('settings.profile.language')}</dt>
-                <dd>{locale === 'es' ? 'Español (México)' : 'English'}</dd>
-              </div>
-              <div className="profile-fact">
-                <dt>{t('settings.profile.layout')}</dt>
-                <dd>{t('settings.profile.layoutValue')}</dd>
-              </div>
-              <div className="profile-fact">
-                <dt>{t('settings.general.app')}</dt>
-                <dd className="mono">{status?.appVersion ? `v${status.appVersion}` : '—'}</dd>
-              </div>
-            </dl>
-          </section>
+
         </aside>
 
         <main className="settings__main" key={section}>
