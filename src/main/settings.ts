@@ -20,6 +20,8 @@ export interface StoredAccount {
   oauth?: OAuthConfig
   /** base64 de `safeStorage.encryptString` del refresh token (OAuth2). */
   refreshToken?: string
+  /** base64 de `safeStorage.encryptString` del `clientSecret` OAuth. */
+  oauthSecret?: string
   /** base64 de `safeStorage.encryptString`; ausente si el SO no ofrece cifrado. */
   secret?: string
 }
@@ -181,6 +183,12 @@ export async function updateAccount(id: string, patch: Partial<StoredAccount>): 
 }
 
 export async function encryptSecret(password: string): Promise<string | null> {
+  // En Linux sin keyring, Electron puede usar el backend `basic_text`, que
+  // "cifra" con una clave fija de Chromium: eso no protege una contraseña.
+  if (process.platform === 'linux') {
+    const backend = safeStorage.getSelectedStorageBackend()
+    if (backend === 'basic_text' || backend === 'unknown') return null
+  }
   if (!(await safeStorage.isAsyncEncryptionAvailable())) return null
   const encrypted = await safeStorage.encryptStringAsync(password)
   return encrypted.toString('base64')
@@ -193,6 +201,36 @@ export async function decryptSecret(secret: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/**
+ * Saca el `clientSecret` del objeto `oauth` y lo guarda cifrado. Si el SO no
+ * ofrece cifrado, el secreto no se persiste (se pedirá de nuevo al reconectar).
+ */
+export async function sealOAuthSecret(account: StoredAccount): Promise<StoredAccount> {
+  if (!account.oauth) return account
+  const secret = account.oauth.clientSecret
+  const oauth = { ...account.oauth, clientSecret: '' }
+  if (!secret) return { ...account, oauth }
+  const encrypted = await encryptSecret(secret)
+  return { ...account, oauth, ...(encrypted ? { oauthSecret: encrypted } : {}) }
+}
+
+/** Devuelve la configuración OAuth con el secreto descifrado, si existe. */
+export async function revealOAuthSecret(account: StoredAccount): Promise<OAuthConfig | null> {
+  if (!account.oauth) return null
+  if (account.oauth.clientSecret) return account.oauth
+  if (!account.oauthSecret) return account.oauth
+  const clientSecret = await decryptSecret(account.oauthSecret)
+  return { ...account.oauth, clientSecret: clientSecret ?? '' }
+}
+
+/** Migra cuentas guardadas antes de que el secreto se cifrara. */
+export async function migrateOAuthSecrets(): Promise<void> {
+  const { accounts } = await readSettings()
+  if (!accounts?.length || !accounts.some((account) => account.oauth?.clientSecret)) return
+  const migrated = await Promise.all(accounts.map(sealOAuthSecret))
+  await writeSettings({ accounts: migrated })
 }
 
 /* ---------------------------------------------------------------------------

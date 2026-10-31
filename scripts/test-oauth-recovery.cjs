@@ -9,7 +9,7 @@ async function main() {
   vm.runInNewContext(ts.transpile(fs.readFileSync('src/main/oauth.ts', 'utf8'), {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022
   }), {
-    exports: oauth, Buffer, URLSearchParams, Date: { now: () => now },
+    exports: oauth, Buffer, URL, URLSearchParams, Date: { now: () => now },
     require: id => {
       if (id === 'electron') return { shell: {} }
       if (id === '@shared/oauth') return { GOOGLE_CLIENT_ID: 'managed-google' }
@@ -38,6 +38,21 @@ async function main() {
   await oauth.getAccessToken(config, 'rotated')
   assert.equal(requests.at(-1).get('refresh_token'), 'rotated')
 
+  // Dos consumidores (IMAP y SMTP) que llegan a la vez comparten un solo canje.
+  now = renewed.expiresAt + 1
+  const beforeConcurrent = requests.length
+  const [one, two] = await Promise.all([
+    oauth.getAccessToken(config, 'original'),
+    oauth.getAccessToken(config, 'original')
+  ])
+  assert.equal(requests.length, beforeConcurrent + 1, 'concurrent refreshes share one token request')
+  assert.equal(one.accessToken, two.accessToken)
+
+  await assert.rejects(
+    oauth.refresh({ provider: 'custom', clientId: 'custom', clientSecret: '', authUrl: 'https://secure.test/auth', tokenUrl: 'http://insecure.test/token' }, 'refresh'),
+    /HTTPS/
+  )
+
   await oauth.refresh({ provider: 'google', clientId: 'managed-google', clientSecret: '' }, 'gmail-refresh')
   assert.equal(requests.at(-1).get('client_secret'), 'test-desktop-secret', 'the built-in Google client supplies its desktop credential')
   await oauth.refresh({ provider: 'google', clientId: 'own-client', clientSecret: 'own-secret' }, 'gmail-refresh')
@@ -52,6 +67,7 @@ async function main() {
   const updates = []
   const authFor = vm.runInNewContext(ts.transpile(`(${auth.getText(source)})`, { target: ts.ScriptTarget.ES2022 }), {
     decryptSecret: async () => 'original', getAccessToken: async () => renewed,
+    revealOAuthSecret: async account => account.oauth,
     encryptSecret: async token => `encrypted:${token}`,
     updateAccount: async (id, patch) => updates.push({ id, ...patch })
   })

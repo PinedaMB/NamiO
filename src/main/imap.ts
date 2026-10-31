@@ -60,7 +60,7 @@ import {
 } from './db'
 import { authorize, getAccessToken } from './oauth'
 import { applyRulesToNew } from './rules'
-import { decryptSecret, encryptSecret, readSettings, readActiveAccount, readAccounts, removeAccount, saveAccount, setActiveAccount, updateAccount, writeSettings, type StoredAccount } from './settings'
+import { decryptSecret, encryptSecret, readSettings, readActiveAccount, readAccounts, removeAccount, revealOAuthSecret, sealOAuthSecret, saveAccount, setActiveAccount, updateAccount, writeSettings, type StoredAccount } from './settings'
 
 /**
  * Topes de memoria/red. Un cliente de correo procesa contenido de terceros:
@@ -171,11 +171,13 @@ async function closeSession(): Promise<void> {
 /** Resuelve las credenciales de la cuenta: contraseña guardada o access token OAuth. */
 async function authFor(account: StoredAccount): Promise<ImapAuth> {
   if (account.auth === 'oauth2') {
-    if (!account.oauth || !account.refreshToken) throw new Error('La cuenta OAuth no tiene refresh token')
+    if (!account.refreshToken) throw new Error('La cuenta OAuth no tiene refresh token')
+    const oauth = await revealOAuthSecret(account)
+    if (!oauth) throw new Error('La cuenta OAuth no tiene configuración')
     const refreshToken = await decryptSecret(account.refreshToken)
     if (!refreshToken) throw new Error('No se pudo descifrar el refresh token')
 
-    const token = await getAccessToken(account.oauth, refreshToken)
+    const token = await getAccessToken(oauth, refreshToken)
     if (token.refreshToken) {
       // Microsoft rota el refresh token: se persiste el nuevo.
       const encrypted = await encryptSecret(token.refreshToken)
@@ -238,11 +240,12 @@ export async function activateAccount(account: StoredAccount): Promise<void> {
   syncGeneration += 1
   pendingFullSync.clear()
   publishProgress(null)
+  const sealed = await sealOAuthSecret(account)
   // Guardar, activar, cerrar la sesión y reapuntar la caché forman una sola
   // unidad serial: la UI nunca ve una cuenta activa con la caché de otra.
   await serial(async () => {
-    await saveAccount(account)
-    if (!(await setActiveAccount(account.id))) throw new Error('No se pudo activar la cuenta')
+    await saveAccount(sealed)
+    if (!(await setActiveAccount(sealed.id))) throw new Error('No se pudo activar la cuenta')
     await closeSession()
     openAccountCache(account.id)
     notify('*')
@@ -1173,10 +1176,12 @@ export async function getAccountState(): Promise<AccountState> {
           label: account.label,
           smtp: account.smtp,
           auth: account.auth ?? 'password',
-          oauth: account.oauth
+          // El secreto de cliente no sale del proceso principal; el diálogo lo
+          // conserva en el guardado de la cuenta si el usuario no lo reescribe.
+          oauth: account.oauth ? { ...account.oauth, clientSecret: '' } : undefined
         }
       : null,
-    passwordStored: Boolean(account?.secret || account?.refreshToken)
+    passwordStored: Boolean(account?.secret || account?.refreshToken || account?.oauthSecret)
   }
 }
 
@@ -1351,8 +1356,20 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
   if (!config.oauth) return { ok: false, code: 'unknown', detail: 'Falta la configuración OAuth' }
 
   try {
-    const tokens = await authorize(config.oauth)
-    const user = config.user.trim() !== '' ? config.user.trim() : (tokens.email ?? '')
+    const knownUser = config.user.trim()
+    const existing = knownUser === ''
+      ? undefined
+      : (await readAccounts()).accounts.find((item) =>
+          item.user === knownUser && item.host === config.host && (item.port ?? 993) === config.port)
+    const existingOauth = existing ? await revealOAuthSecret(existing) : null
+    const oauth = {
+      ...config.oauth,
+      // Al editar una cuenta existente el renderer ya no recibe el secreto;
+      // si el campo llega vacío se reutiliza el guardado (cifrado o heredado).
+      clientSecret: config.oauth.clientSecret || existingOauth?.clientSecret || ''
+    }
+    const tokens = await authorize(oauth)
+    const user = knownUser !== '' ? knownUser : (tokens.email ?? '')
     if (user === '') {
       return { ok: false, code: 'unknown', detail: 'El proveedor no devolvió el correo de la cuenta' }
     }
@@ -1377,7 +1394,7 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
       label: config.label,
       smtp: config.smtp,
       auth: 'oauth2',
-      oauth: config.oauth,
+      oauth,
       ...(encrypted ? { refreshToken: encrypted } : {})
     })
 

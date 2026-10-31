@@ -6,7 +6,7 @@ import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
 import { checkAccountsActivity, setNewMailListener, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
 import { showNewMail } from './notifications'
-import { readActiveAccount, readSettings } from './settings'
+import { migrateOAuthSecrets, readActiveAccount, readSettings } from './settings'
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 import { setupAutoUpdate } from './updater'
@@ -173,10 +173,17 @@ void app.whenReady().then(async () => {
   hardenSession()
   setupAutoUpdate()
 
-  // La caché es por cuenta: se abre la de la cuenta activa antes de todo.
-  void readActiveAccount()
-    .then((account) => initCache(account?.id ?? 'default'))
-    .catch(() => initCache('default'))
+  // La caché es por cuenta: se abre la de la cuenta activa antes de todo. La
+  // migración cifra los `clientSecret` que quedaron en claro en versiones previas.
+  void (async () => {
+    try {
+      await migrateOAuthSecrets()
+    } catch {
+      // Un secreto que no se puede cifrar no impide abrir la app.
+    }
+    const account = await readActiveAccount().catch(() => null)
+    initCache(account?.id ?? 'default')
+  })()
 
   registerIpcHandlers()
   setNewMailListener((account, path, messages) => {

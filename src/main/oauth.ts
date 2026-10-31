@@ -35,6 +35,18 @@ export const PROVIDERS: Record<'google' | 'microsoft', ProviderPreset> = {
   }
 }
 
+/** Los endpoints personalizados deben ir por TLS: el código y los tokens viajan ahí. */
+function requireHttps(value: string, label: string): string {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error(`${label} inválido`)
+  }
+  if (parsed.protocol !== 'https:') throw new Error(`${label} debe usar HTTPS`)
+  return value
+}
+
 export function endpointsFor(config: OAuthConfig): ProviderPreset {
   if (config.provider === 'custom') {
     return {
@@ -93,6 +105,7 @@ function clientCredentials(config: OAuthConfig): Record<string, string> {
 }
 
 async function postToken(endpoint: string, params: Record<string, string>): Promise<OAuthTokens> {
+  requireHttps(endpoint, 'Endpoint de token')
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
@@ -119,6 +132,8 @@ async function postToken(endpoint: string, params: Record<string, string>): Prom
 export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promise<OAuthTokens> {
   const { authUrl, tokenUrl, scope } = endpointsFor(config)
   if (!authUrl || !tokenUrl) throw new Error('Faltan los endpoints OAuth del proveedor')
+  requireHttps(authUrl, 'Endpoint de autorización')
+  requireHttps(tokenUrl, 'Endpoint de token')
 
   const { verifier, challenge } = pkce()
   const state = base64url(randomBytes(16))
@@ -134,6 +149,13 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promi
       const code = url.searchParams.get('code')
       const error = url.searchParams.get('error')
       const receivedState = url.searchParams.get('state')
+
+      // El state se valida primero: una petición de terceros no puede cancelar
+      // el flujo ni consumir el callback antes que el proveedor legítimo.
+      if (receivedState !== state) {
+        response.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }).end('state inválido')
+        return
+      }
 
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       response.end(
@@ -152,10 +174,6 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promi
       }
       if (!code) {
         reject(new Error('El proveedor no devolvió un código'))
-        return
-      }
-      if (receivedState !== state) {
-        reject(new Error('state inválido: se descarta la respuesta'))
         return
       }
 
@@ -222,6 +240,7 @@ export async function refresh(config: OAuthConfig, refreshToken: string): Promis
    ------------------------------------------------------------------------- */
 
 const cache = new Map<string, { accessToken: string; expiresAt: number }>()
+const pending = new Map<string, Promise<OAuthTokens>>()
 
 const cacheKey = (config: OAuthConfig, refreshToken: string): string =>
   `${config.provider}:${config.clientId}:${createHash('sha256').update(refreshToken).digest('hex').slice(0, 16)}`
@@ -240,13 +259,31 @@ export async function getAccessToken(config: OAuthConfig, refreshToken: string):
     return { accessToken: cached.accessToken, expiresAt: cached.expiresAt, refreshToken: null }
   }
 
-  const tokens = await refresh(config, refreshToken)
-  cache.set(key, { accessToken: tokens.accessToken, expiresAt: tokens.expiresAt })
+  // Un solo refresco por credencial. Sin esto, IMAP y SMTP podían canjear el
+  // mismo refresh token a la vez; Microsoft lo rota y el segundo canje falla.
+  let request = pending.get(key)
+  if (!request) {
+    request = refresh(config, refreshToken)
+      .then((tokens) => {
+        cache.set(key, { accessToken: tokens.accessToken, expiresAt: tokens.expiresAt })
+        return tokens
+      })
+      .catch((error: unknown) => {
+        cache.delete(key)
+        throw error
+      })
+      .finally(() => { pending.delete(key) })
+    pending.set(key, request)
+  }
+
+  const tokens = await request
   return { accessToken: tokens.accessToken, expiresAt: tokens.expiresAt, refreshToken: tokens.refreshToken }
 }
 
 export function forgetAccessToken(config: OAuthConfig, refreshToken: string): void {
-  cache.delete(cacheKey(config, refreshToken))
+  const key = cacheKey(config, refreshToken)
+  cache.delete(key)
+  pending.delete(key)
 }
 
 export type { OAuthProvider }

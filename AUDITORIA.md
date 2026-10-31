@@ -38,8 +38,9 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 - ✅ **P1 #8 — reglas seguras:** el relleno histórico de un `fullSync` no se evalúa, Spam/Papelera/Borradores/Enviados quedan excluidos y “aplicar a existentes” pagina más de 5.000 mensajes con acciones y hits transaccionales. Cubierto por `scripts/test-rules-safety.cjs`, `test-incremental-sync` y la suite completa.
 - ✅ **P1 #11 — TLS/auth ya no son “offline”:** certificados y credenciales conservan su código y su aviso, no sirven la caché como si fuera un corte de red y el sync de fondo no activa el modo offline por ellos. Cubierto por `scripts/test-offline-errors.cjs`, `test-reconnection` y la suite completa.
 - ✅ **P1 #16 — DevTools/menú:** `devTools` solo en desarrollo, menú por defecto retirado en producción (macOS conserva app/edición/ventana) y sin aceleradores de DevTools/recarga. Cubierto por `scripts/test-navigation-guard.cjs`.
+- ✅ **P1 #15 — credenciales:** `safeStorage` descarta `basic_text`/`unknown`, el refresh OAuth usa *single-flight*, los endpoints personalizados exigen HTTPS, el `state` se valida antes de aceptar el callback, `clientSecret` no se devuelve al renderer y ahora se guarda cifrado con migración de cuentas antiguas. Cubierto por `test-secrets` y `test-oauth-recovery`. Queda solo la decisión sobre el secreto de Google versionado.
 - 🟡 **P0 #5 — release:** los tags `-rc` se publican como *prerelease*, los workflows ejecutan pruebas y adjuntan `SHA256SUMS`, y el updater distingue candidate/estable. **Falta** el certificado de firma y `publisherName` en Windows para que `electron-updater` verifique el editor; sin esos secretos el instalador sigue sin firma.
-- ⏳ Pendientes: firma de Windows, virtualización real de la lista, extracción de adjuntos por parte y P2 de accesibilidad/documentación.
+- ⏳ Pendientes: firma de Windows, decisión sobre el secreto OAuth de Google, virtualización real de la lista, extracción de adjuntos por parte y P2 de accesibilidad/documentación.
 
 ---
 
@@ -49,13 +50,13 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 |---|---|
 | `pnpm run typecheck` | ✅ Sin errores (node + web) |
 | `pnpm run build` | ✅ Compila; renderer 1,09 MB JS + 142 KB CSS; editor y PDF en chunks lazy |
-| `node scripts/test.mjs` | ✅ 73/73 archivos, 0 fallos (~60 s) |
+| `node scripts/test.mjs` | ✅ 74/74 archivos, 0 fallos (~60 s) |
 | `node scripts/css-audit.mjs` | ✅ Sin variables indefinidas, clases rotas ni URLs rotas |
 | Paridad i18n `es`/`en` | ✅ 614/614 claves |
 | Pruebas de interfaz Electron (`--ui`) | ⚠️ No ejecutadas en esta auditoría (requieren Electron/entorno gráfico) |
 | IMAP/SMTP/instaladores reales | ⚠️ No verificados aquí |
 
-> **Matiz importante sobre las pruebas:** `node --test` cuenta **1 caso por archivo** porque los scripts usan aserciones de nivel superior, no `test()/describe()`. "73 pruebas" significa 73 archivos con muchos asserts, no 73 casos aislados; un assert fallido aborta el resto del archivo.
+> **Matiz importante sobre las pruebas:** `node --test` cuenta **1 caso por archivo** porque los scripts usan aserciones de nivel superior, no `test()/describe()`. "74 pruebas" significa 74 archivos con muchos asserts, no 74 casos aislados; un assert fallido aborta el resto del archivo.
 
 ---
 
