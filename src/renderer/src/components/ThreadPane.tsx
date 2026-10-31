@@ -267,8 +267,14 @@ export function ThreadPane({
               const expanded = messageExpansion?.[expansionKey] ?? messageIndex === 0
               const from = message.from
               return (
-              <details className="thread-message" key={message.id} open={expanded}>
-              <summary className="participants" tabIndex={-1} onClick={event => event.preventDefault()}>
+              <details className="thread-message" key={message.id} open={expanded} onToggle={event => {
+                const open = event.currentTarget.open
+                if (open !== expanded) setMessageExpansion(current => ({ ...current, [expansionKey]: open }))
+              }}>
+              <summary className="participants" onClick={event => {
+                // Los botones del encabezado no deben plegar el mensaje.
+                if ((event.target as HTMLElement | null)?.closest('button')) event.preventDefault()
+              }}>
                 <div className="participants__top">
                   <div className="participants__who">
                     <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam || !thread.id.startsWith('live:')} className="avatar--lg" />

@@ -4,6 +4,8 @@
 
 - La bandeja cuenta y navega por conversación: `j`/`k`, la posición del lector y la selección masiva ya no repiten cada mensaje del hilo. Abrir un hilo marca leídos todos sus mensajes y las acciones de selección se aplican a la conversación completa, no solo al mensaje más reciente.
 - La lista calcula miembros y adjuntos en una sola pasada (sin O(n²) por fila), reutiliza los formateadores de fecha y difiere el pintado de las filas fuera de pantalla. Las fechas relativas se actualizan por minuto.
+- La sincronización ya no repite un `SEARCH ALL` en cada vuelta cuando la descarga offline está apagada, no vuelve a pedir la ventana visible que acaba de bajar, coalesce navegaciones seguidas sobre la misma carpeta y suelta el lock antes de evaluar reglas, avisos y refrescar carpetas.
+- Los diálogos no nativos atrapan el foco y lo restauran al cerrarse, el encabezado de cada mensaje es un `summary` alcanzable con teclado y las scrollbars vuelven a ser visibles.
 - Los mensajes y adjuntos tienen topes explícitos: 50 MB por mensaje, 30 MB por cuerpo offline, 25 MB por adjunto y 50 MB por envío. La descarga se corta al superar el límite con un aviso claro y la sincronización offline omite los mensajes enormes en lugar de intentar cargarlos en memoria.
 - Los envíos conservan un `Message-ID` estable desde que se encolan. Si un intento pudo aceptarse sin confirmación, antes de reenviar se comprueba que el mensaje no esté ya en Enviados; el primer intento queda marcado en la cola.
 - Las reglas no actúan sobre el relleno histórico de una sincronización completa ni sobre Spam, Papelera, Borradores o Enviados. «Aplicar a los existentes» recorre toda la caché por páginas, no solo 5.000 mensajes, y encola las acciones y los contadores en una transacción.

@@ -1,6 +1,7 @@
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import { splitRecipients, validRecipients } from '@shared/mailAddresses'
 import type { Draft, PickedAttachment, MailPriority } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
@@ -88,6 +89,8 @@ export function ComposeOverlay({
   const formatCombo = useFormatCombo()
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
+  const composerRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(composerRef, open && mounted && !minimized)
   const [replyMode, setReplyMode] = useState(reply?.mode ?? 'sender')
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
@@ -255,7 +258,7 @@ export function ComposeOverlay({
         if (event.target === event.currentTarget) { if (sendOptionsOpen) setSendOptionsOpen(false); else void closeWithDraft() }
       }}
     >
-      <div className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')} aria-busy={sending} role="dialog" aria-modal={!minimized} aria-label={t('compose.newMessage')}>
+      <div ref={composerRef} className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')} aria-busy={sending} role="dialog" aria-modal={!minimized} aria-label={t('compose.newMessage')}>
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />

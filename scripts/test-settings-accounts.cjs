@@ -16,6 +16,7 @@ function settings(accounts, events, section = 'accounts') {
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ appTheme: 'system', setAppTheme: theme => events.push(theme), offlineDownload: false, setOfflineDownload: enabled => events.push(enabled), timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
+    if (id === '../lib/useFocusTrap') return { useFocusTrap() {} }
     if (id === './Icon') return { Icon: () => null }
     if (id === './Tooltip') return { TooltipButton: props => React.createElement('button', props) }
     if (id === './UpdateNotice') return { UpdateNotice: () => null }

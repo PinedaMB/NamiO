@@ -97,6 +97,7 @@ async function main() {
     const select = vm.runInNewContext(compile(`${declarations('src/main/imap.ts').get('selectAccount').replace(/^export /, '')}; selectAccount`), {
       syncGeneration: 0, pendingFullSync: new Set(), publishProgress() {},
       readAccounts: async () => ({ active: 'one' }),
+      pendingSyncs: new Set(),
       setActiveAccount: async () => true,
       serial: async fn => { insideSerial = true; try { return await fn() } finally { insideSerial = false } },
       closeSession: async () => { assert.equal(insideSerial, true, 'closing the session is serialized'); order.push('close') },

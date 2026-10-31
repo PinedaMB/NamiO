@@ -55,7 +55,13 @@ async function check(scenario) {
   for (const uid of [1, 3]) assert.equal(db.readBody('INBOX', uid).text, reset ? null : `Saved body ${uid}`, 'unchanged message bodies survive reconnect and deletion reconciliation')
   if (scenario === 'deleted') { assert.equal(db.readEnvelope('INBOX', 2), null); assert.equal(searches, 1) }
   if (scenario === 'search-failed') assert.ok(db.readEnvelope('INBOX', 2), 'failed UID search cannot prune the cache')
-  if (scenario === 'new-mail') { assert.ok(requests.some(request => request.byUid && request.range === '4:*')); assert.ok(db.readEnvelope('INBOX', 4)) }
+  if (scenario === 'new-mail') {
+    assert.ok(requests.some(request => request.byUid && request.range === '4:*'))
+    assert.ok(requests.some(request => !request.byUid && request.range === '1:3'), 'the visible window is not downloaded twice')
+    assert.equal(requests.filter(request => request.range === '1:*').length, 0)
+    assert.ok(db.readEnvelope('INBOX', 4))
+  }
+  if (reset) assert.equal(requests.length, 1, 'a full sync downloads the window once')
   if (scenario === 'stale-fallback' || scenario === 'partial-status') assert.equal(db.getMailboxMeta('INBOX').uidNext, 4, 'stale selected-folder metadata cannot rewind the cached UID cursor')
   db.closeCache()
 }

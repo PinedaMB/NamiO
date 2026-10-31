@@ -10,6 +10,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if(id==='../i18n')return{useI18n:()=>({t:(key,values)=>key==='compose.sendToMany'?`${key}:${values.count}`:key})}
  if(id==='../lib/usePresence')return{usePresence:()=>({mounted:true,closing:false})}
+ if(id==='../lib/useFocusTrap')return{useFocusTrap(){}}
  if(id==='../lib/cx')return{cx:(...v)=>v.filter(Boolean).join(' ')}
  if(id==='../data/demo')return{COPILOT_DRAFT:''}
  if(id==='../lib/composeHtml')return{composeEmailHtml:html=>html,splitReplyHtml:html=>({html,quote:''})}

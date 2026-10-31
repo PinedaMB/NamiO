@@ -120,13 +120,26 @@ body {
   color: var(--on-secondary-container);
 }
 
-/* Scrollbars invisibles, como en los mockups: el scroll sigue funcionando. */
+/* Scrollbars finas y visibles: la posición es información útil en listas largas. */
 * {
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--on-surface) 22%, transparent) transparent;
 }
 
 *::-webkit-scrollbar {
-  display: none;
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--on-surface) 22%, transparent);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: var(--r-full);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 button,

@@ -76,7 +76,7 @@ async function main() {
   assert.equal(db.countBodies('INBOX'),2)
   assert.ok(progress.some(item=>item?.phase==='bodies'&&item.cached===2&&item.total===2),'progress reports offline bodies rather than envelope count')
   downloads.length=0;await api.fullSyncMailbox('INBOX',100);assert.equal(downloads.length,0,'complete bodies are never downloaded again')
-  api.ensureFullSync('INBOX');assert.equal(context.fullSyncRunning,false,'fully cached mailboxes do not restart background work')
+  await api.ensureFullSync('INBOX');assert.equal(context.fullSyncRunning,false,'fully cached mailboxes do not restart background work')
   db.closeCache();db.openAccountCache('one');assert.equal(db.countBodies('INBOX'),2,'bodies remain available after restarting the cache')
   client.mailbox.uidValidity=8n
   await assert.rejects(api.cacheMessageBody('INBOX',2),/identidad/)

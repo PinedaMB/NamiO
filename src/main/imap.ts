@@ -239,6 +239,7 @@ export async function accountIdFor(host: string, port: number, user: string): Pr
 export async function activateAccount(account: StoredAccount): Promise<void> {
   syncGeneration += 1
   pendingFullSync.clear()
+  pendingSyncs.clear()
   publishProgress(null)
   const sealed = await sealOAuthSecret(account)
   // Guardar, activar, cerrar la sesión y reapuntar la caché forman una sola
@@ -414,6 +415,9 @@ async function syncMessages(path: string, limit: number): Promise<void> {
   // Mensajes que aparecen por primera vez: sobre esos se evalúan las reglas.
   // El relleno histórico de la sync completa no cuenta (no son "nuevos").
   const nuevos: number[] = []
+  const cached = getMailboxMeta(path)
+  let fetchedFromUid: number | null = null
+  let fullSync = false
 
   try {
     const box = client.mailbox || null
@@ -422,11 +426,10 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     uidValidity ??= box?.uidValidity != null ? Number(box.uidValidity) : null
     if (exists === null || uidNext === null || uidValidity === null) throw new Error('No se pudo verificar el estado de la carpeta; se conservó la caché')
     if (!Number.isSafeInteger(exists) || exists < 0 || !Number.isSafeInteger(uidNext) || uidNext < 1 || !Number.isSafeInteger(uidValidity) || uidValidity < 1) throw new Error('El servidor devolvió un estado de carpeta inválido; se conservó la caché')
-    const cached = getMailboxMeta(path)
     if (!statusFresh && cached?.uidValidity === uidValidity && cached.uidNext !== null) uidNext = Math.max(uidNext, cached.uidNext)
     // Menos mensajes puede significar borrados normales, no una caché inválida.
     const reset = statusFresh && cached?.uidNext != null && uidNext < cached.uidNext
-    const fullSync = cached?.uidValidity == null || cached.uidValidity !== uidValidity || reset
+    fullSync = cached?.uidValidity == null || cached.uidValidity !== uidValidity || reset
 
     if (fullSync) {
       clearMailbox(path)
@@ -437,8 +440,9 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       upsertEnvelopes(path, envelopes)
       if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
     } else {
-      const fromUid = cached.uidNext ?? 1
+      const fromUid = cached?.uidNext ?? 1
       if (uidNext != null && uidNext > fromUid) {
+        fetchedFromUid = fromUid
         nuevos.push(...upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true)))
       }
     }
@@ -461,14 +465,23 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     offline = false
 
     // Si el servidor tiene más de lo cacheado, se sigue bajando en segundo plano.
-    ensureFullSync(path)
+    void ensureFullSync(path)
 
-    // Refresca flags y cabeceras del tramo visible, también para cachés anteriores.
+    // Refresca flags y cabeceras del tramo visible. Si la sincronización
+    // incremental ya bajó desde `fetchedFromUid`, solo falta el hueco anterior
+    // y no se vuelve a pedir la misma ventana.
     if (exists > 0) {
       const recentStart = Math.max(1, exists - limit + 1)
-      const recent = await fetchRange(client, `${recentStart}:*`, false)
-      if (fullSync) upsertEnvelopes(path, recent)
-      else nuevos.push(...upsertEnvelopes(path, recent))
+      if (fullSync) {
+        // La descarga inicial ya cubrió recentStart:*.
+      } else if (fetchedFromUid !== null) {
+        if (recentStart < fetchedFromUid) {
+          // Hueco anterior al tramo nuevo: solo refresca flags, no es correo nuevo.
+          upsertEnvelopes(path, await fetchRange(client, `${recentStart}:${fetchedFromUid - 1}`, false))
+        }
+      } else {
+        upsertEnvelopes(path, await fetchRange(client, `${recentStart}:*`, false))
+      }
     }
 
     // Reconciliación: si el servidor cuenta más mensajes de los que tenemos, el
@@ -488,25 +501,26 @@ async function syncMessages(path: string, limit: number): Promise<void> {
         unseen: unseen ?? (exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path)))
       })
     }
-
-    if (account && uidValidity !== null && uidNext !== null && /^inbox$/i.test(path)) {
-      const messages = [...new Set(nuevos)]
-        .map(uid => readEnvelope(path, uid))
-        .filter((message): message is Envelope => message !== null)
-      const baseline = cached?.uidValidity != null && cached.uidNext != null
-        ? { uidValidity: cached.uidValidity, uidNext: cached.uidNext } : undefined
-      const fresh = await trackNewMail(account.id, { uidValidity, uidNext }, messages, baseline, fullSync)
-      if (fresh.length) newMailListener?.(account, path, fresh)
-    }
-
-    // Las reglas actúan sobre lo que acaba de llegar. Las acciones se encolan
-    // y el listener las aplica en el servidor.
-    if (nuevos.length > 0 && !readMailboxes().some(box => box.path === path && isDraftMailbox(box))) {
-      const matched = applyRulesToNew(path, nuevos)
-      if (matched > 0) rulesListener?.()
-    }
   } finally {
     lock.release()
+  }
+
+  // Avisos y reglas no necesitan el lock del buzón: el servidor ya no se toca.
+  if (account && uidValidity !== null && uidNext !== null && /^inbox$/i.test(path)) {
+    const messages = [...new Set(nuevos)]
+      .map(uid => readEnvelope(path, uid))
+      .filter((message): message is Envelope => message !== null)
+    const baseline = cached?.uidValidity != null && cached.uidNext != null
+      ? { uidValidity: cached.uidValidity, uidNext: cached.uidNext } : undefined
+    const fresh = await trackNewMail(account.id, { uidValidity, uidNext }, messages, baseline, fullSync)
+    if (fresh.length) newMailListener?.(account, path, fresh)
+  }
+
+  // Las reglas actúan sobre lo que acaba de llegar. Las acciones se encolan
+  // y el listener las aplica en el servidor.
+  if (nuevos.length > 0 && !readMailboxes().some(box => box.path === path && isDraftMailbox(box))) {
+    const matched = applyRulesToNew(path, nuevos)
+    if (matched > 0) rulesListener?.()
   }
 }
 
@@ -540,6 +554,26 @@ function publishProgress(next: SyncProgress | null): void {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Una sola sincronización pendiente por cuenta y carpeta: varias navegaciones
+// seguidas no deben encolar el mismo trabajo una y otra vez.
+const pendingSyncs = new Set<string>()
+
+function scheduleSync(path: string, limit: number, broadcast = false): void {
+  const key = `${cacheAccountId()}:${path}`
+  if (pendingSyncs.has(key)) return
+  pendingSyncs.add(key)
+  void serial(() => syncMessages(path, limit))
+    .then(() => {
+      notify(path)
+      if (broadcast) notify('*')
+    })
+    .catch((error: unknown) => {
+      offline = isOfflineError(classify(error))
+      notify(path)
+    })
+    .finally(() => pendingSyncs.delete(key))
+}
 
 /** Descarga los UID existentes por tandas; los huecos no detienen la sincronización. */
 async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
@@ -624,24 +658,29 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
     while (!fullSyncRunning && pendingFullSync.size > 0) {
       const next = pendingFullSync.values().next().value!
       pendingFullSync.delete(next)
-      ensureFullSync(next)
+      void ensureFullSync(next)
     }
   }
 }
 
 export function resumeOfflineDownload(): void {
   const mailbox = session?.client.mailbox
-  if (mailbox && session?.client.usable) ensureFullSync(mailbox.path)
+  if (mailbox && session?.client?.usable) void ensureFullSync(mailbox.path)
 }
 
 /** Arranca (si hace falta) la descarga completa del buzón en segundo plano. */
-function ensureFullSync(path: string): void {
+async function ensureFullSync(path: string): Promise<void> {
   if (fullSyncRunning) {
     pendingFullSync.add(path)
     return
   }
   const meta = getMailboxMeta(path)
-  if (!meta || (meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0 && countBodies(path) >= countMessages(path))) return
+  if (!meta) return
+  const headersComplete = meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0
+  // Sin descarga offline, los cuerpos faltantes son lo normal: no se relanza
+  // un SEARCH ALL del buzón en cada sincronización.
+  const bodiesPending = (await readSettings()).offlineDownload === true && countBodies(path) < countMessages(path)
+  if (headersComplete && !bodiesPending) return
   void fullSyncMailbox(path, 100)
 }
 
@@ -701,12 +740,7 @@ export async function listEnvelopes(
     }
   }
 
-  void serial(() => syncMessages(path, limit))
-    .then(() => notify(path))
-    .catch((error: unknown) => {
-      offline = isOfflineError(classify(error))
-      notify(path)
-    })
+  scheduleSync(path, limit)
 
   return cached
 }
@@ -940,14 +974,7 @@ export function syncMailbox(path: string): Promise<ImapResult<boolean>> {
 export async function syncInbox(limit = 50): Promise<void> {
   const inbox = readMailboxes().find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path
   if (!inbox) return
-
-  try {
-    await serial(() => syncMessages(inbox, limit))
-    notify(inbox)
-    notify('*')
-  } catch {
-    // sin red o sin sesión: la UI sigue con la caché
-  }
+  scheduleSync(inbox, limit, true)
 }
 
 export function setSeen(path: string, uid: number, seen: boolean, accountId?: string): Promise<ImapResult<boolean>> {
@@ -1151,11 +1178,12 @@ export async function deleteMessageBatch(path: string, uids: number[], permanent
         }
         onProgress?.(offset + batch.length)
         notify(path)
-        await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
-        notify('*')
       } finally { lock.release() }
     })
   }
+  // El refresco de carpetas se hace una sola vez y con el lock ya liberado.
+  await syncMailboxes().catch((error: unknown) => console.error('[imap] folder refresh failed:', describe(error)))
+  notify('*')
 }
 
 /* ---------------------------------------------------------------------------
@@ -1276,6 +1304,7 @@ const lastUnseen = new Map<string, number>()
 export async function selectAccount(id: string): Promise<ImapResult<AccountState>> {
   syncGeneration += 1
   pendingFullSync.clear()
+  pendingSyncs.clear()
   publishProgress(null)
   const previous = (await readAccounts()).active
   try {

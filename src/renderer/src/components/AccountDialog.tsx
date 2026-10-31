@@ -1,5 +1,6 @@
 import { TooltipButton } from './Tooltip'
 import { useEffect, useRef, useState } from 'react'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import type {
   AccountConfig,
   AccountState,
@@ -59,6 +60,8 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
 export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 160)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, open && mounted)
 
   const [presetId, setPresetId] = useState('custom')
   const [host, setHost] = useState('')
@@ -237,7 +240,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="account-modal" role="dialog" aria-modal="true" aria-label={t('account.title')}>
+      <div ref={dialogRef} className="account-modal" role="dialog" aria-modal="true" aria-label={t('account.title')}>
         <div className="account-modal__head">
           <div>
             <h2 className="account-modal__title">{t('account.title')}</h2>

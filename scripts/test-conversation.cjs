@@ -94,9 +94,12 @@ function visit(node) {
   }
   if (node.type === 'summary' && node.props.className === 'participants') {
     let prevented = false
-    node.props.onClick({ preventDefault() { prevented = true } })
-    assert.ok(prevented, 'clicking the message header cannot toggle it')
-    assert.equal(node.props.tabIndex, -1)
+    node.props.onClick({ target: { closest: () => null }, preventDefault() { prevented = true } })
+    assert.equal(prevented, false, 'the header is a native disclosure control')
+    assert.notEqual(node.props.tabIndex, -1, 'the header is reachable with the keyboard')
+    let buttonPrevented = false
+    node.props.onClick({ target: { closest: () => ({}) }, preventDefault() { buttonPrevented = true } })
+    assert.ok(buttonPrevented, 'buttons inside the header do not toggle the message')
   }
   if (node.props.className === 'tool-btn thread-message__toggle') {
     const expanded = node.props['aria-expanded']

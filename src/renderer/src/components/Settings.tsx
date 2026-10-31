@@ -3,6 +3,7 @@ import logo from '../assets/logo.png'
 import naomi from '../assets/naomi.png'
 import { TooltipButton } from './Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import type { AccountSummary, CoreStatus } from '@shared/ipc'
 import { LOCALES, useI18n, type TranslationKey } from '../i18n'
 import { useShortcuts } from '../settings/ShortcutsProvider'
@@ -54,10 +55,12 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MiB`
   const [section, setSection] = useState<Section>('general')
   const dedication = useRef<HTMLDialogElement>(null)
+  const remapRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
     null
   )
+  useFocusTrap(remapRef, remap !== null)
   const [clearingCache, setClearingCache] = useState<string | null>(null)
   const [notificationStatus, setNotificationStatus] = useState<string | null>(null)
   const [cacheError, setCacheError] = useState<string | null>(null)
@@ -627,7 +630,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
 
       {remap && (
         <div className="overlay overlay--center" onMouseDown={(event) => event.target === event.currentTarget && setRemap(null)}>
-          <div className="remap" role="dialog" aria-modal="true" aria-label={t('settings.shortcuts.pressKey')}>
+          <div ref={remapRef} className="remap" role="dialog" aria-modal="true" aria-label={t('settings.shortcuts.pressKey')}>
             <div className="remap__head">
               <span className="remap__title">
                 <span className="dot pulse" />
