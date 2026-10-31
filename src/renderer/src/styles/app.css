@@ -5594,9 +5594,6 @@
   line-height: 20px;
   font-weight: 400;
 }
-  font-weight: 400;
-  color: var(--on-surface-variant);
-}
 
 .notification-actions {
   display: flex;

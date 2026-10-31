@@ -57,4 +57,20 @@ assert.match(settings, /settings-stack settings-about-page/, 'about uses the sec
 assert.match(rules, /className="settings-stack"/, 'rules uses the section stack')
 assert.match(rules, /className="settings-card rules"/, 'rules uses the flat section pattern')
 
+// Una declaración huérfana fuera de un bloque es CSS inválido aunque el
+// navegador la ignore: la detectamos antes de que vuelva a colarse.
+let depth = 0
+for (const raw of css.split(/\r?\n/)) {
+  const line = raw.replace(/\/\*.*?\*\//g, '').trim()
+  if (line === '') continue
+  if (depth === 0 && /^[a-z-]+\s*:/.test(line) && !line.startsWith('@')) {
+    assert.fail(`stray CSS declaration outside a rule: ${line}`)
+  }
+  for (const character of line) {
+    if (character === '{') depth += 1
+    else if (character === '}') depth = Math.max(0, depth - 1)
+  }
+}
+assert.equal(depth, 0, 'CSS blocks are balanced')
+
 console.log('Settings design: header, 190/40 grid, flat sections, typography, controls, dialogs and responsive breakpoints match Calma')
