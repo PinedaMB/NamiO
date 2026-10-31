@@ -73,6 +73,7 @@ export function openAccountCache(accountId: string): void {
   openedAccountId = accountId
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA synchronous = NORMAL')
+  db.exec('PRAGMA busy_timeout = 5000')
   db.exec(`
     CREATE TABLE IF NOT EXISTS mailboxes (
       path TEXT PRIMARY KEY,
@@ -154,6 +155,16 @@ export function openAccountCache(accountId: string): void {
       uid UNINDEXED,
       tokenize = 'unicode61 remove_diacritics 2'
     );
+
+    -- Identidad estable de cada fila del índice: search.rowid toma este id.
+    -- El rowid implícito de messages cambia con VACUUM (su PK es compuesta),
+    -- así que no sirve como clave del índice.
+    CREATE TABLE IF NOT EXISTS search_ids (
+      id INTEGER PRIMARY KEY,
+      mailbox TEXT NOT NULL,
+      uid INTEGER NOT NULL,
+      UNIQUE (mailbox, uid)
+    );
   `)
 
   db.exec('CREATE TABLE IF NOT EXISTS recipient_cache (email TEXT PRIMARY KEY, uses INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)')
@@ -172,6 +183,9 @@ export function openAccountCache(accountId: string): void {
   } catch {
     // la columna ya estaba
   }
+
+  // El índice de búsqueda usa identificadores estables.
+  migrateSearchIndex(db)
 }
 
 function handle(): DatabaseSync {
@@ -210,7 +224,8 @@ export function replaceMailboxes(mailboxes: readonly MailboxInfo[]): void {
   try {
     for (const box of readMailboxes()) {
       if (paths.has(box.path)) continue
-      database.prepare('DELETE FROM search WHERE mailbox = ?').run(box.path)
+      database.prepare('DELETE FROM search WHERE rowid IN (SELECT id FROM search_ids WHERE mailbox = ?)').run(box.path)
+      database.prepare('DELETE FROM search_ids WHERE mailbox = ?').run(box.path)
       database.prepare('DELETE FROM messages WHERE mailbox = ?').run(box.path)
       database.prepare('DELETE FROM mailboxes WHERE path = ?').run(box.path)
     }
@@ -254,10 +269,21 @@ export function getMailboxMeta(path: string): MailboxMeta | null {
 
 export function clearMailbox(path: string): void {
   const database = handle()
-  database.prepare('DELETE FROM messages WHERE mailbox = ?').run(path)
-  database
-    .prepare('UPDATE mailboxes SET uid_validity = NULL, uid_next = NULL, synced_at = NULL WHERE path = ?')
-    .run(path)
+  database.exec('BEGIN')
+  try {
+    // El id de `search` es estable: borrar por id evita el escaneo completo del
+    // índice por su columna `mailbox` (UNINDEXED).
+    database.prepare('DELETE FROM search WHERE rowid IN (SELECT id FROM search_ids WHERE mailbox = ?)').run(path)
+    database.prepare('DELETE FROM search_ids WHERE mailbox = ?').run(path)
+    database.prepare('DELETE FROM messages WHERE mailbox = ?').run(path)
+    database
+      .prepare('UPDATE mailboxes SET uid_validity = NULL, uid_next = NULL, synced_at = NULL WHERE path = ?')
+      .run(path)
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 export function saveMailboxSync(
@@ -282,13 +308,13 @@ export function saveMailboxSync(
 export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[]): number[] {
   const database = handle()
 
-  const previos = new Set<number>()
+  const previos = new Map<number, { subject: string; fromName: string; fromAddr: string }>()
   if (envelopes.length > 0) {
     const placeholders = envelopes.map(() => '?').join(',')
     const rows = database
-      .prepare(`SELECT uid FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`)
-      .all(mailbox, ...envelopes.map((envelope) => envelope.uid)) as unknown as { uid: number }[]
-    for (const row of rows) previos.add(row.uid)
+      .prepare(`SELECT uid, subject, from_name, from_addr FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`)
+      .all(mailbox, ...envelopes.map((envelope) => envelope.uid)) as unknown as { uid: number; subject: string; from_name: string; from_addr: string }[]
+    for (const row of rows) previos.set(row.uid, { subject: row.subject, fromName: row.from_name, fromAddr: row.from_addr })
   }
 
   const statement = database.prepare(`
@@ -311,12 +337,14 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
   database.exec('BEGIN')
   try {
     for (const envelope of envelopes) {
+      const fromName = envelope.from?.name ?? ''
+      const fromAddr = envelope.from?.address ?? ''
       statement.run(
         mailbox,
         envelope.uid,
         envelope.subject,
-        envelope.from?.name ?? '',
-        envelope.from?.address ?? '',
+        fromName,
+        fromAddr,
         new Date(envelope.date).getTime(),
         envelope.size,
         envelope.unread ? 1 : 0,
@@ -326,7 +354,13 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
         envelope.hasAttachments === undefined ? null : envelope.hasAttachments ? 1 : 0,
         envelope.priority ?? 'normal'
       )
-      reindexMessage(mailbox, envelope.uid)
+      // Refrescar flags o fechas no cambia el texto indexado. Reindexar cada
+      // sobre obligaba a un DELETE por columnas UNINDEXED (escaneo completo del
+      // FTS) en cada sincronización; solo se reindexa si cambió lo que se busca.
+      const previous = previos.get(envelope.uid)
+      if (!previous || previous.subject !== envelope.subject || previous.fromName !== fromName || previous.fromAddr !== fromAddr) {
+        reindexMessage(mailbox, envelope.uid)
+      }
     }
     database.exec('COMMIT')
   } catch (error) {
@@ -434,11 +468,20 @@ export function updateFlags(
 }
 
 export function deleteMessageRow(mailbox: string, uid: number): { unread: boolean } | null {
-  const row = handle()
+  const database = handle()
+  const row = database
     .prepare('SELECT unread FROM messages WHERE mailbox = ? AND uid = ?')
     .get(mailbox, uid) as unknown as { unread: number } | undefined
-  handle().prepare('DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
-  return row ? { unread: row.unread === 1 } : null
+  if (!row) return null
+  const key = database
+    .prepare('SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
+    .get(mailbox, uid) as unknown as { id: number } | undefined
+  if (key) {
+    database.prepare('DELETE FROM search WHERE rowid = ?').run(key.id)
+    database.prepare('DELETE FROM search_ids WHERE id = ?').run(key.id)
+  }
+  database.prepare('DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+  return { unread: row.unread === 1 }
 }
 
 /**
@@ -456,12 +499,16 @@ export function pruneExcept(mailbox: string, uids: readonly number[]): void {
   const database = handle()
   if (uids.length === 0) {
     database.prepare('DELETE FROM messages WHERE mailbox = ?').run(mailbox)
-    return
+  } else {
+    const placeholders = uids.map(() => '?').join(', ')
+    database
+      .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid NOT IN (${placeholders})`)
+      .run(mailbox, ...uids)
   }
-  const placeholders = uids.map(() => '?').join(', ')
-  database
-    .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid NOT IN (${placeholders})`)
-    .run(mailbox, ...uids)
+  // Los ids de `search` siguen a `messages`: lo que ya no tiene mensaje se
+  // retira del índice en la misma pasada (antes quedaba como huérfano).
+  database.prepare('DELETE FROM search_ids WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.mailbox = search_ids.mailbox AND m.uid = search_ids.uid)').run()
+  database.prepare('DELETE FROM search WHERE rowid NOT IN (SELECT id FROM search_ids)').run()
 }
 
 /* ---------------------------------------------------------------------------
@@ -715,13 +762,76 @@ export function reindexMessage(mailbox: string, uid: number): void {
     | { subject: string; from_name: string; from_addr: string; body_text: string | null }
     | undefined
 
-  database.prepare('DELETE FROM search WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
-  if (!row) return
+  const key = database
+    .prepare('SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
+    .get(mailbox, uid) as unknown as { id: number } | undefined
 
+  if (!row) {
+    // Sin mensaje no hay nada que indexar; se retira también su identidad.
+    if (key) {
+      database.prepare('DELETE FROM search WHERE rowid = ?').run(key.id)
+      database.prepare('DELETE FROM search_ids WHERE id = ?').run(key.id)
+    }
+    return
+  }
+
+  const inserted = database
+    .prepare('INSERT OR IGNORE INTO search_ids (mailbox, uid) VALUES (?, ?)')
+    .run(mailbox, uid)
+  const id = Number(inserted.changes) === 1
+    ? Number(inserted.lastInsertRowid)
+    : (database
+        .prepare('SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
+        .get(mailbox, uid) as unknown as { id: number }).id
+
+  // Borrar e insertar por id es O(1); `WHERE mailbox = ? AND uid = ?` recorre
+  // el índice completo porque ambas columnas son UNINDEXED.
+  database.prepare('DELETE FROM search WHERE rowid = ?').run(id)
   const peers = [row.from_name, row.from_addr].filter((part) => part !== '').join(' ')
   database
-    .prepare('INSERT INTO search (subject, peers, body, mailbox, uid) VALUES (?, ?, ?, ?, ?)')
-    .run(row.subject, peers, row.body_text ?? '', mailbox, uid)
+    .prepare('INSERT INTO search (rowid, subject, peers, body, mailbox, uid) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, row.subject, peers, row.body_text ?? '', mailbox, uid)
+}
+
+/**
+ * Cachés anteriores guardaban el índice FTS con rowid propio. La migración lo
+ * reconstruye una sola vez y asigna un id estable a cada mensaje.
+ */
+function migrateSearchIndex(database: DatabaseSync): void {
+  const applied = database.prepare("SELECT value FROM meta WHERE key = 'fts_rowid_layout'").get() as
+    | { value: string }
+    | undefined
+  if (applied?.value === '1') return
+
+  database.exec('BEGIN')
+  try {
+    database.exec('DELETE FROM search')
+    database.exec('DELETE FROM search_ids')
+    const rows = database
+      .prepare('SELECT subject, from_name, from_addr, body_text, mailbox, uid FROM messages')
+      .all() as unknown as {
+      subject: string
+      from_name: string
+      from_addr: string
+      body_text: string | null
+      mailbox: string
+      uid: number
+    }[]
+    const insertId = database.prepare('INSERT INTO search_ids (mailbox, uid) VALUES (?, ?)')
+    const insertSearch = database.prepare('INSERT INTO search (rowid, subject, peers, body, mailbox, uid) VALUES (?, ?, ?, ?, ?, ?)')
+    for (const row of rows) {
+      const id = Number(insertId.run(row.mailbox, row.uid).lastInsertRowid)
+      const peers = [row.from_name, row.from_addr].filter((part) => part !== '').join(' ')
+      insertSearch.run(id, row.subject, peers, row.body_text ?? '', row.mailbox, row.uid)
+    }
+    database
+      .prepare("INSERT INTO meta (key, value) VALUES ('fts_rowid_layout', '1') ON CONFLICT(key) DO UPDATE SET value = '1'")
+      .run()
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 /** Convierte lo que escribe el usuario en una consulta FTS5 segura (prefijos). */
@@ -1058,13 +1168,27 @@ export async function clearAccountCache(accountId: string): Promise<void> {
   }
   const database = new DatabaseSync(file)
   try {
+    database.exec('PRAGMA busy_timeout = 5000')
     database.exec('BEGIN IMMEDIATE')
     try {
       const columns = database.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
       const attachments = columns.some(column => column.name === 'attachments_json') ? ', attachments_json = NULL' : ''
       database.exec(`UPDATE messages SET body_text = NULL, body_html = NULL${attachments}`)
       if (database.prepare("SELECT name FROM sqlite_master WHERE name = 'search'").get()) {
-        database.exec("UPDATE search SET body = ''; INSERT INTO search(search) VALUES('rebuild')")
+        // Se reconstruye el índice vacío conservando los ids estables; así el
+        // mapeo de `search_ids` sigue siendo válido y no se filtran cuerpos.
+        database.exec(`CREATE TABLE IF NOT EXISTS search_ids (
+          id INTEGER PRIMARY KEY,
+          mailbox TEXT NOT NULL,
+          uid INTEGER NOT NULL,
+          UNIQUE (mailbox, uid)
+        )`)
+        database.exec('DELETE FROM search')
+        database.exec('INSERT OR IGNORE INTO search_ids (mailbox, uid) SELECT mailbox, uid FROM messages')
+        database.exec(`INSERT INTO search (rowid, subject, peers, body, mailbox, uid)
+          SELECT si.id, m.subject, TRIM(COALESCE(m.from_name, '') || ' ' || COALESCE(m.from_addr, '')), '', m.mailbox, m.uid
+          FROM search_ids si
+          JOIN messages m ON m.mailbox = si.mailbox AND m.uid = si.uid`)
       }
       database.exec('COMMIT')
     } catch (cause) {

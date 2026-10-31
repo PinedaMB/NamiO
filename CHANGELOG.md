@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar
+
+- La cola de salida distingue fallos de red de rechazos del servidor: los envíos y operaciones que solo esperan conexión dejan de marcarse como fallidos por el paso del tiempo, no consumen intentos y el reintento manual abre un ciclo nuevo.
+- El índice de búsqueda usa identificadores estables y solo se reindexa cuando cambia el asunto, el remitente o el cuerpo. Refrescar una carpeta y guardar cuerpos deja de bloquear el proceso principal; las cachés existentes se migran una vez al abrirlas.
+
 ## 1.0.0-rc.5 — 2026-10-30
 
 - Apariencia Claro, Oscuro y Sistema, guardada en preferencias y aplicada a la interfaz y al tema nativo. Sistema sigue los cambios del equipo; el contenido de los correos conserva su tema de lectura independiente.

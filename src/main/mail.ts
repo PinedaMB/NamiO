@@ -86,8 +86,41 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * Un fallo de red no es un intento perdido: la operación sigue siendo válida y
+ * se reintentará cuando vuelva la conexión. Si lo contáramos como intento, un
+ * correo encolado sin red acabaría en `failed` solo por el paso del tiempo.
+ * Solo los rechazos del servidor (auth, 5xx, validación) consumen intentos.
+ */
+function isTransientOutboxError(error: unknown): boolean {
+  const value = error as {
+    code?: string
+    responseCode?: number
+    authenticationFailed?: boolean
+    message?: string
+    responseText?: string
+  } | null
+
+  if (value?.authenticationFailed) return false
+  // SMTP: 4xx es temporal, 5xx es un rechazo definitivo.
+  if (typeof value?.responseCode === 'number') return value.responseCode >= 400 && value.responseCode < 500
+
+  const code = (value?.code ?? '').toUpperCase()
+  if (['EAUTH', 'EENVELOPE', 'EMESSAGE', 'EMODULE'].includes(code)) return false
+  if ([
+    'ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ETIMEOUT',
+    'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN', 'EHOSTDOWN',
+    'EPIPE', 'ECONNECTION', 'ESOCKET', 'EDNS', 'NOCONNECTION', 'NOTCONNECTED',
+    'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET'
+  ].includes(code)) return true
+
+  const text = `${value?.message ?? ''} ${value?.responseText ?? ''}`.toLowerCase()
+  return /offline|network|timed? ?out|timeout|socket|econn|enotfound|eai_again|not connected|no connection|connection (lost|closed|refused|reset)|fetch failed|temporary/.test(text)
+}
+
 function registerFailure(row: OutboxRow, error: unknown): void {
-  const attempts = row.attempts + 1
+  const transient = isTransientOutboxError(error)
+  const attempts = transient ? row.attempts : row.attempts + 1
   updateOutbox(row.id, {
     attempts,
     lastError: describeError(error),
@@ -361,7 +394,9 @@ export async function deleteMessageAction(path: string, uid: number, permanent =
 }
 
 export async function retryOutbox(id: string): Promise<void> {
-  updateOutbox(id, { status: 'queued', lastError: null })
+  // Un reintento manual abre un ciclo nuevo: si no se reinicia, el primer fallo
+  // vuelve a dejar la fila en `failed` sin haber agotado los intentos.
+  updateOutbox(id, { status: 'queued', attempts: 0, lastError: null })
   notify()
   await processOutbox()
 }
