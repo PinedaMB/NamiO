@@ -107,13 +107,17 @@ const virtualTree = exportsList.ThreadList({
   onFilter() {}, onSort() {}, onSelect() {}
 })
 let renderedGroups = 0
+let fixedSpacers = 0
 function countGroups(node) {
   if (!React.isValidElement(node)) return
   if (node.props.className === 'thread-group') renderedGroups += 1
+  if (node.props['aria-hidden'] === 'true' && node.props.style?.flex === '0 0 auto') fixedSpacers += 1
   React.Children.forEach(node.props.children, countGroups)
 }
 countGroups(virtualTree)
 assert.ok(renderedGroups > 0 && renderedGroups < manyThreads.length, 'large lists mount only the visible window')
+assert.ok(fixedSpacers > 0, 'virtual spacers cannot be shrunk by the flex container')
+assert.match(fs.readFileSync('src/renderer/src/styles/app.css', 'utf8'), /\.thread-group \{[^}]*flex-shrink:\s*0/, 'virtual rows keep their height in the flex list')
 
 const appSource = fs.readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(appSource, /MAX_LIST_LIMIT = 1000/, 'the list has a DOM ceiling')

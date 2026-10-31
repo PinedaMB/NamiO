@@ -340,7 +340,7 @@ export function ThreadList({
           </div>
         )}
 
-        {virtual && layout.top > 0 && <div aria-hidden="true" style={{ height: layout.top }} />}
+        {virtual && layout.top > 0 && <div aria-hidden="true" style={{ height: layout.top, flex: '0 0 auto' }} />}
 
         {conversations.slice(layout.start, layout.end).map((thread) => {
           const sender = thread.participants[0]
@@ -461,7 +461,7 @@ export function ThreadList({
           )
         })}
 
-        {virtual && layout.bottom > 0 && <div aria-hidden="true" style={{ height: layout.bottom }} />}
+        {virtual && layout.bottom > 0 && <div aria-hidden="true" style={{ height: layout.bottom, flex: '0 0 auto' }} />}
 
         {threads.length === 0 && !loading && (
           <p className="muted" style={{ padding: '24px 12px', textAlign: 'center' }}>

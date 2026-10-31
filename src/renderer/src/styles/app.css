@@ -4740,6 +4740,8 @@
 .thread-group {
   position: relative;
   min-width: 0;
+  /* Sin esto, la lista flex encoge las filas virtualizadas y el scroll salta. */
+  flex-shrink: 0;
   /* Las filas fuera de pantalla no se maquetan ni pintan; el tamaño se recuerda
      tras la primera visita para que el scroll no salte. */
   content-visibility: auto;
