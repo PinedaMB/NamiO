@@ -4257,14 +4257,13 @@
 
 .rules__empty > .icon { color: var(--outline); margin-bottom: 4px; }
 .rules__empty h3 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; letter-spacing: -0.02em; }
-.rules__empty p { max-width: 52ch; margin: 0 0 8px; color: var(--outline); font-size: 13px; line-height: 22px; }
+.rules__empty p { max-width: 52ch; margin: 0 0 8px; color: var(--outline); font-size: 13px; line-height: 20px; }
 .rules__empty .btn { min-height: 34px; padding-inline: 12px; }
 .rules__help { color: var(--outline); font-size: 12px; line-height: 20px; }
 .rules__help summary { width: fit-content; padding-block: 8px; cursor: pointer; color: var(--on-surface-variant); }
 .rules__help summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: var(--r-sm); }
 .rules__help p { max-width: 68ch; margin: 8px 0; }
 .rules > .settings-card__head { align-items: center; }
-.rules .settings-card__title { font-size: 20px; line-height: 28px; }
 
 
 .rules__list {
@@ -4984,21 +4983,23 @@
 
 .settings-about__version {
   color: var(--on-surface-variant);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .settings-about__name {
   margin: 0 0 var(--sp-xs);
-  font-size: 32px;
+  font-size: 26px;
+  line-height: 34px;
   font-weight: 600;
   letter-spacing: -0.025em;
 }
 
 .settings-about__description {
   margin: 0;
-  max-width: 60ch;
-  font-size: 16px;
-  line-height: 1.6;
+  max-width: 68ch;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .settings-about__links {
@@ -5588,8 +5589,11 @@
 
 .notification-option__text p {
   margin: var(--sp-xs) 0 0;
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--outline);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
   font-weight: 400;
   color: var(--on-surface-variant);
 }
