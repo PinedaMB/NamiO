@@ -20,6 +20,10 @@ function has(selector, pattern, label) {
 
 has('.settings {', /max-width:\s*1120px/, 'settings max width')
 has('.settings {', /padding:\s*32px 36px/, 'settings desktop padding')
+has('.settings {', /overflow:\s*hidden/, 'the page shell does not scroll')
+has('.settings__grid', /flex:\s*1[\s\S]*min-height:\s*0/, 'the grid fills the remaining height')
+has('.settings__main', /overflow-y:\s*auto/, 'only the content column scrolls')
+has('.settings__aside', /align-self:\s*start/, 'the navigation stays at the top')
 has('.settings__title', /font-size:\s*26px[\s\S]*line-height:\s*34px/, 'settings title role')
 has('.settings__grid', /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/, 'settings navigation column')
 has('.settings__grid', /gap:\s*40px/, 'settings column gap')

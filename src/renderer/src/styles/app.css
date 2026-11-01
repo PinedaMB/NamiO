@@ -2684,9 +2684,10 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   gap: 32px;
   padding: 32px 36px;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--surface);
   width: 100%;
   max-width: 1120px;
@@ -2699,6 +2700,7 @@
   justify-content: space-between;
   gap: var(--sp-lg);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .settings__hero-text {
@@ -2721,17 +2723,24 @@
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
   gap: 40px;
-  align-items: start;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 .settings__aside {
   display: flex;
   flex-direction: column;
   gap: var(--sp-md);
+  align-self: start;
 }
 
 .settings__main {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 .settings-stack {
@@ -3156,11 +3165,13 @@
   .settings__grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 28px;
+    flex: none;
   }
   .settings-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .settings-nav__item { padding: 10px 8px; }
   .settings-nav__label { white-space: normal; }
-  .settings { padding: 24px 20px; }
+  .settings { padding: 24px 20px; overflow-y: auto; }
+  .settings__main { overflow: visible; padding-right: 0; }
   .diag {
     gap: var(--sp-lg);
   }
