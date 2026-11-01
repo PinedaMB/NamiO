@@ -52,6 +52,7 @@ export interface MailboxMeta {
 
 let db: DatabaseSync | null = null
 let openedAccountId = ''
+let openedCacheFile = ''
 export function cacheAccountId(): string { return openedAccountId }
 
 export function initCache(accountId: string = 'default'): void {
@@ -71,6 +72,7 @@ export function openAccountCache(accountId: string): void {
 
   db = new DatabaseSync(join(app.getPath('userData'), file))
   openedAccountId = accountId
+  openedCacheFile = file
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA synchronous = NORMAL')
   db.exec('PRAGMA busy_timeout = 5000')
@@ -224,6 +226,7 @@ export function inTransaction<T>(fn: () => T): T {
 export function closeCache(): void {
   db?.close()
   db = null
+  openedCacheFile = ''
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1237,7 +1240,9 @@ export async function clearAccountCache(accountId: string): Promise<void> {
   // Si la cuenta está abierta, se usa la conexión activa. Abrir una segunda
   // conexión al mismo archivo en Windows hace fallar VACUUM/checkpoint con
   // "unable to open database file" mientras la primera mantiene el WAL.
-  const active = openedAccountId === accountId && db !== null
+  // Se compara el archivo, no solo el id: el id visible puede haber cambiado
+  // sin que la caché abierta se haya reapuntado.
+  const active = db !== null && openedCacheFile.toLowerCase() === accountCacheFile(accountId).toLowerCase()
   const database = active ? db! : new DatabaseSync(file)
   try {
     database.exec('PRAGMA busy_timeout = 5000')
