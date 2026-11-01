@@ -52,6 +52,7 @@ export interface MailboxMeta {
 
 let db: DatabaseSync | null = null
 let openedAccountId = ''
+let openedCacheFile = ''
 export function cacheAccountId(): string { return openedAccountId }
 
 export function initCache(accountId: string = 'default'): void {
@@ -71,6 +72,7 @@ export function openAccountCache(accountId: string): void {
 
   db = new DatabaseSync(join(app.getPath('userData'), file))
   openedAccountId = accountId
+  openedCacheFile = file
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA synchronous = NORMAL')
   db.exec('PRAGMA busy_timeout = 5000')
@@ -224,6 +226,7 @@ export function inTransaction<T>(fn: () => T): T {
 export function closeCache(): void {
   db?.close()
   db = null
+  openedCacheFile = ''
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1235,9 +1238,13 @@ export async function clearAccountCache(accountId: string): Promise<void> {
     throw cause
   }
   // Si la cuenta está abierta, se cierra su conexión y se reabre al terminar.
-  // Una conexión de mantenimiento separada sobre el mismo WAL es la que falla
-  // en Windows con "unable to open database file".
-  const wasActive = openedAccountId === accountId && db !== null
+  // En Windows no se puede abrir una segunda conexión al mismo WAL; se compara
+  // también el archivo porque el id visible puede no coincidir con la caché abierta.
+  const targetFile = accountCacheFile(accountId)
+  const wasActive = db !== null && (
+    openedAccountId === accountId ||
+    openedCacheFile.toLowerCase() === targetFile.toLowerCase()
+  )
   if (wasActive) closeCache()
   let database: DatabaseSync
   try {
@@ -1247,6 +1254,7 @@ export async function clearAccountCache(accountId: string): Promise<void> {
     throw cause
   }
   try {
+    database.exec('PRAGMA temp_store = MEMORY')
     database.exec('PRAGMA busy_timeout = 5000')
     database.exec('BEGIN IMMEDIATE')
     try {
@@ -1255,9 +1263,11 @@ export async function clearAccountCache(accountId: string): Promise<void> {
       database.exec(`UPDATE messages SET body_text = NULL, body_html = NULL${attachments}`)
       if (database.prepare("SELECT name FROM sqlite_master WHERE name = 'search'").get()) {
         // Vaciar el cuerpo en el propio índice conserva asuntos y remitentes.
-        // Reconstruirlo con miles de INSERT dentro de la transacción obligaba a
-        // SQLite a abrir temporales y fallaba en Windows.
-        database.exec("UPDATE search SET body = ''")
+        // Se hace fila por fila para que FTS5 no tenga que abrir segmentos
+        // temporales grandes, que es lo que falla en Windows.
+        const rows = database.prepare("SELECT rowid FROM search WHERE body <> ''").all() as unknown as { rowid: number }[]
+        const clearBody = database.prepare("UPDATE search SET body = '' WHERE rowid = ?")
+        for (const row of rows) clearBody.run(row.rowid)
       }
       database.exec('COMMIT')
     } catch (cause) {
