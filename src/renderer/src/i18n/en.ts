@@ -565,6 +565,8 @@ export const en: Dictionary = {
   'rules.describe': '{field} {op} “{value}” → {action}',
 
   'account.connect': 'Connect account',
+  'account.oauthUrlHint': 'If the browser did not open, copy this address or open it manually.',
+  'account.openBrowser': 'Open in browser',
   'account.switch': 'Switch account',
   'account.add': 'Add account',
   'account.manage': 'This account’s settings',

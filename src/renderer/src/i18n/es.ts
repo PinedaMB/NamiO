@@ -568,6 +568,8 @@ export const es = {
   'rules.describe': '{field} {op} «{value}» → {action}',
 
   'account.connect': 'Conectar cuenta',
+  'account.oauthUrlHint': 'Si el navegador no se abrió, copia esta dirección o ábrela manualmente.',
+  'account.openBrowser': 'Abrir en el navegador',
   'account.switch': 'Cambiar de cuenta',
   'account.add': 'Agregar cuenta',
   'account.manage': 'Configuración de esta cuenta',

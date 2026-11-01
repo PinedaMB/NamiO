@@ -39,6 +39,11 @@ const api: MailApi = {
     ipcRenderer.on(IPC.zoomChanged, handler)
     return () => ipcRenderer.removeListener(IPC.zoomChanged, handler)
   },
+  onOauthUrl: (listener: (url: string) => void): (() => void) => {
+    const handler = (_event: unknown, url: string): void => listener(url)
+    ipcRenderer.on(IPC.oauthUrl, handler)
+    return () => ipcRenderer.removeListener(IPC.oauthUrl, handler)
+  },
   updateStatus: () => ipcRenderer.invoke(IPC.updateStatus),
   checkForUpdates: () => ipcRenderer.invoke(IPC.updateCheck),
   installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),

@@ -128,29 +128,37 @@ async function postToken(endpoint: string, params: Record<string, string>): Prom
 
 /**
  * `shell.openExternal` no siempre lanza el navegador (asociaciones de Windows,
- * sesiones sin escritorio). Se intenta primero y, si falla, se usa el abridor
- * nativo del sistema. El error final incluye la URL para poder abrirla a mano.
+ * sesiones sin escritorio). Se usa primero el abridor nativo del sistema y,
+ * como respaldo, `shell.openExternal`. El error final incluye la URL para poder
+ * abrirla a mano.
  */
 async function openAuthUrl(url: string): Promise<void> {
+  const command: [string, string[]] = process.platform === 'win32'
+    ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url]]
+    : process.platform === 'darwin'
+      ? ['open', [url]]
+      : ['xdg-open', [url]]
+  const run = (): Promise<void> => new Promise((resolve, reject) => {
+    const child = spawn(command[0], command[1], { detached: true, stdio: 'ignore', windowsHide: true }) as ChildProcess
+    child.once('error', reject)
+    child.once('exit', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`el abridor terminó con código ${code ?? 'desconocido'}`))
+    })
+  })
+
+  let nativeError: unknown
+  try {
+    await run()
+    return
+  } catch (error) {
+    nativeError = error
+  }
   try {
     await shell.openExternal(url)
-    return
-  } catch (first) {
-    const command: [string, string[]] = process.platform === 'win32'
-      ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url]]
-      : process.platform === 'darwin'
-        ? ['open', [url]]
-        : ['xdg-open', [url]]
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const child = spawn(command[0]!, command[1]!, { detached: true, stdio: 'ignore' }) as ChildProcess
-        child.once('error', reject)
-        child.once('spawn', () => { child.unref(); resolve() })
-      })
-    } catch (second) {
-      const detail = [first, second].map((error) => error instanceof Error ? error.message : String(error)).join(' / ')
-      throw new Error(`No se pudo abrir el navegador (${detail}). Abre esta URL a mano: ${url}`)
-    }
+  } catch (shellError) {
+    const detail = [nativeError, shellError].map((error) => error instanceof Error ? error.message : String(error)).join(' / ')
+    throw new Error(`No se pudo abrir el navegador (${detail}). Abre esta URL a mano: ${url}`)
   }
 }
 
@@ -158,7 +166,7 @@ async function openAuthUrl(url: string): Promise<void> {
  * Flujo interactivo: levanta el loopback, abre el navegador y espera el `code`.
  * Devuelve los tokens ya canjeados.
  */
-export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promise<OAuthTokens> {
+export async function authorize(config: OAuthConfig, timeoutMs = 300_000, onAuthUrl?: (url: string) => void): Promise<OAuthTokens> {
   const { authUrl, tokenUrl, scope } = endpointsFor(config)
   if (!authUrl || !tokenUrl) throw new Error('Faltan los endpoints OAuth del proveedor')
   requireHttps(authUrl, 'Endpoint de autorización')
@@ -232,6 +240,7 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000): Promi
 
       // Queda en el log: si el navegador no abre, la URL sirve para abrirla a mano.
       console.log('[oauth] authorize', url.toString())
+      onAuthUrl?.(url.toString())
       void openAuthUrl(url.toString()).catch((error: unknown) => {
         console.error('[oauth] no se pudo abrir el navegador', error)
         server.close()

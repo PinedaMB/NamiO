@@ -174,7 +174,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     IPC.accountConnectOAuth,
-    async (_event, config: AccountConfig): Promise<ImapResult<unknown>> => {
+    async (event, config: AccountConfig): Promise<ImapResult<unknown>> => {
       if (!config?.oauth || config.oauth.clientId.trim() === '') {
         return { ok: false, code: 'unknown', detail: 'Falta el client ID de OAuth' }
       }
@@ -200,7 +200,9 @@ export function registerIpcHandlers(): void {
         }
       }
 
-      const result = await connectAccountOAuth(normalized)
+      const result = await connectAccountOAuth(normalized, (url) => {
+        if (!event.sender.isDestroyed()) event.sender.send(IPC.oauthUrl, url)
+      })
       if (result.ok) void processOutbox()
       return result
     }

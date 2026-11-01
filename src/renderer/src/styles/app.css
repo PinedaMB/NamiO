@@ -3497,6 +3497,29 @@
   border-top: 1px solid var(--surface-container-highest);
 }
 
+.account-oauth-url {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-lg);
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.account-oauth-url code {
+  max-height: 76px;
+  overflow: auto;
+  color: var(--on-surface);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
 .account-modal__actions {
   display: flex;
   align-items: center;

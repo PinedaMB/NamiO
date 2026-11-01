@@ -1416,7 +1416,7 @@ export async function connectAccount(
  * OAuth2: corre el flujo en el navegador, valida el token contra IMAP y guarda
  * el refresh token cifrado. El `user` es el correo de la cuenta.
  */
-export async function connectAccountOAuth(config: AccountConfig): Promise<ImapResult<AccountState>> {
+export async function connectAccountOAuth(config: AccountConfig, onAuthUrl?: (url: string) => void): Promise<ImapResult<AccountState>> {
   if (!config.oauth) return { ok: false, code: 'unknown', detail: 'Falta la configuración OAuth' }
 
   try {
@@ -1432,7 +1432,7 @@ export async function connectAccountOAuth(config: AccountConfig): Promise<ImapRe
       // si el campo llega vacío se reutiliza el guardado (cifrado o heredado).
       clientSecret: config.oauth.clientSecret || existingOauth?.clientSecret || ''
     }
-    const tokens = await authorize(oauth)
+    const tokens = await authorize(oauth, 300_000, onAuthUrl)
     const user = knownUser !== '' ? knownUser : (tokens.email ?? '')
     if (user === '') {
       return { ok: false, code: 'unknown', detail: 'El proveedor no devolvió el correo de la cuenta' }

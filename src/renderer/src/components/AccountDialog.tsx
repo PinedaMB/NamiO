@@ -82,6 +82,13 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
   const [scope, setScope] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
+  const [oauthUrl, setOauthUrl] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setOauthUrl('')
+    return window.api?.onOauthUrl?.((url) => setOauthUrl(url))
+  }, [open])
 
   // El formulario se inicializa al ABRIR, no cada vez que App refresca la cuenta:
   // si dependiera del objeto `account`, un refresco en vuelo borraría lo tipeado.
@@ -585,6 +592,17 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               <Icon name="key_off" size={14} />
               {t('account.notStored')}
             </p>
+          )}
+
+          {oauthUrl && (
+            <div className="account-oauth-url">
+              <span>{t('account.oauthUrlHint')}</span>
+              <code className="mono">{oauthUrl}</code>
+              <button className="tool-btn" type="button" onClick={() => void window.api?.openExternal(oauthUrl)}>
+                <Icon name="open_in_new" size={15} />
+                {t('account.openBrowser')}
+              </button>
+            </div>
           )}
 
           {error && (

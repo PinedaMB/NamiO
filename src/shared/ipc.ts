@@ -25,6 +25,7 @@ export const IPC = {
   accountsActivity: 'accounts:activity',
   accountConnect: 'account:connect',
   accountConnectOAuth: 'account:connect-oauth',
+  oauthUrl: 'account:oauth-url',
   accountDisconnect: 'account:disconnect',
   accountRename: 'account:rename',
   mailboxesList: 'mailboxes:list',
@@ -421,6 +422,7 @@ export interface UpdateState {
 
 export interface MailApi {
   onZoomChanged(listener: (percent: number) => void): () => void
+  onOauthUrl(listener: (url: string) => void): () => void
   updateStatus(): Promise<UpdateState | null>
   checkForUpdates(): Promise<void>
   installUpdate(): Promise<void>
