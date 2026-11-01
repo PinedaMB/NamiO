@@ -84,10 +84,13 @@ export function envelopesToThreads(envelopes: Envelope[], locale: string): Threa
     return current
   }
   for (const envelope of envelopes) {
-    if (!envelope.messageId || !envelope.inReplyTo) continue
-    const child = root(envelope.messageId)
-    const parent = root(envelope.inReplyTo)
-    if (child !== parent) parents.set(child, parent)
+    if (!envelope.messageId) continue
+    for (const reference of [...(envelope.references ?? []), envelope.inReplyTo]) {
+      if (!reference) continue
+      const child = root(envelope.messageId)
+      const parent = root(reference)
+      if (child !== parent) parents.set(child, parent)
+    }
   }
   const groups = new Map<string, Envelope[]>()
   for (const envelope of envelopes) {
@@ -122,6 +125,7 @@ export function detailToMessage(detail: MessageDetail, locale: string, partial =
     id: `live:${detail.uid}`,
     messageId: detail.messageId,
     inReplyTo: detail.inReplyTo,
+    references: detail.references,
     from: personFrom(detail.from),
     to: detail.to.map((address) => personFrom(address)),
     cc: (detail.cc ?? []).map((address) => personFrom(address)),

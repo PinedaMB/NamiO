@@ -277,10 +277,11 @@ export function ThreadPane({
               }}>
                 <div className="participants__top">
                   <div className="participants__who">
-                    <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={mailbox} blocked={spam || !thread.id.startsWith('live:')} className="avatar--lg" />
+                    <SenderAvatar email={from?.email ?? ''} initials={from?.initials ?? '??'} mailbox={message.mailbox ?? mailbox} blocked={spam || !thread.id.startsWith('live:')} className="avatar--lg" />
                     <div>
                       <div className="participants__name">
                         <span className="t-headline-sm">{from?.name}</span>
+                        {message.mailbox && <span className="participants__sent">{t('thread.sent')}</span>}
 
                       </div>
                       <TooltipButton className="participants__details" type="button" title={t('recipients.title')} aria-haspopup="dialog"
@@ -299,7 +300,7 @@ export function ThreadPane({
 
                   </div>
                   <div className="thread-message__actions">
-                    {messageIndex === 0 && (
+                    {!message.mailbox && message.id === thread.messages.findLast(item => !item.mailbox)?.id && (
                       <TooltipButton
                         className="icon-btn"
                         type="button"
@@ -348,7 +349,7 @@ export function ThreadPane({
                     {message.attachments.map((attachment, index) => {
                       const meta = ATTACHMENT_ICON[attachment.kind]
                       const previewable = ['image', 'pdf', 'text'].includes(attachment.kind)
-                      const saving = savingAttachment?.mailbox === mailbox && savingAttachment.messageId === message.id && savingAttachment.index === index
+                      const saving = savingAttachment?.mailbox === (message.mailbox ?? mailbox) && savingAttachment.messageId === message.id && savingAttachment.index === index
                       return (
                         <TooltipButton
                           key={`${attachment.name}-${index}`}

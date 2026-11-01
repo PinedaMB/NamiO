@@ -18,7 +18,7 @@ import type {
   EnvelopeListOptions
 } from '@shared/ipc'
 import { isDraftMailbox, isSpamMailbox, organizedSidebarMailboxes, sidebarMailboxes } from '@shared/mailboxes'
-import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
+import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread, type Message } from './data/demo'
 import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
@@ -171,6 +171,8 @@ export function App(): React.JSX.Element {
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [contextMenu, setContextMenu] = useState<(ContextAnchor & { kind: 'message' | 'folder'; id: string; messageId?: string }) | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const [sentReplies, setSentReplies] = useState<{ key: string; messages: Message[] }>({ key: '', messages: [] })
+  const [sentRepliesVersion, setSentRepliesVersion] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [individualMessageId, setIndividualMessageId] = useState<string | null>(null)
   const [checkedIds, setCheckedIds] = useState<string[]>([])
@@ -439,6 +441,15 @@ export function App(): React.JSX.Element {
     // que puede no ser el representante de su conversación.
     return listedThreads.find((thread) => threadMatchesId(thread, selectedId)) ?? visible[0] ?? null
   }, [listedThreads, selectedId, visible])
+
+  const sentRepliesKey = JSON.stringify([accountIdentity.current, folder, selected?.id])
+  const sentMessages = sentReplies.key === sentRepliesKey ? sentReplies.messages : []
+  const readerThread = selected && sentMessages.length > 0 ? {
+    ...selected,
+    messages: [...selected.messages, ...sentMessages].filter((message, index, all) =>
+      all.findIndex(item => (item.messageId ?? item.id) === (message.messageId ?? message.id)) === index
+    ).sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime())
+  } : selected
 
   const unreadCount = live && listCounts ? listCounts.unread : listedThreads.filter((thread) => thread.unread).length
   const otherCount = live && listCounts ? listCounts.total - listCounts.unread : listedThreads.filter((thread) => !thread.unread).length
@@ -881,6 +892,36 @@ export function App(): React.JSX.Element {
     }
   }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view, sync.offline, sync.syncedAt, messageRetry])
 
+  useEffect(() => {
+    if (!live || !selected || view === 'settings' || !window.api?.getSentReplies || selected.id.startsWith('draft:')) return
+    const uid = uidOf(selected.id)
+    if (uid === null) return
+    const key = sentRepliesKey
+    const generation = accountGeneration.current
+    const request = folderRequest.current
+    const uids = selected.messageIds ?? [uid]
+    let cancelled = false
+    const current = (): boolean => !cancelled && generation === accountGeneration.current && request === folderRequest.current
+    const load = async (cachedOnly: boolean): Promise<void> => {
+      const result = await window.api.getSentReplies(folder, uids, cachedOnly)
+      if (!current()) return
+      if (!result.ok) { setLiveError({ code: result.code, detail: result.detail }); return }
+      const messages = await Promise.all(result.data.map(async location => {
+        const response = await window.api.getMessage(location.mailbox, location.uid, cachedOnly || result.meta.offline)
+        if (!response.ok) { if (current()) setLiveError({ code: response.code, detail: response.detail }); return null }
+        return { ...detailToMessage(response.data, locale, response.meta.partial === true),
+          id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,
+          inlineImagesPending: response.meta.inlineImagesPending === true }
+      }))
+      if (current()) setSentReplies({ key, messages: messages.filter((message): message is NonNullable<typeof message> => message !== null) })
+    }
+    void (async () => {
+      await load(true)
+      if (current() && navigator.onLine !== false) await load(false)
+    })().catch(error => { if (current()) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })) })
+    return () => { cancelled = true }
+  }, [live, selected?.id, selected?.messageIds?.join(','), sentRepliesKey, sentRepliesVersion, folder, locale, view, sync.syncedAt, messageRetry, t])
+
   const select = (id: string, messageId?: string): void => {
     if (!draftsFolder) setMessageOpen(true)
     setIndividualMessageId(messageId ?? null)
@@ -938,16 +979,18 @@ export function App(): React.JSX.Element {
       setToast(t('toast.attachmentOffline'))
       return
     }
-    const uid = uidOf(messageId ?? selected.id)
+    const message = readerThread?.messages.find(item => item.id === (messageId ?? selected.id))
+    const sourceMailbox = message?.mailbox ?? folder
+    const uid = message?.uid ?? uidOf(messageId ?? selected.id)
     if (uid === null) return
 
     const generation = accountGeneration.current
     const save = async (): Promise<void> => {
       if (savingAttachmentRef.current) return
       savingAttachmentRef.current = true
-      setSavingAttachment({ mailbox: folder, messageId: messageId ?? selected.id, index })
+      setSavingAttachment({ mailbox: sourceMailbox, messageId: messageId ?? selected.id, index })
       try {
-        const saved = await window.api.saveAttachment(folder, uid, index)
+        const saved = await window.api.saveAttachment(sourceMailbox, uid, index)
         if (saved && generation === accountGeneration.current) setToast(t('toast.saved', { path: saved }))
       } catch (error) {
         if (generation === accountGeneration.current) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'adjunto' }))
@@ -956,13 +999,12 @@ export function App(): React.JSX.Element {
         setSavingAttachment(null)
       }
     }
-    const message = selected.messages.find(item => item.id === (messageId ?? selected.id))
     const attachment = message?.attachments?.[index]
     if (!attachment || (attachment.kind !== 'image' && attachment.kind !== 'pdf' && attachment.kind !== 'text')) { void save(); return }
     const kind = attachment.kind
     const request = ++attachmentRequest.current
     setAttachmentPreview({ kind, title: attachment.name, save })
-    void window.api.previewAttachment(folder, uid, index).then(image => {
+    void window.api.previewAttachment(sourceMailbox, uid, index).then(image => {
       if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ kind, title: image.name, attachment: image, save })
     }).catch(() => {
       if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ kind, title: attachment.name, error: true, save })
@@ -1133,7 +1175,7 @@ export function App(): React.JSX.Element {
       reply: { mode: replyAll ? 'all' : 'sender', sender: sender?.email ?? '', to: allTo, cc: allCc },
       subject: prefix,
       inReplyTo: message?.messageId,
-      references: [message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)),
+      references: [...new Set([...(message?.references ?? []), message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)))],
       body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n'),
       html: replyComposeHtml(body, attribution, original, t('compose.originalMessage'), message?.html)
     })
@@ -1559,7 +1601,7 @@ export function App(): React.JSX.Element {
                     setMessageOpen(false)
                     requestAnimationFrame(() => document.querySelector<HTMLElement>('.thread--active button, .thread--active [tabindex="0"]')?.focus())
                   }}
-                  thread={individualMessageId && selected.messages.some(message => message.id === individualMessageId) ? { ...selected, messages: selected.messages.filter(message => message.id === individualMessageId) } : selected}
+                  thread={individualMessageId && readerThread!.messages.some(message => message.id === individualMessageId) ? { ...readerThread!, messages: readerThread!.messages.filter(message => message.id === individualMessageId) } : readerThread!}
                   mailbox={folder}
                   spam={folderViews.some((item) => item.id === folder && item.spam)}
                   position={Math.max(1, visible.findIndex((thread) => threadMatchesId(thread, selected.id)) + 1)}
@@ -1684,6 +1726,7 @@ export function App(): React.JSX.Element {
           if (generation !== accountGeneration.current) return
           setCompose(null)
           setToast(result.queued ? t('toast.queued') : t('toast.sent'))
+          setSentRepliesVersion(current => current + 1)
           void refreshOutbox()
         }}
       />

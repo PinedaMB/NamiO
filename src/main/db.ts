@@ -26,6 +26,7 @@ interface MessageRow {
   has_attachments: number | null
   message_id: string | null
   in_reply_to: string | null
+  references_json: string | null
   mailbox: string
   uid: number
   subject: string
@@ -180,7 +181,7 @@ export function openAccountCache(accountId: string): void {
   if (!draftColumns.some(column => column.name === 'metadata_json')) db.exec('ALTER TABLE drafts ADD COLUMN metadata_json TEXT')
 
   const columns = db.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
-  for (const column of ['message_id', 'in_reply_to', 'has_attachments', 'priority']) {
+  for (const column of ['message_id', 'in_reply_to', 'has_attachments', 'priority', 'references_json']) {
     if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE messages ADD COLUMN ${column} ${column === 'has_attachments' ? 'INTEGER' : 'TEXT'}`)
   }
 
@@ -349,8 +350,8 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
   }
 
   const statement = database.prepare(`
-    INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments, priority)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(mailbox, uid) DO UPDATE SET
       subject = excluded.subject,
       from_name = excluded.from_name,
@@ -361,6 +362,7 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
       flagged = excluded.flagged,
       message_id = excluded.message_id,
       in_reply_to = excluded.in_reply_to,
+      references_json = excluded.references_json,
       has_attachments = excluded.has_attachments,
       priority = excluded.priority
   `)
@@ -382,6 +384,7 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
         envelope.flagged ? 1 : 0,
         envelope.messageId ?? null,
         envelope.inReplyTo ?? null,
+        JSON.stringify(envelope.references ?? []),
         envelope.hasAttachments === undefined ? null : envelope.hasAttachments ? 1 : 0,
         envelope.priority ?? 'normal'
       )
@@ -407,7 +410,7 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
   const direction = options.oldestFirst ? 'ASC' : 'DESC'
   const rows = handle()
     .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments, priority
+      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority
        FROM messages WHERE mailbox = ?${condition} ORDER BY date ${direction}, uid ${direction} LIMIT ?`
     )
     .all(...(condition ? [mailbox, options.includeUid ?? -1, limit] : [mailbox, limit])) as unknown as MessageRow[]
@@ -418,6 +421,7 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
     priority: row.priority ?? 'normal',
     messageId: row.message_id ?? undefined,
     inReplyTo: row.in_reply_to ?? undefined,
+    references: row.references_json ? JSON.parse(row.references_json) : undefined,
     subject: row.subject,
     from: row.from_addr ? { name: row.from_name, address: row.from_addr } : null,
     date: new Date(row.date).toISOString(),
@@ -433,10 +437,21 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
   return envelopes
 }
 
+/** Busca relaciones exactas, nunca coincidencias por asunto ni por subcadenas. */
+export function relatedMessageUids(mailbox: string, ids: readonly string[]): number[] {
+  if (ids.length === 0) return []
+  const placeholders = ids.map(() => '?').join(',')
+  const rows = handle().prepare(`SELECT uid FROM messages WHERE mailbox = ? AND (
+    message_id IN (${placeholders}) OR in_reply_to IN (${placeholders}) OR
+    EXISTS (SELECT 1 FROM json_each(COALESCE(messages.references_json, '[]')) WHERE value IN (${placeholders}))
+  ) ORDER BY date ASC, uid ASC`).all(mailbox, ...ids, ...ids, ...ids) as unknown as { uid: number }[]
+  return rows.map(row => row.uid)
+}
+
 export function readEnvelope(mailbox: string, uid: number): Envelope | null {
   const row = handle()
     .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, has_attachments, priority
+      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority
        FROM messages WHERE mailbox = ? AND uid = ?`
     )
     .get(mailbox, uid) as unknown as MessageRow | undefined
@@ -448,6 +463,7 @@ export function readEnvelope(mailbox: string, uid: number): Envelope | null {
     priority: row.priority ?? 'normal',
     messageId: row.message_id ?? undefined,
     inReplyTo: row.in_reply_to ?? undefined,
+    references: row.references_json ? JSON.parse(row.references_json) : undefined,
     subject: row.subject,
     from: row.from_addr ? { name: row.from_name, address: row.from_addr } : null,
     date: new Date(row.date).toISOString(),
@@ -1177,9 +1193,9 @@ export function allCachedMessages(limit: number = 5000, offset = 0): CachedMessa
   return rows.map(mapMessage)
 }
 
-/** Sobres anteriores a la detección de adjuntos: se actualizan sin descargar cuerpos. */
+/** Completa metadatos de cachés anteriores sin descargar cuerpos ni borrar mensajes. */
 export function missingEnvelopeMetadata(mailbox: string): number[] {
-  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND (has_attachments IS NULL OR priority IS NULL)')
+  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND (has_attachments IS NULL OR priority IS NULL OR references_json IS NULL)')
     .all(mailbox) as unknown as { uid: number }[]
   return rows.map(row => row.uid)
 }

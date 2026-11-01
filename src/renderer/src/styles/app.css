@@ -5957,3 +5957,5 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 .settings-about__help summary:focus-visible, .settings-about__details summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: var(--r-sm); }
 .settings-about__help p { margin: 8px 0 0; max-width: 68ch; }
 .settings-about__technical { display: flex; flex-direction: column; gap: 20px; padding-top: 16px; }
+
+.participants__sent { color: var(--outline); font-size: 12px; font-weight: 400; }

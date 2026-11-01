@@ -16,6 +16,16 @@ async function main() {
     } }
     assert.equal((await fetchRange(client,'1',true))[0].priority,expected,headers)
   }
+  for (const references of ['<root@example.test>', '<root@example.test> <sent@example.test>']) {
+    const client = { async *fetch(_range, query) {
+      for (const header of ['Message-ID', 'In-Reply-To', 'References']) assert.ok(query.headers.includes(header))
+      yield { uid: 2, headers: Buffer.from('Message-ID: <answer@example.test>\r\nIn-Reply-To: <sent@example.test>\r\nReferences: '+references+'\r\n\r\n'), internalDate: new Date() }
+    } }
+    const result = (await fetchRange(client,'2',true))[0]
+    assert.equal(result.messageId, '<answer@example.test>')
+    assert.equal(result.inReplyTo, '<sent@example.test>')
+    assert.deepEqual(Array.from(result.references), references.split(' '))
+  }
   console.log('Priority: IMAP header fetch and high/low/normal normalization verified')
 }
 main().catch(error=>{console.error(error);process.exitCode=1})

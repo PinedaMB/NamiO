@@ -21,6 +21,15 @@ assert.deepEqual(Array.from(threads[3].messageIds), [4])
 assert.deepEqual(Array.from(live.envelopesToThreads([envelope(1, '<a>', '<b>'), envelope(2, '<b>', '<a>')], 'es')[0].messageIds), [1, 2])
 assert.equal(live.envelopesToThreads([envelope(1), envelope(2)], 'es')[0].messageCount, 1)
 
+// A sent intermediate message need not be in Inbox for the conversation to join.
+const throughSent = [envelope(1, '<root>'), { ...envelope(2, '<answer>', '<sent-outside-inbox>'), references: ['<root>', '<sent-outside-inbox>'] }]
+assert.deepEqual(Array.from(live.envelopesToThreads(throughSent, 'es')[1].messageIds), [1, 2])
+const referencesOnly = [{ ...envelope(1, '<branch-a>'), references: ['<missing-root>'] }, { ...envelope(2, '<branch-b>'), references: ['<missing-root>', '<missing-parent>'] }, envelope(3, '<unrelated-same-subject>')]
+const referencesThreads = live.envelopesToThreads(referencesOnly, 'es')
+assert.deepEqual(Array.from(referencesThreads[0].messageIds), [1, 2])
+assert.deepEqual(Array.from(referencesThreads[2].messageIds), [3], 'matching subjects alone never join unrelated messages')
+assert.deepEqual(Array.from(live.envelopesToThreads([{ ...envelope(1, '<self>'), references: ['<self>', '<other>', '<self>'] }, envelope(2, '<other>', '<self>')], 'es')[0].messageIds), [1, 2], 'self references and cycles cannot loop')
+
 // The additive migration must retain bodies already stored by an older installation.
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'namio-conversation-'))
 const { DatabaseSync } = require('node:sqlite')
@@ -31,14 +40,20 @@ const db = {}
 vm.runInNewContext(compile('src/main/db.ts'), { exports: db, Buffer, require: id => id === 'electron' ? { app: { getPath: () => directory } } : require(id) })
 try {
   db.openAccountCache('default')
-  db.upsertEnvelopes('INBOX', envelopes)
+  assert.deepEqual(Array.from(db.missingEnvelopeMetadata('INBOX')), [1], 'legacy metadata is refreshed without clearing the cache')
+  db.upsertEnvelopes('INBOX', envelopes.map(item => ({ ...item, references: item.uid === 2 ? ['<first>'] : [] })))
   assert.equal(db.missingEnvelopeMetadata('INBOX').length, 0)
   db.upsertEnvelopes('INBOX', [{ ...envelope(5, '<legacy>'), hasAttachments: undefined }])
   assert.deepEqual(Array.from(db.missingEnvelopeMetadata('INBOX')), [5])
   db.upsertEnvelopes('INBOX', [{ ...envelope(5, '<legacy>'), hasAttachments: true }])
   assert.equal(db.missingEnvelopeMetadata('INBOX').length, 0)
+  db.upsertEnvelopes('Sent', [{ ...envelope(1, '<own-reply>', '<first>'), references: ['<first>'] }, envelope(2, '<unrelated-sent>')])
+  assert.deepEqual(Array.from(db.relatedMessageUids('Sent', ['<first>'])), [1], 'sent matching is folder-scoped even when UIDs collide')
+  assert.equal(db.relatedMessageUids('Sent', ['<fir>']).length, 0, 'header substrings cannot merge unrelated conversations')
   const cached = db.readEnvelopes('INBOX', 50)
   assert.equal(db.readEnvelope('INBOX', 2).inReplyTo, '<first>')
+  assert.deepEqual(Array.from(db.readEnvelope('INBOX', 2).references), ['<first>'])
+  assert.deepEqual(Array.from(cached.find(item => item.uid === 2).references), ['<first>'])
   assert.equal(db.readEnvelope('INBOX', 2).hasAttachments, true)
   assert.equal(db.readEnvelope('INBOX', 1).hasAttachments, false)
   assert.equal(db.readEnvelope('INBOX', 1).messageId, '<first>')

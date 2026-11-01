@@ -54,6 +54,7 @@ export const es = {
   'recipients.more': 'y {count} más',
   'thread.focus': 'Lectura enfocada',
   'thread.exitFocus': 'Mostrar navegación',
+  'thread.sent': 'Enviado',
   'thread.details': 'Ver detalles',
   'thread.moreOptions': 'Más opciones del correo',
   'common.replyAll': 'Responder a todos',

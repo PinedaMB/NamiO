@@ -44,6 +44,7 @@ import {
   readBody,
   readEnvelope,
   readEnvelopes,
+  relatedMessageUids,
   readMailboxes,
   replaceMailboxes,
   pruneExcept,
@@ -332,7 +333,7 @@ async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Prom
 
   for await (const message of client.fetch(
     range,
-    { envelope: true, bodyStructure: true, headers: ['Importance', 'Priority', 'X-Priority', 'X-MSMail-Priority'], flags: true, uid: true, size: true, internalDate: true },
+    { envelope: true, bodyStructure: true, headers: ['Importance', 'Priority', 'X-Priority', 'X-MSMail-Priority', 'Message-ID', 'In-Reply-To', 'References'], flags: true, uid: true, size: true, internalDate: true },
     options
   )) {
     const parsedHeaders = message.headers ? await simpleParser(message.headers) : null
@@ -341,8 +342,9 @@ async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Prom
       priority: priority === 'high' || priority === 'low' ? priority : 'normal',
       uid: message.uid,
       hasAttachments: hasAttachments(message.bodyStructure),
-      messageId: message.envelope?.messageId,
-      inReplyTo: message.envelope?.inReplyTo,
+      messageId: message.envelope?.messageId ?? parsedHeaders?.messageId,
+      inReplyTo: message.envelope?.inReplyTo ?? parsedHeaders?.inReplyTo,
+      references: typeof parsedHeaders?.references === 'string' ? [parsedHeaders.references] : parsedHeaders?.references ?? [],
       subject: message.envelope?.subject ?? '',
       from: toAddress(message.envelope?.from?.[0]),
       date: toDate(message.internalDate).toISOString(),
@@ -853,6 +855,7 @@ async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
       priority: priority === 'high' || priority === 'low' ? priority : 'normal',
       messageId: parsed.messageId ?? envelope?.messageId,
       inReplyTo: parsed.inReplyTo ?? envelope?.inReplyTo,
+      references: typeof parsed.references === 'string' ? [parsed.references] : parsed.references ?? envelope?.references ?? [],
       subject: parsed.subject ?? envelope?.subject ?? '',
       from: parsed.from ? toAddress(parsed.from.value[0]) : (envelope?.from ?? null),
       to,
@@ -889,6 +892,50 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
     text: body.text ?? '',
     html: body.html,
     attachments
+  }
+}
+
+/** Localiza las copias de Enviados que pertenecen al hilo abierto. */
+export async function getSentReplies(path: string, uids: number[], cachedOnly = false): Promise<CachedResult<{ mailbox: string; uid: number }[]>> {
+  if (typeof path !== 'string' || !Array.isArray(uids) || !uids.every(uid => Number.isSafeInteger(uid) && uid > 0)) {
+    return { ok: false, code: 'unknown', detail: 'Identificadores de conversación inválidos' }
+  }
+  const generation = syncGeneration
+  const sent = readMailboxes().find(box => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
+  const ids = [...new Set(uids.flatMap(uid => {
+    const message = readEnvelope(path, uid)
+    return message ? [message.messageId, message.inReplyTo, ...(message.references ?? [])].filter((id): id is string => Boolean(id)) : []
+  }))]
+  if (!sent || sent === path || ids.length === 0) return { ok: true, data: [], meta: syncMeta() }
+  const locations = (matches: number[]): { mailbox: string; uid: number }[] => matches.map(uid => ({ mailbox: sent, uid }))
+  if (cachedOnly) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: syncMeta() }
+  try {
+    const matches = await serial(async () => {
+      if (generation !== syncGeneration) throw accountChangedError()
+      const client = await ensureClient()
+      const lock = await client.getMailboxLock(sent)
+      try {
+        if (!client.mailbox) throw new Error('No se pudo abrir Enviados')
+        const validity = String(client.mailbox.uidValidity)
+        const previous = getMeta(`sentRepliesValidity:${sent}`) ?? getMailboxMeta(sent)?.uidValidity?.toString()
+        if (previous && previous !== validity) clearMailbox(sent)
+        setMeta(`sentRepliesValidity:${sent}`, validity)
+        const found = await client.search({ or: ids.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true })
+        if (!found) throw new Error('No se pudieron consultar las respuestas enviadas')
+        if (found.length > 0) upsertEnvelopes(sent, await fetchRange(client, found.join(','), true))
+        const current = new Set(found)
+        return relatedMessageUids(sent, ids).filter(uid => current.has(uid))
+      } finally {
+        lock.release()
+      }
+    })
+    if (generation !== syncGeneration) throw accountChangedError()
+    return { ok: true, data: locations(matches), meta: syncMeta() }
+  } catch (error) {
+    if (generation !== syncGeneration) return { ok: false, code: 'unknown', detail: 'La cuenta activa cambió' }
+    const code = classify(error)
+    if (isOfflineError(code)) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: { ...syncMeta(), offline: true } }
+    return { ok: false, code, detail: describe(error) }
   }
 }
 

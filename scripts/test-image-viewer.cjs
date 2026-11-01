@@ -94,6 +94,7 @@ async function main() {
   const context = {savingAttachmentRef: {current: false}, setSavingAttachment() {}, selected: {id: 'live:1', messages: [{id: 'live:1', attachments: [{kind: 'image', name: 'photo.png'}]}]}, live: true,
     uidOf: id => Number(id.slice(5)), folder: 'INBOX', accountGeneration: {current: 1}, attachmentRequest: {current: 0}, setAttachmentPreview: value => {displayed = value}, setToast() {}, t: key => key,
     window: {api: {previewAttachment: () => new Promise(resolve => {finish = resolve}), saveAttachment: async () => {saves++; return null}}}}
+  context.readerThread = context.selected
   const open = vm.runInNewContext(compile(`(${openSource})`), context)
   open(0, 'live:1'); assert.equal(displayed.title, 'photo.png')
   context.attachmentRequest.current++

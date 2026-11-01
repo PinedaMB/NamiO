@@ -33,10 +33,13 @@ export interface Person {
 }
 
 export interface Message {
+  mailbox?: string
+  uid?: number
   priority?: import('@shared/ipc').MailPriority
   date?: string | number
   messageId?: string
   inReplyTo?: string
+  references?: string[]
   id: string
   from: Person
   to: Person[]

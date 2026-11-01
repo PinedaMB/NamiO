@@ -22,13 +22,14 @@ const load=name=>vm.runInNewContext(ts.transpile(`(${declarations.get(name)})`,{
  assert.equal(value.body,'','restoring must not replace the active editor values')
  context.compose=null
  context.individualMessageId='live:2'
- const messages=[{id:'live:1',body:['Old message'],from:{name:'Old sender',email:'old@example.com'}},{id:'live:2',messageId:'<reply-target>',inReplyTo:'<parent>',sentAt:'27 oct',body:['First line\nSecond line','Last paragraph'],from:{name:'Sender',email:'sender@example.com'}}]
+ const messages=[{id:'live:1',body:['Old message'],from:{name:'Old sender',email:'old@example.com'}},{id:'live:2',messageId:'<reply-target>',inReplyTo:'<parent>',references:['<root>','<parent>'],sentAt:'27 oct',body:['First line\nSecond line','Last paragraph'],from:{name:'Sender',email:'sender@example.com'}}]
  context.selected={id:'conversation',subject:'Test',messages,participants:[]}
  let quoteArgs
  context.replyComposeHtml=(...args)=>{quoteArgs=args;return '<p></p><blockquote>Original</blockquote>'}
  load('openReply')()
  assert.equal(value.to,'sender@example.com')
  assert.equal(value.inReplyTo,'<reply-target>')
+ assert.deepEqual(Array.from(value.references),['<root>','<parent>','<reply-target>'],'reply preserves and deduplicates the full reference chain')
  assert.ok(value.html.includes('<blockquote>'))
  assert.ok(value.body.includes('> First line\n> Second line'),'every line is quoted in the plain-text fallback')
  assert.equal(quoteArgs[0],'')

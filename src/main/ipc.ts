@@ -28,6 +28,7 @@ import {
   disconnectAccount,
   getAccountState,
   getMessage,
+  getSentReplies,
   getSyncProgress,
   resumeOfflineDownload,
   listAccounts,
@@ -262,6 +263,7 @@ export function registerIpcHandlers(): void {
     }
     return listEnvelopes(path, limit, sync, options)
   })
+  ipcMain.handle(IPC.sentReplies, (_event, path: string, uids: number[], cachedOnly = false) => getSentReplies(path, uids, cachedOnly === true))
   ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number, cachedOnly = false) => getMessage(path, uid, cachedOnly === true))
   ipcMain.handle(IPC.messageFlag, (_event, path: string, uid: number, flagged: boolean) =>
     setFlagged(path, uid, flagged)

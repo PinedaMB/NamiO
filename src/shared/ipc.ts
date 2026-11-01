@@ -31,6 +31,7 @@ export const IPC = {
   mailboxesList: 'mailboxes:list',
   messagesList: 'messages:list',
   messageGet: 'message:get',
+  sentReplies: 'message:sent-replies',
   messageFlag: 'message:flag',
   messageSeen: 'message:seen',
   messageArchive: 'message:archive',
@@ -210,6 +211,7 @@ export interface Envelope {
   hasAttachments?: boolean
   messageId?: string
   inReplyTo?: string
+  references?: string[]
   uid: number
   subject: string
   from: EnvelopeAddress | null
@@ -453,6 +455,7 @@ export interface MailApi {
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
   listEnvelopes(path: string, limit: number, sync?: boolean, options?: EnvelopeListOptions): Promise<EnvelopeListResult>
+  getSentReplies(path: string, uids: number[], cachedOnly?: boolean): Promise<CachedResult<{ mailbox: string; uid: number }[]>>
   getMessage(path: string, uid: number, cachedOnly?: boolean): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>

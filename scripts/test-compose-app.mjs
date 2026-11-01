@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('api',{
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'drafts-preload.cjs'), `
-const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];const progressListeners=[];let syncProgressState=null;let deletionJob=null;const meta={offline:false,syncedAt:1};let testOffline=false,bodyCached=true,networkReads=0;
+const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let showSent=false;let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];const progressListeners=[];let syncProgressState=null;let deletionJob=null;const meta={offline:false,syncedAt:1};let testOffline=false,bodyCached=true,networkReads=0;
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
 const messageRequests=[];let draftSequence=0;let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
@@ -31,8 +31,12 @@ contextBridge.exposeInMainWorld('api',{
  accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>syncProgressState,senderLogo:async()=>null,
  listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>{const data=path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'}]:[];return{ok:true,data,meta,counts:{total:data.length,unread:0,availableOffline:bodyCached?data.length:0}}},
  search:async query=>query==='contenido cacheado'?[{...envelope,uid:777,subject:'Correo fuera de la lista',mailbox:'Spam',mailboxName:'Spam',snippet:'contenido cacheado'}]:[],
+ getSentReplies:async(path)=>({ok:true,data:showSent&&path==='INBOX'?[{mailbox:'Sent',uid:11}]:[],meta:{offline:testOffline}}),
+ testSentReplies:async enabled=>{showSent=enabled;meta.syncedAt=Date.now();notify()},
  inspectMessageRequests:async()=>messageRequests,
  getMessage:async(path,uid,cachedOnly=false)=>{messageRequests.push({path,uid});
+ if(path==='Sent')return{ok:true,data:{...envelope,uid,messageId:'<own-sent@example.test>',inReplyTo:'<inbox@example.test>',from:{name:'My account',address:'author@example.test'},to:[{name:'Recipient',address:'recipient@example.test'}],cc:[],date:new Date(Date.parse(envelope.date)+1000).toISOString(),text:'My sent reply',html:'<p>My sent reply</p>',attachments:[]},meta:{offline:testOffline}};
+
  const data={...envelope,uid,to:[{name:'Recipient',address:remote.to}],cc:[{name:"Visible copy",address:"copy@example.test"}],text:remote.body,html:remote.html,attachments:[]};
  if(!bodyCached&&(cachedOnly||testOffline))return{ok:true,data:{...data,text:'',html:null},meta:{...meta,partial:true}};
  if(!cachedOnly){networkReads++;bodyCached=true;notify()}return{ok:true,data,meta:{...meta}}},
@@ -362,6 +366,14 @@ app.whenReady().then(async()=>{
  await until(()=>!document.querySelector('.deletion-progress'),'Completed deletion did not clear the indicator');
 
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body not ready');
+ await window.api.testSentReplies(true);
+ await until(()=>document.querySelector('.participants__sent'),'Outgoing reply did not appear in the Inbox thread');
+ if(document.querySelectorAll('.thread-message').length!==2)throw new Error('Sent reply must join the received message without replacing it');
+ const outgoing=document.querySelector('.thread-message .participants__sent').closest('.thread-message');
+ if(!outgoing.querySelector('iframe')?.contentDocument?.body.textContent.includes('My sent reply'))await until(()=>outgoing.querySelector('iframe')?.contentDocument?.body.textContent.includes('My sent reply'),'Outgoing body missing');
+ if(!document.querySelector('.thread-message__actions [aria-haspopup="menu"]'))throw new Error('Incoming message actions must remain available when the latest message is sent');
+ await window.api.testSentReplies(false);await until(()=>!document.querySelector('.participants__sent'),'Sent state did not clear after refresh');
+
  document.querySelector('.participants__details').click();
  await until(()=>document.querySelector('.recipients-dialog[open]'),'Message details did not open');
  if(!document.querySelector('.recipients-dialog').textContent.includes('copy@example.test'))throw new Error('Received CC is missing from message details');

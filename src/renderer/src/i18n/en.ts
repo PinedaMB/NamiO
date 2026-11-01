@@ -51,6 +51,7 @@ export const en: Dictionary = {
   'recipients.more': 'and {count} more',
   'thread.focus': 'Focused reading',
   'thread.exitFocus': 'Show navigation',
+  'thread.sent': 'Sent',
   'thread.details': 'Show details',
   'thread.moreOptions': 'More message options',
   'common.replyAll': 'Reply all',

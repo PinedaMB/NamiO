@@ -83,6 +83,7 @@ const api: MailApi = {
   listMailboxes: (sync = true): Promise<CachedResult<MailboxInfo[]>> => ipcRenderer.invoke(IPC.mailboxesList, sync),
   listEnvelopes: (path: string, limit: number, sync = true, options?: EnvelopeListOptions): Promise<EnvelopeListResult> =>
     ipcRenderer.invoke(IPC.messagesList, path, limit, sync, options),
+  getSentReplies: (path, uids, cachedOnly = false) => ipcRenderer.invoke(IPC.sentReplies, path, uids, cachedOnly),
   getMessage: (path: string, uid: number, cachedOnly = false): Promise<CachedResult<MessageDetail>> =>
     ipcRenderer.invoke(IPC.messageGet, path, uid, cachedOnly),
   setFlagged: (path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>> =>
