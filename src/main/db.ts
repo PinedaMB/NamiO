@@ -1234,7 +1234,11 @@ export async function clearAccountCache(accountId: string): Promise<void> {
     if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return
     throw cause
   }
-  const database = new DatabaseSync(file)
+  // Si la cuenta está abierta, se usa la conexión activa. Abrir una segunda
+  // conexión al mismo archivo en Windows hace fallar VACUUM/checkpoint con
+  // "unable to open database file" mientras la primera mantiene el WAL.
+  const active = openedAccountId === accountId && db !== null
+  const database = active ? db! : new DatabaseSync(file)
   try {
     database.exec('PRAGMA busy_timeout = 5000')
     database.exec('BEGIN IMMEDIATE')
@@ -1263,10 +1267,16 @@ export async function clearAccountCache(accountId: string): Promise<void> {
       database.exec('ROLLBACK')
       throw cause
     }
-    database.exec('VACUUM')
-    database.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    // La limpieza ya está confirmada. Compactar es opcional: si el sistema de
+    // archivos no deja crear el temporal de VACUUM, no se invalida el borrado.
+    try {
+      database.exec('VACUUM')
+      database.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    } catch {
+      // Se conserva la caché ya limpiada; el archivo se compactará en otra pasada.
+    }
   } finally {
-    database.close()
+    if (!active) database.close()
   }
 }
 

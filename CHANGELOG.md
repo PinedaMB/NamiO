@@ -11,6 +11,7 @@
 - Los adjuntos se descargan por su parte MIME cuando la caché la conoce, sin bajar el mensaje completo. Las cachés antiguas siguen funcionando con el método anterior.
 - La cola reintenta con backoff persistente de 30 s a 15 min; un fallo de red ya no se reintenta cada minuto ni consume intentos, y el temporizador se reprograma al arrancar.
 - Un `settings.json` corrupto ya no se descarta en silencio: se aparta con marca `.corrupt-<fecha>` y la app arranca con valores por defecto.
+- Vaciar la caché usa la conexión activa en lugar de abrir una segunda conexión al mismo SQLite, y la compactación `VACUUM` es best-effort: si Windows no deja crear el temporal, los cuerpos igual quedan borrados.
 - Configuración queda verificada contra el patrón Calma: rejilla 190/40, secciones planas con divisores, títulos 26/16, descripciones 13/20, controles sans y diálogos de 28 px. Las descripciones de notificaciones, reglas y Acerca de se ajustaron a esa escala.
 - Los mensajes y adjuntos tienen topes explícitos: 50 MB por mensaje, 30 MB por cuerpo offline, 25 MB por adjunto y 50 MB por envío. La descarga se corta al superar el límite con un aviso claro y la sincronización offline omite los mensajes enormes en lugar de intentar cargarlos en memoria.
 - Los envíos conservan un `Message-ID` estable desde que se encolan. Si un intento pudo aceptarse sin confirmación, antes de reenviar se comprueba que el mensaje no esté ya en Enviados; el primer intento queda marcado en la cola.
