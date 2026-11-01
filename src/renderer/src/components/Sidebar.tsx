@@ -244,18 +244,31 @@ export function Sidebar({
         <nav className="rail__nav" aria-label={t('sidebar.inbox')}>
           {folders.filter((folder) => !hiddenByGroup(folder)).map((folder) => {
             const nested = (folder.depth ?? 0) > 0
+            const groupExpanded = expandedGroups.has(folder.id)
             const target = (
               <TooltipButton
                 key={folder.hasChildren ? undefined : folder.id}
                 title={collapsed ? folder.label : undefined}
                 aria-label={folder.spam ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
+                aria-expanded={folder.hasChildren ? groupExpanded : undefined}
                 type="button"
                 className={cx('nav-item', folder.hasChildren && 'nav-group__target', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
                 style={!collapsed && nested && !folder.hasChildren ? { paddingLeft: `calc(var(--sp-sm) + ${(folder.depth ?? 0) * 14}px)` } : undefined}
                 data-depth={folder.depth || undefined}
                 onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
                 onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}
-                onClick={() => onSelectFolder(folder.id)}
+                onClick={() => {
+                  if (!folder.hasChildren) {
+                    onSelectFolder(folder.id)
+                    return
+                  }
+                  if (activeFolder === folder.id) {
+                    toggleGroup(folder.id)
+                    return
+                  }
+                  setExpandedGroups((current) => new Set([...current, folder.id]))
+                  onSelectFolder(folder.id)
+                }}
                 aria-current={activeFolder === folder.id ? 'page' : undefined}
               >
                 <span className="nav-item__label">
@@ -267,24 +280,17 @@ export function Sidebar({
                     {folder.count}
                   </span>
                 )}
+                {folder.hasChildren && (
+                  <span className="nav-group__chevron" aria-hidden="true">
+                    <Icon name={groupExpanded ? 'expand_more' : 'chevron_right'} size={15} />
+                  </span>
+                )}
               </TooltipButton>
             )
             if (!folder.hasChildren) return target
-            const groupExpanded = expandedGroups.has(folder.id)
             return (
               <div className="nav-group" key={folder.id} style={!collapsed && nested ? { marginLeft: `${(folder.depth ?? 0) * 14}px` } : undefined}>
-                <div className="nav-group__row">
-                  {target}
-                  <button
-                    className="nav-group__toggle"
-                    type="button"
-                    aria-expanded={groupExpanded}
-                    aria-label={t(groupExpanded ? 'sidebar.collapseGroup' : 'sidebar.expandGroup', { name: folder.label })}
-                    onClick={() => toggleGroup(folder.id)}
-                  >
-                    <Icon name={groupExpanded ? 'expand_more' : 'chevron_right'} size={15} />
-                  </button>
-                </div>
+                {target}
               </div>
             )
           })}
@@ -317,20 +323,20 @@ export function Sidebar({
             <span>{t('onboarding.exitDemo')}</span>
           </TooltipButton>
         )}
+        {offline && (
+          <div className="sync-pill">
+            <span className="sync-pill__state" data-tooltip={`${accountLabel} · ${syncDetail}`} tabIndex={0}>
+              <span className="dot dot--error" />
+              <span className="sync-pill__text">{syncLabel}</span>
+            </span>
+          </div>
+        )}
         <TooltipButton className="nav-item rail__settings" type="button" title={collapsed ? t('sidebar.settings') : undefined} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
           <span className="nav-item__label">
             <Icon name="settings" size={18} />
             <span className="nav-item__text">{t('sidebar.settings')}</span>
           </span>
         </TooltipButton>
-        <div className="sync-pill">
-          <span className={cx('sync-pill__state', !offline && 'sr-only')} data-tooltip={`${accountLabel} · ${syncDetail}`} tabIndex={offline ? 0 : undefined}>
-            <span
-              className={cx('dot', offline ? 'dot--error' : 'dot--tertiary')}
-            />
-            <span className="sync-pill__text">{syncLabel}</span>
-          </span>
-        </div>
       </div>
     </aside>
   )

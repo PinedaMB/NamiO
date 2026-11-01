@@ -42,13 +42,15 @@ assert.equal(organized.find(({ mailbox }) => mailbox.path === 'Problemas de sinc
 
 const sidebar = fs.readFileSync('src/renderer/src/components/Sidebar.tsx', 'utf8')
 assert.match(sidebar, /hiddenByGroup/, 'collapsed groups hide their descendants')
-assert.match(sidebar, /nav-group__toggle/, 'parents expose a disclosure toggle')
-assert.match(sidebar, /aria-expanded=\{groupExpanded\}/, 'the toggle exposes its state')
+assert.match(sidebar, /nav-group__chevron/, 'the row itself shows the disclosure chevron')
+assert.doesNotMatch(sidebar, /nav-group__toggle/, 'expandable folders use one button, not a split control')
+assert.match(sidebar, /aria-expanded=\{folder\.hasChildren \? groupExpanded : undefined\}/, 'the one button exposes its expansion state')
 assert.match(sidebar, /const \[expandedGroups, setExpandedGroups\] = useState<Set<string>>\(readExpandedGroups\)/, 'groups start collapsed by default')
 assert.match(sidebar, /localStorage\?\.setItem\(EXPANDED_GROUPS_KEY/, 'expanded groups are remembered')
 assert.match(sidebar, /className="nav-item rail__settings"/, 'settings uses the same navigation row')
-assert.doesNotMatch(sidebar, /sync-pill[\s\S]{0,500}onOpenSettings/, 'settings is not inside the sync pill')
+assert.match(sidebar, /sync-pill[\s\S]*?rail__settings/, 'settings comes after the sync status')
 assert.match(sidebar, /data-depth=\{folder\.depth/, 'nested folders expose their depth')
 assert.match(fs.readFileSync('src/renderer/src/styles/app.css', 'utf8'), /\.rail__settings \{\s*width:\s*100%/, 'settings row fills the rail')
+assert.match(fs.readFileSync('src/renderer/src/styles/app.css', 'utf8'), /\.rail__foot \{[^}]*margin-top:\s*auto/, 'settings stays at the bottom of the rail')
 
 console.log('Sidebar: special folders first, nested folders indented, settings styled as a navigation row')

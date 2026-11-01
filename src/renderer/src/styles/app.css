@@ -172,12 +172,8 @@
   justify-content: center;
 }
 
-.app--rail-collapsed .nav-group__toggle {
+.app--rail-collapsed .nav-group__chevron {
   display: none;
-}
-
-.app--rail-collapsed .nav-group__row {
-  gap: 0;
 }
 
 .app--rail-collapsed .compose-btn,
@@ -392,35 +388,20 @@
   min-width: 0;
 }
 
-.nav-group__row {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  min-width: 0;
-}
-
 .nav-group__target {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
-.nav-group__toggle {
+.nav-group__target .nav-item__label {
+  flex: 1;
+}
+
+.nav-group__chevron {
   display: grid;
   place-items: center;
-  width: 24px;
+  width: 18px;
   flex: none;
-  border-radius: var(--r-md);
   color: var(--outline);
-}
-
-.nav-group__toggle:hover {
-  background: var(--surface-container);
-  color: var(--on-surface);
-}
-
-.nav-group__toggle:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 1px;
 }
 
 .rail__tags {
@@ -460,12 +441,16 @@
 }
 
 .rail__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  margin-top: auto;
   padding: 0 var(--sp-sm);
 }
 
 .rail__settings {
   width: 100%;
-  margin-bottom: var(--sp-xs);
+  margin-bottom: 0;
 }
 
 .sync-pill {
