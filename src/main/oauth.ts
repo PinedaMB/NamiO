@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { shell } from 'electron'
+import { shell, BrowserWindow } from 'electron'
 import type { OAuthConfig, OAuthProvider } from '@shared/ipc'
 import { GOOGLE_CLIENT_ID } from '@shared/oauth'
 import { GOOGLE_CLIENT_SECRET } from './googleOAuth'
@@ -174,6 +174,12 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000, onAuth
 
   const { verifier, challenge } = pkce()
   const state = base64url(randomBytes(16))
+  let authWindow: BrowserWindow | null = null
+  let settled = false
+  const closeAuthWindow = (): void => {
+    if (authWindow && !authWindow.isDestroyed()) authWindow.close()
+    authWindow = null
+  }
 
   const callback = await new Promise<{ code: string; redirectUri: string }>((resolve, reject) => {
     const server = createServer((request, response) => {
@@ -204,6 +210,10 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000, onAuth
       )
 
       server.close()
+
+      if (settled) return
+      settled = true
+      closeAuthWindow()
 
       if (error) {
         reject(new Error(error))
@@ -241,14 +251,68 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000, onAuth
       // Queda en el log: si el navegador no abre, la URL sirve para abrirla a mano.
       console.log('[oauth] authorize', url.toString())
       onAuthUrl?.(url.toString())
+      if (config.provider === 'microsoft') {
+        // Outlook se autentica en una ventana propia: no depende de que Windows
+        // tenga un navegador predeterminado ni de que `shell` abra una pestaña.
+        const window = new BrowserWindow({
+          width: 520,
+          height: 760,
+          show: false,
+          autoHideMenuBar: true,
+          backgroundColor: '#0f131c',
+          webPreferences: {
+            sandbox: true,
+            contextIsolation: true,
+            nodeIntegration: false,
+            devTools: false,
+            partition: 'oauth'
+          }
+        })
+        authWindow = window
+        window.once('ready-to-show', () => window.show())
+        window.on('closed', () => {
+          if (settled) return
+          settled = true
+          server.close()
+          reject(new Error('Se cerró la ventana de autorización'))
+        })
+        window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+        const allowNavigation = (target: string): boolean => {
+          try {
+            const parsed = new URL(target)
+            return parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+          } catch {
+            return false
+          }
+        }
+        window.webContents.on('will-navigate', (event, target) => {
+          if (!allowNavigation(target)) event.preventDefault()
+        })
+        window.webContents.on('will-redirect', (event, target) => {
+          if (!allowNavigation(target)) event.preventDefault()
+        })
+        void window.loadURL(url.toString()).catch((error: unknown) => {
+          if (settled) return
+          settled = true
+          closeAuthWindow()
+          server.close()
+          reject(error instanceof Error ? error : new Error(String(error)))
+        })
+        return
+      }
       void openAuthUrl(url.toString()).catch((error: unknown) => {
         console.error('[oauth] no se pudo abrir el navegador', error)
+        if (settled) return
+        settled = true
         server.close()
         reject(error instanceof Error ? error : new Error(String(error)))
       })
     })
 
     setTimeout(() => {
+      if (settled) return
+      settled = true
+      closeAuthWindow()
       server.close()
       reject(new Error('Se agotó el tiempo para autorizar la cuenta'))
     }, timeoutMs)
