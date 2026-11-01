@@ -5638,10 +5638,22 @@
   padding-block: 32px;
 }
 
+.mail-welcome__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
 .mail-welcome__logo {
   display: block;
-  margin-bottom: 24px;
   object-fit: contain;
+}
+
+.mail-welcome__wordmark {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
 .mail-welcome h1 {
@@ -5714,14 +5726,6 @@
 .mail-welcome__action:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
-}
-
-.mail-welcome__action .kbd {
-  flex: none;
-  min-width: 24px;
-  padding: 3px 6px;
-  text-align: center;
-  color: var(--on-surface-variant);
 }
 
 .mail-welcome__footer {
