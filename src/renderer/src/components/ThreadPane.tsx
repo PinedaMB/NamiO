@@ -380,30 +380,23 @@ export function ThreadPane({
               )
             })
           )}
-
-          <div className="quick-reply">
-            <div className="quick-reply__hint">
-              <span className="quick-reply__own">
-                <Icon name="reply" size={16} />
-              </span>
-              <span>{t('thread.replyHint', { key: formatCombo(bindings.reply) })}</span>
-            </div>
-            <div className="quick-reply__actions">
-              <button className="tool-btn" type="button" onClick={onQuickDraft}>
-                <Icon name="bolt" size={14} />
-                {t('thread.quickDraft')}
-              </button>
-              <TooltipButton className="btn btn--surface" type="button" onClick={onReply} title={t('thread.replySender')}>
-                <Icon name="reply" size={16} />
-                {t('common.reply')}
-              </TooltipButton>
-              <TooltipButton className="btn btn--primary" type="button" onClick={onReplyAll} title={t('thread.replyEveryone')}>
-                <Icon name="reply_all" size={16} />
-                {t('common.replyAll')}
-              </TooltipButton>
-            </div>
-          </div>
         </article>
+      </div>
+      <div className="quick-reply">
+        <div className="quick-reply__actions">
+          <button className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} disabled title={t('thread.quickDraftSoon')}>
+            <Icon name="bolt" size={14} />
+            {t('thread.quickDraft')}
+          </button>
+          <TooltipButton className="btn btn--surface" type="button" onClick={onReply} title={t('thread.replySender')}>
+            <Icon name="reply" size={16} />
+            {t('common.reply')}
+          </TooltipButton>
+          <TooltipButton className="btn btn--primary" type="button" onClick={onReplyAll} title={t('thread.replyEveryone')}>
+            <Icon name="reply_all" size={16} />
+            {t('common.replyAll')}
+          </TooltipButton>
+        </div>
       </div>
       {recipientsMessage && <RecipientsDialog key={`${mailbox}:${recipientsMessage.id}`} message={recipientsMessage} onClose={() => setRecipientsId(null)} />}
     </main>

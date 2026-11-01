@@ -1114,6 +1114,7 @@
    ========================================================================== */
 
 .reading {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1189,7 +1190,7 @@
 .reading__scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 36px 40px 32px;
+  padding: 36px 40px 96px;
   min-height: 0;
 }
 
@@ -1447,42 +1448,21 @@
 }
 
 .quick-reply {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-md);
-  padding: 20px 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  border-top: 1px solid var(--surface-container-highest);
-}
-
-.quick-reply__hint {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--outline);
-}
-
-.quick-reply__hint span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.quick-reply__own {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-full);
-  background: color-mix(in srgb, var(--primary) 18%, transparent);
-  color: var(--primary);
-  flex-shrink: 0;
+  gap: var(--sp-md);
+  max-width: calc(100% - 32px);
+  padding: 6px;
+  transform: translateX(-50%);
+  border: 1px solid var(--surface-container-highest);
+  border-radius: var(--r-xl);
+  background: var(--surface-container-low);
+  box-shadow: var(--shadow-md);
 }
 
 .quick-reply__actions {
@@ -1490,7 +1470,12 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  flex-shrink: 0;
+  justify-content: center;
+}
+
+.quick-reply__ai:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* ==========================================================================
@@ -5934,7 +5919,7 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
   .topbar .search { min-width: 0; }
   .compose-btn { padding-inline: 8px; }
   .compose-btn > span:not(.icon) { display: none; }
-  .reading__scroll { padding: 24px 16px; }
+  .reading__scroll { padding: 24px 16px 88px; }
 }
 
 .mail-moving { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--outline); }
