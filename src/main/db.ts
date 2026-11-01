@@ -52,7 +52,6 @@ export interface MailboxMeta {
 
 let db: DatabaseSync | null = null
 let openedAccountId = ''
-let openedCacheFile = ''
 export function cacheAccountId(): string { return openedAccountId }
 
 export function initCache(accountId: string = 'default'): void {
@@ -72,7 +71,6 @@ export function openAccountCache(accountId: string): void {
 
   db = new DatabaseSync(join(app.getPath('userData'), file))
   openedAccountId = accountId
-  openedCacheFile = file
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA synchronous = NORMAL')
   db.exec('PRAGMA busy_timeout = 5000')
@@ -226,7 +224,6 @@ export function inTransaction<T>(fn: () => T): T {
 export function closeCache(): void {
   db?.close()
   db = null
-  openedCacheFile = ''
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1237,13 +1234,18 @@ export async function clearAccountCache(accountId: string): Promise<void> {
     if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return
     throw cause
   }
-  // Si la cuenta está abierta, se usa la conexión activa. Abrir una segunda
-  // conexión al mismo archivo en Windows hace fallar VACUUM/checkpoint con
-  // "unable to open database file" mientras la primera mantiene el WAL.
-  // Se compara el archivo, no solo el id: el id visible puede haber cambiado
-  // sin que la caché abierta se haya reapuntado.
-  const active = db !== null && openedCacheFile.toLowerCase() === accountCacheFile(accountId).toLowerCase()
-  const database = active ? db! : new DatabaseSync(file)
+  // Si la cuenta está abierta, se cierra su conexión y se reabre al terminar.
+  // Una conexión de mantenimiento separada sobre el mismo WAL es la que falla
+  // en Windows con "unable to open database file".
+  const wasActive = openedAccountId === accountId && db !== null
+  if (wasActive) closeCache()
+  let database: DatabaseSync
+  try {
+    database = new DatabaseSync(file)
+  } catch (cause) {
+    if (wasActive) openAccountCache(accountId)
+    throw cause
+  }
   try {
     database.exec('PRAGMA busy_timeout = 5000')
     database.exec('BEGIN IMMEDIATE')
@@ -1281,7 +1283,11 @@ export async function clearAccountCache(accountId: string): Promise<void> {
       // Se conserva la caché ya limpiada; el archivo se compactará en otra pasada.
     }
   } finally {
-    if (!active) database.close()
+    try {
+      database.close()
+    } finally {
+      if (wasActive) openAccountCache(accountId)
+    }
   }
 }
 

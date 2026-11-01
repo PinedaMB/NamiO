@@ -21,23 +21,28 @@ async function main() {
     const file = path.join(directory, 'cache-one.db')
     const snapshot = new DatabaseSync(file)
     db.insertRule({ name: 'Keep rule', enabled: true, field: 'from', op: 'contains', value: 'example', action: 'archive', target: null })
-    snapshot.exec("INSERT INTO outbox(id,kind,mailbox,uid,payload,status,created_at) VALUES ('pending','seen','INBOX',1,'{}','queued',1)")
+    snapshot.exec("INSERT INTO outbox(id,kind,mailbox,uid,payload,status,created_at,account_id) VALUES ('pending','seen','INBOX',1,'{}','queued',1,'one')")
     const beforeDraft = snapshot.prepare('SELECT * FROM drafts').all()
     const beforeRules = snapshot.prepare('SELECT * FROM rules').all()
     const beforeOutbox = snapshot.prepare('SELECT * FROM outbox').all()
     const sizeBefore = (await fs.stat(file)).size + (await fs.stat(file+'-wal')).size
-    await db.clearAccountCache('one')
-    assert.equal(db.readBody('INBOX', 1).fetched, false)
-    assert.equal(db.readBody('INBOX', 1).attachments.length, 0)
-    assert.equal(db.readEnvelope('INBOX', 1).subject, 'Keep envelope')
-    assert.equal(db.readEnvelope('INBOX', 1).unread, true)
-    assert.equal(db.readEnvelope('INBOX', 1).flagged, true)
-    assert.deepEqual(snapshot.prepare('SELECT * FROM drafts').all(), beforeDraft)
-    assert.deepEqual(snapshot.prepare('SELECT * FROM rules').all(), beforeRules)
-    assert.deepEqual(snapshot.prepare('SELECT * FROM outbox').all(), beforeOutbox)
-    assert.equal(db.searchMessages('cachedword', 10).length, 0)
-    assert.ok((await fs.stat(file)).size < sizeBefore)
     snapshot.close()
+    await db.clearAccountCache('one')
+    const after = new DatabaseSync(file)
+    try {
+      assert.equal(db.readBody('INBOX', 1).fetched, false)
+      assert.equal(db.readBody('INBOX', 1).attachments.length, 0)
+      assert.equal(db.readEnvelope('INBOX', 1).subject, 'Keep envelope')
+      assert.equal(db.readEnvelope('INBOX', 1).unread, true)
+      assert.equal(db.readEnvelope('INBOX', 1).flagged, true)
+      assert.deepEqual(after.prepare('SELECT * FROM drafts').all(), beforeDraft)
+      assert.deepEqual(after.prepare('SELECT * FROM rules').all(), beforeRules)
+      assert.deepEqual(after.prepare('SELECT * FROM outbox').all(), beforeOutbox)
+      assert.equal(db.searchMessages('cachedword', 10).length, 0)
+      assert.ok((await fs.stat(file)).size < sizeBefore)
+    } finally {
+      after.close()
+    }
     await db.clearAccountCache('missing')
     await assert.rejects(fs.stat(path.join(directory, 'cache-missing.db')), { code: 'ENOENT' })
 
@@ -62,6 +67,6 @@ async function main() {
     assert.equal(cleared, 'one')
     await assert.rejects(clear({ sender: null }, '../../other'), /Cuenta inválida/)
     console.log('Clear cache: bodies removed, disk compacted, drafts/rules/envelopes preserved, cancellation and account validation passed')
-  } finally { db.closeCache(); await fs.rm(directory, { recursive: true, force: true }) }
+  } finally { db.closeCache(); await fs.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
