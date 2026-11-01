@@ -35,6 +35,18 @@ interface SidebarProps {
   onRefreshAccounts?: () => void
 }
 
+const EXPANDED_GROUPS_KEY = 'namio.sidebar.expanded-groups'
+
+function readExpandedGroups(): Set<string> {
+  try {
+    const raw = globalThis.localStorage?.getItem(EXPANDED_GROUPS_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
 export function Sidebar({
   collapsed,
   onToggleCollapsed,
@@ -59,7 +71,15 @@ export function Sidebar({
 }: SidebarProps): React.JSX.Element {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(readExpandedGroups)
+
+  useEffect(() => {
+    try {
+      globalThis.localStorage?.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...expandedGroups]))
+    } catch {
+      // Sin almacenamiento disponible: el estado sigue viviendo en memoria.
+    }
+  }, [expandedGroups])
   const accountMenu = useRef<HTMLDivElement>(null)
   /** El rail tiene `overflow-y`, así que el menú se posiciona contra la ventana. */
   const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -104,13 +124,13 @@ export function Sidebar({
   const hiddenByGroup = (folder: FolderView): boolean => {
     let parent = folder.parentId ?? null
     while (parent) {
-      if (collapsedGroups.has(parent)) return true
+      if (!expandedGroups.has(parent)) return true
       parent = folderById.get(parent)?.parentId ?? null
     }
     return false
   }
   const toggleGroup = (id: string): void => {
-    setCollapsedGroups((current) => {
+    setExpandedGroups((current) => {
       const next = new Set(current)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -250,7 +270,7 @@ export function Sidebar({
               </TooltipButton>
             )
             if (!folder.hasChildren) return target
-            const groupCollapsed = collapsedGroups.has(folder.id)
+            const groupExpanded = expandedGroups.has(folder.id)
             return (
               <div className="nav-group" key={folder.id} style={!collapsed && nested ? { marginLeft: `${(folder.depth ?? 0) * 14}px` } : undefined}>
                 <div className="nav-group__row">
@@ -258,11 +278,11 @@ export function Sidebar({
                   <button
                     className="nav-group__toggle"
                     type="button"
-                    aria-expanded={!groupCollapsed}
-                    aria-label={t(groupCollapsed ? 'sidebar.expandGroup' : 'sidebar.collapseGroup', { name: folder.label })}
+                    aria-expanded={groupExpanded}
+                    aria-label={t(groupExpanded ? 'sidebar.collapseGroup' : 'sidebar.expandGroup', { name: folder.label })}
                     onClick={() => toggleGroup(folder.id)}
                   >
-                    <Icon name={groupCollapsed ? 'chevron_right' : 'expand_more'} size={15} />
+                    <Icon name={groupExpanded ? 'expand_more' : 'chevron_right'} size={15} />
                   </button>
                 </div>
               </div>
