@@ -1254,20 +1254,10 @@ export async function clearAccountCache(accountId: string): Promise<void> {
       const attachments = columns.some(column => column.name === 'attachments_json') ? ', attachments_json = NULL' : ''
       database.exec(`UPDATE messages SET body_text = NULL, body_html = NULL${attachments}`)
       if (database.prepare("SELECT name FROM sqlite_master WHERE name = 'search'").get()) {
-        // Se reconstruye el índice vacío conservando los ids estables; así el
-        // mapeo de `search_ids` sigue siendo válido y no se filtran cuerpos.
-        database.exec(`CREATE TABLE IF NOT EXISTS search_ids (
-          id INTEGER PRIMARY KEY,
-          mailbox TEXT NOT NULL,
-          uid INTEGER NOT NULL,
-          UNIQUE (mailbox, uid)
-        )`)
-        database.exec('DELETE FROM search')
-        database.exec('INSERT OR IGNORE INTO search_ids (mailbox, uid) SELECT mailbox, uid FROM messages')
-        database.exec(`INSERT INTO search (rowid, subject, peers, body, mailbox, uid)
-          SELECT si.id, m.subject, TRIM(COALESCE(m.from_name, '') || ' ' || COALESCE(m.from_addr, '')), '', m.mailbox, m.uid
-          FROM search_ids si
-          JOIN messages m ON m.mailbox = si.mailbox AND m.uid = si.uid`)
+        // Vaciar el cuerpo en el propio índice conserva asuntos y remitentes.
+        // Reconstruirlo con miles de INSERT dentro de la transacción obligaba a
+        // SQLite a abrir temporales y fallaba en Windows.
+        database.exec("UPDATE search SET body = ''")
       }
       database.exec('COMMIT')
     } catch (cause) {
