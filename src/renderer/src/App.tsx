@@ -17,7 +17,7 @@ import type {
   SyncProgress,
   EnvelopeListOptions
 } from '@shared/ipc'
-import { isDraftMailbox, isSpamMailbox, sidebarMailboxes } from '@shared/mailboxes'
+import { isDraftMailbox, isSpamMailbox, organizedSidebarMailboxes, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread } from './data/demo'
 import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
@@ -446,7 +446,7 @@ export function App(): React.JSX.Element {
   const vipCount = threads.filter((thread) => thread.vip).length
 
   const folderViews = useMemo<readonly FolderView[]>(() => {
-    if (live) return sidebarMailboxes(mailboxes).map(mailboxToFolder)
+    if (live) return organizedSidebarMailboxes(mailboxes).map(({ mailbox, depth }) => mailboxToFolder(mailbox, depth))
     return FOLDERS.map((item) => ({
       id: item.id,
       icon: item.icon,

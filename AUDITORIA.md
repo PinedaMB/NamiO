@@ -44,6 +44,7 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 - ✅ **P1 #14 — accesibilidad:** trampa de foco con restauración en diálogos no nativos, `<summary>` del mensaje alcanzable por teclado y scrollbars finas visibles. Cubierto por `scripts/test-focus-trap.cjs`, `test-conversation` y la suite completa.
 - ✅ **Patrón de Configuración (Calma):** encabezado simple, rejilla 190/40, navegación con selección suave, secciones planas con divisores, títulos 26/16, descripciones 13/20, controles sans, diálogos de 28 px y cortes 960/520. Cubierto por `scripts/test-settings-design.cjs`.
 - ✅ **Identidad de bienvenida:** onboarding, lector vacío y splash usan superficie plana, sin gradientes/brillos, títulos 26/34, descripciones 13/20 y acciones con divisores. Cubierto por `scripts/test-welcome-design.cjs`.
+- ✅ **Rail jerárquico:** orden de especiales, árbol de subcarpetas con sangría y Configuración como una fila de navegación más. Cubierto por `scripts/test-sidebar-order.cjs`.
 - 🟡 **P0 #5 — release:** los tags `-rc` se publican como *prerelease*, los workflows ejecutan pruebas y adjuntan `SHA256SUMS`, y el updater distingue candidate/estable. **Falta** el certificado de firma y `publisherName` en Windows para que `electron-updater` verifique el editor; sin esos secretos el instalador sigue sin firma.
 - ⏳ Pendientes: firma de Windows, decisión sobre el secreto OAuth de Google y P2 de documentación/QA externa.
 
@@ -55,13 +56,13 @@ Los riesgos que quedan para declarar 1.0 no son de "arranque", sino de **comport
 |---|---|
 | `pnpm run typecheck` | ✅ Sin errores (node + web) |
 | `pnpm run build` | ✅ Compila; renderer 1,09 MB JS + 142 KB CSS; editor y PDF en chunks lazy |
-| `node scripts/test.mjs` | ✅ 78/78 archivos, 0 fallos (~60 s) |
+| `node scripts/test.mjs` | ✅ 79/79 archivos, 0 fallos (~64 s) |
 | `node scripts/css-audit.mjs` | ✅ Sin variables indefinidas, clases rotas ni URLs rotas |
 | Paridad i18n `es`/`en` | ✅ 614/614 claves |
 | Pruebas de interfaz Electron (`--ui`) | ⚠️ No ejecutadas en esta auditoría (requieren Electron/entorno gráfico) |
 | IMAP/SMTP/instaladores reales | ⚠️ No verificados aquí |
 
-> **Matiz importante sobre las pruebas:** `node --test` cuenta **1 caso por archivo** porque los scripts usan aserciones de nivel superior, no `test()/describe()`. "78 pruebas" significa 78 archivos con muchos asserts, no 78 casos aislados; un assert fallido aborta el resto del archivo.
+> **Matiz importante sobre las pruebas:** `node --test` cuenta **1 caso por archivo** porque los scripts usan aserciones de nivel superior, no `test()/describe()`. "79 pruebas" significa 79 archivos con muchos asserts, no 79 casos aislados; un assert fallido aborta el resto del archivo.
 
 ---
 

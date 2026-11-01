@@ -416,7 +416,12 @@
 }
 
 .rail__foot {
-  padding: 0 var(--sp-md);
+  padding: 0 var(--sp-sm);
+}
+
+.rail__settings {
+  width: 100%;
+  margin-bottom: var(--sp-xs);
 }
 
 .sync-pill {

@@ -211,6 +211,8 @@ export function Sidebar({
               aria-label={folder.spam ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
               type="button"
               className={cx('nav-item', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
+              style={!collapsed && (folder.depth ?? 0) > 0 ? { paddingLeft: `calc(var(--sp-sm) + ${(folder.depth ?? 0) * 14}px)` } : undefined}
+              data-depth={folder.depth || undefined}
               onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
               onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}
               onClick={() => onSelectFolder(folder.id)}
@@ -256,6 +258,12 @@ export function Sidebar({
             <span>{t('onboarding.exitDemo')}</span>
           </TooltipButton>
         )}
+        <TooltipButton className="nav-item rail__settings" type="button" title={collapsed ? t('sidebar.settings') : undefined} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
+          <span className="nav-item__label">
+            <Icon name="settings" size={18} />
+            <span className="nav-item__text">{t('sidebar.settings')}</span>
+          </span>
+        </TooltipButton>
         <div className="sync-pill">
           <span className={cx('sync-pill__state', !offline && 'sr-only')} data-tooltip={`${accountLabel} · ${syncDetail}`} tabIndex={offline ? 0 : undefined}>
             <span
@@ -263,9 +271,6 @@ export function Sidebar({
             />
             <span className="sync-pill__text">{syncLabel}</span>
           </span>
-          <TooltipButton className="icon-btn" type="button" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onClick={onOpenSettings}>
-            <Icon name="settings" size={16} />
-          </TooltipButton>
         </div>
       </div>
     </aside>
