@@ -47,7 +47,8 @@ assert.match(onboarding, /className="onboarding__brand"/, 'welcome keeps the Nam
 assert.match(onboarding, /className="onboarding__grid"/, 'welcome keeps the account choice list')
 assert.match(threadPane, /className="mail-welcome__brand"/, 'reader welcome keeps the brand lockup')
 assert.match(threadPane, /className="mail-welcome__wordmark"/, 'reader welcome shows the NamiO wordmark')
-assert.doesNotMatch(threadPane, /mail-welcome__action[\s\S]*?<kbd/, 'reader welcome does not expose permanent shortcuts')
+assert.match(threadPane, /className="kbd"/, 'reader welcome keeps its shortcut hints')
+assert.doesNotMatch(block('.mail-welcome__actions'), /border-bottom/, 'the action list has only one closing divider')
 assert.match(threadPane, /className="mail-welcome"/, 'reader welcome keeps its structure')
 assert.match(threadPane, /className="mail-welcome__logo"/, 'reader welcome keeps the brand')
 

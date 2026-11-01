@@ -1590,7 +1590,7 @@ export function App(): React.JSX.Element {
                   onNext={() => step(1)}
                 />
               ) : (
-                <ThreadPaneEmpty onCompose={openCompose} onSearch={() => setPaletteOpen(true)} onSettings={openSettings} loading={loadingFolder} label={live && visible.length === 0 ? t('account.liveEmpty') : undefined} />
+                <ThreadPaneEmpty bindings={bindings} onCompose={openCompose} onSearch={() => setPaletteOpen(true)} onSettings={openSettings} loading={loadingFolder} label={live && visible.length === 0 ? t('account.liveEmpty') : undefined} />
               )}
 
               {!live && (

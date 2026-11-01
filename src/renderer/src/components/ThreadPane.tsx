@@ -410,13 +410,15 @@ export function ThreadPane({
   )
 }
 
-export function ThreadPaneEmpty({ label, loading = false, onCompose, onSearch, onSettings }: {
+export function ThreadPaneEmpty({ label, loading = false, bindings, onCompose, onSearch, onSettings }: {
   label?: string
   loading?: boolean
+  bindings: Bindings
   onCompose: () => void
   onSearch: () => void
   onSettings: () => void
 }): React.JSX.Element {
+  const formatCombo = useFormatCombo()
   const { t } = useI18n()
   return (
     <main className="reading" aria-label={t('thread.select')}>
@@ -436,13 +438,14 @@ export function ThreadPaneEmpty({ label, loading = false, onCompose, onSearch, o
             <p className="mail-welcome__hint">{t('welcome.hint')}</p>
             <div className="mail-welcome__actions">
               {[
-                { icon: 'edit_square', label: t('welcome.compose'), action: onCompose },
-                { icon: 'search', label: t('welcome.search'), action: onSearch },
-                { icon: 'settings', label: t('welcome.settings'), action: onSettings }
+                { icon: 'edit_square', label: t('welcome.compose'), shortcut: bindings.compose, action: onCompose },
+                { icon: 'search', label: t('welcome.search'), shortcut: bindings.palette, action: onSearch },
+                { icon: 'settings', label: t('welcome.settings'), shortcut: bindings.settings, action: onSettings }
               ].map(item => (
                 <button key={item.icon} type="button" className="mail-welcome__action" data-primary={item.icon === 'edit_square' || undefined} onClick={item.action}>
                   <Icon name={item.icon} size={19} />
                   <span className="mail-welcome__action-label">{item.label}</span>
+                  <kbd className="kbd">{formatCombo(item.shortcut)}</kbd>
                 </button>
               ))}
             </div>
