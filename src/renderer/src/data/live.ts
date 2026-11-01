@@ -14,6 +14,9 @@ export interface FolderView {
   spam?: boolean
   /** Nivel de anidación para indentar subcarpetas en el rail. */
   depth?: number
+  /** Carpeta contenedora y si tiene subcarpetas. */
+  parentId?: string | null
+  hasChildren?: boolean
 }
 
 function initialsOf(name: string, address: string): string {
@@ -147,7 +150,7 @@ const SPECIAL_USE_ICON: Record<string, string> = {
   '\\Flagged': 'star'
 }
 
-export function mailboxToFolder(mailbox: MailboxInfo, depth = 0): FolderView {
+export function mailboxToFolder(mailbox: MailboxInfo, depth = 0, parentId: string | null = null, hasChildren = false): FolderView {
   // Papelera muestra el total; las demás carpetas muestran los no leídos.
   const spam = isSpamMailbox(mailbox)
   const trash = mailbox.specialUse === '\\Trash' ||
@@ -161,7 +164,9 @@ export function mailboxToFolder(mailbox: MailboxInfo, depth = 0): FolderView {
     label: mailbox.name,
     count: count > 0 ? count : undefined,
     accent: mailbox.specialUse === '\\Inbox' || mailbox.path.toUpperCase() === 'INBOX',
-    depth
+    depth,
+    parentId,
+    hasChildren
   }
 }
 

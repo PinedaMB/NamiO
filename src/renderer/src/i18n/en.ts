@@ -137,6 +137,8 @@ export const en: Dictionary = {
   'sidebar.demo': 'No account connected',
   'sidebar.expand': 'Expand rail',
   'sidebar.spam': 'Spam',
+  'sidebar.expandGroup': 'Show subfolders of {name}',
+  'sidebar.collapseGroup': 'Hide subfolders of {name}',
   'sidebar.collapse': 'Collapse rail',
   'sidebar.newTag': 'New tag',
   'sidebar.settings': 'Settings',

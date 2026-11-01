@@ -59,6 +59,7 @@ export function Sidebar({
 }: SidebarProps): React.JSX.Element {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const accountMenu = useRef<HTMLDivElement>(null)
   /** El rail tiene `overflow-y`, así que el menú se posiciona contra la ventana. */
   const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -98,6 +99,23 @@ export function Sidebar({
       return folders.find((folder) => folder.icon === 'inbox' || /^inbox$/i.test(folder.id))?.count ?? 0
     }
     return activity.find((item) => item.id === id)?.unseen ?? 0
+  }
+  const folderById = new Map(folders.map((folder) => [folder.id, folder]))
+  const hiddenByGroup = (folder: FolderView): boolean => {
+    let parent = folder.parentId ?? null
+    while (parent) {
+      if (collapsedGroups.has(parent)) return true
+      parent = folderById.get(parent)?.parentId ?? null
+    }
+    return false
+  }
+  const toggleGroup = (id: string): void => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
   const inactiveUnseen = activity
     .filter((item) => !item.active && item.unseen > 0)
@@ -204,31 +222,52 @@ export function Sidebar({
         </div>
 
         <nav className="rail__nav" aria-label={t('sidebar.inbox')}>
-          {folders.map((folder) => (
-            <TooltipButton
-              key={folder.id}
-              title={collapsed ? folder.label : undefined}
-              aria-label={folder.spam ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
-              type="button"
-              className={cx('nav-item', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
-              style={!collapsed && (folder.depth ?? 0) > 0 ? { paddingLeft: `calc(var(--sp-sm) + ${(folder.depth ?? 0) * 14}px)` } : undefined}
-              data-depth={folder.depth || undefined}
-              onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
-              onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}
-              onClick={() => onSelectFolder(folder.id)}
-              aria-current={activeFolder === folder.id ? 'page' : undefined}
-            >
-              <span className="nav-item__label">
-                <Icon name={folder.icon} size={18} />
-                <span className="nav-item__text">{folder.label}</span>
-              </span>
-              {folder.count !== undefined && folder.count > 0 && (
-                <span className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}>
-                  {folder.count}
+          {folders.filter((folder) => !hiddenByGroup(folder)).map((folder) => {
+            const nested = (folder.depth ?? 0) > 0
+            const target = (
+              <TooltipButton
+                key={folder.hasChildren ? undefined : folder.id}
+                title={collapsed ? folder.label : undefined}
+                aria-label={folder.spam ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
+                type="button"
+                className={cx('nav-item', folder.hasChildren && 'nav-group__target', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
+                style={!collapsed && nested && !folder.hasChildren ? { paddingLeft: `calc(var(--sp-sm) + ${(folder.depth ?? 0) * 14}px)` } : undefined}
+                data-depth={folder.depth || undefined}
+                onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
+                onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}
+                onClick={() => onSelectFolder(folder.id)}
+                aria-current={activeFolder === folder.id ? 'page' : undefined}
+              >
+                <span className="nav-item__label">
+                  <Icon name={folder.icon} size={18} />
+                  <span className="nav-item__text">{folder.label}</span>
                 </span>
-              )}
-            </TooltipButton>
-          ))}
+                {folder.count !== undefined && folder.count > 0 && (
+                  <span className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}>
+                    {folder.count}
+                  </span>
+                )}
+              </TooltipButton>
+            )
+            if (!folder.hasChildren) return target
+            const groupCollapsed = collapsedGroups.has(folder.id)
+            return (
+              <div className="nav-group" key={folder.id} style={!collapsed && nested ? { marginLeft: `${(folder.depth ?? 0) * 14}px` } : undefined}>
+                <div className="nav-group__row">
+                  {target}
+                  <button
+                    className="nav-group__toggle"
+                    type="button"
+                    aria-expanded={!groupCollapsed}
+                    aria-label={t(groupCollapsed ? 'sidebar.expandGroup' : 'sidebar.collapseGroup', { name: folder.label })}
+                    onClick={() => toggleGroup(folder.id)}
+                  >
+                    <Icon name={groupCollapsed ? 'chevron_right' : 'expand_more'} size={15} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </nav>
 
         {showTags && (

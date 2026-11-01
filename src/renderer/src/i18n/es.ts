@@ -140,6 +140,8 @@ export const es = {
   'sidebar.demo': 'Sin cuenta conectada',
   'sidebar.expand': 'Expandir barra',
   'sidebar.spam': 'Spam',
+  'sidebar.expandGroup': 'Mostrar subcarpetas de {name}',
+  'sidebar.collapseGroup': 'Ocultar subcarpetas de {name}',
   'sidebar.collapse': 'Contraer barra',
   'sidebar.newTag': 'Nueva etiqueta',
   'sidebar.settings': 'Configuración',

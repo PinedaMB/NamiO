@@ -35,6 +35,9 @@ export interface OrganizedMailbox {
   mailbox: MailboxInfo
   /** 0 para raíces; 1+ para subcarpetas. */
   depth: number
+  /** Padre directo, si la carpeta está contenida en otra. */
+  parentId: string | null
+  hasChildren: boolean
 }
 
 function parentPath(path: string): string | null {
@@ -78,11 +81,12 @@ export function organizedSidebarMailboxes(mailboxes: readonly MailboxInfo[]): re
 
   const byName = (a: MailboxInfo, b: MailboxInfo): number => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
   const ordered: OrganizedMailbox[] = []
-  const visit = (mailbox: MailboxInfo, depth: number): void => {
-    ordered.push({ mailbox, depth })
-    for (const child of (children.get(mailbox.path) ?? []).sort(byName)) visit(child, depth + 1)
+  const visit = (mailbox: MailboxInfo, depth: number, parentId: string | null): void => {
+    const kids = children.get(mailbox.path) ?? []
+    ordered.push({ mailbox, depth, parentId, hasChildren: kids.length > 0 })
+    for (const child of [...kids].sort(byName)) visit(child, depth + 1, mailbox.path)
   }
   roots.sort((a, b) => rootRank(a) - rootRank(b) || byName(a, b))
-  for (const root of roots) visit(root, 0)
+  for (const root of roots) visit(root, 0, null)
   return ordered
 }
