@@ -16,6 +16,7 @@ import { RecipientsDialog } from './RecipientsDialog'
 import type { ContextAnchor } from './ContextMenu'
 
 interface ThreadPaneProps {
+  onRetryMessage?: () => void
   thread: Thread
   focusedMessageId?: string | null
   position: number
@@ -59,13 +60,14 @@ const ATTACHMENT_ICON: Record<Attachment['kind'], { icon: string; tone: string }
   file: { icon: 'description', tone: 'var(--on-surface-variant)' }
 }
 
-function Body({ message, theme }: { message: Message; theme?: BodyTheme }): React.JSX.Element {
+function Body({ message, theme, onRetry }: { message: Message; theme?: BodyTheme; onRetry?: () => void }): React.JSX.Element {
   const { t } = useI18n()
 
   if (message.partial) {
     return (
       <div className={cx('body', theme === 'light' && 'body--light')}>
         <p style={{ color: theme === 'light' ? '#555555' : 'var(--outline)' }}>{t('offline.bodyUnavailable')}</p>
+        {onRetry && <button className="tool-btn" type="button" onClick={onRetry}><Icon name="refresh" size={16} />{t('offline.retry')}</button>}
       </div>
     )
   }
@@ -114,6 +116,7 @@ function Body({ message, theme }: { message: Message; theme?: BodyTheme }): Reac
 }
 
 export function ThreadPane({
+  onRetryMessage,
   thread,
   focusedMessageId = null,
   position,
@@ -398,7 +401,7 @@ export function ThreadPane({
                   </details>
                 )}
 
-              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === defaultBodyTheme} /> : <Body message={message} theme={bodyTheme === defaultBodyTheme ? undefined : bodyTheme} />}
+              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === defaultBodyTheme} /> : <Body message={message} theme={bodyTheme === defaultBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} />}
               </details>
               )
             })

@@ -968,23 +968,24 @@ export function App(): React.JSX.Element {
       const result = await window.api.getSentReplies(folder, uids, cachedOnly)
       if (!current()) return
       if (!result.ok) { setLiveError({ code: result.code, detail: result.detail }); return }
-      const messages = await Promise.all(result.data.map(async location => {
-        const response = await window.api.getMessage(location.mailbox, location.uid, cachedOnly)
-        if (!response.ok) { if (current()) setLiveError({ code: response.code, detail: response.detail }); return null }
-        return { ...detailToMessage(response.data, locale, response.meta.partial === true),
-          id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,
-          inlineImagesPending: response.meta.inlineImagesPending === true }
-      }))
-      if (current()) setSentReplies(previous => {
+      const apply = (messages: Message[]): void => { if (current()) setSentReplies(previous => {
         const retained = (previous[key] ?? []).filter(message => cachedOnly || result.meta.offline || result.data.some(location => location.mailbox === message.mailbox && location.uid === message.uid))
         const next = new Map(retained.map(message => [message.id, message]))
         for (const message of messages) {
-          if (!message) continue
           const existing = next.get(message.id)
           if (!existing || !message.partial || existing.partial) next.set(message.id, message)
         }
         return { ...previous, [key]: [...next.values()] }
-      })
+      }) }
+      apply([])
+      await Promise.all(result.data.map(async location => {
+        const response = await window.api.getMessage(location.mailbox, location.uid, cachedOnly)
+        if (!current()) return
+        if (!response.ok) { setLiveError({ code: response.code, detail: response.detail }); return }
+        apply([{ ...detailToMessage(response.data, locale, response.meta.partial === true),
+          id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,
+          inlineImagesPending: response.meta.inlineImagesPending === true }])
+      }))
     }
     void (async () => {
       await load(true)
@@ -1678,6 +1679,7 @@ export function App(): React.JSX.Element {
 
               {selected ? (
                 <ThreadPane
+                  onRetryMessage={live ? () => setMessageRetry(value => value + 1) : undefined}
                   onBack={() => {
                     setReadingFocused(false)
                     setMessageOpen(false)

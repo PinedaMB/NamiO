@@ -79,7 +79,7 @@ const combined = vm.runInNewContext(compile(`(${readerExpression})`), {
 })
 assert.deepEqual(Array.from(combined.messages, message => message.id), ['live:7', 'sent:Sent:7'], 'reader preserves chronology and deduplicates mailbox copies by Message-ID')
 const flush = () => new Promise(resolve => setImmediate(resolve))
-async function renderer(offline = false, stale = false, preserveFull = false, staleOffline = false) {
+async function renderer(offline = false, stale = false, preserveFull = false, staleOffline = false, slow = false) {
   const lookups = [], bodies = [], updates = []
   let release
   let state = preserveFull ? { 'one:INBOX:7': [{ id: 'sent:Enviados:7', mailbox: 'Enviados', uid: 7, body: ['Full reply'], partial: false }] } : {}
@@ -93,14 +93,26 @@ async function renderer(offline = false, stale = false, preserveFull = false, st
       getSentReplies: async (_path, _uids, cachedOnly) => {
         lookups.push(cachedOnly)
         if (stale) await new Promise(resolve => { release = resolve })
-        return { ok: true, data: [{ mailbox: 'Enviados', uid: 7 }], meta: { offline: staleOffline } }
+        return { ok: true, data: [{ mailbox: 'Enviados', uid: 7 }, ...(slow ? [{ mailbox: 'Enviados', uid: 8 }] : [])], meta: { offline: staleOffline } }
       },
-      getMessage: async (mailbox, uid, cachedOnly) => { bodies.push([mailbox, uid, cachedOnly]); return { ok: true, data: { uid }, meta: { partial: cachedOnly } } }
+      getMessage: async (mailbox, uid, cachedOnly) => {
+        bodies.push([mailbox, uid, cachedOnly])
+        if (slow && uid === 8 && !cachedOnly) await new Promise(resolve => { release = resolve })
+        return { ok: true, data: { uid }, meta: { partial: cachedOnly } }
+      }
     } }
   }
   const cleanup = vm.runInNewContext(compile(`(${effect})`), context)()
   if (stale) { context.accountGeneration.current++; release() }
   await flush(); await flush()
+  if (slow) {
+    const messages = state['one:INBOX:7']
+    assert.equal(messages.find(message => message.uid === 7).partial, false, 'ready sent messages render while another download is still waiting')
+    assert.equal(messages.find(message => message.uid === 8).partial, true)
+    release(); await flush(); await flush()
+    assert.ok(state['one:INBOX:7'].every(message => !message.partial))
+    cleanup(); return
+  }
   if (stale) { assert.equal(updates.length, 0, 'account changes reject old sent replies'); return }
   assert.deepEqual(lookups, offline ? [true] : [true, false])
   assert.deepEqual(bodies[0], ['Enviados', 7, true], 'same UID in Inbox must not redirect a sent body')
@@ -146,5 +158,6 @@ async function prefetch(stale = false) {
   for (const mode of ['cached', 'online', 'offline', 'switch', 'validity', 'index-lag', 'large-query', 'refusal', 'undefined']) await backend(mode)
   await renderer(); await renderer(true); await renderer(false, true); await renderer(true, false, true)
   await renderer(false, false, false, true)
+  await renderer(false, false, false, false, true)
   console.log('Sent replies: exact header search, cache/offline access, account and UID isolation, stale-result cancellation and reader locations passed')
 })().catch(error => { console.error(error); process.exitCode = 1 })

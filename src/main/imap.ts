@@ -1131,12 +1131,42 @@ export function trashPath(): string | null {
 
 /** Copia el mensaje en Enviados después de un envío correcto (best effort). */
 export function appendToSent(raw: Buffer, accountId?: string): Promise<void> {
+  const generation = syncGeneration
   return serial(async () => {
-    if (accountId && accountId !== cacheAccountId()) throw accountChangedError()
+    if (generation !== syncGeneration || (accountId && accountId !== cacheAccountId())) throw accountChangedError()
     const client = await ensureClient()
     const sent = readMailboxes().find((box) => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
     if (!sent) return
-    await client.append(sent, raw, ['\\Seen'])
+    const appended = await client.append(sent, raw, ['\\Seen'])
+    if (!appended) throw new Error('No se pudo guardar la copia en Enviados')
+    if (raw.length > MAX_MESSAGE_BYTES) return
+    const parsed = await simpleParser(raw)
+    if (!parsed.messageId) return
+    const lock = await client.getMailboxLock(sent)
+    try {
+      if (generation !== syncGeneration) throw accountChangedError()
+      if (!client.mailbox || !client.mailbox.uidValidity) return
+      const validity = String(client.mailbox.uidValidity)
+      const previous = getMeta(`sentRepliesValidity:${sent}`) ?? getMailboxMeta(sent)?.uidValidity?.toString()
+      if (previous && previous !== validity) clearMailbox(sent)
+      setMeta(`sentRepliesValidity:${sent}`, validity)
+      const uids = appended.uid && String(appended.uidValidity) === validity ? [appended.uid]
+        : await client.search({ header: { 'Message-ID': parsed.messageId } }, { uid: true })
+      if (generation !== syncGeneration) throw accountChangedError()
+      if (!uids || !uids.length) return
+      const addresses = (value: typeof parsed.to): EnvelopeAddress[] => (Array.isArray(value) ? value : value ? [value] : []).flatMap(group => group.value.flatMap(address => toAddress(address) ?? []))
+      const attachments = parsed.attachments.map(file => ({ name: file.filename ?? 'attachment', size: file.size, type: file.contentType }))
+      const priority = parsed.headers.get('priority')
+      for (const uid of uids) {
+        upsertEnvelopes(sent, [{ uid, subject: parsed.subject ?? '', from: addresses(parsed.from)[0] ?? null,
+          date: (parsed.date ?? new Date()).toISOString(), size: raw.length, unread: false, flagged: false,
+          messageId: parsed.messageId, inReplyTo: parsed.inReplyTo,
+          references: typeof parsed.references === 'string' ? [parsed.references] : parsed.references ?? [],
+          hasAttachments: attachments.length > 0, priority: priority === 'high' || priority === 'low' ? priority : 'normal' }])
+        saveBody(sent, uid, { text: parsed.text ?? '', html: parsed.html || null, to: addresses(parsed.to), cc: addresses(parsed.cc), attachments })
+      }
+      notify(sent)
+    } finally { lock.release() }
   })
 }
 

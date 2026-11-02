@@ -507,6 +507,9 @@ app.whenReady().then(async()=>{
  document.querySelector('.rail__nav [aria-current="page"]').click();await wait();
  await until(()=>!document.querySelector('.list-loading')&&card('Inbox sample'),'Offline inbox reload missing');card('Inbox sample').click();
  await until(()=>document.querySelector('.body')?.textContent.includes(${JSON.stringify(translations.es['offline.bodyUnavailable'])}),'Missing body did not show the offline placeholder');
+ const retryBody=[...document.querySelectorAll('.body button')].find(button=>button.textContent.includes('Reintentar'));
+ if(!retryBody)throw new Error('Unavailable body must offer a direct retry');
+ retryBody.click();await wait();
  if(document.querySelector('.letter-loading'))throw new Error('Offline missing body must not spin forever');
  if(await window.api.inspectTestNetworkReads()!==offlineReads)throw new Error('Offline reader attempted network body reads');
  document.querySelector('.topbar [aria-haspopup="menu"]').click();
