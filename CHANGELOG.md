@@ -1,6 +1,13 @@
 # Cambios
 
-## Sin publicar
+## 1.0.0-rc.6 — 2026-11-01
+
+- Los hilos agrupan respuestas mediante `Message-ID`, `In-Reply-To` y `References`, incluso cuando falta un mensaje intermedio en Inbox.
+- Las respuestas propias de Enviados aparecen en la conversación, el contador y el desplegable lateral sin abrir el hilo. La lista consulta cabeceras en segundo plano sin descargar los cuerpos ni adjuntos.
+- Seleccionar un mensaje abre y desplaza el lector hasta su contenido, conservando el hilo completo. Las respuestas enviadas y sus cuerpos cargados permanecen visibles al navegar y durante actualizaciones de caché.
+- Las nuevas respuestas incluyen cabeceras De, Enviado el, Para, Cc y Asunto. El historial citado puede mostrarse u ocultarse, incluidos los formatos de Outlook, Gmail y cabeceras reconocibles en español e inglés.
+- Se conserva el lector plano de Calma, con cuerpos redondeados y detalles bajo demanda.
+- Se corrigen las pruebas de aislamiento de cuentas, política de spam, tooltips y etiquetas de citas para que funcionen con distintos idiomas y esperen las actualizaciones de la interfaz.
 
 - La bandeja cuenta y navega por conversación: `j`/`k`, la posición del lector y la selección masiva ya no repiten cada mensaje del hilo. Abrir un hilo marca leídos todos sus mensajes y las acciones de selección se aplican a la conversación completa, no solo al mensaje más reciente.
 - La lista calcula miembros y adjuntos en una sola pasada (sin O(n²) por fila), reutiliza los formateadores de fecha y difiere el pintado de las filas fuera de pantalla. Las fechas relativas se actualizan por minuto.
