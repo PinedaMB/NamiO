@@ -59,7 +59,7 @@ const ATTACHMENT_ICON: Record<Attachment['kind'], { icon: string; tone: string }
   file: { icon: 'description', tone: 'var(--on-surface-variant)' }
 }
 
-function Body({ message, theme }: { message: Message; theme: BodyTheme }): React.JSX.Element {
+function Body({ message, theme }: { message: Message; theme?: BodyTheme }): React.JSX.Element {
   const { t } = useI18n()
 
   if (message.partial) {
@@ -148,10 +148,19 @@ export function ThreadPane({
 }: ThreadPaneProps): React.JSX.Element {
   const formatCombo = useFormatCombo()
   const { t, locale } = useI18n()
-  const { bodyTheme: preferredTheme, timeFormat } = usePreferences()
-  const themeKey = `${mailbox}:${thread.messageIds?.join(',') ?? thread.id}:${preferredTheme}`
+  const { bodyTheme: preferredTheme, appTheme, timeFormat } = usePreferences()
+  const [systemDark, setSystemDark] = useState(() => globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
+  useEffect(() => {
+    const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!media) return
+    const update = (): void => setSystemDark(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  const defaultBodyTheme = appTheme ? (appTheme === 'dark' || (appTheme === 'system' && systemDark) ? 'dark' : 'light') : preferredTheme
+  const themeKey = `${mailbox}:${thread.messageIds?.join(',') ?? thread.id}:${preferredTheme}:${defaultBodyTheme}`
   const [themeOverride, setThemeOverride] = useState<{ key: string; theme: BodyTheme } | null>(null)
-  const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : preferredTheme
+  const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : defaultBodyTheme
   useEffect(() => { setThemeOverride(null) }, [themeKey])
   const [messageExpansion, setMessageExpansion] = useState<Record<string, boolean>>({})
   const focusedMessage = useRef<HTMLDetailsElement | null>(null)
@@ -352,7 +361,10 @@ export function ThreadPane({
                     <summary className="thread-message__files-label">
                       <Icon name="attach_file" size={16} />
                       <span className="thread-message__files-title">{t('thread.attachments')}<span className="thread-message__files-count">{message.attachments.length}</span></span>
-                      <span className="thread-message__files-preview">{message.attachments.map(attachment => attachment.name).join(' · ')}</span>
+                      <span className="thread-message__files-preview">
+                        <span className="thread-message__files-names">{message.attachments.slice(0, 2).map(attachment => attachment.name).join(' · ')}</span>
+                        {message.attachments.length > 2 && <span className="thread-message__files-more">{t('thread.moreAttachments', { count: message.attachments.length - 2 })}</span>}
+                      </span>
                       <Icon name="expand_more" size={18} className="thread-message__files-chevron" />
                     </summary>
                   <div className="attachments" aria-label={t('thread.attachments')}>
@@ -386,7 +398,7 @@ export function ThreadPane({
                   </details>
                 )}
 
-              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} /> : <Body message={message} theme={bodyTheme} />}
+              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === defaultBodyTheme} /> : <Body message={message} theme={bodyTheme === defaultBodyTheme ? undefined : bodyTheme} />}
               </details>
               )
             })

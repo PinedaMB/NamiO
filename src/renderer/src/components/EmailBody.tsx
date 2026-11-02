@@ -5,12 +5,13 @@ import type { BodyTheme } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
-import { applyEmailTheme, emailBackground } from '../lib/emailTheme'
+import { applyEmailTheme, emailBackground, fitEmailTextToSurface } from '../lib/emailTheme'
 
 interface EmailBodyProps {
   html: string
   blockRemote?: boolean
   theme?: BodyTheme
+  integrated?: boolean
 }
 
 /** GIF transparente de 1×1: conserva el layout cuando se bloquea una imagen remota. */
@@ -123,7 +124,7 @@ function buildDocument(document_: Document, allowImages: boolean): string {
   return `<!doctype html>${output.documentElement.outerHTML}`
 }
 
-export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps): React.JSX.Element {
+export function EmailBody({ html, blockRemote = false, theme, integrated = false }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
   const { remoteImages, bodyTheme: preferredTheme } = usePreferences()
   const bodyTheme = theme ?? preferredTheme
@@ -160,6 +161,37 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
     }
   }, [bodyTheme, documentHtml, readyDocument])
 
+  const integrateSurface = (): string | undefined => {
+    const frame = frameRef.current
+    const inner = frame?.contentDocument
+    if (!frame || !inner?.body) return
+    const surface = getComputedStyle(frame)
+    const appTheme = document.documentElement.dataset.appTheme
+    const contentTheme = theme ?? (appTheme === 'dark' || (appTheme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light')
+    if (themedDocument.current?.theme !== contentTheme) {
+      applyEmailTheme(inner, contentTheme)
+      themedDocument.current = { document: inner, theme: contentTheme }
+    }
+    for (const element of [inner.documentElement, inner.body, ...inner.querySelectorAll<HTMLElement>('details.namio-quote, details.namio-quote > summary')]) {
+      element.style.setProperty('background-color', surface.backgroundColor, 'important')
+      element.style.setProperty('color', surface.color, 'important')
+    }
+    fitEmailTextToSurface(inner, surface.backgroundColor, surface.color)
+    setBackground(surface.backgroundColor)
+    return surface.backgroundColor
+  }
+
+  useLayoutEffect(() => {
+    if (!integrated || readyDocument !== documentHtml) return
+    integrateSurface()
+    const observer = new MutationObserver(() => integrateSurface())
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-app-theme'] })
+    const media = matchMedia('(prefers-color-scheme: dark)')
+    const update = (): void => { integrateSurface() }
+    media.addEventListener('change', update)
+    return () => { observer.disconnect(); media.removeEventListener('change', update) }
+  }, [integrated, readyDocument, documentHtml, bodyTheme])
+
   const handleLoad = (): void => {
     const frame = frameRef.current
     const inner = frame?.contentDocument
@@ -173,7 +205,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
     // así el correo crece a su altura real y hay un solo scroll (el del lector).
     const measure = (contentOnly = false): void => {
       // Al expandir un mensaje, sus superficies ya tienen dimensiones reales.
-      const background = emailBackground(inner)
+      const background = integrated ? integrateSurface() : emailBackground(inner)
       if (background) {
         inner.body.style.setProperty('background-color', background, 'important')
         setBackground(background)
@@ -276,7 +308,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   }, [])
 
   return (
-    <div className="email-body" style={{ background: readyDocument === documentHtml ? background : undefined }}>
+    <div className={integrated ? 'email-body email-body--integrated' : 'email-body'} style={{ background: readyDocument === documentHtml ? background : undefined }}>
       {(blockRemote || prepared.blocked > 0) && (
         <div className="email-banner">
           <Icon name="image_not_supported" size={15} />

@@ -5,6 +5,7 @@ const ts = require('typescript-test')
 const React = require('react')
 let override = null
 let preferred = 'light'
+let appTheme
 const dates = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/lib/dates.ts','utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }), {exports:dates})
 const exportsObject = {}
@@ -15,7 +16,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
     if (id === '../lib/dates') return dates
     if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
-    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: preferred }) }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ bodyTheme: preferred, appTheme }) }
     if (id === '../settings/shortcuts') return { formatCombo: () => '' }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === './RecipientsDialog') return { RecipientsDialog: () => null }
@@ -30,16 +31,16 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Thr
 function render(id = 'one', mailbox = 'INBOX') {
   const message = { from: { name: 'Sender', email: 'sender@example.com' }, to: [], sentAt: '', html: '<p>Hello</p>', body: [] }
   const tree = exportsObject.ThreadPane({ thread: { id, subject: 'Hello', participants: [message.from], messages: [message] }, mailbox, bindings: {}, canMutate: true })
-  let theme
+  let theme, integrated
   let toggle
   function visit(node) {
     if (!React.isValidElement(node)) return
-    if (node.props.html) theme = node.props.theme
+    if (node.props.html) { theme = node.props.theme; integrated = node.props.integrated }
     if (node.props.title === 'mail.bodyThemeDark' || node.props.title === 'mail.bodyThemeLight') toggle = node.props.onClick
     React.Children.forEach(node.props.children, visit)
   }
   visit(tree)
-  return { theme, toggle }
+  return { theme, toggle, integrated }
 }
 assert.equal(render().theme, 'light')
 render().toggle()
@@ -49,4 +50,21 @@ assert.equal(render('two').theme, 'light')
 assert.equal(render('one', 'Archive').theme, 'light')
 preferred = 'dark'
 assert.equal(render('two').theme, 'dark')
+override = null
+appTheme = 'dark'
+assert.equal(render().theme, 'dark', 'reader follows the dark app appearance by default')
+assert.equal(render().integrated, true)
+render().toggle()
+assert.equal(render().theme, 'light', 'temporary reader toggle remains available')
+assert.equal(render().integrated, false, 'light mode on a dark app restores the white message background')
+render().toggle()
+assert.equal(render().theme, 'dark')
+assert.equal(render().integrated, true, 'switching back restores the dark app surface')
+override = null
+appTheme = 'light'
+assert.equal(render().theme, 'light', 'reader follows the light app appearance')
+assert.equal(render().integrated, true)
+render().toggle()
+assert.equal(render().theme, 'dark')
+assert.equal(render().integrated, false, 'dark reading mode remains available on a light app')
 console.log('Message theme: temporary toggle, folder/message isolation and global preference passed')

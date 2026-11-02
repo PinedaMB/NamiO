@@ -462,7 +462,10 @@ export function App(): React.JSX.Element {
   const vipCount = threads.filter((thread) => thread.vip).length
 
   const folderViews = useMemo<readonly FolderView[]>(() => {
-    if (live) return organizedSidebarMailboxes(mailboxes).map(({ mailbox, depth, parentId, hasChildren }) => mailboxToFolder(mailbox, depth, parentId, hasChildren))
+    if (live) return organizedSidebarMailboxes(mailboxes).map(({ mailbox, depth, parentId, hasChildren }) => {
+      const folder = mailboxToFolder(mailbox, depth, parentId, hasChildren)
+      return { ...folder, label: folder.labelKey ? t(folder.labelKey) : folder.label }
+    })
     return FOLDERS.map((item) => ({
       id: item.id,
       icon: item.icon,

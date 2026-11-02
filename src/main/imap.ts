@@ -930,7 +930,7 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
         let found: number[] = []
         const searchIds = async (group: string[]): Promise<void> => {
           const result = await client.search({ or: group.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true })
-          if (result === false) {
+          if (!result) {
             if (group.length === 1) throw new Error('El servidor rechazó la búsqueda de respuestas en Enviados')
             for (const id of group) await searchIds([id])
           } else {

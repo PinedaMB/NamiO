@@ -232,6 +232,7 @@ export const es = {
   'image.zoomOut': 'Alejar',
   'image.fit': 'Ajustar a la ventana',
   'thread.select': 'Selecciona una conversación',
+  'thread.moreAttachments': '+{count} más',
   'thread.attachments': 'Adjuntos',
   'thread.download': 'Descargar',
   'thread.hideContext': 'Ocultar panel de contexto',

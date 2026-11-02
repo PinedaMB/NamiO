@@ -32,7 +32,7 @@ import {I18nProvider} from '${project}/src/renderer/src/i18n';
 import {PreferencesProvider} from '${project}/src/renderer/src/settings/PreferencesProvider';
 import '${project}/src/renderer/src/styles/tokens.css';
 import '${project}/src/renderer/src/styles/app.css';
-function Harness(){const [theme,setTheme]=useState('light');const [html,setHtml]=useState(${JSON.stringify(html)});window.setHtml=setHtml;window.replyComposeHtml=replyComposeHtml;window.setTheme=setTheme;return <EmailBody html={html} theme={theme}/>}
+function Harness(){const [integrated,setIntegrated]=useState(false);window.setIntegrated=setIntegrated;const [theme,setTheme]=useState('light');const [html,setHtml]=useState(${JSON.stringify(html)});window.setHtml=setHtml;window.replyComposeHtml=replyComposeHtml;window.setTheme=setTheme;return <EmailBody html={html} theme={theme} integrated={integrated}/>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><I18nProvider><PreferencesProvider><Harness/></PreferencesProvider></I18nProvider></React.StrictMode>);
 `)
   await build({ configFile:false, root:folder, base:'./', plugins:[react()], resolve:{alias:{'@shared':join(project,'src/shared'),'react':join(project,'node_modules/react'),'react-dom':join(project,'node_modules/react-dom')}}, build:{outDir:join(folder,'dist'),emptyOutDir:true}, logLevel:'error' })
@@ -72,6 +72,7 @@ app.whenReady().then(async()=>{
     return false;
    })()`)});
    assert.ok(grew,'Late content growth must resize percentage-height emails');
+
   }
  }
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
@@ -111,6 +112,26 @@ app.whenReady().then(async()=>{
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{window.setTheme('dark');for(let i=0;i<200;i++){await new Promise(resolve=>requestAnimationFrame(resolve));const frame=document.querySelector('iframe');if(frame?.style.visibility==='visible'&&frame.clientWidth>800&&frame.contentDocument?.documentElement.dataset.emailTheme==='dark')return}throw new Error('Dark quote view did not settle')})()`)});
  win.webContents.invalidate();await new Promise(resolve=>setTimeout(resolve,250));
  await win.webContents.capturePage().then(image=>require('node:fs').writeFileSync('/tmp/namio-quoted-history-dark.png',image.toPNG()));
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async fn=>{for(let i=0;i<200;i++){if(fn())return;await new Promise(resolve=>requestAnimationFrame(resolve))}throw new Error('Integrated reader mode did not settle')};
+ window.setHtml('<p id="black" style="color:#000000">Dark text</p><p id="white" style="color:#ffffff">Light text</p><div id="card" style="background:#ffffff;color:#000000">Original card</div>');window.setIntegrated(true);
+ for(const appTheme of ['dark','light']){
+ document.documentElement.dataset.appTheme=appTheme;
+ for(const readingTheme of ['light','dark','light']){
+ window.setTheme(readingTheme);
+ await until(()=>{const frame=document.querySelector('iframe'),doc=frame?.contentDocument;return frame?.style.visibility==='visible'&&doc?.querySelector('#black')&&doc.documentElement.dataset.emailTheme===readingTheme&&frame.contentWindow.getComputedStyle(doc.body).backgroundColor===getComputedStyle(frame).backgroundColor});
+ const frame=document.querySelector('iframe'),doc=frame.contentDocument,view=frame.contentWindow;
+ for(const id of ['black','white']){const color=view.getComputedStyle(doc.getElementById(id)).color;if(color===(appTheme==='dark'?'rgb(0, 0, 0)':'rgb(255, 255, 255)'))throw new Error('Unbacked text became unreadable: '+JSON.stringify({id,appTheme,readingTheme,color}))}
+ const cardBackground=view.getComputedStyle(doc.getElementById('card')).backgroundColor;
+ if((readingTheme==='light')!==(cardBackground==='rgb(255, 255, 255)'))throw new Error('Reading mode must still adapt authored card backgrounds');
+ }
+ }
+ document.documentElement.dataset.appTheme='dark';window.setIntegrated(false);window.setTheme('light');
+ await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.documentElement.dataset.emailTheme==='light'&&frame.contentWindow.getComputedStyle(frame.contentDocument.body).backgroundColor==='rgb(255, 255, 255)'});
+ window.setIntegrated(true);window.setTheme('dark');
+ await until(()=>{const frame=document.querySelector('iframe');return frame?.contentDocument?.documentElement.dataset.emailTheme==='dark'&&frame.contentWindow.getComputedStyle(frame.contentDocument.body).backgroundColor===getComputedStyle(frame).backgroundColor});
+
+ })()`)});
  assert.deepEqual(errors,[],'Email resizing and theme toggles must not produce renderer errors');
  console.log('Email rendering: head CSS, root/body classes, authored image height, no overlap, responsive rules, theme toggles and security passed');app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1)});

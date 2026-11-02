@@ -249,11 +249,12 @@ export function Sidebar({
               <TooltipButton
                 key={folder.hasChildren ? undefined : folder.id}
                 title={collapsed ? folder.label : undefined}
-                aria-label={folder.spam ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
+                aria-label={folder.spam && folder.label !== t('sidebar.spam') ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
                 aria-expanded={folder.hasChildren ? groupExpanded : undefined}
                 type="button"
                 className={cx('nav-item', folder.hasChildren && 'nav-group__target', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
                 style={!collapsed && nested && !folder.hasChildren ? { paddingLeft: `calc(var(--sp-sm) + ${(folder.depth ?? 0) * 14}px)` } : undefined}
+                data-mailbox={folder.id}
                 data-depth={folder.depth || undefined}
                 onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
                 onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}

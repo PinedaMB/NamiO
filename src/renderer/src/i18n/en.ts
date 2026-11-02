@@ -229,6 +229,7 @@ export const en: Dictionary = {
   'image.zoomOut': 'Zoom out',
   'image.fit': 'Fit to window',
   'thread.select': 'Select a conversation',
+  'thread.moreAttachments': '+{count} more',
   'thread.attachments': 'Attachments',
   'thread.download': 'Download',
   'thread.hideContext': 'Hide context panel',

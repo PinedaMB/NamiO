@@ -324,10 +324,10 @@ app.whenReady().then(async()=>{
  const until=async(predicate,message)=>{for(let i=0;i<100;i++){if(predicate())return;await wait()}throw new Error(message)};
  const settle=async()=>{await new Promise(requestAnimationFrame);await Promise.all(document.querySelector('.composer').getAnimations().map(animation=>animation.finished.catch(()=>{})))};
  const card=title=>[...document.querySelectorAll('.thread__content')].find(item=>item.textContent.includes(title));
- await until(()=>document.querySelector('[aria-label="Drafts"]'),'Drafts folder missing');
+ await until(()=>document.querySelector('[data-mailbox="Drafts"]'),'Drafts folder missing');
  await until(()=>!document.querySelector('.list-loading'),'Initial folder still loading');await wait();
  for(const path of ['Spam','Trash','INBOX']){
- const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent===path);
+ const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.dataset.mailbox===path);
  if(!target)throw new Error('Missing folder '+path);
  target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:200}));
  await until(()=>document.querySelector('.context-menu'),'Folder context menu missing');
@@ -345,8 +345,8 @@ app.whenReady().then(async()=>{
  }
  console.log('Empty-folder UI: Spam and Trash queue background deletion; Inbox does not expose it');
  for(const path of ['Spam','Trash','INBOX']){
- [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent===path).click();
- await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent===path&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Folder messages did not load');
+ [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.dataset.mailbox===path).click();
+ await until(()=>document.querySelector('.rail__nav [aria-current="page"]')?.dataset.mailbox===path&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Folder messages did not load');
  card('Inbox sample').click();
  await until(()=>document.querySelector('.reading__toolbar'),'Folder toolbar did not load');
  await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Folder message did not finish loading');
@@ -450,14 +450,14 @@ app.whenReady().then(async()=>{
  await until(()=>!(document.querySelector('.reading__toolbar [aria-busy="true"]')),'Spam feedback did not finish');
  await wait();
  if((await window.api.inspectTestMoves()).at(-1)?.target!=='Spam')throw new Error('Spam did not use the junk folder');
- [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='Spam').click();
- await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent==='Spam'&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Spam messages missing');
+ [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.dataset.mailbox==='Spam').click();
+ await until(()=>document.querySelector('.rail__nav [aria-current="page"]')?.dataset.mailbox==='Spam'&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Spam messages missing');
  card('Inbox sample').click();
  await until(()=>document.querySelector('.thread-message__actions [aria-haspopup="menu"]'),'Message options missing');
  await openMessageAction('No es spam');await wait();
  if((await window.api.inspectTestMoves()).at(-1)?.target!=='INBOX')throw new Error('Not-spam must move to Inbox');
- [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='INBOX').click();
- await until(()=>document.querySelector('.rail__nav [aria-current="page"] .nav-item__text')?.textContent==='INBOX'&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Inbox did not reload after checking Spam');
+ [...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.dataset.mailbox==='INBOX').click();
+ await until(()=>document.querySelector('.rail__nav [aria-current="page"]')?.dataset.mailbox==='INBOX'&&!document.querySelector('.list-loading')&&card('Inbox sample'),'Inbox did not reload after checking Spam');
  card('Inbox sample').click();await until(()=>document.querySelector('.email-body iframe')?.style.visibility==='visible','Inbox body did not reload');
  console.log('Move and Spam: folder picker excludes source, queued operations keep the message visible, destination passed to persistent API');
  const bodyFrame=document.querySelector('.email-body iframe'), bodyDocument=bodyFrame.contentDocument;
@@ -481,7 +481,7 @@ app.whenReady().then(async()=>{
  await until(()=>![...document.querySelectorAll('.thread__content')].some(item=>item.textContent.includes('Inbox sample')),'Deleted mail remained visible');
  console.log('Sync/delete UI: stable iframe/document and expansion, pending card/button feedback, duplicate prevention and completed deletion passed');
 
- document.querySelector('[aria-label="Drafts"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:200}));
+ document.querySelector('[data-mailbox="Drafts"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:200}));
  await until(()=>document.querySelector('.context-menu'),'Live folder menu missing');
  [...document.querySelectorAll('.context-menu button')].find(button=>button.textContent.endsWith('Sincronizar')).click();
  await until(()=>!document.querySelector('.context-menu'),'Sync did not dismiss menu');await wait();
@@ -522,7 +522,7 @@ app.whenReady().then(async()=>{
  await window.api.testSyncProgress(null);
  console.log('Offline recovery: cached body, explicit missing-body state, no network reads while offline, DNS banner and automatic online retry passed');
 
- document.querySelector('[aria-label="Drafts"]').click();
+ document.querySelector('[data-mailbox="Drafts"]').click();
  await until(()=>card('Pendiente local')&&card('Borrador servidor'),'Drafts list did not combine remote and pending drafts');
  card('Borrador servidor').click();await until(()=>document.querySelector('.tiptap')?.editor,'Server draft did not open');
  let editor=document.querySelector('.tiptap').editor;
@@ -568,7 +568,7 @@ app.whenReady().then(async()=>{
  await live.webContents.executeJavaScript('window.api.deleteMessages("Spam").then(()=>window.api.advanceTestDeletion(100))');
  await captureMenu(live,'/tmp/namio-deletion-progress.png');
  await live.webContents.executeJavaScript('window.api.finishTestDeletion()');
- await live.webContents.executeJavaScript(${JSON.stringify(`(()=>{const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.querySelector('.nav-item__text')?.textContent==='Spam');target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:240,clientY:180}));})()`)});
+ await live.webContents.executeJavaScript(${JSON.stringify(`(()=>{const target=[...document.querySelectorAll('.rail__nav .nav-item')].find(item=>item.dataset.mailbox==='Spam');target.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:240,clientY:180}));})()`)});
  await captureMenu(live,'/tmp/namio-context-menu-folder.png');
  await live.webContents.executeJavaScript(${JSON.stringify(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`)});
  await live.webContents.executeJavaScript(${JSON.stringify(`(async()=>{

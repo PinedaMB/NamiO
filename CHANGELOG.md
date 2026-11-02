@@ -2,6 +2,18 @@
 
 ## Sin publicar
 
+- El modo de lectura permite alternar entre un fondo blanco y oscuro. Al volver al modo que coincide con la apariencia de la app se recupera su superficie integrada; la cabecera y los adjuntos mantienen su apariencia.
+
+- Dentro del borde de cada mensaje, la cabecera, la franja de adjuntos y el cuerpo se distinguen mediante superficies neutras y divisores suaves. El cuerpo mantiene el fondo de la aplicación.
+
+- Cada mensaje del visor incorpora un borde fino y atenuado con esquinas suaves para distinguirlo del resto del hilo, conservando el fondo de la aplicación.
+
+- La lista usa carpetas especiales traducidas, asuntos de dos líneas y más ancho en pantallas grandes. El visor conserva la distribución de cabeceras y fechas, con el fondo integrado en la aplicación. Ajusta los espacios, destaca suavemente el remitente seleccionado y resume los adjuntos con dos nombres y el contador de restantes; la barra de respuesta queda más discreta.
+
+- El historial citado del compositor, su control y el visor de correos comparten por defecto el fondo y el contraste de la aplicación, siguiendo Claro, Oscuro y Sistema. El visor conserva su cambio temporal de tema por mensaje.
+
+- El compositor reutiliza el control de citas del visor: un solo botón muestra u oculta el historial de solo lectura, sin desplegables duplicados. El contenido original se conserva al guardar y enviar.
+
 - Cerrar el diálogo de cuentas deja de recargar carpetas y disparar sincronizaciones; una desconexión confirmada conserva su actualización de estado. Las búsquedas de respuestas enviadas se dividen en grupos pequeños y reintentan por identificador cuando el servidor rechaza la consulta combinada.
 
 - El acceso de Gmail muestra que espera autorización en el navegador, tanto en la bienvenida como al agregar una cuenta. Al finalizar el intento, NamiO restaura su ventana y solicita el foco para mostrar la cuenta conectada o el error.

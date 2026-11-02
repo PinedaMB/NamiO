@@ -98,3 +98,32 @@ export function emailBackground(document: Document): string | undefined {
   return background
 }
 
+
+/** Conserva contraste al integrar texto sin fondo propio en la superficie de la app. */
+export function fitEmailTextToSurface(document: Document, background: string, foreground: string): void {
+  const view = document.defaultView
+  if (!view || !document.body) return
+  const luminance = (color: string): number | null => {
+    if (!/^rgba?\(/.test(color)) return null
+    const values = color.match(/[\d.]+/g)?.map(Number)
+    if (!values || values.length < 3 || (values[3] !== undefined && values[3] < 1)) return null
+    return values.slice(0, 3).reduce((sum, value, index) => {
+      const channel = value / 255
+      return sum + (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][index]!
+    }, 0)
+  }
+  const surface = luminance(background)
+  if (surface === null) return
+  const backed = new Set<Element>()
+  for (const element of document.body.querySelectorAll<HTMLElement>('*')) {
+    if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml' || element.closest('img, picture, video, svg, canvas, style')) continue
+    const style = view.getComputedStyle(element)
+    const ownBackground = style.backgroundColor !== background && style.backgroundColor !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(style.backgroundColor)
+    if (ownBackground || style.backgroundImage !== 'none' || (element.parentElement && backed.has(element.parentElement))) {
+      backed.add(element)
+      continue
+    }
+    const text = luminance(style.color)
+    if (text !== null && (Math.max(text, surface) + 0.05) / (Math.min(text, surface) + 0.05) < 4.5) element.style.setProperty('color', foreground, 'important')
+  }
+}

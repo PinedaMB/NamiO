@@ -1,3 +1,4 @@
+import type { TranslationKey } from '../i18n'
 import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 export { isSpamMailbox } from '@shared/mailboxes'
 import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
@@ -9,6 +10,7 @@ export interface FolderView {
   id: string
   icon: string
   label: string
+  labelKey?: TranslationKey
   count?: number
   accent?: boolean
   spam?: boolean
@@ -154,6 +156,11 @@ const SPECIAL_USE_ICON: Record<string, string> = {
   '\\Flagged': 'star'
 }
 
+const SPECIAL_USE_LABEL: Record<string, TranslationKey> = {
+  '\\Inbox': 'sidebar.inbox', '\\Drafts': 'sidebar.drafts', '\\Sent': 'sidebar.sent',
+  '\\Archive': 'sidebar.archive', '\\Trash': 'sidebar.trash', '\\Junk': 'sidebar.spam', '\\Outbox': 'sidebar.outbox'
+}
+
 export function mailboxToFolder(mailbox: MailboxInfo, depth = 0, parentId: string | null = null, hasChildren = false): FolderView {
   // Papelera muestra el total; las demás carpetas muestran los no leídos.
   const spam = isSpamMailbox(mailbox)
@@ -166,6 +173,7 @@ export function mailboxToFolder(mailbox: MailboxInfo, depth = 0, parentId: strin
     spam,
     icon: spam ? 'report' : (mailbox.specialUse && SPECIAL_USE_ICON[mailbox.specialUse]) ?? 'folder',
     label: mailbox.name,
+    labelKey: SPECIAL_USE_LABEL[mailbox.specialUse ?? (mailbox.path.toUpperCase() === 'INBOX' ? '\\Inbox' : '')] ?? (isSpamMailbox({ path: mailbox.name }) ? 'sidebar.spam' : undefined),
     count: count > 0 ? count : undefined,
     accent: mailbox.specialUse === '\\Inbox' || mailbox.path.toUpperCase() === 'INBOX',
     depth,

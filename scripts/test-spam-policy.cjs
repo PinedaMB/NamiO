@@ -22,6 +22,9 @@ for (const mailbox of [
 assert.equal(live.isSpamMailbox({ path: 'INBOX' }), false)
 assert.equal(live.isSpamMailbox({ path: 'Spam reports' }), false)
 assert.equal(live.mailboxToFolder({ path: 'Spam', name: 'Spam', unseen: 2 }).icon, 'report')
+assert.equal(live.mailboxToFolder({ path: 'INBOX', name: 'INBOX', unseen: 2 }).labelKey, 'sidebar.inbox')
+assert.equal(live.mailboxToFolder({ path: 'Sent', name: 'Sent', specialUse: '\\Sent', unseen: 0 }).labelKey, 'sidebar.sent')
+assert.equal(live.mailboxToFolder({ path: 'Spam/Clients', name: 'Clients', unseen: 0 }).labelKey, undefined, 'personal subfolder names remain unchanged')
 for (const blocked of [true, false]) for (const setting of ['allow', 'block']) for (const override of [null, true]) {
   let index = 0
   const exports = {}

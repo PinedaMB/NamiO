@@ -72,7 +72,7 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { expo
   if (id === '../lib/dates') return dates
   if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', bodyTheme: 'dark' }) }
-  if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }
+  if (id === '../i18n') return { useI18n: () => ({ t: (key, values) => key === 'thread.moreAttachments' ? `+${values.count} more` : key, locale: 'es' }) }
   if (id === '../settings/shortcuts') return { formatCombo: () => '' }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
   if (id === './RecipientsDialog') return { RecipientsDialog: () => null }
@@ -169,6 +169,21 @@ for (const section of attachmentSections) {
   assert.equal(children[1].props.className, 'attachments')
 }
 console.log('Attachments: independent native disclosure for each message, collapsed by default')
+const manyFiles = Array.from({ length: 13 }, (_, index) => ({ ...messages[0].attachments[0], name: `document-${index}.pdf` }))
+const manyTree = pane.ThreadPane({ thread: { ...threads[0], messages: [{ ...messages[0], attachments: manyFiles }] }, mailbox: 'INBOX', bindings: {} })
+let namesPreview, remainder, allFiles = 0
+function inspectFiles(node) {
+  if (!React.isValidElement(node)) return
+  if (node.props.className === 'thread-message__files-names') namesPreview = node.props.children
+  if (node.props.className === 'thread-message__files-more') remainder = node.props.children
+  if (node.props.className === 'attachment') allFiles++
+  React.Children.forEach(node.props.children, inspectFiles)
+}
+inspectFiles(manyTree)
+assert.equal(namesPreview, 'document-0.pdf · document-1.pdf')
+assert.equal(remainder, '+11 more')
+assert.equal(allFiles, 13, 'all attachments remain available in the expanded grid')
+
 
 const list = {}
 let listMenu = null

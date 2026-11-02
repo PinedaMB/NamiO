@@ -149,7 +149,7 @@ Texto de sistema en macOS, con Inter Variable empaquetada como alternativa. Los 
 
 - Título de carpeta: rol `title`.
 - Asunto abierto: rol `headline`; en anchos de hasta 1520 px usa el ajuste existente a 24/32 px.
-- Lista: remitente y asunto (13 px), vista previa (12/19 px), fecha (11 px). Los no leídos refuerzan remitente y asunto con peso 650 y un punto de estado accesible.
+- Lista: remitente (13 px), asunto (14/20 px, hasta dos líneas), vista previa (12/19 px), fecha (11 px). Los no leídos refuerzan remitente y asunto con peso 650 y un punto de estado accesible.
 - Cuerpo de texto propio: lectura (15/27 px). El HTML recibido conserva su contenido y formato, sujeto al tratamiento de seguridad y tema del lector.
 - Botones y campos de configuración/cuenta: sans (13 px); etiquetas de cuenta (12 px). Evitar añadir etiquetas técnicas o atajos permanentes al lector.
 - Configuración: título de pantalla (26/34 px), títulos de sección (16/24 px), descripciones (13/20 px).
@@ -157,7 +157,7 @@ Texto de sistema en macOS, con Inter Variable empaquetada como alternativa. Los 
 
 ## Layout
 
-En escritorio: navegación lateral (184 px), lista (320 px) y lector flexible. La barra superior (62 px) pertenece al área de trabajo y reúne búsqueda, Redactar y el menú de acciones. La lista baja a 300 px en anchos de hasta 1280 px.
+En escritorio: navegación lateral (184 px), lista (320 px; 360 px desde 1600 px de ventana) y lector flexible. La barra superior (62 px) pertenece al área de trabajo y reúne búsqueda, Redactar y el menú de acciones. La lista baja a 300 px en anchos de hasta 1280 px.
 
 La navegación se colapsa por defecto a 64 px en ventanas de hasta 960 px; el usuario puede expandirla. En ese ancho se alterna lista y lector, con Volver disponible en el mensaje. Hasta 520 px, Redactar conserva su icono y nombre accesible y oculta solo el texto visible.
 
@@ -177,7 +177,7 @@ Las transiciones de estado usan los tiempos existentes (120 y 180 ms). Respetar 
 
 ## Shapes
 
-Filas y botones con curvas suaves (radio `lg`); campos y menús usan los radios compartidos. Los mensajes abiertos son bloques de lectura sin borde exterior. Los diálogos mantienen el radio `xl`; las secciones de ajustes son planas, sin radio ni superficie propia. Evitar convertir cada dato en una píldora.
+Filas y botones con curvas suaves (radio `lg`); campos y menús usan los radios compartidos. Los mensajes del visor se delimitan con un borde de 1 px atenuado y radio `xl`, sin sombras. La cabecera usa una superficie neutra suave con padding de 16/20 px; los adjuntos ocupan una franja intermedia con su propio divisor. El cuerpo conserva el fondo de la app y padding de 20 px. Los diálogos mantienen el radio `xl`; las secciones de ajustes son planas, sin radio ni superficie propia. Evitar convertir cada dato en una píldora.
 
 ## Components
 
@@ -195,9 +195,11 @@ Asunto, avatar del remitente (36 px), nombre y fecha conducen al contenido. Ver 
 
 Los avatares reutilizan `SenderAvatar`: iniciales como alternativa, imagen solo cuando la preferencia de imágenes remotas lo permite, sin solicitudes en spam ni en la demostración. Si falla una imagen se recuperan las iniciales. No introducir nuevas consultas de imágenes para completar la identidad visual.
 
-Los adjuntos permanecen cerrados por defecto. El resumen muestra cantidad y nombres, truncados cuando falta espacio; al desplegarse, los nombres del resumen se ocultan y aparecen los archivos en una rejilla adaptable. Cada columna tiene un mínimo de 240 px, limitado al ancho disponible para no desbordar ventanas estrechas. Las tarjetas suaves usan padding de 12 px y radio `lg`, nombre sans (13 px/500) y detalle sans (12 px). El nombre puede partirse si es largo.
+Los adjuntos permanecen cerrados por defecto. El resumen muestra cantidad, los dos primeros nombres y «+N más», manteniendo visible el contador al truncar los nombres; al desplegarse, los nombres del resumen se ocultan y aparecen los archivos en una rejilla adaptable. Cada columna tiene un mínimo de 240 px, limitado al ancho disponible para no desbordar ventanas estrechas. Las tarjetas suaves usan padding de 12 px y radio `lg`, nombre sans (13 px/500) y detalle sans (12 px). El nombre puede partirse si es largo.
 
 Cada archivo distingue la vista previa (imagen, PDF o texto) de la descarga mediante icono y nombre accesible que incluye el archivo. Conservar los estados de preparación, deshabilitado y progreso, y las vistas previas y descargas existentes.
+
+Las carpetas especiales usan el idioma de la aplicación; las carpetas personales conservan su nombre.
 
 La barra mantiene las acciones principales, navegación entre mensajes y lectura enfocada. Las acciones secundarias permanecen en el menú existente del mensaje. No mostrar afirmaciones técnicas de cifrado sin evidencia real.
 

@@ -97,11 +97,10 @@ export function ComposeOverlay({
   const [priorityValue, setPriorityValue] = useState<MailPriority>(priority)
   const initialReply = useMemo(() => splitReplyHtml(html), [html])
   const [quote, setQuote] = useState(initialReply.quote)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const history = useMemo(() => {
     if (!quote) return { preview: '', text: '' }
     const document_ = new DOMParser().parseFromString(quote, 'text/html')
-    const preview = document_.body.querySelector('blockquote')?.innerHTML ?? ''
+    const preview = quote
     document_.body.querySelectorAll('style, script').forEach(node => node.remove())
     document_.body.querySelectorAll('br').forEach(node => node.replaceWith('\n'))
     document_.body.querySelectorAll('p, tr, li').forEach(node => node.append('\n'))
@@ -144,7 +143,6 @@ export function ComposeOverlay({
     setPriorityValue(priority)
     const parsedReply = splitReplyHtml(html)
     setQuote(parsedReply.quote)
-    setHistoryOpen(false)
     bodyRef.current = { body: parsedReply.text ?? body, html: parsedReply.html }
     setBodyValue(parsedReply.text ?? body)
     setHtmlValue(parsedReply.html)
@@ -403,18 +401,14 @@ export function ComposeOverlay({
                   <span>{t('compose.signatureRole')}</span>
                 </div>
               )}
+              {quote && <section className="composer__history">
+                <div className="composer__history-content" role="region" aria-label={t('compose.originalMessage')}>
+                  <EmailBody html={history.preview} integrated />
+                </div>
+              </section>}
             </RichTextEditor>
             </Suspense>
-              {quote && <section className="composer__history">
-                <button type="button" className="composer__history-toggle" aria-expanded={historyOpen} onClick={() => setHistoryOpen(value => !value)}>
-                  <Icon name={historyOpen ? 'expand_less' : 'expand_more'} size={18} />
-                  {t(historyOpen ? 'compose.hideHistory' : 'compose.showHistory')}
-                  <span>{t('compose.historyReadOnly')}</span>
-                </button>
-                {historyOpen && <div className="composer__history-content" role="region" aria-label={t('compose.originalMessage')}>
-                  <EmailBody html={history.preview} />
-                </div>}
-              </section>}
+
           </div>
 
           <div className="copilot">
