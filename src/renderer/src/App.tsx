@@ -1241,7 +1241,7 @@ export function App(): React.JSX.Element {
     const original = (message?.body ?? []).join('\n\n')
     const quoted = original ? original.split('\n').map(line => `> ${line}`).join('\n') : ''
     const attribution = message ? `${message.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message.sentAt}, ${sender?.name ?? ''} <${sender?.email ?? ''}>:` : ''
-    const prefix = selected.subject.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`
+    const prefix = `Re: ${selected.subject.replace(/^(?:\s*re\s*:\s*)+/i, '').trimStart()}`
 
     setComposeSession(session => session + 1)
     setCompose({

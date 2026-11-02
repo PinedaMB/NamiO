@@ -56,5 +56,13 @@ const load=name=>vm.runInNewContext(ts.transpile(`(${declarations.get(name)})`,{
  load('openReply')('',true)
  assert.equal(value.to,'','no other recipients leaves To empty for manual entry')
  assert.equal(value.cc,'')
+ for(const [subject,expected] of [['RE: Test','Re: Test'],['re: Test','Re: Test'],[' Re : RE: re: Test','Re: Test'],['RE: RE: RV: Agencias','Re: RV: Agencias'],['RV: Agencias','Re: RV: Agencias'],['Reporte RE: interno','Re: Reporte RE: interno']]){
+  context.selected.subject=subject
+  for(const all of [false,true]){
+   load('openReply')('',all)
+   assert.equal(value.subject,expected,'reply normalizes repeated prefixes without changing the original subject')
+   assert.equal(context.selected.subject,subject,'received message subjects remain unchanged')
+  }
+ }
  console.log('New compose: fresh content and instance per message, with explicit draft restoration passed')
 })().catch(error=>{console.error(error);process.exitCode=1})
