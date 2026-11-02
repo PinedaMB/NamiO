@@ -19,11 +19,11 @@ export interface StoredAccount {
   /** `password` por defecto; `oauth2` usa XOAUTH2 con refresh token. */
   auth?: AuthMethod
   oauth?: OAuthConfig
-  /** base64 de `safeStorage.encryptString` del refresh token (OAuth2). */
+  /** base64 de `safeStorage.encryptStringAsync` del refresh token (OAuth2). */
   refreshToken?: string
-  /** base64 de `safeStorage.encryptString` del `clientSecret` OAuth. */
+  /** base64 de `safeStorage.encryptStringAsync` del `clientSecret` OAuth. */
   oauthSecret?: string
-  /** base64 de `safeStorage.encryptString`; ausente si el SO no ofrece cifrado. */
+  /** base64 de `safeStorage.encryptStringAsync`; ausente si el SO no ofrece cifrado. */
   secret?: string
 }
 
@@ -209,14 +209,11 @@ export async function encryptSecret(password: string): Promise<string | null> {
   if (process.platform === 'linux') {
     const backend = safeStorage.getSelectedStorageBackend()
     if (backend === 'basic_text' || backend === 'unknown') return null
-    // shortcut: Electron 45 async no incluye KWallet; revisar al actualizar a Electron 46.
-    if (backend.startsWith('kwallet')) {
-      if (!safeStorage.isEncryptionAvailable()) return null
-      return safeStorage.encryptString(password).toString('base64')
-    }
   }
   if (!(await safeStorage.isAsyncEncryptionAvailable())) return null
   const encrypted = await safeStorage.encryptStringAsync(password)
+  // El proveedor async puede recurrir a la clave fija v10 aunque KDE tenga una cartera seleccionada.
+  if (process.platform === 'linux' && encrypted.subarray(0, 3).toString() === 'v10') return null
   return encrypted.toString('base64')
 }
 
@@ -225,18 +222,6 @@ export async function decryptSecret(secret: string): Promise<string | null> {
     const decrypted = await safeStorage.decryptStringAsync(Buffer.from(secret, 'base64'))
     return decrypted.result
   } catch {
-    // Las claves v11 de KWallet pueden no estar disponibles para el proveedor async.
-    try {
-      const encrypted = Buffer.from(secret, 'base64')
-      if (process.platform === 'linux' && encrypted.subarray(0, 3).toString() === 'v11') {
-        const backend = safeStorage.getSelectedStorageBackend()
-        if (backend !== 'basic_text' && backend !== 'unknown' && safeStorage.isEncryptionAvailable()) {
-          return safeStorage.decryptString(encrypted)
-        }
-      }
-    } catch {
-      // Una cartera bloqueada o una clave ausente no debe borrar la credencial.
-    }
     return null
   }
 }

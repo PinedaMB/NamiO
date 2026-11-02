@@ -13,17 +13,14 @@ async function main() {
   let backend = 'basic_text'
   let available = true
   let encryptCalls = 0
-  let syncEncryptCalls = 0, syncDecryptCalls = 0, asyncDecryptFails = false
+  let asyncDecryptFails = false, insecureFallback = false
   const safeStorage = {
-    isEncryptionAvailable: () => available,
-    encryptString: value => { syncEncryptCalls++; return Buffer.from(`v11${value}`) },
-    decryptString: value => { syncDecryptCalls++; if (!available) throw new Error('Wallet locked'); return Buffer.from(value).toString().slice(3) },
     isAsyncEncryptionAvailable: async () => available,
     getSelectedStorageBackend: () => backend,
-    encryptStringAsync: async value => { encryptCalls++; return Buffer.from(`enc:${value}`) },
+    encryptStringAsync: async value => { encryptCalls++; return Buffer.from(`${insecureFallback ? 'v10' : 'enc:'}${value}`) },
     decryptStringAsync: async value => {
       if (asyncDecryptFails) throw new Error('Key unavailable to async provider')
-      return { result: Buffer.from(value).toString().replace(/^enc:/, ''), shouldReEncrypt: false }
+      return { result: Buffer.from(value).toString().replace(/^(enc:|v11)/, ''), shouldReEncrypt: false }
     }
   }
   const context = {
@@ -45,27 +42,24 @@ async function main() {
 
     for (backend of ['kwallet', 'kwallet5', 'kwallet6']) {
       const stored = await settings.encryptSecret('kde-secret')
-      assert.equal(Buffer.from(stored, 'base64').toString(), 'v11kde-secret')
+      assert.equal(Buffer.from(stored, 'base64').toString(), 'enc:kde-secret')
+      assert.equal(await settings.decryptSecret(stored), 'kde-secret', 'KWallet uses the async encryptor and decryptor')
+      assert.equal(await settings.decryptSecret(Buffer.from('v11legacy-secret').toString('base64')), 'legacy-secret', 'existing credentials are passed to the supported async decoder')
       asyncDecryptFails = true
-      assert.equal(await settings.decryptSecret(stored), 'kde-secret', 'legacy KWallet credentials remain readable')
+      assert.equal(await settings.decryptSecret(stored), null, 'unavailable keys are handled without changing stored data')
       available = false
-      assert.equal(await settings.encryptSecret('secret'), null, 'a locked wallet cannot persist credentials')
-      assert.equal(await settings.decryptSecret(stored), null, 'a locked wallet is handled without changing stored data')
+      assert.equal(await settings.encryptSecret('secret'), null, 'unavailable encryption cannot persist credentials')
       available = true
       asyncDecryptFails = false
+      insecureFallback = true
+      assert.equal(await settings.encryptSecret('secret'), null, 'a v10 fallback is rejected even with KWallet selected')
+      insecureFallback = false
     }
-    assert.equal(syncEncryptCalls, 3)
-    assert.equal(syncDecryptCalls, 3)
-    asyncDecryptFails = true
-    assert.equal(await settings.decryptSecret(Buffer.from('v20other-provider').toString('base64')), null, 'new ciphertext is never passed to the legacy decoder')
-    backend = 'basic_text'
-    assert.equal(await settings.decryptSecret(Buffer.from('v11secret').toString('base64')), null, 'no fallback through an insecure backend')
-    assert.equal(syncDecryptCalls, 3)
-    asyncDecryptFails = false
+    const beforeUnknown = encryptCalls
 
     backend = 'unknown'
     assert.equal(await settings.encryptSecret('secret'), null)
-    assert.equal(encryptCalls, 1)
+    assert.equal(encryptCalls, beforeUnknown)
 
     context.process.platform = 'win32'
     available = false
