@@ -15,7 +15,7 @@ const animationFrame = { current: 0 }
 const inner = {
   defaultView: { ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() { disconnected++ } } },
   documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
-  body: { scrollHeight: 1250, getBoundingClientRect: () => ({ bottom: 1250 }) }, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
+  body: { scrollHeight: 1250, getBoundingClientRect: () => ({ bottom: 1250 }) }, querySelector: () => null, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
 }
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/EmailBody.tsx', 'utf8'), {
@@ -27,7 +27,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   cancelAnimationFrame: () => { pendingMeasure = undefined },
   DOMParser: class { parseFromString(html) {
       const head = { markup: '', insertAdjacentHTML(_position, markup) { this.markup = markup } }
-      return { cloneNode() { return this }, querySelectorAll: () => [], head, documentElement: { get outerHTML() { return `<html><head>${head.markup}</head><body>${html}</body></html>` } } }
+      return { body: { querySelector: () => null, querySelectorAll: () => [] }, cloneNode() { return this }, querySelector: () => null, querySelectorAll: () => [], head, documentElement: { get outerHTML() { return `<html><head>${head.markup}</head><body>${html}</body></html>` } } }
     } },
   require: id => {
     if (id === 'react') return { ...React,

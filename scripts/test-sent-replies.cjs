@@ -22,9 +22,10 @@ async function backend(mode) {
         getMailboxLock: async path => { assert.equal(path, 'Enviados'); return { release() { released++ } } },
         search: async (query, options) => {
           searches++; assert.equal(options.uid, true)
+          if (query.uid) return mode === 'index-lag' ? [7] : []
           assert.ok(query.or.some(item => item.header.References === '<root>'))
           assert.ok(query.or.some(item => item.header['Message-ID'] === '<inbox>'))
-          return [7]
+          return mode === 'index-lag' ? [] : [7]
         }
       }
     }
@@ -34,40 +35,52 @@ async function backend(mode) {
   if (mode === 'switch') { assert.equal(result.ok, false); assert.equal(writes, 0); assert.equal(searches, 0); return }
   assert.equal(result.ok, true)
   assert.deepEqual(Array.from(result.data, item => [item.mailbox, item.uid]), mode === 'cached' || mode === 'offline' ? [['Enviados', 7], ['Enviados', 9]] : [['Enviados', 7]], 'online results exclude deleted cached messages')
-  assert.equal(searches, mode === 'cached' || mode === 'offline' ? 0 : 1)
+  assert.equal(searches, mode === 'cached' || mode === 'offline' ? 0 : 2)
   assert.equal(cleared, mode === 'validity' ? 1 : 0, 'changed UIDVALIDITY cannot reuse stale bodies')
   if (searches) assert.equal(released, 1)
   if (mode === 'offline') assert.equal(result.meta.offline, true)
   assert.equal((await api('INBOX', ['7'], true)).ok, false, 'IPC rejects invalid UIDs')
 }
 const app = ts.createSourceFile('App.tsx', fs.readFileSync('src/renderer/src/App.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-let effect
+let effect, listEffect
 function visit(node) {
-  if (ts.isCallExpression(node) && node.expression.getText(app) === 'useEffect' && node.arguments[0]?.getText(app).includes('window.api.getSentReplies')) effect = node.arguments[0].getText(app)
+  if (ts.isCallExpression(node) && node.expression.getText(app) === 'useEffect' && node.arguments[0]?.getText(app).includes('window.api.getSentReplies')) {
+    if (node.arguments[0].getText(app).includes('const conversations =')) listEffect = node.arguments[0].getText(app)
+    else effect = node.arguments[0].getText(app)
+  }
   ts.forEachChild(node, visit)
 }
 visit(app)
-let readerExpression
+let readerExpression, sentKeyExpression
 function findReader(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(app) === 'sentRepliesKey') sentKeyExpression = node.initializer.getText(app)
   if (ts.isVariableDeclaration(node) && node.name.getText(app) === 'readerThread') readerExpression = node.initializer.getText(app)
   ts.forEachChild(node, findReader)
 }
 findReader(app)
+const keyFor = (id, identity = 'one', folder = 'INBOX') => vm.runInNewContext(compile(`(${sentKeyExpression})`), {
+  selected: { id, messageIds: [7, 8] }, accountIdentity: { current: identity }, folder,
+  conversationKey: thread => thread.messageIds.join(',')
+})
+assert.equal(keyFor('live:7'), keyFor('live:8'), 'members of the same conversation share their sent cache')
+assert.notEqual(keyFor('live:7'), keyFor('live:7', 'two'), 'sent cache remains isolated between accounts')
+assert.notEqual(keyFor('live:7'), keyFor('live:7', 'one', 'Archive'), 'UIDs remain scoped to their mailbox')
 const combined = vm.runInNewContext(compile(`(${readerExpression})`), {
   selected: { id: 'live:7', messages: [{ id: 'live:7', messageId: '<incoming>', date: 1 }] },
   sentMessages: [{ id: 'sent:Sent:7', messageId: '<sent>', date: 2 }, { id: 'sent:Sent:8', messageId: '<incoming>', date: 1 }]
 })
 assert.deepEqual(Array.from(combined.messages, message => message.id), ['live:7', 'sent:Sent:7'], 'reader preserves chronology and deduplicates mailbox copies by Message-ID')
 const flush = () => new Promise(resolve => setImmediate(resolve))
-async function renderer(offline = false, stale = false) {
+async function renderer(offline = false, stale = false, preserveFull = false) {
   const lookups = [], bodies = [], updates = []
   let release
+  let state = preserveFull ? { 'one:INBOX:7': [{ id: 'sent:Enviados:7', mailbox: 'Enviados', uid: 7, body: ['Full reply'], partial: false }] } : {}
   const context = {
     live: true, selected: { id: 'live:7', messageIds: [7] }, view: 'mailbox', folder: 'INBOX', locale: 'es', sentRepliesKey: 'one:INBOX:7',
     accountGeneration: { current: 1 }, folderRequest: { current: 1 }, navigator: { onLine: !offline }, uidOf: () => 7,
-    detailToMessage: data => ({ id: `live:${data.uid}`, from: {}, to: [], body: ['Reply'] }),
+    detailToMessage: (data, _locale, partial) => ({ partial, id: `live:${data.uid}`, from: {}, to: [], body: ['Reply'] }),
     setLiveError: error => { throw new Error(JSON.stringify(error)) }, setToast: error => { throw new Error(error) }, t: key => key,
-    setSentReplies: state => updates.push(state),
+    setSentReplies: update => { state = update(state); updates.push(state) },
     window: { api: {
       getSentReplies: async (_path, _uids, cachedOnly) => {
         lookups.push(cachedOnly)
@@ -83,12 +96,42 @@ async function renderer(offline = false, stale = false) {
   if (stale) { assert.equal(updates.length, 0, 'account changes reject old sent replies'); return }
   assert.deepEqual(lookups, offline ? [true] : [true, false])
   assert.deepEqual(bodies[0], ['Enviados', 7, true], 'same UID in Inbox must not redirect a sent body')
-  assert.equal(updates.at(-1).messages[0].id, 'sent:Enviados:7')
-  assert.equal(updates.at(-1).messages[0].mailbox, 'Enviados')
+  assert.equal(updates.at(-1)['one:INBOX:7'][0].id, 'sent:Enviados:7')
+  assert.equal(updates.at(-1)['one:INBOX:7'][0].mailbox, 'Enviados')
+  if (preserveFull) assert.equal(updates[0]['one:INBOX:7'][0].body[0], 'Full reply', 'cached partial bodies cannot replace a complete reply')
   cleanup()
 }
+async function prefetch(stale = false) {
+  let state = {}, release
+  const queries = []
+  const context = {
+    live: true, loadingFolder: false, draftsFolder: false, view: 'mailbox', sentListKey: '1,2', folder: 'INBOX', locale: 'es', PAGE_SIZE: 50,
+    listedThreads: [{ id: 'live:1', messageIds: [1] }, { id: 'live:2', messageIds: [2] }],
+    collapseConversations: threads => threads, conversationKey: thread => thread.messageIds.join(','), uidOf: id => Number(id.slice(5)),
+    accountIdentity: { current: 'one' }, accountGeneration: { current: 1 }, folderRequest: { current: 1 }, navigator: { onLine: true },
+    setSentReplies: update => { state = update(state) }, detailToMessage: (detail, _locale, partial) => ({ from: detail.from, partial }),
+    setLiveError: error => { throw new Error(JSON.stringify(error)) }, setToast: error => { throw new Error(error) }, t: key => key,
+    window: { api: { getSentReplies: async (folder, uids, cachedOnly) => {
+      queries.push([folder, uids, cachedOnly])
+      if (stale) await new Promise(resolve => { release = resolve })
+      return { ok: true, data: [{ mailbox: 'Sent', uid: 7, sourceUids: [2], envelope: { from: { name: 'Me' } } }], meta: {} }
+    }, getMessage() { throw new Error('List prefetch must not download message bodies') } } }
+  }
+  const cleanup = vm.runInNewContext(compile(`(${listEffect})`), context)()
+  if (stale) { context.accountGeneration.current++; release() }
+  await flush(); await flush()
+  cleanup()
+  if (stale) { assert.equal(Object.keys(state).length, 0, 'account switches reject background replies'); return }
+  assert.equal(queries.length, 2, 'one cached batch and one server batch for both unopened conversations')
+  assert.deepEqual(Array.from(queries[0][1]), [1, 2])
+  assert.equal(state[JSON.stringify(['one', 'INBOX', '1'])].length, 0)
+  const replies = state[JSON.stringify(['one', 'INBOX', '2'])]
+  assert.equal(replies[0].id, 'sent:Sent:7', 'unopened conversation already includes its outgoing row')
+  assert.equal(replies[0].partial, true, 'list discovery uses only envelope metadata')
+}
 ;(async () => {
-  for (const mode of ['cached', 'online', 'offline', 'switch', 'validity']) await backend(mode)
-  await renderer(); await renderer(true); await renderer(false, true)
+  await prefetch(); await prefetch(true)
+  for (const mode of ['cached', 'online', 'offline', 'switch', 'validity', 'index-lag']) await backend(mode)
+  await renderer(); await renderer(true); await renderer(false, true); await renderer(true, false, true)
   console.log('Sent replies: exact header search, cache/offline access, account and UID isolation, stale-result cancellation and reader locations passed')
 })().catch(error => { console.error(error); process.exitCode = 1 })

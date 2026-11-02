@@ -1,5 +1,5 @@
 import { useFormatCombo } from '../settings/ShortcutsProvider'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BodyTheme } from '@shared/ipc'
 import logo from '../assets/logo.png'
 import { SenderAvatar } from './SenderAvatar'
@@ -17,6 +17,7 @@ import type { ContextAnchor } from './ContextMenu'
 
 interface ThreadPaneProps {
   thread: Thread
+  focusedMessageId?: string | null
   position: number
   total: number
   bindings: Bindings
@@ -114,6 +115,7 @@ function Body({ message, theme }: { message: Message; theme: BodyTheme }): React
 
 export function ThreadPane({
   thread,
+  focusedMessageId = null,
   position,
   total,
   bindings,
@@ -147,11 +149,19 @@ export function ThreadPane({
   const formatCombo = useFormatCombo()
   const { t, locale } = useI18n()
   const { bodyTheme: preferredTheme, timeFormat } = usePreferences()
-  const themeKey = `${mailbox}:${thread.id}:${preferredTheme}`
+  const themeKey = `${mailbox}:${thread.messageIds?.join(',') ?? thread.id}:${preferredTheme}`
   const [themeOverride, setThemeOverride] = useState<{ key: string; theme: BodyTheme } | null>(null)
   const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : preferredTheme
   useEffect(() => { setThemeOverride(null) }, [themeKey])
   const [messageExpansion, setMessageExpansion] = useState<Record<string, boolean>>({})
+  const focusedMessage = useRef<HTMLDetailsElement | null>(null)
+  const focusedMessagePresent = thread.messages.some(message => message.id === focusedMessageId)
+  useEffect(() => {
+    if (!focusedMessageId || !focusedMessagePresent) return
+    setMessageExpansion(current => ({ ...current, [`${mailbox}:${focusedMessageId}`]: true }))
+    const frame = requestAnimationFrame(() => focusedMessage.current?.scrollIntoView({ block: 'start' }))
+    return () => cancelAnimationFrame(frame)
+  }, [mailbox, focusedMessageId, focusedMessagePresent])
   const [recipientsId, setRecipientsId] = useState<string | null>(null)
   const recipientsMessage = thread.messages.find(message => message.id === recipientsId)
 
@@ -228,7 +238,7 @@ export function ThreadPane({
         </div>
       </div>
 
-      <div className="reading__scroll" key={thread.id}>
+      <div className="reading__scroll" key={thread.messageIds?.join(',') ?? thread.id}>
         <article className="letter">
           <div className="letter__head">
             <h1 className="letter__subject">{thread.subject}</h1>
@@ -264,10 +274,10 @@ export function ThreadPane({
           ) : (
             [...thread.messages].reverse().map((message, messageIndex) => {
               const expansionKey = `${mailbox}:${message.id}`
-              const expanded = messageExpansion?.[expansionKey] ?? messageIndex === 0
+              const expanded = messageExpansion?.[expansionKey] ?? (message.id === focusedMessageId || messageIndex === 0)
               const from = message.from
               return (
-              <details className="thread-message" key={message.id} open={expanded} onToggle={event => {
+              <details className="thread-message" aria-current={message.id === focusedMessageId ? 'true' : undefined} key={message.id} ref={message.id === focusedMessageId ? focusedMessage : undefined} open={expanded} onToggle={event => {
                 const open = event.currentTarget.open
                 if (open !== expanded) setMessageExpansion(current => ({ ...current, [expansionKey]: open }))
               }}>

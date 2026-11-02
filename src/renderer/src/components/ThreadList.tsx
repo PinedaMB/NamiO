@@ -3,7 +3,7 @@ import { usePreferences } from '../settings/PreferencesProvider'
 import { ContextMenu, type ContextAnchor } from './ContextMenu'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TooltipButton } from './Tooltip'
-import type { Thread } from '../data/demo'
+import type { Message, Thread } from '../data/demo'
 import type { FilterId } from './Topbar'
 import { useI18n, type TranslationKey } from '../i18n'
 import { Icon } from './Icon'
@@ -14,6 +14,7 @@ interface ThreadListProps {
   folderLabel: string
   threads: readonly Thread[]
   allThreads?: readonly Thread[]
+  sentReplies?: Readonly<Record<string, readonly Message[]>>
   arrivalKey?: string
   mailbox: string
   spam: boolean
@@ -78,12 +79,15 @@ interface MemberRow {
   sender: Thread['participants'][number] | undefined
   date: string
   unread: boolean
+  timestamp?: string | number
+  sent?: boolean
 }
 
 export function ThreadList({
   folderLabel,
   threads,
   allThreads = threads,
+  sentReplies,
   selectedId,
   selectedMessageId,
   mailbox,
@@ -263,11 +267,25 @@ export function ThreadList({
         messageId: item.id,
         sender: item.participants[0],
         date: item.date !== undefined ? formatMessageDate(item.date, locale, now, timeFormat) : item.receivedAt,
+        timestamp: item.date,
         unread: item.unread
       })))
     }
+    for (const [key, messages] of Object.entries(sentReplies ?? {})) {
+      const members = rows.get(key) ?? []
+      const thread = grouped.get(key)?.[0]
+      if (!thread) continue
+      for (const message of messages) {
+        if (!message.mailbox || members.some(member => member.messageId === message.id)) continue
+        members.push({ id: thread.id, messageId: message.id, sender: message.from,
+          date: message.date !== undefined ? formatMessageDate(message.date, locale, now, timeFormat) : message.sentAt,
+          timestamp: message.date, unread: false, sent: true })
+      }
+      members.sort((a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime())
+      rows.set(key, members)
+    }
     return rows
-  }, [grouped, locale, timeFormat, now])
+  }, [grouped, sentReplies, locale, timeFormat, now])
 
   const filesByConversation = useMemo(() => {
     const files = new Map<string, boolean>()
@@ -436,19 +454,19 @@ export function ThreadList({
                 <div className="thread-group__items">
                   {members.map(member => (
                     <div className="thread-group__item" key={member.messageId}>
-                    {live && <input type="checkbox" checked={checkedSet.has(member.id)} disabled={bulkBusy}
+                    {live && !member.sent && <input type="checkbox" checked={checkedSet.has(member.id)} disabled={bulkBusy}
                       onChange={() => onCheck(member.id)} aria-label={t('list.selectMessage', { subject: `${thread.subject} · ${member.sender?.name ?? ''}` })} />}
                     <button type="button"
                       aria-busy={deletingId === member.id}
                       aria-current={member.messageId === selectedMessageId ? 'true' : undefined}
                       className={cx('thread-group__message', member.messageId === selectedMessageId && 'thread-group__message--active', member.unread && 'thread-group__message--unread')}
-                      onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onContextMenu?.({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, member.id, member.messageId) }}
-                      onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, member.id, member.messageId) } }}
+                      onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (member.sent) return; onContextMenu?.({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, member.id, member.messageId) }}
+                      onKeyDown={event => { if (member.sent) return; if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, member.id, member.messageId) } }}
                       onClick={() => onSelect(member.id, member.messageId)}>
-                      <Icon className={deletingId === member.id ? 'spin' : undefined} name={deletingId === member.id ? 'progress_activity' : member.unread ? 'mark_email_unread' : 'mail'} size={15} />
+                      <Icon className={deletingId === member.id ? 'spin' : undefined} name={deletingId === member.id ? 'progress_activity' : member.sent ? 'send' : member.unread ? 'mark_email_unread' : 'mail'} size={15} />
                       <span className="thread-group__sender">
                         <strong title={member.sender?.name}>{member.sender?.name}</strong>
-                        <span title={member.sender?.email}>{member.sender?.email}</span>
+                        <span title={member.sender?.email}>{member.sent ? t('thread.sent') : member.sender?.email}</span>
                       </span>
                       <span className="thread__time">{member.date}</span>
                     </button>

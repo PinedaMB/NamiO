@@ -171,7 +171,7 @@ export function App(): React.JSX.Element {
   const [threads, setThreads] = useState<readonly Thread[]>(THREADS)
   const [contextMenu, setContextMenu] = useState<(ContextAnchor & { kind: 'message' | 'folder'; id: string; messageId?: string }) | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
-  const [sentReplies, setSentReplies] = useState<{ key: string; messages: Message[] }>({ key: '', messages: [] })
+  const [sentReplies, setSentReplies] = useState<Record<string, Message[]>>({})
   const [sentRepliesVersion, setSentRepliesVersion] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [individualMessageId, setIndividualMessageId] = useState<string | null>(null)
@@ -318,6 +318,7 @@ export function App(): React.JSX.Element {
       accountIdentity.current = identity
       accountGeneration.current += 1
       setThreads([])
+      setSentReplies({})
       setListCounts(null)
       setSelectedId(null)
       setIndividualMessageId(null)
@@ -442,14 +443,18 @@ export function App(): React.JSX.Element {
     return listedThreads.find((thread) => threadMatchesId(thread, selectedId)) ?? visible[0] ?? null
   }, [listedThreads, selectedId, visible])
 
-  const sentRepliesKey = JSON.stringify([accountIdentity.current, folder, selected?.id])
-  const sentMessages = sentReplies.key === sentRepliesKey ? sentReplies.messages : []
+  const sentRepliesKey = JSON.stringify([accountIdentity.current, folder, selected ? conversationKey(selected) : null])
+  const sentMessages = sentReplies[sentRepliesKey] ?? []
   const readerThread = selected && sentMessages.length > 0 ? {
     ...selected,
     messages: [...selected.messages, ...sentMessages].filter((message, index, all) =>
       all.findIndex(item => (item.messageId ?? item.id) === (message.messageId ?? message.id)) === index
     ).sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime())
   } : selected
+
+  const listSentReplies = useMemo(() => Object.fromEntries(collapseConversations(listedThreads).map(thread => [
+    conversationKey(thread), sentReplies[JSON.stringify([accountIdentity.current, folder, conversationKey(thread)])] ?? []
+  ])), [listedThreads, sentReplies, folder])
 
   const unreadCount = live && listCounts ? listCounts.unread : listedThreads.filter((thread) => thread.unread).length
   const otherCount = live && listCounts ? listCounts.total - listCounts.unread : listedThreads.filter((thread) => !thread.unread).length
@@ -892,6 +897,48 @@ export function App(): React.JSX.Element {
     }
   }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view, sync.offline, sync.syncedAt, messageRetry])
 
+  const sentListKey = listedThreads.map(thread => uidOf(thread.id)).filter(uid => uid !== null).join(',')
+  useEffect(() => {
+    if (!live || loadingFolder || draftsFolder || view === 'settings' || !sentListKey || !window.api?.getSentReplies) return
+    const conversations = collapseConversations(listedThreads)
+    const identity = accountIdentity.current
+    const generation = accountGeneration.current
+    const request = folderRequest.current
+    let cancelled = false
+    const current = (): boolean => !cancelled && generation === accountGeneration.current && request === folderRequest.current
+    const load = async (cachedOnly: boolean): Promise<void> => {
+      for (let offset = 0; offset < conversations.length && current(); offset += PAGE_SIZE) {
+        const batch = conversations.slice(offset, offset + PAGE_SIZE)
+        const uids = [...new Set(batch.flatMap(thread => thread.messageIds ?? [uidOf(thread.id)!]))]
+        const result = await window.api.getSentReplies(folder, uids, cachedOnly)
+        if (!current()) return
+        if (!result.ok) { setLiveError({ code: result.code, detail: result.detail }); return }
+        setSentReplies(previous => {
+          const next = { ...previous }
+          for (const thread of batch) {
+            const locations = result.data.filter(location => location.sourceUids.some(uid => (thread.messageIds ?? [uidOf(thread.id)]).includes(uid)))
+            const key = JSON.stringify([identity, folder, conversationKey(thread)])
+            const retained = (previous[key] ?? []).filter(message => cachedOnly || result.meta.offline || locations.some(location => location.mailbox === message.mailbox && location.uid === message.uid))
+            const messages = new Map(retained.map(message => [message.id, message]))
+            for (const location of locations) {
+              const id = `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`
+              if (messages.has(id)) continue
+              messages.set(id, { ...detailToMessage({ ...location.envelope, to: [], cc: [], text: '', html: null, attachments: [] }, locale, true),
+                id, mailbox: location.mailbox, uid: location.uid })
+            }
+            next[key] = [...messages.values()]
+          }
+          return next
+        })
+      }
+    }
+    void (async () => {
+      await load(true)
+      if (current() && navigator.onLine !== false) await load(false)
+    })().catch(error => { if (current()) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })) })
+    return () => { cancelled = true }
+  }, [live, loadingFolder, draftsFolder, sentListKey, folder, locale, view, sync.syncedAt, sentRepliesVersion, t])
+
   useEffect(() => {
     if (!live || !selected || view === 'settings' || !window.api?.getSentReplies || selected.id.startsWith('draft:')) return
     const uid = uidOf(selected.id)
@@ -913,14 +960,23 @@ export function App(): React.JSX.Element {
           id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,
           inlineImagesPending: response.meta.inlineImagesPending === true }
       }))
-      if (current()) setSentReplies({ key, messages: messages.filter((message): message is NonNullable<typeof message> => message !== null) })
+      if (current()) setSentReplies(previous => {
+        const retained = (previous[key] ?? []).filter(message => cachedOnly || result.meta.offline || result.data.some(location => location.mailbox === message.mailbox && location.uid === message.uid))
+        const next = new Map(retained.map(message => [message.id, message]))
+        for (const message of messages) {
+          if (!message) continue
+          const existing = next.get(message.id)
+          if (!existing || !message.partial || existing.partial) next.set(message.id, message)
+        }
+        return { ...previous, [key]: [...next.values()] }
+      })
     }
     void (async () => {
       await load(true)
       if (current() && navigator.onLine !== false) await load(false)
     })().catch(error => { if (current()) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })) })
     return () => { cancelled = true }
-  }, [live, selected?.id, selected?.messageIds?.join(','), sentRepliesKey, sentRepliesVersion, folder, locale, view, sync.syncedAt, messageRetry, t])
+  }, [live, sentRepliesKey, sentMessages.map(message => message.id).join(','), sentRepliesVersion, folder, locale, view, sync.syncedAt, messageRetry, t])
 
   const select = (id: string, messageId?: string): void => {
     if (!draftsFolder) setMessageOpen(true)
@@ -1177,7 +1233,13 @@ export function App(): React.JSX.Element {
       inReplyTo: message?.messageId,
       references: [...new Set([...(message?.references ?? []), message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)))],
       body: [body, attribution, quoted].filter((part) => part !== '').join('\n\n'),
-      html: replyComposeHtml(body, attribution, original, t('compose.originalMessage'), message?.html)
+      html: replyComposeHtml(body, attribution, original, t('compose.originalMessage'), message?.html, [
+        [t('compose.from'), `${sender?.name ?? ''} <${sender?.email ?? ''}>`],
+        [t('mail.sentOn'), message?.date !== undefined ? formatMessageDateTime(message.date, locale, false, timeFormat) : message?.sentAt ?? ''],
+        [t('compose.to'), (message?.to ?? []).map(person => `${person.name ?? ''} <${person.email}>`).join('; ')],
+        [t('compose.cc'), (message?.cc ?? []).map(person => `${person.name ?? ''} <${person.email}>`).join('; ')],
+        [t('compose.subject'), selected.subject]
+      ])
     })
   }
 
@@ -1549,6 +1611,7 @@ export function App(): React.JSX.Element {
                 folderLabel={folderViews.find(item => item.id === folder)?.label ?? folder}
                 threads={visible}
                 allThreads={listedThreads}
+                sentReplies={listSentReplies}
                 arrivalKey={JSON.stringify([accountIdentity.current, folder, filter, oldestFirst, listLimit])}
                 mailbox={folder}
                 spam={folderViews.some((item) => item.id === folder && item.spam)}
@@ -1601,7 +1664,8 @@ export function App(): React.JSX.Element {
                     setMessageOpen(false)
                     requestAnimationFrame(() => document.querySelector<HTMLElement>('.thread--active button, .thread--active [tabindex="0"]')?.focus())
                   }}
-                  thread={individualMessageId && readerThread!.messages.some(message => message.id === individualMessageId) ? { ...readerThread!, messages: readerThread!.messages.filter(message => message.id === individualMessageId) } : readerThread!}
+                  thread={readerThread!}
+                  focusedMessageId={individualMessageId}
                   mailbox={folder}
                   spam={folderViews.some((item) => item.id === folder && item.spam)}
                   position={Math.max(1, visible.findIndex((thread) => threadMatchesId(thread, selected.id)) + 1)}
@@ -1621,7 +1685,7 @@ export function App(): React.JSX.Element {
                   onDelete={deleteSelected}
                   onEmptyFolder={live && canEmptyMailbox(folder) ? () => { void emptyFolder(folder) } : undefined}
                   onStar={toggleStar}
-                  onOptions={anchor => setContextMenu({ ...anchor, kind: 'message', id: selected.id, messageId: individualMessageId ?? undefined })}
+                  onOptions={anchor => setContextMenu({ ...anchor, kind: 'message', id: selected.id, messageId: selected.messages.some(message => message.id === individualMessageId) ? individualMessageId ?? undefined : undefined })}
                   optionsOpen={contextMenu?.kind === 'message' && contextMenu.id === selected.id}
                   onReply={() => openReply()}
                   onReplyAll={() => openReply('', true)}

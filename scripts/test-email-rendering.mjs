@@ -26,12 +26,13 @@ try {
   await writeFile(join(folder, 'main.tsx'), `
 import React, {useState} from '${project}/node_modules/react';
 import {createRoot} from '${project}/node_modules/react-dom/client';
+import {replyComposeHtml} from '${project}/src/renderer/src/lib/composeHtml';
 import {EmailBody} from '${project}/src/renderer/src/components/EmailBody';
 import {I18nProvider} from '${project}/src/renderer/src/i18n';
 import {PreferencesProvider} from '${project}/src/renderer/src/settings/PreferencesProvider';
 import '${project}/src/renderer/src/styles/tokens.css';
 import '${project}/src/renderer/src/styles/app.css';
-function Harness(){const [theme,setTheme]=useState('light');window.setTheme=setTheme;return <EmailBody html={${JSON.stringify(html)}} theme={theme}/>}
+function Harness(){const [theme,setTheme]=useState('light');const [html,setHtml]=useState(${JSON.stringify(html)});window.setHtml=setHtml;window.replyComposeHtml=replyComposeHtml;window.setTheme=setTheme;return <EmailBody html={html} theme={theme}/>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><I18nProvider><PreferencesProvider><Harness/></PreferencesProvider></I18nProvider></React.StrictMode>);
 `)
   await build({ configFile:false, root:folder, base:'./', plugins:[react()], resolve:{alias:{'@shared':join(project,'src/shared'),'react':join(project,'node_modules/react'),'react-dom':join(project,'node_modules/react-dom')}}, build:{outDir:join(folder,'dist'),emptyOutDir:true}, logLevel:'error' })
@@ -73,6 +74,40 @@ app.whenReady().then(async()=>{
    assert.ok(grew,'Late content growth must resize percentage-height emails');
   }
  }
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const assert=(value,message)=>{if(!value)throw new Error(message)};
+ const until=async predicate=>{for(let i=0;i<200;i++){if(predicate())return;await new Promise(resolve=>requestAnimationFrame(resolve))}throw new Error('Quoted history did not settle')};
+ const outgoing=window.replyComposeHtml('Respuesta actual','','Original','Mensaje original','<p>Contenido anterior</p>',[['De','Remitente <sender@example.test>'],['Enviado el','31 de octubre'],['Para','Equipo <team@example.test>'],['Cc','Copia <copy@example.test>'],['Asunto','Prueba <literal>']]);
+ assert(!outgoing.includes('Mensaje original'),'New replies use structured headers');
+ assert(outgoing.includes('&lt;sender@example.test&gt;')&&outgoing.includes('Prueba &lt;literal&gt;'),'Header values must be escaped');
+ let caseId=0;
+ for(const html of [outgoing,'<p>Respuesta actual</p><div class="gmail_quote"><p>Contenido anterior</p></div>','<div><p>Respuesta actual</p><div id="divRplyFwdMsg"><strong>De:</strong> Remitente</div><p>Contenido anterior</p><div style="height:600px">Final citado</div></div>','<p>Respuesta actual</p><blockquote type="cite">Contenido anterior</blockquote>', '<div><p>Respuesta actual</p><p>Firma actual</p><hr><p><b>De:</b> Remitente &lt;sender@example.test&gt;</p><p><b>Enviado el:</b> sábado, 31 de octubre</p><p><b>Para:</b> Equipo</p><p><b>CC:</b> Copia</p><p><b>Asunto:</b> Prueba</p><p>Contenido anterior</p><blockquote data-namio-reply-quote="true">Mensaje original más antiguo</blockquote></div>', '<p>Respuesta actual</p><div><b>From:</b> Sender &lt;sender@example.test&gt;<br><b>Sent:</b> Saturday<br><b>To:</b> Team<br><b>Subject:</b> Test</div><p>Contenido anterior</p>' ]){
+ const marker="quote-case-"+(caseId++);window.setHtml('<p id="'+marker+'">Mensaje actual</p>'+html);
+ await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.getElementById(marker)&&frame.contentDocument?.querySelector('details.namio-quote')?.textContent.includes('Contenido anterior')});
+ const frame=document.querySelector('iframe'),doc=frame.contentDocument,history=doc.querySelector('details.namio-quote');
+ assert(!history.open,'History starts collapsed');
+ assert(doc.body.textContent.includes('Respuesta actual'),'Current response remains outside history');
+ assert(!history.textContent.includes('Respuesta actual')&&!history.textContent.includes('Firma actual'),'Current response and signature must remain visible');
+ const collapsed=frame.clientHeight;
+ history.querySelector('summary').click();
+ try { await until(()=>history.open&&frame.clientHeight>collapsed) } catch(error) { throw new Error(JSON.stringify({html,open:history.open,collapsed,height:frame.clientHeight,body:doc.body.scrollHeight,bottom:doc.body.getBoundingClientRect().bottom,language:history.querySelector('summary').getAttribute('aria-label')})) }
+ assert(history.querySelector('summary').getAttribute('aria-label').includes('Ocultar'),'Toggle exposes its collapse action');
+ history.querySelector('summary').click();
+ await until(()=>!history.open&&frame.clientHeight<=collapsed+2);
+ }
+ window.setHtml('<p>Respuesta actual</p><blockquote>Una cita literaria</blockquote><p>De: este tema podemos hablar mañana.</p>');
+ await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.body.textContent.includes('Una cita literaria')});
+ assert(!document.querySelector('iframe').contentDocument.querySelector('details.namio-quote'),'Ordinary quotations must remain visible');
+ window.setHtml(outgoing);await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.body.textContent.includes('Prueba <literal>')});
+ await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ })()`)});
+ win.webContents.invalidate();await new Promise(resolve=>setTimeout(resolve,250));
+ await win.webContents.capturePage().then(image=>require('node:fs').writeFileSync('/tmp/namio-quoted-history.png',image.toPNG()));
+ await win.webContents.executeJavaScript("document.querySelector('iframe').contentDocument.querySelector('details.namio-quote > summary').click()");
+ win.setContentSize(900,700);
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{window.setTheme('dark');for(let i=0;i<200;i++){await new Promise(resolve=>requestAnimationFrame(resolve));const frame=document.querySelector('iframe');if(frame?.style.visibility==='visible'&&frame.clientWidth>800&&frame.contentDocument?.documentElement.dataset.emailTheme==='dark')return}throw new Error('Dark quote view did not settle')})()`)});
+ win.webContents.invalidate();await new Promise(resolve=>setTimeout(resolve,250));
+ await win.webContents.capturePage().then(image=>require('node:fs').writeFileSync('/tmp/namio-quoted-history-dark.png',image.toPNG()));
  assert.deepEqual(errors,[],'Email resizing and theme toggles must not produce renderer errors');
  console.log('Email rendering: head CSS, root/body classes, authored image height, no overlap, responsive rules, theme toggles and security passed');app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1)});

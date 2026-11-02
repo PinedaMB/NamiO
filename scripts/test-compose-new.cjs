@@ -35,6 +35,7 @@ const load=name=>vm.runInNewContext(ts.transpile(`(${declarations.get(name)})`,{
  assert.equal(quoteArgs[0],'')
  assert.equal(quoteArgs[2],'First line\nSecond line\n\nLast paragraph')
  assert.equal(quoteArgs[3],'compose.originalMessage')
+ assert.deepEqual(Array.from(quoteArgs[5],row=>Array.from(row)),[['compose.from','Sender <sender@example.com>'],['mail.sentOn','27 oct'],['compose.to',''],['compose.cc',''],['compose.subject','Test']],'reply headers describe the original message')
  context.account={account:{user:' Me@Example.com '}}
  messages[1].to=[{email:'me@example.com'},{email:'other@example.com'},{email:'SENDER@example.com'},{email:'other@example.com'}]
  messages[1].cc=[{email:'copy@example.com'},{email:'OTHER@example.com'},{email:'ME@example.com'},{email:'COPY@example.com'}]

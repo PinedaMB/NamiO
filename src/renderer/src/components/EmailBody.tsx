@@ -23,14 +23,45 @@ function sanitize(html: string): string {
     // Defensa en profundidad: el iframe ya corre sin scripts.
     FORBID_TAGS: ['form', 'input', 'textarea', 'select', 'option', 'object', 'embed', 'base', 'meta', 'link'],
     FORBID_ATTR: ['srcset', 'formaction', 'ping', 'contenteditable'],
+    ADD_ATTR: ['data-namio-reply-quote'],
     ALLOW_DATA_ATTR: false
   })
 }
 
 /** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas se bloquearon. */
-function prepare(html: string, allowImages: boolean): { document: Document; blocked: number } {
+function prepare(html: string, allowImages: boolean, showQuote: string, hideQuote: string): { document: Document; blocked: number } {
   const document_ = new DOMParser().parseFromString(html, 'text/html')
   let blocked = 0
+  // Los clientes también envían cabeceras citadas sin un marcador propio.
+  let quote = document_.body.querySelector('blockquote[data-namio-reply-quote], .gmail_quote, .gmail_attr, .yahoo_quoted, #divRplyFwdMsg, .moz-cite-prefix, blockquote[type="cite"]')
+  for (const candidate of document_.body.querySelectorAll('p, div, td')) {
+    if (!/^(?:de|from)\s*:/i.test(candidate.textContent?.trim() ?? '')) continue
+    const parts: string[] = []
+    let sibling: Element | null = candidate
+    for (let index = 0; sibling && index < 8; index++, sibling = sibling.nextElementSibling) parts.push(sibling.textContent ?? '')
+    const header = parts.join('\n').slice(0, 5000)
+    if (!/^(?:de|from)\s*:[\s\S]{0,800}?(?:enviado(?: el)?|sent|date|fecha)\s*:[\s\S]{0,800}?(?:para|to)\s*:[\s\S]{0,1500}?(?:asunto|subject)\s*:/i.test(header.trim())) continue
+    if (!quote || candidate.compareDocumentPosition(quote) & Node.DOCUMENT_POSITION_FOLLOWING) quote = candidate
+    break
+  }
+  if (quote) {
+    const history = document_.createElement('details')
+    history.className = 'namio-quote'
+    const toggle = document_.createElement('summary')
+    toggle.setAttribute('aria-label', showQuote)
+    for (const [className, label] of [['namio-quote-show', showQuote], ['namio-quote-hide', hideQuote]] as const) {
+      const text = document_.createElement('span')
+      text.className = className
+      text.textContent = label
+      toggle.append(text)
+    }
+    const range = document_.createRange()
+    range.setStartBefore(quote)
+    range.setEnd(document_.body, document_.body.childNodes.length)
+    const content = range.extractContents()
+    history.append(toggle, content)
+    document_.body.append(history)
+  }
 
   if (!allowImages) {
     document_.querySelectorAll('img').forEach((image) => {
@@ -78,6 +109,13 @@ function buildDocument(document_: Document, allowImages: boolean): string {
     ::selection { background: #c0c1ff; color: #10131b; }
     table { max-width: 100%; }
     pre, code { white-space: pre-wrap; }
+    details.namio-quote { margin-top: 20px; }
+    details.namio-quote > summary { display: list-item; width: fit-content; padding: 6px 10px; border: 1px solid currentColor; border-radius: 6px; font: 12px/1.5 system-ui, sans-serif; cursor: pointer; }
+    details.namio-quote > summary:focus-visible { outline: 2px solid #8083ff; outline-offset: 3px; }
+    details.namio-quote:not([open]) > summary .namio-quote-hide,
+    details.namio-quote[open] > summary .namio-quote-show { display: none; }
+    details.namio-quote[open] > summary { margin-bottom: 16px; }
+
   `
 
   // Los estilos del remitente conservan su cabecera y prevalecen sobre nuestros valores base.
@@ -108,7 +146,7 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
   }, [remoteImages, html])
 
   const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
-  const prepared = useMemo(() => prepare(sanitize(html), allowImages), [html, allowImages])
+  const prepared = useMemo(() => prepare(sanitize(html), allowImages, t('mail.showQuote'), t('mail.hideQuote')), [html, allowImages, t])
   const documentHtml = useMemo(
     () => buildDocument(prepared.document, allowImages),
     [prepared, allowImages]
@@ -133,16 +171,22 @@ export function EmailBody({ html, blockRemote = false, theme }: EmailBodyProps):
 
     // El iframe comparte origen (sin scripts), así que el padre puede medirlo:
     // así el correo crece a su altura real y hay un solo scroll (el del lector).
-    const measure = (): void => {
+    const measure = (contentOnly = false): void => {
       // Al expandir un mensaje, sus superficies ya tienen dimensiones reales.
       const background = emailBackground(inner)
       if (background) {
         inner.body.style.setProperty('background-color', background, 'important')
         setBackground(background)
       }
-      const next = Math.max(inner.documentElement.scrollHeight, inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 140)
+      const next = Math.max(contentOnly ? 0 : inner.documentElement.scrollHeight, inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 140)
       setHeight(next)
     }
+    inner.addEventListener('toggle', event => {
+      const details = event.target as HTMLDetailsElement
+      if (!details.matches('details.namio-quote')) return
+      details.querySelector('summary')?.setAttribute('aria-label', t(details.open ? 'mail.hideQuote' : 'mail.showQuote'))
+      measure(true)
+    }, true)
     measure()
     setReadyDocument(documentHtml)
 

@@ -68,7 +68,7 @@ let expansionState
 const pane = {}
 const clicked = []
 vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { exports: pane, require: id => {
-  if (id === 'react') return { ...React, useState: () => [null, update => { if (typeof update === 'function') expansionState = update(expansionState ?? {}) }], useEffect() {} }
+  if (id === 'react') return { ...React, useRef: initial => ({ current: initial }), useState: () => [null, update => { if (typeof update === 'function') expansionState = update(expansionState ?? {}) }], useEffect() {} }
   if (id === '../lib/dates') return dates
   if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ timeFormat: '24h', bodyTheme: 'dark' }) }

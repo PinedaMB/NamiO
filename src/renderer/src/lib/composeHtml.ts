@@ -77,7 +77,7 @@ function safeReplyQuote(html: string): string {
   })
 }
 
-export function replyComposeHtml(body: string, attribution: string, original: string, label: string, originalHtml?: string): string {
+export function replyComposeHtml(body: string, attribution: string, original: string, label: string, originalHtml?: string, headers?: readonly [string, string][]): string {
   const paragraphs = (text: string): string => text.split('\n').map(line => {
     const paragraph = document.createElement('p')
     paragraph.textContent = line
@@ -87,7 +87,15 @@ export function replyComposeHtml(body: string, attribution: string, original: st
   heading.textContent = label
   const originalDocument = originalHtml ? new DOMParser().parseFromString(originalHtml, 'text/html') : null
   const content = originalDocument ? safeReplyQuote([...originalDocument.head.querySelectorAll('style')].map(style => style.outerHTML).join('') + originalDocument.body.innerHTML) : paragraphs(original)
-  return `${paragraphs(body)}<blockquote data-namio-reply-quote="true"><p>${heading.outerHTML}</p>${paragraphs(attribution)}${content}</blockquote>`
+  const header = headers ? headers.filter(([, value]) => value !== '').map(([label, value]) => {
+    const row = document.createElement('p')
+    row.style.margin = '0 0 4px'
+    const name = document.createElement('strong')
+    name.textContent = `${label}: `
+    row.append(name, document.createTextNode(value))
+    return row.outerHTML
+  }).join('') : `<p>${heading.outerHTML}</p>${paragraphs(attribution)}`
+  return `${paragraphs(body)}<blockquote data-namio-reply-quote="true" style="margin:20px 0 0;padding:16px 0 0;border:0;border-top:1px solid #888888">${header}<br>${content}</blockquote>`
 }
 
 /** Estilos inline sencillos para clientes de correo que ignoran las hojas de estilo. */

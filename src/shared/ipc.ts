@@ -221,6 +221,13 @@ export interface Envelope {
   size: number
 }
 
+export interface SentReply {
+  mailbox: string
+  uid: number
+  envelope: Envelope
+  sourceUids: number[]
+}
+
 export interface EnvelopeListOptions {
   filter?: 'all' | 'unread' | 'read'
   oldestFirst?: boolean
@@ -455,7 +462,7 @@ export interface MailApi {
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
   listEnvelopes(path: string, limit: number, sync?: boolean, options?: EnvelopeListOptions): Promise<EnvelopeListResult>
-  getSentReplies(path: string, uids: number[], cachedOnly?: boolean): Promise<CachedResult<{ mailbox: string; uid: number }[]>>
+  getSentReplies(path: string, uids: number[], cachedOnly?: boolean): Promise<CachedResult<SentReply[]>>
   getMessage(path: string, uid: number, cachedOnly?: boolean): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */
   setFlagged(path: string, uid: number, flagged: boolean): Promise<ImapResult<boolean>>

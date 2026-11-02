@@ -11,7 +11,7 @@ const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/ThreadPane.tsx', 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX }), {
   exports: exportsObject,
   require: id => {
-    if (id === 'react') return { ...React, useState: () => [override, value => { override = value }], useEffect() {} }
+    if (id === 'react') return { ...React, useRef: initial => ({ current: initial }), useState: () => [override, value => { override = value }], useEffect() {} }
     if (id === '../lib/dates') return dates
     if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if (id === '../i18n') return { useI18n: () => ({ t: key => key, locale: 'es' }) }

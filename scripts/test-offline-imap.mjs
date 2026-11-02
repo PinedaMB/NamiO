@@ -46,6 +46,7 @@ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'namio-offline-mime-'));const 
  await client.append('Sent',Buffer.from('Message-ID: <unrelated@example.test>\r\nFrom: reader@example.test\r\nSubject: MIME offline test\r\n\r\nUnrelated'),['\\Seen']);
  const sent=await api.getSentReplies('INBOX',[1]);assert.equal(sent.ok,true,JSON.stringify(sent));
  assert.deepEqual(Array.from(sent.data,item=>[item.mailbox,item.uid]),[['Sent',1]],'Sent search excludes unrelated messages with the same subject');
+ assert.deepEqual(Array.from(sent.data[0].sourceUids),[1],'batch reply discovery identifies its Inbox conversation');assert.equal(sent.data[0].envelope.from.address,'reader@example.test','list discovery carries sender metadata without loading the body');
  const own=await api.getMessage('Sent',1);assert.equal(own.data.from.address,'reader@example.test','colliding UIDs cannot load the Inbox sender');
  const ownFile=await api.readAttachment('Sent',1,0);assert.equal(ownFile.content.toString(),'OWN','outgoing attachment uses its source mailbox');
  assert.equal((await api.getSentReplies('INBOX',[1],true)).data.length,1,'sent replies remain discoverable from cache');

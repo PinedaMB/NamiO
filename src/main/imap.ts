@@ -22,6 +22,7 @@ import type {
   MessageAttachment,
   MessageDetail,
   SearchHit,
+  SentReply,
   SyncMeta,
   SyncProgress
 } from '@shared/ipc'
@@ -895,19 +896,25 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
   }
 }
 
-/** Localiza las copias de Enviados que pertenecen al hilo abierto. */
-export async function getSentReplies(path: string, uids: number[], cachedOnly = false): Promise<CachedResult<{ mailbox: string; uid: number }[]>> {
+/** Localiza las copias de Enviados relacionadas con los mensajes del buzón. */
+export async function getSentReplies(path: string, uids: number[], cachedOnly = false): Promise<CachedResult<SentReply[]>> {
   if (typeof path !== 'string' || !Array.isArray(uids) || !uids.every(uid => Number.isSafeInteger(uid) && uid > 0)) {
     return { ok: false, code: 'unknown', detail: 'Identificadores de conversación inválidos' }
   }
   const generation = syncGeneration
   const sent = readMailboxes().find(box => box.specialUse === '\\Sent' || /^sent$/i.test(box.path))?.path
-  const ids = [...new Set(uids.flatMap(uid => {
+  const sources = uids.map(uid => {
     const message = readEnvelope(path, uid)
-    return message ? [message.messageId, message.inReplyTo, ...(message.references ?? [])].filter((id): id is string => Boolean(id)) : []
-  }))]
+    return { uid, ids: message ? [message.messageId, message.inReplyTo, ...(message.references ?? [])].filter((id): id is string => Boolean(id)) : [] }
+  })
+  const ids = [...new Set(sources.flatMap(source => source.ids))]
   if (!sent || sent === path || ids.length === 0) return { ok: true, data: [], meta: syncMeta() }
-  const locations = (matches: number[]): { mailbox: string; uid: number }[] => matches.map(uid => ({ mailbox: sent, uid }))
+  const locations = (matches: number[]): SentReply[] => matches.flatMap(uid => {
+    const envelope = readEnvelope(sent, uid)
+    if (!envelope) return []
+    const ancestry = new Set([envelope.messageId, envelope.inReplyTo, ...(envelope.references ?? [])])
+    return [{ mailbox: sent, uid, envelope, sourceUids: sources.filter(source => source.ids.some(id => ancestry.has(id))).map(source => source.uid) }]
+  })
   if (cachedOnly) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: syncMeta() }
   try {
     const matches = await serial(async () => {
@@ -922,6 +929,13 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
         setMeta(`sentRepliesValidity:${sent}`, validity)
         const found = await client.search({ or: ids.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true })
         if (!found) throw new Error('No se pudieron consultar las respuestas enviadas')
+        // Un índice de cabeceras atrasado no debe ocultar copias ya relacionadas en caché.
+        const missing = relatedMessageUids(sent, ids).filter(uid => !found.includes(uid))
+        if (missing.length > 0) {
+          const existing = await client.search({ uid: missing.join(',') }, { uid: true })
+          if (!existing) throw new Error('No se pudieron verificar las respuestas enviadas guardadas')
+          found.push(...existing)
+        }
         if (found.length > 0) upsertEnvelopes(sent, await fetchRange(client, found.join(','), true))
         const current = new Set(found)
         return relatedMessageUids(sent, ids).filter(uid => current.has(uid))
