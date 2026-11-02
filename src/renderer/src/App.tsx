@@ -819,6 +819,7 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (!live) return
     const unsubscribe = window.api?.onCacheChanged?.((mailbox) => {
+      if (busySwitch.current) return
       if (mailbox === '*' || mailbox === folder) void refreshFromCache()
     })
     return () => unsubscribe?.()
@@ -1200,6 +1201,8 @@ export function App(): React.JSX.Element {
     if (!selected) return
 
     if (live) {
+      const generation = accountGeneration.current
+      const request = folderRequest.current
       const uid = uidOf(selected.id)
       if (uid === null) return
       const next = !selected.starred
@@ -1209,6 +1212,7 @@ export function App(): React.JSX.Element {
       window.api
         .setFlagged(folder, uid, next)
         .then((result) => {
+          if (generation !== accountGeneration.current || request !== folderRequest.current) return
           if (result.ok) setToast(next ? t('toast.starred') : t('toast.unstarred'))
           else setLiveError({ code: result.code, detail: result.detail })
         })
@@ -1294,17 +1298,23 @@ export function App(): React.JSX.Element {
     if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
     if (busySwitch.current) return
     busySwitch.current = true
+    const generation = ++accountGeneration.current
+    folderRequest.current += 1
+    setLiveError(null)
     setSwitchingAccount(true)
     try {
       const result = await window.api.selectAccount(id).catch(() => null)
       if (!result?.ok) {
         setToast(t('account.switchFailed'))
+        await refreshAccount()
+        setMessageRetry(value => value + 1)
         return
       }
       applyAccount(result.data)
       setMessageOpen(false)
       void refreshAccounts()
       await loadMailboxes(result.data)
+      if (generation === accountGeneration.current) setMessageRetry(value => value + 1)
       setToast(t('account.switched'))
     } finally {
       busySwitch.current = false
