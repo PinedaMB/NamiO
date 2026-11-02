@@ -115,7 +115,8 @@ async function postToken(endpoint: string, params: Record<string, string>): Prom
 
   const data = (await response.json().catch(() => ({}))) as TokenResponse
   if (!response.ok || !data.access_token) {
-    throw new Error(data.error_description ?? data.error ?? `El proveedor respondió ${response.status}`)
+    throw Object.assign(new Error(data.error_description ?? data.error ?? `El proveedor respondió ${response.status}`),
+      { code: response.status === 400 || response.status === 401 ? 'AUTH_OAUTH' : 'OAUTH_PROVIDER' })
   }
 
   return {
@@ -343,7 +344,7 @@ export async function refresh(config: OAuthConfig, refreshToken: string): Promis
    Caché en memoria: un access token sirve para IMAP y SMTP hasta que expira.
    ------------------------------------------------------------------------- */
 
-const cache = new Map<string, { accessToken: string; expiresAt: number }>()
+const cache = new Map<string, AccessToken>()
 const pending = new Map<string, Promise<OAuthTokens>>()
 
 const cacheKey = (config: OAuthConfig, refreshToken: string): string =>
@@ -360,7 +361,7 @@ export async function getAccessToken(config: OAuthConfig, refreshToken: string):
   const key = cacheKey(config, refreshToken)
   const cached = cache.get(key)
   if (cached && cached.expiresAt - Date.now() > 60_000) {
-    return { accessToken: cached.accessToken, expiresAt: cached.expiresAt, refreshToken: null }
+    return { accessToken: cached.accessToken, expiresAt: cached.expiresAt, refreshToken: cached.refreshToken }
   }
 
   // Un solo refresco por credencial. Sin esto, IMAP y SMTP podían canjear el
@@ -369,7 +370,10 @@ export async function getAccessToken(config: OAuthConfig, refreshToken: string):
   if (!request) {
     request = refresh(config, refreshToken)
       .then((tokens) => {
-        cache.set(key, { accessToken: tokens.accessToken, expiresAt: tokens.expiresAt })
+        const cached = { accessToken: tokens.accessToken, expiresAt: tokens.expiresAt, refreshToken: tokens.refreshToken }
+        cache.set(key, cached)
+        // Al reconectar se lee la credencial rotada: también debe reutilizar este access token.
+        if (tokens.refreshToken) cache.set(cacheKey(config, tokens.refreshToken), { ...cached, refreshToken: null })
         return tokens
       })
       .catch((error: unknown) => {
@@ -386,6 +390,12 @@ export async function getAccessToken(config: OAuthConfig, refreshToken: string):
 
 export function forgetAccessToken(config: OAuthConfig, refreshToken: string): void {
   const key = cacheKey(config, refreshToken)
+  const cached = cache.get(key)
+  if (cached) {
+    for (const [alias, token] of cache) {
+      if (token.accessToken === cached.accessToken && token.expiresAt === cached.expiresAt) cache.delete(alias)
+    }
+  }
   cache.delete(key)
   pending.delete(key)
 }

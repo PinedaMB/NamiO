@@ -5,7 +5,7 @@ const ts = require('typescript-test')
 
 async function main() {
   const oauth = {}, requests = []
-  let now = 0, offline = false
+  let now = 0, offline = false, rejectedStatus = 0
   vm.runInNewContext(ts.transpile(fs.readFileSync('src/main/oauth.ts', 'utf8'), {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022
   }), {
@@ -19,6 +19,7 @@ async function main() {
     fetch: async (_url, options) => {
       requests.push(new URLSearchParams(options.body))
       if (offline) throw new Error('Network offline')
+      if (rejectedStatus) return { ok: false, status: rejectedStatus, json: async () => ({ error: 'invalid_request', error_description: 'AADSTS90013: Invalid input received from the user.' }) }
       return { ok: true, json: async () => ({ access_token: `access-${requests.length}`, refresh_token: 'rotated', expires_in: 3600 }) }
     }
   })
@@ -29,6 +30,9 @@ async function main() {
   assert.equal(requests[0].get('refresh_token'), 'original')
   assert.equal((await oauth.getAccessToken(config, 'original')).accessToken, first.accessToken)
   assert.equal(requests.length, 1, 'an unexpired access token is reused')
+  assert.equal((await oauth.getAccessToken(config, 'rotated')).accessToken, first.accessToken)
+  assert.equal(requests.length, 1, 'switching back to the account reuses the token under its rotated credential')
+  assert.equal((await oauth.getAccessToken(config, 'original')).refreshToken, 'rotated', 'a stale account snapshot can still persist the rotated credential')
   now = first.expiresAt
   offline = true
   await assert.rejects(oauth.getAccessToken(config, 'original'), /Network offline/)
@@ -36,7 +40,7 @@ async function main() {
   const renewed = await oauth.getAccessToken(config, 'original')
   assert.notEqual(renewed.accessToken, first.accessToken, 'refresh recovers after a network failure')
   await oauth.getAccessToken(config, 'rotated')
-  assert.equal(requests.at(-1).get('refresh_token'), 'rotated')
+  assert.equal(requests.length, 3, 'the rotated credential reuses the renewal instead of requesting another token')
 
   // Dos consumidores (IMAP y SMTP) que llegan a la vez comparten un solo canje.
   now = renewed.expiresAt + 1
@@ -47,6 +51,10 @@ async function main() {
   ])
   assert.equal(requests.length, beforeConcurrent + 1, 'concurrent refreshes share one token request')
   assert.equal(one.accessToken, two.accessToken)
+  const beforeForget = requests.length
+  oauth.forgetAccessToken(config, 'rotated')
+  await oauth.getAccessToken(config, 'original')
+  assert.equal(requests.length, beforeForget + 1, 'forgetting the rotated token also invalidates its previous alias')
 
   await assert.rejects(
     oauth.refresh({ provider: 'custom', clientId: 'custom', clientSecret: '', authUrl: 'https://secure.test/auth', tokenUrl: 'http://insecure.test/token' }, 'refresh'),
@@ -61,6 +69,11 @@ async function main() {
   assert.equal(requests.at(-1).has('client_secret'), false, 'another client cannot receive the built-in credential')
   await oauth.refresh({ provider: 'custom', clientId: 'managed-google', clientSecret: '', tokenUrl: 'https://example.test/token' }, 'custom-refresh')
   assert.equal(requests.at(-1).has('client_secret'), false, 'custom endpoints cannot receive the built-in credential')
+  rejectedStatus = 400
+  await assert.rejects(oauth.refresh(config, 'rejected'), error => error.code === 'AUTH_OAUTH' && error.message.includes('AADSTS90013'))
+  rejectedStatus = 503
+  await assert.rejects(oauth.refresh(config, 'retry-later'), error => error.code === 'OAUTH_PROVIDER', 'a provider outage is not reported as invalid credentials')
+  rejectedStatus = 0
 
   const source = ts.createSourceFile('imap.ts', fs.readFileSync('src/main/imap.ts', 'utf8'), ts.ScriptTarget.Latest, true)
   const auth = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'authFor')
