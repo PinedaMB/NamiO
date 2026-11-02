@@ -121,7 +121,7 @@ async function checkTimeFormatIpc() {
   const settingsModule = {}
   vm.runInNewContext(compile(fs.readFileSync('src/main/settings.ts', 'utf8')), {
     exports: settingsModule,
-    require: id => id === 'electron' ? { app: { getPath: () => '' }, safeStorage: {} } : require(id)
+    require: id => id === '@shared/ipc' ? require('./load-shared-ipc.cjs') : id === 'electron' ? { app: { getPath: () => '' }, safeStorage: {} } : require(id)
   })
   const save = vm.runInNewContext(compile(`(${handler})`), { Error, writeSettings: async patch => writes.push(patch), setBackgroundMode() {}, sanitizeSettingsPatch: settingsModule.sanitizeSettingsPatch })
   for (const timeFormat of ['12h', '24h']) await save(null, { timeFormat })

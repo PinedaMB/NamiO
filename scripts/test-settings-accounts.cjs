@@ -21,6 +21,7 @@ function settings(accounts, events, section = 'accounts') {
     if (id === './Icon') return { Icon: () => null }
     if (id === './Tooltip') return { TooltipButton: props => React.createElement('button', props) }
     if (id === './UpdateNotice') return { UpdateNotice: () => null }
+    if (id === './SignatureSection') return { SignatureSection: () => null }
     if (id === './RulesSection') return { RulesSection: () => null }
     return require(id)
   }

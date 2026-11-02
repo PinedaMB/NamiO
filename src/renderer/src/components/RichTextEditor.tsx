@@ -63,10 +63,12 @@ interface RichTextEditorProps {
   disabled: boolean
   onChange: (text: string, html: string) => void
   onAttach?: () => void
-  children: React.ReactNode
+  signature?: string
+  label?: string
+  children?: React.ReactNode
 }
 
-export function RichTextEditor({ text, html, disabled, onChange, onAttach, children }: RichTextEditorProps): React.JSX.Element {
+export function RichTextEditor({ text, html, disabled, onChange, onAttach, signature, label, children }: RichTextEditorProps): React.JSX.Element {
   const { t } = useI18n()
   const [linkOpen, setLinkOpen] = useState(false)
   const [link, setLink] = useState('')
@@ -81,7 +83,7 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
     content: html ? cleanComposeHtml(html) : textToEditorContent(text),
     editable: !disabled,
     editorProps: {
-      attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('compose.placeholder'), 'data-placeholder': t('compose.placeholder'), spellcheck: 'true' },
+      attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': label || t('compose.placeholder'), 'data-placeholder': label || t('compose.placeholder'), spellcheck: 'true' },
       transformPastedHTML: cleanComposeHtml,
       decorations(state) {
         const { empty, $from } = state.selection
@@ -126,7 +128,7 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
   }, [editor, text, html])
 
   useEffect(() => { if (editor && !editor.isDestroyed) editor.setEditable(!disabled) }, [editor, disabled])
-  useEffect(() => { if (editor && !editor.isDestroyed) editor.setOptions({ editorProps: { ...editor.options.editorProps, attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('compose.placeholder'), 'data-placeholder': t('compose.placeholder'), spellcheck: 'true' } } }) }, [editor, t])
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.setOptions({ editorProps: { ...editor.options.editorProps, attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': label || t('compose.placeholder'), 'data-placeholder': label || t('compose.placeholder'), spellcheck: 'true' } } }) }, [editor, t, label])
 
   const style = editor?.getAttributes('textStyle') ?? {}
   const changeStyle = (attribute: string, value: string | null): void => {
@@ -172,6 +174,9 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
           highlight={attribute === 'backgroundColor'} value={style[attribute] ? colorHex(style[attribute], '#000000') : undefined}
           disabled={disabled || !editor} onChange={value => changeStyle(attribute, value)} />)}
         <span className="formatbar__sep" />
+        {signature !== undefined && <TooltipButton className="icon-btn" type="button" title={t(signature ? 'signature.insert' : 'signature.missing')}
+          disabled={disabled || !editor || !signature} onMouseDown={event => event.preventDefault()}
+          onClick={() => editor?.chain().focus().insertContent(cleanComposeHtml(signature)).run()}><Icon name="draw" size={17} /></TooltipButton>}
         <TooltipButton className="icon-btn" type="button" title={t('compose.attach')} disabled={disabled || !onAttach} onClick={onAttach}><Icon name="attach_file" size={17} /></TooltipButton>
       </div>
     </div>

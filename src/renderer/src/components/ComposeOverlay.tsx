@@ -27,6 +27,7 @@ interface ComposeOverlayProps {
   reply?: ReplyContext
   open: boolean
   sender?: string
+  signatureKey?: string
   to: string
   subject: string
   body: string
@@ -67,6 +68,7 @@ const DEFAULT_PROMPT =
 export function ComposeOverlay({
   open,
   sender,
+  signatureKey,
   reply,
   to,
   subject,
@@ -109,6 +111,8 @@ export function ComposeOverlay({
   const bodyRef = useRef({ body: initialReply.text ?? body, html: initialReply.html })
   const [bodyValue, setBodyValue] = useState(initialReply.text ?? body)
   const [htmlValue, setHtmlValue] = useState(initialReply.html)
+  const [signature, setSignature] = useState('')
+
   const [ccValue, setCcValue] = useState(cc)
   const [bccValue, setBccValue] = useState(bcc)
   const [bccOpen, setBccOpen] = useState(Boolean(bcc))
@@ -166,6 +170,17 @@ export function ComposeOverlay({
         : []
     )
   }, [open, to, subject, body, html, copilot, cc, bcc, initialAttachments, priority, reply])
+
+  useEffect(() => {
+    setSignature('')
+    if (!open || minimized || !signatureKey) return
+    let canceled = false
+    void window.api.getSettings().then(settings => {
+      const saved = settings.signatures?.[signatureKey]
+      if (!canceled && typeof saved === 'string') setSignature(saved)
+    }).catch(() => { if (!canceled) setError(t('signature.loadError')) })
+    return () => { canceled = true }
+  }, [open, minimized, signatureKey])
 
   const recipientCount = new Set([toValue, ccValue, bccValue].flatMap(splitRecipients).map(email => email.toLowerCase())).size
 
@@ -382,7 +397,7 @@ export function ComposeOverlay({
           <div className="editor">
             <span className="composer__editor-label">{t(quote ? 'compose.yourReply' : 'compose.yourMessage')}</span>
             <Suspense fallback={<div className="letter-loading" role="status">{t('compose.loadingEditor')}</div>}>
-            <RichTextEditor text={bodyValue} html={htmlValue} disabled={sending}
+            <RichTextEditor text={bodyValue} html={htmlValue} signature={signature} disabled={sending}
               onChange={(text, markup) => { bodyRef.current = { body: text, html: markup }; setBodyValue(text); setHtmlValue(markup) }}
               onAttach={onPickAttachments ? () => {
                 setAttachmentNotice(null)

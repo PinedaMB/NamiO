@@ -12,7 +12,7 @@ async function main() {
   const settings = {}
   vm.runInNewContext(compile(await fs.readFile('src/main/settings.ts', 'utf8')), {
     exports: settings,
-    require: id => id === 'electron' ? { app: { getPath: () => directory }, safeStorage: {} } : require(id)
+    require: id => id === '@shared/ipc' ? require('./load-shared-ipc.cjs') : id === 'electron' ? { app: { getPath: () => directory }, safeStorage: {} } : require(id)
   })
 
   try {
@@ -68,6 +68,15 @@ async function main() {
     assert.throws(() => settings.sanitizeSettingsPatch({ shortcuts: { next: 'j\nk' } }), /Invalid shortcuts/)
     assert.throws(() => settings.sanitizeSettingsPatch({ shortcuts: { 'bad key': 'j' } }), /Invalid shortcuts/)
     assert.throws(() => settings.sanitizeSettingsPatch({ shortcuts: Object.fromEntries(Array.from({ length: 33 }, (_, index) => [`k${index}`, 'j'])) }), /Invalid shortcuts/)
+
+    const signature = '<p><strong>Ana</strong><br>Equipo</p>'
+    const signatureKey = JSON.stringify(['mail.example.com', 993, 'ana@example.com'])
+    assert.equal(settings.sanitizeSettingsPatch({signatures: {[signatureKey]: signature}}).signatures[signatureKey], signature)
+    assert.equal(settings.sanitizeSettingsPatch({signatures: {[signatureKey]: ''}}).signatures[signatureKey], '')
+    const {MAX_SIGNATURE_HTML_LENGTH} = require('./load-shared-ipc.cjs')
+    for (const signatures of [[], null, 'text', {one: 1}, {'': 'x'}, JSON.parse('{"__proto__":"x"}'), {one: 'x'.repeat(MAX_SIGNATURE_HTML_LENGTH + 1)}]) {
+      assert.throws(() => settings.sanitizeSettingsPatch({signatures}), /Invalid signatures/)
+    }
 
     console.log('Settings allowlist: public projection excludes credentials; unknown keys, internal settings and invalid types are rejected')
   } finally {

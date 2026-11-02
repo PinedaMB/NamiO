@@ -1765,6 +1765,7 @@ export function App(): React.JSX.Element {
       <ComposeOverlay
         key={`${accountIdentity.current ?? 'demo'}:${composeSession}`}
         open={compose !== null}
+        signatureKey={accountIdentity.current ?? 'demo'}
         minimized={composeMinimized}
         onRestore={() => setComposeMinimized(false)}
         onMinimize={async values => {

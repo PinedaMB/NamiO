@@ -92,7 +92,11 @@ export type Language = 'es' | 'en'
 export type BodyTheme = 'light' | 'dark'
 export type AppTheme = 'light' | 'dark' | 'system'
 
+export const MAX_SIGNATURE_HTML_LENGTH = 2 * 1024 * 1024
+
 export interface AppSettings {
+  /** HTML de firma por identidad de cuenta (host, puerto y usuario). */
+  signatures?: Record<string, string>
   appTheme?: AppTheme
   offlineDownload?: boolean
   keepInBackground?: boolean

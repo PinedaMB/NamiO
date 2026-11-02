@@ -19,6 +19,7 @@ import {
 } from '../settings/shortcuts'
 import { Icon } from './Icon'
 import { RulesSection } from './RulesSection'
+import { SignatureSection } from './SignatureSection'
 import { UpdateNotice } from './UpdateNotice'
 import { cx } from '../lib/cx'
 
@@ -455,6 +456,8 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               </div>
             </div>
           </section>
+
+          <SignatureSection key={accountKey} accountKey={accountKey} />
 
           <section className="settings-card" aria-labelledby="settings-offline-title">
             <div className="notification-option">

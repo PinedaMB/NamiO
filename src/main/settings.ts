@@ -2,6 +2,7 @@ import { readFile, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import type { MailNotificationCursor } from './notificationCursor'
+import { MAX_SIGNATURE_HTML_LENGTH } from '@shared/ipc'
 import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/ipc'
 
 /** Cuenta guardada: las credenciales solo se persisten cifradas por el SO. */
@@ -76,7 +77,8 @@ const APP_SETTING_KEYS = [
   'remoteImages',
   'timeFormat',
   'bodyTheme',
-  'onboarded'
+  'onboarded',
+  'signatures'
 ] as const satisfies readonly (keyof AppSettings)[]
 
 const BOOLEAN_SETTINGS = [
@@ -148,6 +150,13 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
     target[key] = source[key]
   }
 
+  if (source.signatures !== undefined) {
+    if (typeof source.signatures !== 'object' || source.signatures === null || Array.isArray(source.signatures)) throw new Error('Invalid signatures')
+    const entries = Object.entries(source.signatures)
+    if (entries.length > 64 || entries.some(([key, value]) => !key || key.length > 2048 || /[\u0000-\u001f]/.test(key) || ['__proto__', 'constructor', 'prototype'].includes(key) || typeof value !== 'string' || value.length > MAX_SIGNATURE_HTML_LENGTH)) throw new Error('Invalid signatures')
+    result.signatures = Object.fromEntries(entries) as Record<string, string>
+  }
+
   if (source.shortcuts !== undefined) {
     if (typeof source.shortcuts !== 'object' || source.shortcuts === null || Array.isArray(source.shortcuts)) {
       throw new Error('Invalid shortcuts')
@@ -174,8 +183,14 @@ export function writeSettings(patch: Partial<StoredSettings> | ((current: Stored
   const next = settingsWrites.then(async () => {
     const current = await readSettings()
     const updates = typeof patch === 'function' ? patch(current) : patch
+    const nextSettings = { ...current, ...updates }
+    if (updates.signatures) {
+      nextSettings.signatures = { ...current.signatures, ...updates.signatures }
+      for (const [key, value] of Object.entries(nextSettings.signatures)) if (!value) delete nextSettings.signatures[key]
+      if (Object.keys(nextSettings.signatures).length > 64) throw new Error('Invalid signatures')
+    }
     const path = settingsPath()
-    await writeFile(`${path}.tmp`, `${JSON.stringify({ ...current, ...updates }, null, 2)}\n`, 'utf8')
+    await writeFile(`${path}.tmp`, `${JSON.stringify(nextSettings, null, 2)}\n`, 'utf8')
     await rename(`${path}.tmp`, path)
   })
   settingsWrites = next.catch(() => undefined)
@@ -303,6 +318,8 @@ export async function removeAccount(id: string): Promise<{ accounts: StoredAccou
   const { accounts, active } = await readAccounts()
   const rest = accounts.filter((account) => account.id !== id)
   const nextActive = active === id ? (rest[0]?.id ?? null) : active
-  await writeAccounts(rest, nextActive)
+  const removed = accounts.find(account => account.id === id)
+  await writeSettings({ accounts: rest, activeAccount: nextActive ?? undefined, account: undefined,
+    ...(removed ? { signatures: { [JSON.stringify([removed.host, removed.port, removed.user])]: '' } } : {}) })
   return { accounts: rest, active: nextActive }
 }

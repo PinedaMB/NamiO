@@ -23,7 +23,7 @@ async function main() {
     exports: settings,
     Buffer,
     process: { platform: 'linux' },
-    require: id => id === 'electron' ? { app: { getPath: () => directory }, safeStorage } : require(id)
+    require: id => id === '@shared/ipc' ? require('./load-shared-ipc.cjs') : id === 'electron' ? { app: { getPath: () => directory }, safeStorage } : require(id)
   }
   vm.runInNewContext(compile(await fs.readFile('src/main/settings.ts', 'utf8')), context)
 

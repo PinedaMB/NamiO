@@ -6061,3 +6061,9 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
     .color-picker:popover-open { opacity: 0; transform: translateY(-6px); }
   }
 }
+
+.signature-editor { overflow: hidden; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); background: var(--surface); }
+.signature-editor .composer__body { padding: var(--sp-md); }
+.signature-editor .rich-editor__content { min-height: 120px; font-size: 14px; }
+.signature-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-md); margin-top: var(--sp-md); }
+.signature-actions > [role="status"] { color: var(--on-surface-variant); font-size: 13px; }
