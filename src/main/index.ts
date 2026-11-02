@@ -175,15 +175,13 @@ void app.whenReady().then(async () => {
 
   // La caché es por cuenta: se abre la de la cuenta activa antes de todo. La
   // migración cifra los `clientSecret` que quedaron en claro en versiones previas.
-  void (async () => {
-    try {
-      await migrateOAuthSecrets()
-    } catch {
-      // Un secreto que no se puede cifrar no impide abrir la app.
-    }
-    const account = await readActiveAccount().catch(() => null)
-    initCache(account?.id ?? 'default')
-  })()
+  try {
+    await migrateOAuthSecrets()
+  } catch {
+    // Un secreto que no se puede cifrar no impide abrir la app.
+  }
+  const account = await readActiveAccount().catch(() => null)
+  initCache(account?.id ?? 'default')
 
   registerIpcHandlers()
   setNewMailListener((account, path, messages) => {
@@ -245,6 +243,7 @@ void app.whenReady().then(async () => {
   setInterval(() => void pushActivity(), 180_000)
 
   createWindow()
+  if (account) void syncInbox()
 
   app.on('activate', () => {
     openWindow()
