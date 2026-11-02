@@ -439,7 +439,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
   // El relleno histórico de la sync completa no cuenta (no son "nuevos").
   const nuevos: number[] = []
   const cached = getMailboxMeta(path)
-  let fetchedFromUid: number | null = null
+  let fetchedCount: number | null = null
   let fullSync = false
 
   try {
@@ -457,16 +457,17 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     if (fullSync) {
       clearMailbox(path)
       const start = Math.max(1, exists - limit + 1)
-      const envelopes = await fetchRange(client, `${start}:*`, false)
+      const envelopes = exists > 0 ? await fetchRange(client, `${start}:*`, false) : []
       // El relleno histórico no es "correo nuevo": no se evalúan reglas sobre
       // él para que una regla no archive/elimine en masa correo antiguo.
       upsertEnvelopes(path, envelopes)
       if (exists <= limit) pruneExcept(path, envelopes.map((envelope) => envelope.uid))
     } else {
       const fromUid = cached?.uidNext ?? 1
-      if (uidNext != null && uidNext > fromUid) {
-        fetchedFromUid = fromUid
-        nuevos.push(...upsertEnvelopes(path, await fetchRange(client, `${fromUid}:*`, true)))
+      if (exists > 0 && uidNext != null && uidNext > fromUid) {
+        const envelopes = await fetchRange(client, `${fromUid}:*`, true)
+        fetchedCount = envelopes.length
+        nuevos.push(...upsertEnvelopes(path, envelopes))
       }
     }
 
@@ -507,16 +508,17 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     void ensureFullSync(path)
 
     // Refresca flags y cabeceras del tramo visible. Si la sincronización
-    // incremental ya bajó desde `fetchedFromUid`, solo falta el hueco anterior
+    // incremental ya bajó los mensajes nuevos, solo falta el hueco anterior
     // y no se vuelve a pedir la misma ventana.
     if (exists > 0) {
       const recentStart = Math.max(1, exists - limit + 1)
       if (fullSync) {
         // La descarga inicial ya cubrió recentStart:*.
-      } else if (fetchedFromUid !== null) {
-        if (recentStart < fetchedFromUid) {
-          // Hueco anterior al tramo nuevo: solo refresca flags, no es correo nuevo.
-          upsertEnvelopes(path, await fetchRange(client, `${recentStart}:${fetchedFromUid - 1}`, false))
+      } else if (fetchedCount !== null) {
+        const recentEnd = exists - fetchedCount
+        if (recentStart <= recentEnd) {
+          // El rango usa posiciones, no UIDs: estos pueden tener huecos grandes.
+          upsertEnvelopes(path, await fetchRange(client, `${recentStart}:${recentEnd}`, false))
         }
       } else {
         upsertEnvelopes(path, await fetchRange(client, `${recentStart}:*`, false))

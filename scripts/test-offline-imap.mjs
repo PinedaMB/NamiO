@@ -17,9 +17,9 @@ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'namio-offline-mime-'));const 
  db.saveMailboxSync('INBOX',{uidValidity:Number(client.mailbox.uidValidity),uidNext:4,messages:3,unseen:3});
  db.upsertEnvelopes('INBOX',[1,2,3].map(uid=>({uid,subject:'Mail',from:null,date:new Date().toISOString(),size:1,unread:true,flagged:false,hasAttachments:true,priority:'normal'})));
  const source=ts.createSourceFile('imap.ts',fs.readFileSync('src/main/imap.ts','utf8'),ts.ScriptTarget.Latest,true);
- const names=['fetchRange','hasAttachments','cacheMessageBody','readLimited','toAddress','toDate','readAttachment','cachedDetail','fetchMessage','getMessage','getSentReplies'];const functions=source.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(source).replace(/^export /,'')).join('\n');
+ const names=['syncMessages','fetchRange','hasAttachments','cacheMessageBody','readLimited','toAddress','toDate','readAttachment','cachedDetail','fetchMessage','getMessage','getSentReplies'];const functions=source.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(source).replace(/^export /,'')).join('\n');
  const requests=[];const download=client.download.bind(client);client.download=async(...args)=>{assert.ok(args[1],'opening mail and attachments must not fetch the full RFC822 message');requests.push(args[1]);return download(...args)};
- const api=vm.runInNewContext(compile(functions+';({fetchRange,cacheMessageBody,readAttachment,getMessage,getSentReplies})'),{...db,...require('./imap-test-helpers.cjs'),Buffer,syncGeneration:1,MAX_MESSAGE_BYTES:50*1024*1024,MAX_BODY_BYTES:30*1024*1024,MAX_ATTACHMENT_BYTES:25*1024*1024,MAX_OFFLINE_MESSAGE_BYTES:30*1024*1024,ensureClient:async()=>client,serial:async fn=>fn(),simpleParser,offline:false,syncMeta:()=>({offline:false}),notify(){},classify:()=> 'unknown',isOfflineError:()=>false,describe:e=>e.message,accountChangedError:()=>new Error('Account changed')});
+ const api=vm.runInNewContext(compile(functions+';({syncMessages,fetchRange,cacheMessageBody,readAttachment,getMessage,getSentReplies})'),{...db,...require('./imap-test-helpers.cjs'),Buffer,syncGeneration:1,MAX_MESSAGE_BYTES:50*1024*1024,MAX_BODY_BYTES:30*1024*1024,MAX_ATTACHMENT_BYTES:25*1024*1024,MAX_OFFLINE_MESSAGE_BYTES:30*1024*1024,readActiveAccount:async()=>null,ensureFullSync(){},isDraftMailbox:()=>false,applyRulesToNew:()=>0,ensureClient:async()=>client,serial:async fn=>fn(),simpleParser,offline:false,syncMeta:()=>({offline:false}),notify(){},classify:()=> 'unknown',isOfflineError:()=>false,describe:e=>e.message,accountChangedError:()=>new Error('Account changed')});
  const headers=await api.fetchRange(client,'1:*',true);db.upsertEnvelopes('INBOX',headers);
  assert.deepEqual(Array.from(db.readEnvelope('INBOX',1).references),['<root@example.test>','<sent-outside-inbox@example.test>'],'real IMAP header fetch preserves conversation ancestry in cache');
  await api.cacheMessageBody('INBOX',1);await api.cacheMessageBody('INBOX',2);await api.cacheMessageBody('INBOX',3);
@@ -64,5 +64,12 @@ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'namio-offline-mime-'));const 
  const own=await api.getMessage('Sent',1);assert.equal(own.data.from.address,'reader@example.test','colliding UIDs cannot load the Inbox sender');
  const ownFile=await api.readAttachment('Sent',1,0);assert.equal(ownFile.content.toString(),'OWN','outgoing attachment uses its source mailbox');
  assert.equal((await api.getSentReplies('INBOX',[1],true)).data.length,1,'sent replies remain discoverable from cache');
+ const fetch=client.fetch.bind(client);let emptyFetches=0;
+ client.fetch=(...args)=>{if(client.mailbox&&client.mailbox.exists===0){emptyFetches++;throw new Error('Invalid messageset')}return fetch(...args)};
+ for(const path of ['Junk','Spam']){
+  await client.mailboxCreate(path);db.upsertMailboxes([{path,name:path,specialUse:'\\Junk',messages:0,unseen:0}]);
+  await api.syncMessages(path,50);assert.equal(db.getMailboxMeta(path).messages,0);
+ }
+ assert.equal(emptyFetches,0,'empty Spam/Junk folders never send a rejected FETCH range');
  console.log('Real IMAP MIME: Latin-1/UTF-8, plain/HTML parts, no background binary transfers, unchanged Seen flag and on-demand attachment index passed');
 }finally{if(client)await client.logout().catch(()=>client.close());await new Promise(r=>server.close(r));db.closeCache?.();fs.rmSync(folder,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});
