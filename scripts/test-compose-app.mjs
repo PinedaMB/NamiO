@@ -5,6 +5,9 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
+const ts = require('typescript-test')
+const translations = {}
+require('node:vm').runInNewContext(ts.transpile(await readFile('src/renderer/src/i18n/es.ts', 'utf8'), { module: ts.ModuleKind.CommonJS }), { exports: translations })
 const folder = await mkdtemp(join(tmpdir(), 'namio-compose-app-'))
 try {
   await writeFile(join(folder, 'preload.cjs'), `
@@ -503,7 +506,7 @@ app.whenReady().then(async()=>{
  await window.api.testConnectionState(true,false);
  document.querySelector('.rail__nav [aria-current="page"]').click();await wait();
  await until(()=>!document.querySelector('.list-loading')&&card('Inbox sample'),'Offline inbox reload missing');card('Inbox sample').click();
- await until(()=>document.querySelector('.body')?.textContent.includes('cuerpo'),'Missing body did not show the offline placeholder');
+ await until(()=>document.querySelector('.body')?.textContent.includes(${JSON.stringify(translations.es['offline.bodyUnavailable'])}),'Missing body did not show the offline placeholder');
  if(document.querySelector('.letter-loading'))throw new Error('Offline missing body must not spin forever');
  if(await window.api.inspectTestNetworkReads()!==offlineReads)throw new Error('Offline reader attempted network body reads');
  document.querySelector('.topbar [aria-haspopup="menu"]').click();
