@@ -7,7 +7,7 @@ const settings = fs.readFileSync('src/renderer/src/components/Settings.tsx', 'ut
 const rules = fs.readFileSync('src/renderer/src/components/RulesSection.tsx', 'utf8')
 
 function block(selector) {
-  const start = css.indexOf(selector)
+  const start = css.indexOf(selector === '.account-modal' ? '\n.account-modal {' : selector)
   assert.notEqual(start, -1, `missing CSS selector ${selector}`)
   const open = css.indexOf('{', start)
   const close = css.indexOf('}', open)

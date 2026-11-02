@@ -635,7 +635,8 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       })
       if (generation !== syncGeneration) return
       if (fetched) {
-        publishProgress({ mailbox: path, cached: countMessages(path), total: uids.length, running: true, phase: 'headers' })
+        const complete = countMessages(path) - missingEnvelopeMetadata(path).length
+        publishProgress({ mailbox: path, cached: Math.max(0, Math.min(complete, uids.length)), total: uids.length, running: true, phase: 'headers' })
         notify(path)
         await sleep(120)
       }

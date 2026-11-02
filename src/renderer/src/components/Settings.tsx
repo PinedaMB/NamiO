@@ -4,6 +4,7 @@ import naomi from '../assets/naomi.png'
 import { TooltipButton } from './Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusTrap } from '../lib/useFocusTrap'
+import { useAnimatedClose } from '../lib/useAnimatedClose'
 import type { AccountSummary, CoreStatus } from '@shared/ipc'
 import { LOCALES, useI18n, type TranslationKey } from '../i18n'
 import { useShortcuts } from '../settings/ShortcutsProvider'
@@ -60,6 +61,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
   const [remap, setRemap] = useState<{ action: ShortcutAction; combo: string; conflict: ShortcutAction | null } | null>(
     null
   )
+  const { closing: remapClosing, close: closeRemap } = useAnimatedClose(() => setRemap(null))
   useFocusTrap(remapRef, remap !== null)
   const [clearingCache, setClearingCache] = useState<string | null>(null)
   const [notificationStatus, setNotificationStatus] = useState<string | null>(null)
@@ -107,10 +109,11 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
     if (!remap) return
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (remapClosing) { event.preventDefault(); event.stopPropagation(); return }
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        setRemap(null)
+        closeRemap()
         return
       }
       const combo = comboFromEvent(event)
@@ -125,7 +128,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [remap, bindings])
+  }, [remap, bindings, remapClosing, closeRemap])
 
   const matches = (labelKey: TranslationKey, hintKey: TranslationKey): boolean => {
     const needle = query.trim().toLowerCase()
@@ -147,7 +150,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
   const applyRemap = (): void => {
     if (!remap || remap.conflict) return
     save({ ...bindings, [remap.action]: remap.combo })
-    setRemap(null)
+    closeRemap()
   }
 
   const clearCache = async (accountId: string): Promise<void> => {
@@ -629,14 +632,14 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
       </dialog>
 
       {remap && (
-        <div className="overlay overlay--center" onMouseDown={(event) => event.target === event.currentTarget && setRemap(null)}>
+        <div className={cx('overlay overlay--center', remapClosing && 'overlay--closing')} onMouseDown={(event) => event.target === event.currentTarget && closeRemap()}>
           <div ref={remapRef} className="remap" role="dialog" aria-modal="true" aria-label={t('settings.shortcuts.pressKey')}>
             <div className="remap__head">
               <span className="remap__title">
                 <span className="dot pulse" />
                 {t('settings.shortcuts.pressKey')}
               </span>
-              <TooltipButton className="icon-btn" type="button" onClick={() => setRemap(null)} title={t('common.close')}>
+              <TooltipButton className="icon-btn" type="button" onClick={() => closeRemap()} title={t('common.close')}>
                 <Icon name="close" size={16} />
               </TooltipButton>
             </div>
@@ -659,7 +662,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             )}
 
             <div className="remap__foot">
-              <button className="tool-btn" type="button" onClick={() => setRemap(null)}>
+              <button className="tool-btn" type="button" onClick={() => closeRemap()}>
                 {t('common.close')}
                 <kbd className="kbd">Esc</kbd>
               </button>

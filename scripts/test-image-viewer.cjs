@@ -22,6 +22,7 @@ async function main() {
     require: id => {
       if (id === 'react') return {...React, useState: initial => {const slot = stateIndex++; if (!(slot in state)) state[slot] = initial; return [state[slot], value => {state[slot] = value}]}, useRef: initial => {const slot = refIndex++; return refs[slot] ?? (refs[slot] = {current: initial})}, useEffect: fn => effects.push(fn)}
       if (id === '../lib/selection') return selectionHelpers
+      if (id === '../lib/useAnimatedClose') return {useAnimatedClose: onClose => ({closing: false, close: (action = onClose) => action()})}
       if (id === '../i18n') return {useI18n: () => ({t: key => key})}
       if (id === './Icon') return {Icon: () => null}
       if (id === './Tooltip') return {TooltipButton: 'button'}

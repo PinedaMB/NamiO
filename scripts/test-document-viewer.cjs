@@ -35,6 +35,7 @@ async function main() {
   vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/DocumentViewer.tsx', 'utf8')), {exports: textViewer, require: id => {
     if (id === 'react') return {...React, useRef: () => ({current: null}), useEffect() {}}
     if (id === '../lib/selection') return selectionHelpers
+    if (id === '../lib/useAnimatedClose') return {useAnimatedClose: onClose => ({closing: false, close: (action = onClose) => action()})}
     if (id === '../i18n') return {useI18n: () => ({t: key => key})}
     if (id === './Icon') return {Icon: () => null}
     if (id === './Tooltip') return {TooltipButton: 'button'}

@@ -11,6 +11,7 @@ function settings(accounts, events, section = 'accounts') {
   const requireMock = id => {
     if (id.endsWith('.png')) return { default: '/image.png' }
     if (id === 'react') return { ...React, useEffect: () => {}, useRef: () => ({ current: null }), useMemo: fn => fn(), useState: initial => [stateIndex++ === 0 ? section : initial, () => {}] }
+    if (id === '../lib/useAnimatedClose') return {useAnimatedClose: onClose => ({closing: false, close: (action = onClose) => action()})}
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }), useFormatCombo: () => combo => combo }
     if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ appTheme: 'system', setAppTheme: theme => events.push(theme), offlineDownload: false, setOfflineDownload: enabled => events.push(enabled), timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }

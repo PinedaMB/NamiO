@@ -11,6 +11,8 @@ for (const node of ast.statements) {
 async function check(initial, switchAccount = false, fail = false, metadata = false, disableDuringDownload = false) {
   const server = [7, 8, 1000, 9000, 20000]
   const cached = new Set(initial)
+  const pendingMetadata = new Set(metadata ? initial : [])
+  const progress = []
   const bodies = new Set(initial)
   const bodyRequests = []
   const requests = []
@@ -30,7 +32,7 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
     readBody: (_path, uid) => ({ fetched: bodies.has(uid) }), countBodies: () => bodies.size,
     cacheMessageBody: async (_path, uid) => { bodyRequests.push(uid); bodies.add(uid); if (disableDuringDownload) enabled = false },
     classify: () => 'network', isOfflineError: () => true,
-    missingEnvelopeMetadata: () => metadata ? initial : [],
+    missingEnvelopeMetadata: () => [...pendingMetadata],
     messagesByUids: (_path, uids) => uids.filter(uid => cached.has(uid)).map(uid => ({ uid })),
     fetchRange: async (_client, range, byUid) => {
       assert.equal(byUid, true)
@@ -39,14 +41,19 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
       if (switchAccount) context.syncGeneration++
       return range.split(',').map(Number).map(uid => ({ uid }))
     },
-    upsertEnvelopes: (_path, envelopes) => envelopes.forEach(item => cached.add(item.uid)),
+    upsertEnvelopes: (_path, envelopes) => envelopes.forEach(item => { cached.add(item.uid); pendingMetadata.delete(item.uid) }),
     countMessages: () => cached.size,
-    publishProgress: () => {}, notify: () => {}, sleep: async () => {},
+    publishProgress: value => progress.push(value), notify: () => {}, sleep: async () => {},
     describe: error => error.message, console: { error() {} }
   }
   const sync = vm.runInNewContext(ts.transpile(`${code}; fullSyncMailbox`, { target: ts.ScriptTarget.ES2022 }), context)
   await sync('INBOX', 2)
   assert.equal(context.fullSyncRunning, false)
+  if (!switchAccount) assert.equal(progress.at(-1), null, 'completion always clears the progress indicator')
+  if (metadata && initial.length === server.length) {
+    const headers = progress.filter(item => item?.phase === 'headers')
+    assert.deepEqual(headers.map(item => item.cached), [2, 4, 5], 'metadata backfill reports completed headers rather than total cached rows')
+  }
   assert.ok(releases > 0)
   assert.deepEqual(resumed, ['Archive'], 'a waiting folder resumes after the current download')
   if (switchAccount || fail) {
@@ -66,6 +73,7 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   }
 }
 (async () => {
+  await check([7, 8, 1000, 9000, 20000], false, false, true)
   await check([20000])
   await check([20000], false, false, false, true)
   await check([])

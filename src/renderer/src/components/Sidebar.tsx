@@ -248,8 +248,8 @@ export function Sidebar({
             const target = (
               <TooltipButton
                 key={folder.hasChildren ? undefined : folder.id}
-                title={collapsed ? folder.label : undefined}
-                aria-label={folder.spam && folder.label !== t('sidebar.spam') ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}
+                title={collapsed ? `${folder.label}${folder.count ? ` (${folder.count})` : ''}` : undefined}
+                aria-label={`${folder.spam && folder.label !== t('sidebar.spam') ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}${folder.count ? ` (${folder.count})` : ''}`}
                 aria-expanded={folder.hasChildren ? groupExpanded : undefined}
                 type="button"
                 className={cx('nav-item', folder.hasChildren && 'nav-group__target', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
@@ -278,12 +278,12 @@ export function Sidebar({
                 </span>
                 {folder.count !== undefined && folder.count > 0 && (
                   <span className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}>
-                    {folder.count}
+                    {collapsed && folder.count > 99 ? '99+' : folder.count}
                   </span>
                 )}
                 {folder.hasChildren && (
                   <span className="nav-group__chevron" aria-hidden="true">
-                    <Icon name={groupExpanded ? 'expand_more' : 'chevron_right'} size={15} />
+                    <Icon name={groupExpanded ? 'expand_more' : 'chevron_right'} size={collapsed ? 12 : 15} />
                   </span>
                 )}
               </TooltipButton>

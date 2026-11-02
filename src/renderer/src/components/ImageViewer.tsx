@@ -1,6 +1,7 @@
 import { isSelectAll } from '../lib/selection'
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n'
+import { useAnimatedClose } from '../lib/useAnimatedClose'
 import { TooltipButton } from './Tooltip'
 import { Icon } from './Icon'
 
@@ -15,6 +16,7 @@ interface ImageViewerProps {
 
 export function ImageViewer({ src, title, error = false, onClose, onSave, saving = false }: ImageViewerProps): React.JSX.Element {
   const { t } = useI18n()
+  const { closing, close } = useAnimatedClose(onClose)
   const dialog = useRef<HTMLDialogElement>(null)
   const stage = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -36,9 +38,9 @@ export function ImageViewer({ src, title, error = false, onClose, onSave, saving
   }, [])
 
   return (
-    <dialog ref={dialog} className="image-viewer" aria-labelledby="image-viewer-title"
-      onCancel={event => { event.preventDefault(); onClose() }}
-      onClick={event => { if (event.target === event.currentTarget) onClose() }}
+    <dialog ref={dialog} className="image-viewer" data-closing={closing || undefined} aria-labelledby="image-viewer-title"
+      onCancel={event => { event.preventDefault(); close() }}
+      onClick={event => { if (event.target === event.currentTarget) close() }}
       onKeyDown={event => {
         event.stopPropagation()
         if (isSelectAll(event)) { event.preventDefault(); return }
@@ -55,7 +57,7 @@ export function ImageViewer({ src, title, error = false, onClose, onSave, saving
           <TooltipButton type="button" className="icon-btn" title={t('image.fit')} aria-label={t('image.fit')} onClick={() => setScale(null)}><Icon name="fit_screen" size={20} /></TooltipButton>
           <TooltipButton type="button" className="tool-btn" disabled={!size.width} onClick={() => setScale(1)}>100%</TooltipButton>
           {onSave && <TooltipButton type="button" className="icon-btn" title={t(saving ? 'attachment.preparing' : 'thread.download')} aria-label={t(saving ? 'attachment.preparing' : 'thread.download')} disabled={saving} aria-busy={saving} onClick={onSave}><Icon name={saving ? 'progress_activity' : 'download'} className={saving ? 'spin' : undefined} size={20} /></TooltipButton>}
-          <TooltipButton type="button" className="icon-btn" autoFocus title={t('common.close')} aria-label={t('common.close')} onClick={onClose}><Icon name="close" size={22} /></TooltipButton>
+          <TooltipButton type="button" className="icon-btn" autoFocus title={t('common.close')} aria-label={t('common.close')} onClick={() => close()}><Icon name="close" size={22} /></TooltipButton>
         </div>
       </header>
       {saving && <div className="attachment-progress" role="status"><Icon name="progress_activity" size={16} className="spin" />{t('attachment.preparing')}</div>}

@@ -491,12 +491,13 @@ export function App(): React.JSX.Element {
       setListCounts(null)
       if (focusUid === undefined) setSelectedId(null)
       try {
-        const result = await window.api.listEnvelopes(path, PAGE_SIZE, sync, { ...listOptions.current, includeUid: focusUid }).catch(() => null)
-        if (generation !== accountGeneration.current || request !== folderRequest.current) return
+        const envelopesRequest = window.api.listEnvelopes(path, PAGE_SIZE, sync, { ...listOptions.current, includeUid: focusUid }).catch(() => null)
         const drafts = await window.api.listDrafts().catch(() => [])
         if (generation !== accountGeneration.current || request !== folderRequest.current) return
         setLocalDrafts(drafts)
 
+        const result = await envelopesRequest
+        if (generation !== accountGeneration.current || request !== folderRequest.current) return
         if (!result) return
         if (!result.ok) {
           setLiveError({ code: result.code, detail: result.detail })
@@ -694,13 +695,18 @@ export function App(): React.JSX.Element {
 
   /** Progreso de la descarga completa del buzón. */
   useEffect(() => {
+    let active = true
+    let receivedUpdate = false
+    const unsubscribe = window.api?.onSyncProgress?.((value) => {
+      receivedUpdate = true
+      if (active) setSyncProgress(value)
+    })
     void window.api
       .syncProgress()
-      .then((value) => setSyncProgress(value))
+      .then((value) => { if (active && !receivedUpdate) setSyncProgress(value) })
       .catch(() => undefined)
 
-    const unsubscribe = window.api?.onSyncProgress?.((value) => setSyncProgress(value))
-    return () => unsubscribe?.()
+    return () => { active = false; unsubscribe?.() }
   }, [])
 
   /** No leídos por cuenta: la activa la sincroniza el motor y las demás el sondeo. */
@@ -1759,6 +1765,7 @@ export function App(): React.JSX.Element {
           if (live && hasContent) {
             const result = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
             if (generation !== accountGeneration.current) return
+            void refreshOutbox()
             setCompose(current => current ? { ...current, id: result.id } : current)
           }
           setComposeMinimized(true)
@@ -1779,6 +1786,7 @@ export function App(): React.JSX.Element {
           const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length
           let queued = false
           if (live && hasContent) ({ queued } = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() }))
+          if (live && hasContent) void refreshOutbox()
           setCompose(null)
           if (live && hasContent) setToast(t(queued ? 'draft.pendingSync' : 'toast.draftSaved'))
         }}

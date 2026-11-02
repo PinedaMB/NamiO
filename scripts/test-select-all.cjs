@@ -66,6 +66,7 @@ for (const [file, component] of [['DocumentViewer', 'DocumentViewer'], ['ImageVi
   vm.runInNewContext(compile(fs.readFileSync(`src/renderer/src/components/${file}.tsx`, 'utf8')), {exports, require: id => {
     if (id === 'react') return {...React, useRef: initial => ({current: initial}), useState: initial => [initial, () => {}], useEffect() {}}
     if (id === '../lib/selection') return helpers
+    if (id === '../lib/useAnimatedClose') return {useAnimatedClose: onClose => ({closing: false, close: (action = onClose) => action()})}
     if (id === '../i18n') return {useI18n: () => ({t: key => key})}
     if (id === './Icon') return {Icon: () => null}
     if (id === './Tooltip') return {TooltipButton: 'button'}

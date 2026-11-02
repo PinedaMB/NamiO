@@ -61,7 +61,35 @@ async function focusOldMessage(failure = false) {
     assert.ok(threads.some(thread => thread.id === selected), 'notification can open mail outside the latest page')
   }
 }
+async function draftsBeforeNetwork(switchAccount = false) {
+  let localDrafts, threads, release, loading
+  const draft = { id: 'local-draft', subject: 'Guardado sin red' }
+  const context = {
+    useCallback: fn => fn, locale: 'es', PAGE_SIZE: 50,
+    accountGeneration: { current: 1 }, folderRequest: { current: 0 },
+    activeFolderRef: { current: null }, userNavigated: { current: false }, listOptions: { current: {} },
+    setThreads: value => { threads = value }, setLocalDrafts: value => { localDrafts = value },
+    setLoadingFolder: value => { loading = value }, setSelectedId() {}, setIndividualMessageId() {},
+    setFolder() {}, setListLimit() {}, setListCounts() {}, setLiveError() {}, setSync() {},
+    envelopesToThreads: value => value,
+    window: { api: {
+      listDrafts: async () => [draft],
+      listEnvelopes: () => new Promise(resolve => { release = resolve })
+    } }
+  }
+  const load = vm.runInNewContext(ts.transpile(`(${declarations.get('loadFolder')})`, { target: ts.ScriptTarget.ES2022 }), context)
+  const pending = load('Drafts')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(localDrafts[0], draft, 'local drafts load while the IMAP request is still pending')
+  assert.equal(loading, true, 'the server query continues in the background')
+  if (switchAccount) context.accountGeneration.current++
+  release({ ok: true, data: ['remote draft'], meta: {} })
+  await pending
+  assert.equal(threads.length, switchAccount ? 0 : 1, 'late server responses respect account isolation')
+}
 ;(async () => {
+  await draftsBeforeNetwork()
+  await draftsBeforeNetwork(true)
   await focusOldMessage()
   await focusOldMessage(true)
   for (const kind of ['inbox', 'empty', 'error', 'switch']) await check(kind)
