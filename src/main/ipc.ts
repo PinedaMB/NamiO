@@ -340,9 +340,14 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC.attachmentPreview, async (_event, path: string, uid: number, index: number) => {
+  ipcMain.handle(IPC.attachmentPreview, async (event, path: string, uid: number, index: number, request?: number) => {
     if (typeof path !== 'string' || !Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(index) || index < 0) throw new Error('Adjunto inválido')
-    const attachment = await readAttachment(path, uid, index)
+    if (request !== undefined && (!Number.isSafeInteger(request) || request < 1)) throw new Error('Solicitud inválida')
+    const progress = (phase: 'waiting' | 'downloading' | 'preparing'): void => {
+      if (request !== undefined && !event.sender.isDestroyed()) event.sender.send(IPC.attachmentProgress, { request, phase })
+    }
+    const attachment = await readAttachment(path, uid, index, progress)
+    progress('preparing')
     return attachmentPreview(attachment)
   })
 

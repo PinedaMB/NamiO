@@ -62,7 +62,7 @@ async function main() {
       ${imapFunctions.get('fetchMessage')}
       fetchMessage
     `), {
-      Buffer,
+      ...require('./imap-test-helpers.cjs'), Buffer,
       MAX_MESSAGE_BYTES: 50 * MB, MAX_BODY_BYTES: 30 * MB, MAX_OFFLINE_MESSAGE_BYTES: 30 * MB,
       syncGeneration: 1, getMailboxMeta: () => ({ uidValidity: 1 }),
       ensureClient: async () => client,

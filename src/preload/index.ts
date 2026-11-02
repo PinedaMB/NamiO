@@ -21,6 +21,7 @@ import {
   type OutboxItem,
   type PickedAttachment,
   type AttachmentPreview,
+  type AttachmentProgress,
   type Draft,
   type Rule,
   type RuleDraft,
@@ -96,7 +97,12 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.messageArchive, path, uid),
   deleteMessage: (path: string, uid: number): Promise<MailAction> => ipcRenderer.invoke(IPC.messageDelete, path, uid),
   deleteMessages: (path: string, uids?: number[]): Promise<MailAction> => ipcRenderer.invoke(IPC.messagesDelete, path, uids),
-  previewAttachment: (path: string, uid: number, index: number): Promise<AttachmentPreview> => ipcRenderer.invoke(IPC.attachmentPreview, path, uid, index),
+  previewAttachment: (path: string, uid: number, index: number, request?: number): Promise<AttachmentPreview> => ipcRenderer.invoke(IPC.attachmentPreview, path, uid, index, request),
+  onAttachmentProgress: (listener: (progress: AttachmentProgress) => void): (() => void) => {
+    const handler = (_event: unknown, progress: AttachmentProgress): void => listener(progress)
+    ipcRenderer.on(IPC.attachmentProgress, handler)
+    return () => ipcRenderer.removeListener(IPC.attachmentProgress, handler)
+  },
   saveAttachment: (path: string, uid: number, index: number): Promise<string | null> =>
     ipcRenderer.invoke(IPC.attachmentSave, path, uid, index),
 

@@ -19,7 +19,7 @@ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'namio-offline-mime-'));const 
  const source=ts.createSourceFile('imap.ts',fs.readFileSync('src/main/imap.ts','utf8'),ts.ScriptTarget.Latest,true);
  const names=['fetchRange','hasAttachments','cacheMessageBody','readLimited','toAddress','toDate','readAttachment','cachedDetail','fetchMessage','getMessage','getSentReplies'];const functions=source.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(source).replace(/^export /,'')).join('\n');
  const requests=[];const download=client.download.bind(client);client.download=async(...args)=>{assert.ok(args[1],'opening mail and attachments must not fetch the full RFC822 message');requests.push(args[1]);return download(...args)};
- const api=vm.runInNewContext(compile(functions+';({fetchRange,cacheMessageBody,readAttachment,getMessage,getSentReplies})'),{...db,Buffer,syncGeneration:1,MAX_MESSAGE_BYTES:50*1024*1024,MAX_BODY_BYTES:30*1024*1024,MAX_ATTACHMENT_BYTES:25*1024*1024,MAX_OFFLINE_MESSAGE_BYTES:30*1024*1024,ensureClient:async()=>client,serial:async fn=>fn(),simpleParser,offline:false,syncMeta:()=>({offline:false}),notify(){},classify:()=> 'unknown',isOfflineError:()=>false,describe:e=>e.message,accountChangedError:()=>new Error('Account changed')});
+ const api=vm.runInNewContext(compile(functions+';({fetchRange,cacheMessageBody,readAttachment,getMessage,getSentReplies})'),{...db,...require('./imap-test-helpers.cjs'),Buffer,syncGeneration:1,MAX_MESSAGE_BYTES:50*1024*1024,MAX_BODY_BYTES:30*1024*1024,MAX_ATTACHMENT_BYTES:25*1024*1024,MAX_OFFLINE_MESSAGE_BYTES:30*1024*1024,ensureClient:async()=>client,serial:async fn=>fn(),simpleParser,offline:false,syncMeta:()=>({offline:false}),notify(){},classify:()=> 'unknown',isOfflineError:()=>false,describe:e=>e.message,accountChangedError:()=>new Error('Account changed')});
  const headers=await api.fetchRange(client,'1:*',true);db.upsertEnvelopes('INBOX',headers);
  assert.deepEqual(Array.from(db.readEnvelope('INBOX',1).references),['<root@example.test>','<sent-outside-inbox@example.test>'],'real IMAP header fetch preserves conversation ancestry in cache');
  await api.cacheMessageBody('INBOX',1);await api.cacheMessageBody('INBOX',2);await api.cacheMessageBody('INBOX',3);
@@ -46,6 +46,14 @@ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'namio-offline-mime-'));const 
  assert.ok(attachments.length>=3&&attachments.every(item=>item.part),'attachment metadata keeps the MIME part');
  const file=await api.readAttachment('INBOX',1,2);assert.equal(file.content.toString(),parsed.attachments[2].content.toString(),'cached attachment index must match on-demand MIME parsing');
  assert.equal(requests.at(-1),attachments[2].part,'on-demand attachments download only their MIME part');
+ const docStart=requests.length;
+ const doc=await api.readAttachment('INBOX',1,0);assert.equal(doc.content.toString(),'PDF');
+ await api.readAttachment('INBOX',1,0);assert.equal(requests.length,docStart+1,'reopening or saving an opened document reuses its cached bytes');
+ require('./imap-test-helpers.cjs').clearAttachmentCache();
+ db.saveBody('INBOX',1,{text:body.text,html:resolved.data.html,to:body.to,cc:body.cc,attachments:[]});
+ const uncachedStart=requests.length;
+ const discovered=await api.readAttachment('INBOX',1,0);assert.equal(discovered.content.toString(),'PDF');
+ assert.deepEqual(requests.slice(uncachedStart),['2'],'old cached messages discover BODYSTRUCTURE and download only the chosen MIME part');
  await client.mailboxCreate('Sent');
  const outgoing=raw.replace('Message-ID: <answer@example.test>','Message-ID: <sent-outside-inbox@example.test>').replace('In-Reply-To: <sent-outside-inbox@example.test>','In-Reply-To: <root@example.test>').replace('References: <root@example.test> <sent-outside-inbox@example.test>','References: <root@example.test>').replace('\r\nUERG\r\n','\r\nT1dO\r\n').replace('From: Sender <sender@example.test>','From: Reader <reader@example.test>').replace('To: Reader <reader@example.test>','To: Sender <sender@example.test>');
  await client.append('Sent',Buffer.from(outgoing),['\\Seen']);

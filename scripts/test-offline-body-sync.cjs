@@ -48,7 +48,7 @@ async function main() {
       return { content: Readable.from([bytes.subarray(0,13),bytes.subarray(13)]) }
     }
   }
-  const context = { readSettings: async () => ({ offlineDownload: true }), ...db, Buffer, simpleParser, console: { error() {} }, syncGeneration: 1, fullSyncRunning: false, pendingFullSync: new Set(), offline: false,
+  const context = { ...require('./imap-test-helpers.cjs'), readSettings: async () => ({ offlineDownload: true }), ...db, Buffer, simpleParser, console: { error() {} }, syncGeneration: 1, fullSyncRunning: false, pendingFullSync: new Set(), offline: false,
     MAX_MESSAGE_BYTES: 50 * 1024 * 1024, MAX_BODY_BYTES: 30 * 1024 * 1024, MAX_ATTACHMENT_BYTES: 25 * 1024 * 1024, MAX_OFFLINE_MESSAGE_BYTES: 30 * 1024 * 1024,
     ensureClient: async () => client, serial: async fn => fn(), sleep: async () => {}, notify() {}, publishProgress: value => progress.push(value),
     fetchRange: async () => { throw new Error('Headers already exist; no envelope refetch expected') }, classify: error => error.code === 'ENETUNREACH' ? 'network' : 'unknown', isOfflineError: code => code === 'network', describe: error => error.message }

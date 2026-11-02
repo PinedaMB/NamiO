@@ -8,13 +8,16 @@ import { TooltipButton } from './Tooltip'
 
 const PdfDocument = lazy(() => import('./PdfDocument').then(module => ({ default: module.PdfDocument })))
 
-export function DocumentViewer({ title, attachment, error, onClose, onSave, saving = false }: {
+export function DocumentViewer({ title, attachment, error, onClose, onSave, saving = false, loadingLabel, onRetry, revision = 0 }: {
   title: string
   attachment?: AttachmentPreview
   error?: boolean
   onClose: () => void
   onSave: () => void
   saving?: boolean
+  loadingLabel?: string
+  onRetry?: () => void
+  revision?: number
 }): React.JSX.Element {
   const { t } = useI18n()
   const { closing, close } = useAnimatedClose(onClose)
@@ -24,7 +27,7 @@ export function DocumentViewer({ title, attachment, error, onClose, onSave, savi
     element?.showModal()
     return () => element?.close()
   }, [])
-  const loading = <p className="image-viewer__status" role="status">{t('document.loading')}</p>
+  const loading = <p className="image-viewer__status" role="status">{loadingLabel || t('document.loading')}</p>
   return (
     <dialog ref={dialog} className="image-viewer document-viewer" data-closing={closing || undefined} aria-labelledby="document-viewer-title"
       onCancel={event => { event.preventDefault(); close() }} onKeyDown={event => {
@@ -46,9 +49,9 @@ export function DocumentViewer({ title, attachment, error, onClose, onSave, savi
       </header>
       {saving && <div className="attachment-progress" role="status"><Icon name="progress_activity" size={16} className="spin" />{t('attachment.preparing')}</div>}
       <div className="document-viewer__body">
-        {error ? <p className="document-viewer__message" role="alert">{t('document.failed')}</p> : !attachment ? loading : attachment.kind === 'text' ? (
+        {error ? <div className="document-viewer__message" role="alert"><p>{t('document.failed')}</p>{onRetry && <button className="btn btn--surface" type="button" onClick={onRetry}>{t('offline.retry')}</button>}</div> : !attachment ? loading : attachment.kind === 'text' ? (
           <div className="document-viewer__stage"><pre className="document-viewer__text">{attachment.text || t('document.empty')}</pre></div>
-        ) : attachment.kind === 'pdf' ? <Suspense fallback={loading}><PdfDocument data={attachment.data} /></Suspense> : null}
+        ) : attachment.kind === 'pdf' ? <Suspense fallback={loading}><PdfDocument key={revision} data={attachment.data} onRetry={onRetry} /></Suspense> : null}
       </div>
     </dialog>
   )

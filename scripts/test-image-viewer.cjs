@@ -109,19 +109,18 @@ async function main() {
   const imapSource = fs.readFileSync('src/main/imap.ts', 'utf8')
   const imapAst = ts.createSourceFile('imap.ts', imapSource, ts.ScriptTarget.Latest, true)
   const readSource = imapAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'readAttachment').getText(imapAst).replace(/^export /, '')
-  let releaseParse, releasedLock = false
-  const readerContext = {Buffer, Error, syncGeneration: 1, serial: fn => Promise.resolve().then(fn),
+  let releaseDownload, releasedLock = false
+  const readerContext = {...require('./imap-test-helpers.cjs'),Buffer, Error, cacheAccountId: () => 'one', getMailboxMeta: () => ({uidValidity: 1}), accountChangedError: () => new Error('La cuenta activa cambió'), syncGeneration: 1, serial: fn => Promise.resolve().then(fn),
     MAX_MESSAGE_BYTES: 50 * 1024 * 1024, MAX_ATTACHMENT_BYTES: 25 * 1024 * 1024,
     readEnvelope: () => ({ size: 0 }),
     readBody: () => ({ attachments: [] }),
-    ensureClient: async () => ({getMailboxLock: async () => ({release: () => {releasedLock = true}}), download: async () => ({content: (async function* () {yield Buffer.from('mime')})()})}),
-    simpleParser: () => new Promise(resolve => {releaseParse = resolve})}
+    ensureClient: async () => ({mailbox: {uidValidity: 1n}, fetchOne: async () => ({uid: 1, bodyStructure: {type: 'image/png', part: '1'}}), getMailboxLock: async () => ({release: () => {releasedLock = true}}), download: async () => ({content: (async function* () {await new Promise(resolve => {releaseDownload = resolve});yield Buffer.from('image')})()})})}
   const readLimited = imapAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'readLimited').getText(imapAst)
   const readAttachment = vm.runInNewContext(compile(`${readLimited}; (${readSource})`), readerContext)
   const reading = readAttachment('INBOX', 1, 0)
   await new Promise(resolve => setImmediate(resolve))
   readerContext.syncGeneration++
-  releaseParse({attachments: [{filename: 'photo.png', contentType: 'image/png', content: Buffer.from('image')}]})
+  releaseDownload()
   await assert.rejects(reading, /cuenta activa cambió/)
   assert.equal(releasedLock, true)
   console.log('Image viewer: fit/zoom, keyboard isolation, native close, save/errors, safe preview MIME/size, cancellation and non-image downloads passed')

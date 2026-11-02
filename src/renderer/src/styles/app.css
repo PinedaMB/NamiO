@@ -5852,6 +5852,7 @@
 .image-viewer__canvas { display: grid; place-items: center; }
 .image-viewer__canvas img { max-width: none; object-fit: contain; }
 .image-viewer__status { position: absolute; inset: 24px; display: grid; place-content: center; text-align: center; color: var(--on-surface-variant); }
+.image-viewer__status > .btn { justify-self: center; }
 @media (max-width: 800px) { .image-viewer__toolbar { flex-wrap: wrap; } .image-viewer__toolbar strong { flex-basis: 100%; } .image-viewer__controls { margin-left: auto; } }
 
 .document-viewer__stage { flex: 1; min-height: 0; overflow: auto; position: relative; scrollbar-width: thin; }

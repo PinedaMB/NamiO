@@ -4,7 +4,7 @@ import { useI18n } from '../i18n'
 import { TooltipButton } from './Tooltip'
 import { Icon } from './Icon'
 
-export function PdfDocument({ data }: { data: string }): React.JSX.Element {
+export function PdfDocument({ data, onRetry }: { data: string; onRetry?: () => void }): React.JSX.Element {
   const { t } = useI18n()
   const stage = useRef<HTMLDivElement>(null)
   const pageHost = useRef<HTMLDivElement>(null)
@@ -119,7 +119,7 @@ export function PdfDocument({ data }: { data: string }): React.JSX.Element {
       </div>
       <div ref={stage} className="document-viewer__stage pdf-document__stage" aria-busy={loading}>
         {loading && <p className="image-viewer__status" role="status">{t('document.loading')}</p>}
-        {error && <p className="image-viewer__status" role="alert">{t(error === 'document.password' ? 'document.password' : 'document.failed')}</p>}
+        {error && <div className="image-viewer__status" role="alert"><p>{t(error === 'document.password' ? 'document.password' : 'document.failed')}</p>{onRetry && error !== 'document.password' && <button className="btn btn--surface" type="button" onClick={onRetry}>{t('offline.retry')}</button>}</div>}
         <div ref={pageHost} className="pdf-document__page" style={{ visibility: loading || error ? 'hidden' : 'visible' }} />
       </div>
     </div>

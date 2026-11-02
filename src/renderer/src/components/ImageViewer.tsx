@@ -12,9 +12,12 @@ interface ImageViewerProps {
   onClose: () => void
   onSave?: () => void
   saving?: boolean
+  loadingLabel?: string
+  onRetry?: () => void
+  revision?: number
 }
 
-export function ImageViewer({ src, title, error = false, onClose, onSave, saving = false }: ImageViewerProps): React.JSX.Element {
+export function ImageViewer({ src, title, error = false, onClose, onSave, saving = false, loadingLabel, onRetry, revision = 0 }: ImageViewerProps): React.JSX.Element {
   const { t } = useI18n()
   const { closing, close } = useAnimatedClose(onClose)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -36,6 +39,7 @@ export function ImageViewer({ src, title, error = false, onClose, onSave, saving
     if (stage.current) observer.observe(stage.current)
     return () => { observer.disconnect(); element?.close() }
   }, [])
+  useEffect(() => { setFailed(false); setSize({ width: 0, height: 0 }); setScale(null) }, [revision])
 
   return (
     <dialog ref={dialog} className="image-viewer" data-closing={closing || undefined} aria-labelledby="image-viewer-title"
@@ -62,11 +66,11 @@ export function ImageViewer({ src, title, error = false, onClose, onSave, saving
       </header>
       {saving && <div className="attachment-progress" role="status"><Icon name="progress_activity" size={16} className="spin" />{t('attachment.preparing')}</div>}
       <div ref={stage} className="image-viewer__stage">
-        {(error || failed) ? <p className="image-viewer__status" role="alert">{t('image.failed')}</p> : (
+        {(error || failed) ? <div className="image-viewer__status" role="alert"><p>{t('image.failed')}</p>{onRetry && <button className="btn btn--surface" type="button" onClick={onRetry}>{t('offline.retry')}</button>}</div> : (
           <>
-            {(!src || !size.width) && <p className="image-viewer__status" role="status">{t('image.loading')}</p>}
+            {(!src || !size.width) && <p className="image-viewer__status" role="status">{src ? t('image.loading') : loadingLabel || t('image.loading')}</p>}
             {src && <div className="image-viewer__canvas" style={{ width: `max(100%, ${size.width * zoom}px)`, height: `max(100%, ${size.height * zoom}px)` }}>
-              <img src={src} alt={title} draggable={false} referrerPolicy="no-referrer" style={{ width: size.width * zoom || undefined, height: size.height * zoom || undefined, visibility: size.width ? 'visible' : 'hidden' }}
+              <img key={revision} src={src} alt={title} draggable={false} referrerPolicy="no-referrer" style={{ width: size.width * zoom || undefined, height: size.height * zoom || undefined, visibility: size.width ? 'visible' : 'hidden' }}
                 onLoad={event => setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailed(true)} />
             </div>}
           </>

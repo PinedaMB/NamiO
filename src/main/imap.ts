@@ -1,3 +1,5 @@
+import { cachedAttachment, cacheAttachment, clearAttachmentCache } from './attachmentCache'
+import { messageParts } from './messageParts'
 import { trackNewMail } from './notificationCursor'
 import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 import { createHash } from 'node:crypto'
@@ -798,23 +800,14 @@ async function cacheMessageBody(path: string, uid: number, includeInlineImages =
     if (!client.mailbox || (validity == null ? !includeInlineImages : String(client.mailbox.uidValidity) !== String(validity))) throw new Error('La identidad de la carpeta cambió; no se guardó el cuerpo')
     const message = await client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true }, { uid: true })
     if (!message || message.uid !== uid || !message.bodyStructure) throw new Error('No se encontró la estructura del mensaje')
-    const inlineImages = new Map<string, MessageStructureObject>()
-    const parts: { part: string; type: string }[] = []
-    const attachments: { name: string; size: number; type: string; part?: string }[] = []
-    const collect = (node: MessageStructureObject): void => {
-      if (node.id && node.part && /^image\/(png|jpeg|gif|webp|avif|bmp|x-icon|vnd.microsoft.icon)$/i.test(node.type)) {
-        inlineImages.set(node.id.replace(/^<|>$/g, ''), node)
-      }
-      const filename = node.dispositionParameters?.filename ?? node.parameters?.name
-      const attached = node.disposition?.toLowerCase() === 'attachment' || Boolean(filename) || node.type.toLowerCase() === 'message/rfc822'
-      if (!attached && node.childNodes?.length) { node.childNodes.forEach(collect); return }
-      if (!attached && ['text/plain', 'text/html'].includes(node.type.toLowerCase())) {
-        parts.push({ part: node.part || '1', type: node.type.toLowerCase() })
-      } else {
-        attachments.push({ name: filename || `adjunto-${attachments.length + 1}`, size: node.size ?? 0, type: node.type, part: node.part || undefined })
-      }
-    }
-    collect(message.bodyStructure)
+    const split = messageParts(message.bodyStructure)
+    const parts = split.body.map(node => ({ part: node.part || '1', type: node.type.toLowerCase() }))
+    const attachments = split.attachments.map((node, index) => ({
+      name: node.dispositionParameters?.filename ?? node.parameters?.name ?? `adjunto-${index + 1}`,
+      size: node.size ?? 0, type: node.type, part: node.part || '1'
+    }))
+    const inlineImages = new Map(split.attachments.filter(node => node.id && node.part && /^image\/(png|jpeg|gif|webp|avif|bmp|x-icon|vnd.microsoft.icon)$/i.test(node.type))
+      .map(node => [node.id!.replace(/^<|>$/g, ''), node]))
     const text: string[] = [], html: string[] = []
     let downloaded = 0
     for (const part of parts) {
@@ -1079,46 +1072,43 @@ export function setSeen(path: string, uid: number, seen: boolean, accountId?: st
 export function readAttachment(
   path: string,
   uid: number,
-  index: number
+  index: number,
+  onProgress?: (phase: 'waiting' | 'downloading') => void
 ): Promise<{ name: string; content: Buffer; type: string }> {
+  if (typeof path !== 'string' || !Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(index) || index < 0) return Promise.reject(new Error('Adjunto inválido'))
   const generation = syncGeneration
+  const owner = cacheAccountId()
+  const validity = getMailboxMeta(path)?.uidValidity
+  const key = validity != null && readEnvelope(path, uid) ? JSON.stringify([owner, generation, path, String(validity), uid, index]) : null
+  const cached = key ? cachedAttachment(key) : undefined
+  if (cached) return Promise.resolve(cached)
+  onProgress?.('waiting')
   return serial(async () => {
-    if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
+    if (generation !== syncGeneration || owner !== cacheAccountId()) throw accountChangedError()
+    const existing = key ? cachedAttachment(key) : undefined
+    if (existing) return existing
     const client = await ensureClient()
     const lock = await client.getMailboxLock(path)
-
     try {
-      const cachedEnvelope = readEnvelope(path, uid)
-      const cachedAttachment = readBody(path, uid)?.attachments[index]
-      // Con la parte MIME cacheada se baja solo el adjunto, no el mensaje entero.
-      if (cachedAttachment?.part) {
-        if (cachedAttachment.size > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
-        const part = await client.download(String(uid), cachedAttachment.part, { uid: true })
-        if (!part.content) throw new Error('El adjunto no tiene contenido')
-        const content = await readLimited(part.content, MAX_ATTACHMENT_BYTES, 'El adjunto supera el límite de 25 MB')
-        return { type: cachedAttachment.type, name: cachedAttachment.name, content }
+      if (!client.mailbox || (validity != null && String(client.mailbox.uidValidity) !== String(validity))) throw new Error('La identidad de la carpeta cambió; no se descargó el adjunto')
+      let attachment = readBody(path, uid)?.attachments[index]
+      if (!attachment?.part) {
+        const message = await client.fetchOne(String(uid), { uid: true, bodyStructure: true }, { uid: true })
+        if (!message || message.uid !== uid || !message.bodyStructure) throw new Error('No se encontró la estructura del mensaje')
+        const part = messageParts(message.bodyStructure).attachments[index]
+        if (!part) throw new Error('Adjunto no encontrado')
+        attachment = { name: part.dispositionParameters?.filename ?? part.parameters?.name ?? `adjunto-${index + 1}`, type: part.type, size: part.size ?? 0, part: part.part || '1' }
       }
-      if (cachedEnvelope && cachedEnvelope.size > MAX_MESSAGE_BYTES) throw new Error('El mensaje supera el límite de 50 MB; no se puede extraer el adjunto')
-      const download = await client.download(String(uid), undefined, { uid: true })
-      if (!download.content) throw new Error('El mensaje no tiene contenido')
-
-      const raw = await readLimited(download.content, MAX_MESSAGE_BYTES, 'El mensaje supera el límite de 50 MB; no se puede extraer el adjunto')
-
-      const parsed = await simpleParser(raw)
-      if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
-      const attachment = parsed.attachments[index]
-      if (!attachment?.content) throw new Error('Adjunto no encontrado')
-      const content = Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content)
-      if (content.length > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
-
-      return {
-        type: attachment.contentType,
-        name: attachment.filename ?? `adjunto-${index + 1}`,
-        content
-      }
-    } finally {
-      lock.release()
-    }
+      if (attachment.size > MAX_ATTACHMENT_BYTES) throw new Error('El adjunto supera el límite de 25 MB')
+      onProgress?.('downloading')
+      const download = await client.download(String(uid), attachment.part, { uid: true })
+      if (!download.content) throw new Error('El adjunto no tiene contenido')
+      const content = await readLimited(download.content, MAX_ATTACHMENT_BYTES, 'El adjunto supera el límite de 25 MB')
+      if (generation !== syncGeneration || owner !== cacheAccountId()) throw accountChangedError()
+      const result = { name: attachment.name, type: attachment.type, content }
+      if (key) cacheAttachment(key, result)
+      return result
+    } finally { lock.release() }
   }, 'interactive')
 }
 
@@ -1541,7 +1531,7 @@ export async function disconnectAccount(expectedId: string): Promise<void> {
 }
 
 export function clearCachedMail(accountId: string): Promise<void> {
-  return serial(() => clearAccountCache(accountId))
+  return serial(async () => { clearAttachmentCache(); await clearAccountCache(accountId) })
 }
 
 export function notifyDraftsChanged(): void { notify('*') }

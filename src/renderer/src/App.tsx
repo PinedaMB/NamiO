@@ -254,8 +254,12 @@ export function App(): React.JSX.Element {
     setSearchHasMore(false)
     setQueryValue(value)
   }
-  const [attachmentPreview, setAttachmentPreview] = useState<{ attachment?: AttachmentPreview; kind: 'image' | 'pdf' | 'text'; title: string; error?: boolean; save: () => void } | null>(null)
+  const [attachmentPreview, setAttachmentPreview] = useState<{ request: number; phase: 'waiting' | 'downloading' | 'preparing'; retry: () => void; attachment?: AttachmentPreview; kind: 'image' | 'pdf' | 'text'; title: string; error?: boolean; save: () => void } | null>(null)
   const attachmentRequest = useRef(0)
+  useEffect(() => window.api?.onAttachmentProgress?.(({ request, phase }) => {
+    if (request !== attachmentRequest.current) return
+    setAttachmentPreview(current => current?.request === request && !current.attachment && !current.error ? { ...current, phase } : current)
+  }), [])
   const [savingAttachment, setSavingAttachment] = useState<{ mailbox: string; messageId: string; index: number } | null>(null)
   const savingAttachmentRef = useRef(false)
   const [hits, setHits] = useState<readonly SearchHit[]>([])
@@ -1069,13 +1073,17 @@ export function App(): React.JSX.Element {
     const attachment = message?.attachments?.[index]
     if (!attachment || (attachment.kind !== 'image' && attachment.kind !== 'pdf' && attachment.kind !== 'text')) { void save(); return }
     const kind = attachment.kind
-    const request = ++attachmentRequest.current
-    setAttachmentPreview({ kind, title: attachment.name, save })
-    void window.api.previewAttachment(sourceMailbox, uid, index).then(image => {
-      if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ kind, title: image.name, attachment: image, save })
-    }).catch(() => {
-      if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ kind, title: attachment.name, error: true, save })
-    })
+    const load = (): void => {
+      if (generation !== accountGeneration.current) return
+      const request = ++attachmentRequest.current
+      setAttachmentPreview({ request, phase: 'waiting', kind, title: attachment.name, save, retry: load })
+      void window.api.previewAttachment(sourceMailbox, uid, index, request).then(image => {
+        if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ request, phase: 'preparing', kind, title: image.name, attachment: image, save, retry: load })
+      }).catch(() => {
+        if (request === attachmentRequest.current && generation === accountGeneration.current) setAttachmentPreview({ request, phase: 'waiting', kind, title: attachment.name, error: true, save, retry: load })
+      })
+    }
+    load()
   }
 
   /** Alterna leído/no leído; en modo real escribe `\Seen` en el servidor. */
@@ -1864,9 +1872,9 @@ export function App(): React.JSX.Element {
       )}
 
       {attachmentPreview && (attachmentPreview.kind === 'image'
-        ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
+        ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} revision={attachmentPreview.request} loadingLabel={t(`attachment.${attachmentPreview.phase}`)} onRetry={attachmentPreview.retry} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
           onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />
-        : <DocumentViewer title={attachmentPreview.title} attachment={attachmentPreview.attachment} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
+        : <DocumentViewer title={attachmentPreview.title} revision={attachmentPreview.request} loadingLabel={t(`attachment.${attachmentPreview.phase}`)} onRetry={attachmentPreview.retry} attachment={attachmentPreview.attachment} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
           onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />)}
       {savingAttachment && <div className="toast" role="status">
         <Icon name="progress_activity" size={16} className="spin" />

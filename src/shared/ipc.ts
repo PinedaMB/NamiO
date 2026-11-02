@@ -40,6 +40,7 @@ export const IPC = {
   messagesDelete: 'messages:delete',
   attachmentSave: 'attachment:save',
   attachmentPreview: 'attachment:preview',
+  attachmentProgress: 'attachment:progress',
   shellOpen: 'shell:open',
   cacheChanged: 'cache:changed',
   mailSend: 'mail:send',
@@ -236,6 +237,9 @@ export interface EnvelopeListOptions {
 }
 
 export type EnvelopeListResult = CachedResult<Envelope[]> & { counts?: { total: number; unread: number; availableOffline?: number } }
+
+export type AttachmentLoadPhase = 'waiting' | 'downloading' | 'preparing'
+export interface AttachmentProgress { request: number; phase: AttachmentLoadPhase }
 
 export type AttachmentPreview =
   | { kind: 'image'; name: string; src: string }
@@ -476,7 +480,8 @@ export interface MailApi {
   /** Sin UIDs, vacía exclusivamente Spam o Papelera, previa confirmación. */
   deleteMessages(path: string, uids?: number[]): Promise<MailAction>
   /** Descarga un adjunto y lo guarda donde el usuario elija. Devuelve la ruta o null si canceló. */
-  previewAttachment(path: string, uid: number, index: number): Promise<AttachmentPreview>
+  previewAttachment(path: string, uid: number, index: number, request?: number): Promise<AttachmentPreview>
+  onAttachmentProgress(listener: (progress: AttachmentProgress) => void): () => void
   saveAttachment(path: string, uid: number, index: number): Promise<string | null>
 
   sendMail(payload: SendMailPayload): Promise<MailAction>

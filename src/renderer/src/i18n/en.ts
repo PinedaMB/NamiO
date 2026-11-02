@@ -214,6 +214,8 @@ export const en: Dictionary = {
 
   'attachment.preparing': 'Preparing download…',
   'document.preview': 'Attachment preview',
+  'attachment.waiting': 'Waiting to download…',
+  'attachment.downloading': 'Downloading attachment…',
   'document.loading': 'Loading document…',
   'document.failed': 'The document could not be displayed. You can save it to open it in another application.',
   'document.password': 'This PDF requires a password. Save it to open it in your PDF reader.',
