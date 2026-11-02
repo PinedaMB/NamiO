@@ -15,6 +15,7 @@ try {
   await writeFile(join(folder, 'main.tsx'), `
 import React,{useState} from '${project}/node_modules/react';
 import {createRoot} from '${project}/node_modules/react-dom/client';
+import {flushSync} from '${project}/node_modules/react-dom';
 import {CommandPalette} from '${project}/src/renderer/src/components/CommandPalette';
 import {I18nProvider} from '${project}/src/renderer/src/i18n';
 import {ShortcutsProvider} from '${project}/src/renderer/src/settings/ShortcutsProvider';
@@ -25,6 +26,10 @@ import '${project}/src/renderer/src/styles/tokens.css';
 import '${project}/src/renderer/src/styles/app.css';
 window.api={getSettings:async()=>({language:'es',shortcuts:{compose:'mod+n',archive:'a',settings:'mod+.'}})};
 window.actions=[];
+window.reopenDuringExit=()=>{
+ flushSync(()=>document.querySelector('.palette__input').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));
+ flushSync(()=>document.querySelector('#launcher').click());
+};
 const threads=Array.from({length:60},(_,i)=>({id:String(i),subject:i===0?'Reunión de programación':'Mensaje '+i,participants:[{name:'José'}],unread:false}));
 const folders=[{id:'INBOX',label:'Recibidos',icon:'inbox'},{id:'[Gmail]/Borradores',label:'Borradores',icon:'draft'}];
 window.searchCalls=[];window.failSearch=true;
@@ -62,12 +67,13 @@ app.whenReady().then(async()=>{
  assert.equal(await run('document.getElementById(document.querySelector(".palette__input").getAttribute("aria-activedescendant")).getAttribute("aria-selected")'), 'true');
  await filter('programacion');assert.equal(await run('document.querySelectorAll("[role=option]").length'),1,'accent-insensitive search finds the shown mail');
  await key('Enter',{ctrlKey:true});assert.deepEqual(await run('window.actions'),[],'unsupported Ctrl+Enter does not execute a command');
- await key('Enter');await closed();assert.deepEqual(await run('window.actions'),[['thread','0']]);
+ await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true,cancelable:true}));if(window.actions.length)throw Error("Commands must wait for the exit animation")');await closed();assert.deepEqual(await run('window.actions'),[['thread','0']]);
  assert.equal(await run('document.activeElement.id'),'launcher','closing restores prior focus');
  for(const [query,expected] of [['Recibidos',['folder','INBOX']],['Borradores',['folder','[Gmail]/Borradores']],['Nuevo correo',['compose']],['Configuracion',['settings']]]){
   await open();assert.equal(await run('document.querySelector(".palette__input").value'),'');await filter(query);await key('Enter');await closed();assert.deepEqual(await run('window.actions.at(-1)'),expected);
  }
- await open();await filter('Nuevo correo');await key('Enter');await open();assert.equal(await run('document.querySelector(".palette").matches(":modal")'),true,'reopening during exit remains modal');await key('Escape');await closed();
+ const beforeReopen=await run('window.actions.length');
+ await open();await filter('Nuevo correo');await run('window.reopenDuringExit()');await delay(220);assert.equal(await run('document.querySelector(".palette").matches(":modal")'),true,'reopening during exit remains modal');assert.equal(await run('window.actions.length'),beforeReopen,'reopening cancels the pending command instead of closing the new palette');await key('Escape');await closed();
  await run('window.setArchive(true)');await open();await filter('Archivar');await key('Enter');await closed();assert.deepEqual(await run('window.actions.at(-1)'),['archive']);
  await open();await filter('zzznomatch');assert.equal(await run('document.querySelectorAll("[role=option]").length'),0);assert.equal(await run('document.querySelector(".palette__input").hasAttribute("aria-activedescendant")'),false);await key('Enter');assert.equal(await run('document.querySelector(".palette").open'),true);await key('Escape');await closed();
  await open();await key('Tab');await run('document.querySelector(".palette .tool-btn").focus()');await key('Enter');assert.equal(await run('document.querySelector(".palette").open'),true,'Enter on Close must not run the highlighted command');await run('document.querySelector(".palette .tool-btn").click()');await closed();

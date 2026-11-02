@@ -5,7 +5,6 @@ import type { Thread } from '../data/demo'
 import type { FolderView } from '../data/live'
 import { useI18n } from '../i18n'
 import { usePresence } from '../lib/usePresence'
-import { useAnimatedClose } from '../lib/useAnimatedClose'
 import { Icon } from './Icon'
 import { cx } from '../lib/cx'
 
@@ -61,7 +60,7 @@ export function CommandPalette({
   const listRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 140)
-  const { closing: actionClosing, close: closeAction } = useAnimatedClose(onClose)
+  const pendingAction = useRef<(() => void) | null>(null)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -115,13 +114,22 @@ export function CommandPalette({
     }
   }, [open, mounted])
 
-  const groups = useMemo<Group[]>(() => {
-    const run = (action: () => void): (() => void) => () => closeAction(() => {
-      // Libera el foco modal antes de abrir el editor o cambiar de vista.
-      dialogRef.current?.close()
-      onClose()
+  useLayoutEffect(() => {
+    if (open) pendingAction.current = null
+    else if (!mounted && pendingAction.current) {
+      // El diálogo ya salió y liberó el foco antes de abrir otra superficie.
+      const action = pendingAction.current
+      pendingAction.current = null
       action()
-    })
+    }
+  }, [open, mounted])
+
+  const groups = useMemo<Group[]>(() => {
+    const run = (action: () => void): (() => void) => () => {
+      if (!open || pendingAction.current) return
+      pendingAction.current = action
+      onClose()
+    }
 
     return [
       {
@@ -157,7 +165,7 @@ export function CommandPalette({
         ]
       }
     ]
-  }, [threads, onClose, closeAction, onCompose, onArchive, onOpenThread, onSelectFolder, onOpenSettings, folders, canArchive, bindings, formatCombo, t, searchCache, trimmed, cachedHits, search, cacheLoading, onOpenSearchHit, offset])
+  }, [open, threads, onClose, onCompose, onArchive, onOpenThread, onSelectFolder, onOpenSettings, folders, canArchive, bindings, formatCombo, t, searchCache, trimmed, cachedHits, search, cacheLoading, onOpenSearchHit, offset])
 
   const filtered = useMemo<Group[]>(() => {
     const normalize = (text: string): string => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -191,7 +199,7 @@ export function CommandPalette({
   if (!mounted) return null
 
   return (
-    <dialog ref={dialogRef} className={cx('palette', (closing || actionClosing) && 'palette--closing')} aria-label={t('palette.placeholder')}
+    <dialog ref={dialogRef} className={cx('palette', closing && 'palette--closing')} aria-label={t('palette.placeholder')}
       onCancel={event => { event.preventDefault(); onClose() }}
       onMouseDown={event => {
         if (event.target !== event.currentTarget) return
@@ -199,7 +207,7 @@ export function CommandPalette({
         if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose()
       }}
       onKeyDown={event => {
-        if (!open || actionClosing) { event.preventDefault(); event.stopPropagation(); return }
+        if (!open) { event.preventDefault(); event.stopPropagation(); return }
         if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
         else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
