@@ -969,7 +969,7 @@ export function App(): React.JSX.Element {
       if (!current()) return
       if (!result.ok) { setLiveError({ code: result.code, detail: result.detail }); return }
       const messages = await Promise.all(result.data.map(async location => {
-        const response = await window.api.getMessage(location.mailbox, location.uid, cachedOnly || result.meta.offline)
+        const response = await window.api.getMessage(location.mailbox, location.uid, cachedOnly)
         if (!response.ok) { if (current()) setLiveError({ code: response.code, detail: response.detail }); return null }
         return { ...detailToMessage(response.data, locale, response.meta.partial === true),
           id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,

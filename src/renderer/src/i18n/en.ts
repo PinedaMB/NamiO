@@ -671,5 +671,5 @@ export const en: Dictionary = {
   'offline.title': 'Offline',
   'offline.detail': 'Showing the last copy stored on this machine.',
   'offline.retry': 'Retry',
-  'offline.bodyUnavailable': 'That body is not cached; it will download once the connection returns.',
+  'offline.bodyUnavailable': 'This message content is not available on this device yet. Sync again to retry downloading it.',
 }

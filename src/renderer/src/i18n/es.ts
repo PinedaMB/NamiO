@@ -674,7 +674,7 @@ export const es = {
   'offline.title': 'Sin conexión',
   'offline.detail': 'Mostrando la última copia guardada en este equipo.',
   'offline.retry': 'Reintentar',
-  'offline.bodyUnavailable': 'Ese cuerpo no está en la caché; se descargará al volver la conexión.',
+  'offline.bodyUnavailable': 'El contenido de este mensaje aún no está disponible en este equipo. Vuelve a sincronizar para intentar descargarlo.',
 } as const
 
 export type TranslationKey = keyof typeof es

@@ -8,7 +8,7 @@ const fn = source.statements.find(node => ts.isFunctionDeclaration(node) && node
 async function backend(mode) {
   let searches = 0, writes = 0, cleared = 0, released = 0
   const context = {
-    syncGeneration: 1, syncMeta: () => ({}),
+    syncGeneration: 1, offline: true, syncMeta: () => ({ offline: context.offline }),
     readMailboxes: () => [{ path: 'Enviados', specialUse: '\\Sent' }],
     readEnvelope: () => ({ messageId: '<inbox>', inReplyTo: '<root>', references: mode === 'large-query' ? ['<root>', ...Array.from({length:30},(_,index)=>`<ancestor-${index}>`)] : ['<root>'] }),
     relatedMessageUids: () => [7, 9], getMeta: () => mode === 'validity' ? '1' : '2', getMailboxMeta: () => null,
@@ -42,7 +42,10 @@ async function backend(mode) {
   assert.deepEqual(Array.from(result.data, item => [item.mailbox, item.uid]), mode === 'cached' || mode === 'offline' ? [['Enviados', 7], ['Enviados', 9]] : [['Enviados', 7]], 'online results exclude deleted cached messages')
   assert.equal(searches, mode === 'cached' || mode === 'offline' ? 0 : mode === 'large-query' ? 5 : ['refusal', 'undefined'].includes(mode) ? 4 : 2)
   assert.equal(cleared, mode === 'validity' ? 1 : 0, 'changed UIDVALIDITY cannot reuse stale bodies')
-  if (searches) assert.equal(released, 1)
+  if (searches) {
+    assert.equal(released, 1)
+    assert.equal(result.meta.offline, false, 'a successful sent-folder request clears a stale disconnection')
+  }
   if (mode === 'offline') assert.equal(result.meta.offline, true)
   assert.equal((await api('INBOX', ['7'], true)).ok, false, 'IPC rejects invalid UIDs')
 }
@@ -76,7 +79,7 @@ const combined = vm.runInNewContext(compile(`(${readerExpression})`), {
 })
 assert.deepEqual(Array.from(combined.messages, message => message.id), ['live:7', 'sent:Sent:7'], 'reader preserves chronology and deduplicates mailbox copies by Message-ID')
 const flush = () => new Promise(resolve => setImmediate(resolve))
-async function renderer(offline = false, stale = false, preserveFull = false) {
+async function renderer(offline = false, stale = false, preserveFull = false, staleOffline = false) {
   const lookups = [], bodies = [], updates = []
   let release
   let state = preserveFull ? { 'one:INBOX:7': [{ id: 'sent:Enviados:7', mailbox: 'Enviados', uid: 7, body: ['Full reply'], partial: false }] } : {}
@@ -90,7 +93,7 @@ async function renderer(offline = false, stale = false, preserveFull = false) {
       getSentReplies: async (_path, _uids, cachedOnly) => {
         lookups.push(cachedOnly)
         if (stale) await new Promise(resolve => { release = resolve })
-        return { ok: true, data: [{ mailbox: 'Enviados', uid: 7 }], meta: {} }
+        return { ok: true, data: [{ mailbox: 'Enviados', uid: 7 }], meta: { offline: staleOffline } }
       },
       getMessage: async (mailbox, uid, cachedOnly) => { bodies.push([mailbox, uid, cachedOnly]); return { ok: true, data: { uid }, meta: { partial: cachedOnly } } }
     } }
@@ -101,6 +104,10 @@ async function renderer(offline = false, stale = false, preserveFull = false) {
   if (stale) { assert.equal(updates.length, 0, 'account changes reject old sent replies'); return }
   assert.deepEqual(lookups, offline ? [true] : [true, false])
   assert.deepEqual(bodies[0], ['Enviados', 7, true], 'same UID in Inbox must not redirect a sent body')
+  if (!offline) {
+    assert.deepEqual(bodies[1], ['Enviados', 7, false], 'a stale offline flag cannot prevent a foreground body download')
+    assert.equal(updates.at(-1)['one:INBOX:7'][0].partial, false, 'a downloaded body replaces the cache placeholder')
+  }
   assert.equal(updates.at(-1)['one:INBOX:7'][0].id, 'sent:Enviados:7')
   assert.equal(updates.at(-1)['one:INBOX:7'][0].mailbox, 'Enviados')
   if (preserveFull) assert.equal(updates[0]['one:INBOX:7'][0].body[0], 'Full reply', 'cached partial bodies cannot replace a complete reply')
@@ -138,5 +145,6 @@ async function prefetch(stale = false) {
   await prefetch(); await prefetch(true)
   for (const mode of ['cached', 'online', 'offline', 'switch', 'validity', 'index-lag', 'large-query', 'refusal', 'undefined']) await backend(mode)
   await renderer(); await renderer(true); await renderer(false, true); await renderer(true, false, true)
+  await renderer(false, false, false, true)
   console.log('Sent replies: exact header search, cache/offline access, account and UID isolation, stale-result cancellation and reader locations passed')
 })().catch(error => { console.error(error); process.exitCode = 1 })

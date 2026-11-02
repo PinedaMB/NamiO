@@ -936,6 +936,7 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
       }
     })
     if (generation !== syncGeneration) throw accountChangedError()
+    offline = false
     return { ok: true, data: locations(matches), meta: syncMeta() }
   } catch (error) {
     if (generation !== syncGeneration) return { ok: false, code: 'unknown', detail: 'La cuenta activa cambió' }
