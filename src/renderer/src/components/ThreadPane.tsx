@@ -395,10 +395,10 @@ export function ThreadPane({
       </div>
       <div className="quick-reply">
         <div className="quick-reply__actions">
-          <button className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} disabled title={t('thread.quickDraftSoon')}>
+          <TooltipButton className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} disabled title={t('thread.quickDraftSoon')}>
             <Icon name="bolt" size={14} />
             {t('thread.quickDraft')}
-          </button>
+          </TooltipButton>
           <TooltipButton className="btn btn--surface" type="button" onClick={onReply} title={t('thread.replySender')}>
             <Icon name="reply" size={16} />
             {t('common.reply')}
