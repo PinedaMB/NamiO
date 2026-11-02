@@ -197,7 +197,7 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
     const oauth = await revealOAuthSecret(account)
     if (!oauth) throw new Error('La cuenta OAuth no tiene configuración')
     const refreshToken = await decryptSecret(account.refreshToken)
-    if (!refreshToken) throw new Error('No se pudo descifrar el refresh token')
+    if (!refreshToken) throw Object.assign(new Error('No se pudo abrir la credencial guardada. Desbloquea la cartera del sistema (KWallet en KDE) y vuelve a intentar. Si cambiaste de equipo o de cartera, vuelve a autorizar la cuenta desde su configuración.'), { code: 'AUTH_SECRET_UNAVAILABLE' })
 
     const token = await getAccessToken(oauth, refreshToken)
     if (token.refreshToken) {
@@ -209,7 +209,7 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
   }
 
   const password = account.secret ? await decryptSecret(account.secret) : null
-  if (!password) throw new Error('Stored password unavailable')
+  if (!password) throw Object.assign(new Error('No se pudo abrir la contraseña guardada. Desbloquea la cartera del sistema (KWallet en KDE) y vuelve a intentar; si la clave ya no existe, introduce la contraseña desde la configuración de la cuenta.'), { code: 'AUTH_SECRET_UNAVAILABLE' })
   return { password }
 }
 

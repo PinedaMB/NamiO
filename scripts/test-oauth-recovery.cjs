@@ -65,14 +65,20 @@ async function main() {
   const source = ts.createSourceFile('imap.ts', fs.readFileSync('src/main/imap.ts', 'utf8'), ts.ScriptTarget.Latest, true)
   const auth = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'authFor')
   const updates = []
+  let canDecrypt = true
   const authFor = vm.runInNewContext(ts.transpile(`(${auth.getText(source)})`, { target: ts.ScriptTarget.ES2022 }), {
-    decryptSecret: async () => 'original', getAccessToken: async () => renewed,
+    decryptSecret: async () => canDecrypt ? 'original' : null, getAccessToken: async () => renewed,
     revealOAuthSecret: async account => account.oauth,
     encryptSecret: async token => `encrypted:${token}`,
     updateAccount: async (id, patch) => updates.push({ id, ...patch })
   })
   assert.equal((await authFor({ id: 'owner', auth: 'oauth2', oauth: config, refreshToken: 'encrypted-original' })).accessToken, renewed.accessToken)
   assert.deepEqual(updates, [{ id: 'owner', refreshToken: 'encrypted:rotated' }], 'rotated credentials are encrypted and saved to their owning account')
+  canDecrypt = false
+  for (const account of [{ id: 'owner', auth: 'oauth2', oauth: config, refreshToken: 'encrypted-original' }, { id: 'owner', secret: 'encrypted-password' }]) {
+    await assert.rejects(authFor(account), error => error.code === 'AUTH_SECRET_UNAVAILABLE' && error.message.includes('KWallet'))
+  }
+  assert.equal(updates.length, 1, 'unavailable credentials are preserved for recovery after unlocking the wallet')
   console.log('OAuth recovery: expiry, offline retry, token reuse and encrypted refresh-token rotation passed')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
