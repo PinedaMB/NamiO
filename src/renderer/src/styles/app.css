@@ -5876,10 +5876,10 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 }
 .recipients-dialog__list { min-height: 0; overflow: auto; padding: 0; background: transparent; }
 .recipients-dialog__list section + section { margin-top: var(--sp-lg); }
-.recipients-dialog__list h2 { margin: 0 0 var(--sp-sm); font-size: 13px; font-weight: 600; }
+.recipients-dialog__list h2 { text-transform: capitalize; margin: 0 0 var(--sp-sm); font-size: 13px; font-weight: 600; }
 .recipients-dialog__list h2 span { color: var(--outline); font-weight: 400; }
 .recipients-dialog__list ul { margin: 0; padding: 0; list-style: none; }
-.recipients-dialog__list li { display: flex; align-items: center; gap: var(--sp-md); padding-block: var(--sp-sm); border-bottom: 1px solid var(--surface-container-highest); }
+.recipients-dialog__list li { display: flex; align-items: center; gap: var(--sp-md); padding-block: var(--sp-sm); border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent); }
 .recipients-dialog__list li:last-child { border-bottom: 0; }
 .recipients-dialog__list li > div { flex: 1; min-width: 0; display: grid; gap: var(--sp-xs); }
 .recipients-dialog__list li strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
@@ -5974,3 +5974,7 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 @media (min-width: 1600px) {
   :root { --list-w: 360px; }
 }
+
+.recipients-dialog__copy { flex-shrink: 0; transition: color 180ms var(--ease), background-color 180ms var(--ease); }
+.recipients-dialog__copy--copied { color: light-dark(#23834b, #79d99d); background: color-mix(in srgb, light-dark(#23834b, #79d99d) 12%, transparent); }
+@media (prefers-reduced-motion: reduce) { .recipients-dialog__copy { transition: none; } }

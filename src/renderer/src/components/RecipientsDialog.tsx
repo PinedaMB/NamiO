@@ -8,18 +8,23 @@ export function RecipientsDialog({ message, onClose }: { message: Message; onClo
   const { t } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
   const [closing, setClosing] = useState(false)
-  const [status, setStatus] = useState<'copied' | 'failed' | null>(null)
+  const [status, setStatus] = useState<{ result: 'copied' | 'failed'; key: string } | null>(null)
   useEffect(() => {
     const element = dialog.current
     element?.showModal()
     return () => element?.close()
   }, [])
-  const copy = async (text: string): Promise<void> => {
+  useEffect(() => {
+    if (!status) return
+    const timeout = window.setTimeout(() => setStatus(null), 1600)
+    return () => window.clearTimeout(timeout)
+  }, [status])
+  const copy = async (text: string, key: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(text)
-      setStatus('copied')
+      setStatus({ result: 'copied', key })
     } catch {
-      setStatus('failed')
+      setStatus({ result: 'failed', key })
     }
   }
   const groups = [{ label: t('compose.from'), people: [message.from] }, { label: t('thread.to'), people: message.to }, { label: t('compose.cc'), people: message.cc ?? [] }]
@@ -40,13 +45,13 @@ export function RecipientsDialog({ message, onClose }: { message: Message; onClo
         <h2>{group.label} <span>({group.people.length})</span></h2>
         <ul>{group.people.map((person, index) => <li key={`${person.email}:${index}`}>
           <div>{person.name && person.name !== person.email && <strong>{person.name}</strong>}<span className="recipients-dialog__email">{person.email}</span></div>
-          <TooltipButton className="icon-btn" type="button" title={t('recipients.copy', { email: person.email })} onClick={() => void copy(person.email)}><Icon name="content_copy" size={18} /></TooltipButton>
+          <TooltipButton className={status?.result === 'copied' && status.key === `${group.label}:${index}` ? 'icon-btn recipients-dialog__copy recipients-dialog__copy--copied' : 'icon-btn recipients-dialog__copy'} type="button" title={t('recipients.copy', { email: person.email })} onClick={() => void copy(person.email, `${group.label}:${index}`)}><Icon name={status?.result === 'copied' && status.key === `${group.label}:${index}` ? 'check' : 'content_copy'} size={18} /></TooltipButton>
         </li>)}</ul>
       </section>)}
     </div>
     <footer className="account-modal__foot">
-      <p className="recipients-dialog__status" role="status">{status ? t(status === 'copied' ? 'recipients.copied' : 'recipients.failed') : ''}</p>
-      <button className="btn btn--primary" type="button" onClick={() => void copy(emails.join('; '))}>{t('recipients.copyAll')}</button>
+      <p className="recipients-dialog__status" role="status">{status ? t(status.result === 'copied' ? 'recipients.copied' : 'recipients.failed') : ''}</p>
+      <button className="btn btn--primary" type="button" onClick={() => void copy(emails.join('; '), 'all')}>{t('recipients.copyAll')}</button>
     </footer>
   </dialog>
 }

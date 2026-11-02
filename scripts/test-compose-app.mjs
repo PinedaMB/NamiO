@@ -429,6 +429,14 @@ app.whenReady().then(async()=>{
  document.querySelector('.participants__details').click();
  await until(()=>document.querySelector('.recipients-dialog[open]'),'Message details did not open');
  if(!document.querySelector('.recipients-dialog').textContent.includes('copy@example.test'))throw new Error('Received CC is missing from message details');
+ const originalClipboard=Object.getOwnPropertyDescriptor(navigator,'clipboard');
+ Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedRecipient=text}}});
+ const copyOne=document.querySelector('.recipients-dialog__copy');const initialCopyColor=getComputedStyle(copyOne).color;
+ copyOne.click();await until(()=>copyOne.classList.contains('recipients-dialog__copy--copied'),'Individual copy did not confirm');
+ await new Promise(resolve=>setTimeout(resolve,220));
+ if(getComputedStyle(copyOne).color===initialCopyColor||!window.copiedRecipient)throw new Error('Copy icon must change color only after copying');
+ await until(()=>!copyOne.classList.contains('recipients-dialog__copy--copied'),'Copy confirmation did not reset');
+ if(originalClipboard)Object.defineProperty(navigator,'clipboard',originalClipboard);else delete navigator.clipboard;
  document.querySelector('.recipients-dialog [aria-label="Cerrar"]').click();
  await until(()=>!document.querySelector('.recipients-dialog'),'Message details did not close');
  const openMessageAction=async label=>{

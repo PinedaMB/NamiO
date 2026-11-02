@@ -5,13 +5,15 @@ const ts = require('typescript-test')
 const React = require('react')
 const exportsObject = {}
 let closing = false
-let effect, status, copied, fail = false, closed = false, shown = false
+const effects=[];let timer,cleared=false;
+let status, copied, fail = false, closed = false, shown = false
 const dialog = { showModal() { shown = true }, close() { closed = true } }
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/RecipientsDialog.tsx', 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX }), {
   exports: exportsObject,
+  window: { setTimeout(fn,ms) { assert.equal(ms,1600); timer=fn;return 1 }, clearTimeout(){cleared=true} },
   navigator: { clipboard: { async writeText(text) { if (fail) throw new Error('Denied'); copied = text } } },
   require: id => {
-    if (id === 'react') return { ...React, useRef: () => ({ current: dialog }), useEffect: fn => { effect = fn }, useState: initial => typeof initial === 'boolean' ? [closing, value => { closing = value }] : [status, value => { status = value }] }
+    if (id === 'react') return { ...React, useRef: () => ({ current: dialog }), useEffect: fn => { effects.push(fn) }, useState: initial => typeof initial === 'boolean' ? [closing, value => { closing = value }] : [status, value => { status = value }] }
     if (id === '../i18n') return { useI18n: () => ({ t: (key, values) => values?.email ? `${key}:${values.email}` : key }) }
     if (id === './Icon') return { Icon: () => null }
     if (id === './Tooltip') return { TooltipButton: () => null }
@@ -29,19 +31,25 @@ function findAll(node, predicate, result = []) {
 ;(async () => {
   let dismissed = false
   const tree = exportsObject.RecipientsDialog({ message, onClose() { dismissed = true } })
-  const cleanup = effect(); assert.ok(shown)
+  const cleanup = effects[0](); assert.ok(shown)
   assert.equal(findAll(tree, node => node.type === 'li').length, 103, 'sender and all To and CC recipients remain visible')
   const all = findAll(tree, node => node.props.children === 'recipients.copyAll')[0]
   all.props.onClick(); await new Promise(resolve => setImmediate(resolve))
   assert.equal(copied.split('; ').length, 101, 'copy all includes both groups without duplicates')
   assert.ok(copied.includes('copy@example.com'))
   assert.ok(!copied.includes('sender@example.com'), 'copy all copies recipients without adding the sender')
-  assert.equal(status, 'copied')
+  assert.equal(status.result, 'copied')
   const one = findAll(tree, node => node.props.title === 'recipients.copy:user99@example.com')[0]
   one.props.onClick(); await new Promise(resolve => setImmediate(resolve))
   assert.equal(copied, 'user99@example.com')
+  const copiedTree=exportsObject.RecipientsDialog({message,onClose(){}})
+  const copiedButtons=findAll(copiedTree,node=>node.props.className?.includes('recipients-dialog__copy--copied'))
+  assert.equal(copiedButtons.length,1,'Only the copied recipient is highlighted')
+  assert.equal(copiedButtons[0].props.children.props.name,'check','Successful copy has a non-color confirmation')
+  const cancelTimer=effects.at(-1)();timer();assert.equal(status,null,'Copy confirmation clears after the delay')
+  cancelTimer();assert.ok(cleared,'Cleanup cancels the confirmation timer')
   fail = true; one.props.onClick(); await new Promise(resolve => setImmediate(resolve))
-  assert.equal(status, 'failed', 'clipboard failure is shown without closing the dialog')
+  assert.equal(status.result, 'failed', 'clipboard failure is shown without closing the dialog')
   assert.ok(findAll(exportsObject.RecipientsDialog({ message, onClose() {} }), node => node.props.role === 'status')[0].props.children.includes('failed'))
   let stopped = false; tree.props.onKeyDown({ stopPropagation() { stopped = true } }); assert.ok(stopped)
   tree.props.onCancel({ preventDefault() {} })
