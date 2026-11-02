@@ -32,6 +32,12 @@
         "value": "arial",
         "createdAt": "2026-11-02T20:37:49.124Z",
         "reason": "Codex: Arial is the existing interoperable outgoing email font in composeEmailHtml, not the application UI typography."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "material symbols outlined",
+        "createdAt": "2026-11-02T20:51:42.551Z",
+        "reason": "Codex: existing packaged Material Symbols icon font, declared in the NamiO design system; not a text typography choice."
       }
     ]
   }

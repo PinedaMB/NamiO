@@ -5,7 +5,8 @@
    Nada de CDN: las fuentes se empaquetan con la app (CSP estricta).
    ========================================================================== */
 
-:root {
+:root,
+.composer {
   /* Superficies (de más profunda a más elevada) */
   --surface: light-dark(#ffffff, #202124);
   --surface-dim: light-dark(#e7e7eb, #202124);
@@ -83,11 +84,11 @@
   --fast: 120ms;
   --normal: 180ms;
 
-  color-scheme: light dark;
 }
 
-:root[data-app-theme="light"] { color-scheme: light; }
-:root[data-app-theme="dark"] { color-scheme: dark; }
+:root { color-scheme: light dark; }
+:root[data-app-theme="light"], .composer[data-compose-theme="light"] { color-scheme: light; }
+:root[data-app-theme="dark"], .composer[data-compose-theme="dark"] { color-scheme: dark; }
 
 *,
 *::before,

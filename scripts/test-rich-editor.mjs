@@ -151,6 +151,21 @@ app.whenReady().then(async()=>{
  assert(frame.contentWindow.getComputedStyle(history.querySelector('summary')).color===getComputedStyle(frame).color,'Quote toggle text follows app contrast in '+theme);
  }
  assert(frame.contentDocument.querySelectorAll('details.namio-quote').length===1,'Only one quoted-history toggle is rendered');
+ const themeSelect=document.querySelector('[aria-label="Apariencia de la redacción"]');
+ const beforeTheme=editor.getHTML();
+ const composeSurfaces=[];
+ for(const theme of ['dark','light']){
+ themeSelect.value=theme;themeSelect.dispatchEvent(new Event('change',{bubbles:true}));await tick();
+ const composer=document.querySelector('.composer');
+ for(let i=0;i<100&&getComputedStyle(frame.contentDocument.body).backgroundColor!==getComputedStyle(composer).backgroundColor;i++)await tick();
+ assert(getComputedStyle(composer).colorScheme===theme,'Compose appearance changes independently');
+ composeSurfaces.push(getComputedStyle(composer).backgroundColor);
+ assert(document.documentElement.dataset.appTheme==='light','Compose appearance does not change the app theme');
+ assert(getComputedStyle(frame.contentDocument.body).backgroundColor===getComputedStyle(composer).backgroundColor,'Quoted history follows compose appearance');
+ assert(editor.getHTML()===beforeTheme,'Appearance does not alter draft or outgoing HTML');
+ }
+ assert(composeSurfaces[0]!==composeSurfaces[1],'Light and dark compose modes visibly change the surface');
+ themeSelect.value='';themeSelect.dispatchEvent(new Event('change',{bubbles:true}));await tick();
  const writingArea=document.querySelector('.composer__body');
  const collapsedWritingHeight=writingArea.clientHeight;
  history.querySelector('summary').click();
@@ -284,6 +299,10 @@ app.whenReady().then(async()=>{
  win.setSize(1081,760);await new Promise(resolve=>setTimeout(resolve,100));win.setSize(1080,760);
  await new Promise(resolve=>setTimeout(resolve,200));
  await fs.writeFile('/tmp/namio-rich-editor-desktop.png',(await win.webContents.capturePage()).toPNG());
+ await win.webContents.executeJavaScript(${JSON.stringify(`(()=>{const select=document.querySelector('[aria-label="Apariencia de la redacción"]');select.value='dark';select.dispatchEvent(new Event('change',{bubbles:true}));})()`)});
+ await new Promise(resolve=>setTimeout(resolve,100));
+ await fs.writeFile('/tmp/namio-compose-dark.png',(await win.webContents.capturePage()).toPNG());
+ await win.webContents.executeJavaScript(${JSON.stringify(`(()=>{const select=document.querySelector('[aria-label="Apariencia de la redacción"]');select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));})()`)});
  win.setSize(560,760);await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:560,height:760,deviceScaleFactor:1,mobile:false});await new Promise(resolve=>setTimeout(resolve,100));
  await win.webContents.executeJavaScript('document.querySelector(".rich-editor__content img[src]").scrollIntoView({block:"center"})');
  const dimensions=await win.webContents.executeJavaScript('({width:innerWidth,scroll:document.documentElement.scrollWidth})');

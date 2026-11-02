@@ -94,6 +94,7 @@ export function ComposeOverlay({
   const composerRef = useRef<HTMLDivElement>(null)
   useFocusTrap(composerRef, open && mounted && !minimized)
   const [replyMode, setReplyMode] = useState(reply?.mode ?? 'sender')
+  const [composeTheme, setComposeTheme] = useState<'' | 'light' | 'dark'>('')
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
   const [priorityValue, setPriorityValue] = useState<MailPriority>(priority)
@@ -271,7 +272,7 @@ export function ComposeOverlay({
         if (event.target === event.currentTarget) { if (sendOptionsOpen) setSendOptionsOpen(false); else void closeWithDraft() }
       }}
     >
-      <div ref={composerRef} className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')} aria-busy={sending} role="dialog" aria-modal={!minimized} aria-label={t('compose.newMessage')}>
+      <div ref={composerRef} className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')} data-compose-theme={composeTheme || undefined} aria-busy={sending} role="dialog" aria-modal={!minimized} aria-label={t('compose.newMessage')}>
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
@@ -291,6 +292,11 @@ export function ComposeOverlay({
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+            <Select aria-label={t('compose.theme')} value={composeTheme} onChange={event => setComposeTheme(event.target.value as '' | 'light' | 'dark')}>
+              <option value="">{t('compose.themeApp')}</option>
+              <option value="light">{t('compose.themeLight')}</option>
+              <option value="dark">{t('compose.themeDark')}</option>
+            </Select>
             {onRestoreDraft && !toValue && !ccValue && !bccValue && !subjectValue && !bodyValue && !picked.length && (
               <button className="tool-btn" type="button" onClick={() => {
                 if (sendingRef.current) return
@@ -418,7 +424,7 @@ export function ComposeOverlay({
               )}
               {quote && <section className="composer__history">
                 <div className="composer__history-content" role="region" aria-label={t('compose.originalMessage')}>
-                  <EmailBody html={history.preview} integrated />
+                  <EmailBody html={history.preview} integrated theme={composeTheme || undefined} />
                 </div>
               </section>}
             </RichTextEditor>
