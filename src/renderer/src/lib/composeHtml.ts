@@ -20,7 +20,7 @@ export function isComposeImage(src: string): boolean {
 }
 
 /** Conserva solo formato de texto admitido; descarta contenido activo y estilos ajenos. */
-export function cleanComposeHtml(html: string): string {
+export function cleanComposeHtml(html: string, preserveColors = true): string {
   const root = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'span', 'img'],
     ALLOWED_ATTR: ['href', 'start', 'style', 'src', 'alt', 'width'],
@@ -39,7 +39,7 @@ export function cleanComposeHtml(html: string): string {
     }
     const styles: string[] = []
     if (element.tagName === 'SPAN') {
-      for (const property of ['color', 'background-color']) {
+      for (const property of preserveColors ? ['color', 'background-color'] : []) {
         const value = element.style.getPropertyValue(property)
         if (/^(#[\da-f]{3,8}|rgba?\([\d.,%\s/]+\)|[a-z]+)$/i.test(value)) styles.push(`${property}:${value}`)
       }

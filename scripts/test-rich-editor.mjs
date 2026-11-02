@@ -98,6 +98,14 @@ app.whenReady().then(async()=>{
  const unsafeStyle=helpers.cleanComposeHtml('<span style="color:red;background-color:yellow;font-size:500px;position:fixed;background-image:url(https://example.com/pixel);display:none" onclick="evil()">Styled</span>');
  assert(unsafeStyle.includes('color:')&&!/500|fixed|url|display|onclick/.test(unsafeStyle),'Only safe text styles survive');
  const pointSize=helpers.cleanComposeHtml('<span style="font-size:18pt">Points</span>');assert(pointSize.includes('font-size:24px'),'Pasted point sizes normalize to pixels');
+ editor.commands.clearContent();
+ const themedClipboard=new DataTransfer();
+ themedClipboard.setData('text/html','<p><span style="color:white;background-color:#252525;font-size:18pt"><strong>Karina</strong> <a href="https://example.com">Enlace</a></span></p><ul><li>Lista</li></ul>');
+ themedClipboard.setData('text/plain','Karina Enlace Lista');
+ editor.view.dom.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:themedClipboard}));await tick();
+ const themedPaste=editor.getHTML();
+ assert(!/background-color|(?:^|[;" ])color:/.test(themedPaste),'Real paste removes source theme foreground and background');
+ assert(new DOMParser().parseFromString(themedPaste,'text/html').querySelector('strong')?.textContent==='Karina'&&themedPaste.includes('https://example.com')&&themedPaste.includes('<ul>')&&themedPaste.includes('font-size: 24px'),'Paste preserves bold, links, lists and supported sizes: '+themedPaste);
  const dirty='<p onclick="evil()" style="color:red">Safe<script>evil()</script><img src="https://example.com/pixel.png"><a href="javascript:evil()">Bad link</a><a href="https://example.com">Good link</a></p>';
  const clean=helpers.cleanComposeHtml(dirty);
  assert(!/onclick|script|<img|javascript:|style=/.test(clean),'Pasted content sanitized');

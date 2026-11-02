@@ -26,6 +26,12 @@
         "value": "arial",
         "createdAt": "2026-10-28T01:36:22.741Z",
         "reason": "Codex review: composeEmailHtml uses the existing Arial,sans-serif stack for outgoing email compatibility across mail clients; it is not the application UI font."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "arial",
+        "createdAt": "2026-11-02T20:37:49.124Z",
+        "reason": "Codex: Arial is the existing interoperable outgoing email font in composeEmailHtml, not the application UI typography."
       }
     ]
   }

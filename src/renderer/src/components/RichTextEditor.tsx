@@ -84,7 +84,7 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
     editable: !disabled,
     editorProps: {
       attributes: { class: 'rich-editor__content', role: 'textbox', 'aria-multiline': 'true', 'aria-label': label || t('compose.placeholder'), 'data-placeholder': label || t('compose.placeholder'), spellcheck: 'true' },
-      transformPastedHTML: cleanComposeHtml,
+      transformPastedHTML: html => cleanComposeHtml(html, false),
       decorations(state) {
         const { empty, $from } = state.selection
         if (!empty) return null
