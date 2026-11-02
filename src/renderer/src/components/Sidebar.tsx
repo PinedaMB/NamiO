@@ -109,7 +109,7 @@ export function Sidebar({
       return
     }
     const rect = element.getBoundingClientRect()
-    setAnchor({ top: rect.bottom + 6, left: rect.left, width: Math.max(224, rect.width) })
+    setAnchor({ top: rect.bottom + 6, left: rect.left, width: Math.max(288, rect.width) })
     setMenuOpen(true)
     onRefreshAccounts?.()
   }
@@ -195,14 +195,15 @@ export function Sidebar({
                         onSelectAccount(item.id)
                       }}
                     >
+                      <span className="account-menu__avatar" aria-hidden="true">{Array.from(item.label.trim())[0]?.toLocaleUpperCase() || '@'}</span>
                       <span className="account-menu__text">
                         <span className="account-menu__label">{item.label}</span>
-                        <span className="account-menu__host">
-                          {item.host}:{item.port}
+                        <span className="account-menu__host" title={item.user}>
+                          {item.user}
                         </span>
                       </span>
                       {unseenOf(item.id) > 0 && (
-                        <span className={cx('account-menu__count', item.active && 'account-menu__count--active')}>
+                        <span className={cx('account-menu__count', item.active && 'account-menu__count--active')} aria-label={`${unseenOf(item.id)} ${t('list.unread')}`}>
                           {unseenOf(item.id)}
                           <span className="account-menu__count-label">{t('list.unread')}</span>
                         </span>
@@ -277,7 +278,7 @@ export function Sidebar({
                   <span className="nav-item__text">{folder.label}</span>
                 </span>
                 {folder.count !== undefined && folder.count > 0 && (
-                  <span className={cx('nav-item__count', folder.accent && 'nav-item__count--accent')}>
+                  <span className="nav-item__count">
                     {collapsed && folder.count > 99 ? '99+' : folder.count}
                   </span>
                 )}
