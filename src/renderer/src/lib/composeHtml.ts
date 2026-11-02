@@ -1,5 +1,13 @@
 import DOMPurify from 'dompurify'
 
+export const COMPOSE_FONTS = [
+  { name: 'Arial / Helvetica', family: 'Arial, Helvetica, sans-serif' },
+  { name: 'Verdana', family: 'Verdana, Geneva, sans-serif' },
+  { name: 'Georgia', family: 'Georgia, serif' },
+  { name: 'Times New Roman', family: '"Times New Roman", Times, serif' },
+  { name: 'Courier New', family: '"Courier New", Courier, monospace' }
+] as const
+
 export const MAX_COMPOSE_IMAGE_BYTES = 10 * 1024 * 1024
 
 export function composeImageWidth(value: string | null): number | null {
@@ -35,6 +43,9 @@ export function cleanComposeHtml(html: string): string {
         const value = element.style.getPropertyValue(property)
         if (/^(#[\da-f]{3,8}|rgba?\([\d.,%\s/]+\)|[a-z]+)$/i.test(value)) styles.push(`${property}:${value}`)
       }
+      const family = element.style.fontFamily.replace(/["'\s]/g, '').toLowerCase()
+      const font = COMPOSE_FONTS.find(font => font.family.replace(/["'\s]/g, '').toLowerCase() === family)
+      if (font) styles.push(`font-family:${font.family}`)
       const size = element.style.fontSize.match(/^(\d+(?:\.\d+)?)(px|pt)$/)
       if (size) {
         const pixels = Number(size[1]) * (size[2] === 'pt' ? 4 / 3 : 1)

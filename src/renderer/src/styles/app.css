@@ -5299,6 +5299,7 @@
   flex-wrap: wrap;
 }
 
+.formatbar__font.select { width: 146px; height: 30px; font-size: 12px; }
 .formatbar__size.select { width: 94px; height: 30px; font-size: 12px; }
 .color-picker__trigger { display: inline-flex; align-items: center; gap: 5px; padding: 6px; border-radius: var(--r-md); color: var(--on-surface-variant); }
 .color-picker__trigger:hover { background: var(--surface-container-high); }

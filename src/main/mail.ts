@@ -83,6 +83,10 @@ export function outboxItems(): OutboxItem[] {
     lastError: row.lastError,
     createdAt: row.createdAt,
     label: labelOf(row),
+    ...(row.kind === 'send' ? { send: (() => {
+      const payload = payloadOf(row) as unknown as SendMailPayload
+      return { draftId: payload.draftId, to: payload.to, cc: payload.cc, subject: payload.subject, text: payload.text, html: payload.html, priority: payload.priority, hasAttachments: Boolean(payload.attachments?.length) }
+    })() } : {}),
     ...(row.kind === 'delete-many' ? {
       deletionProgress: {
         completed: deletionProgress?.id === row.id ? deletionProgress.completed : 0,

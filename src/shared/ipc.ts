@@ -291,6 +291,7 @@ export interface OutboxItem {
   createdAt: number
   /** Asunto o descripción corta para mostrar. */
   label: string
+  send?: Pick<SendMailPayload, 'draftId' | 'to' | 'cc' | 'subject' | 'text' | 'html' | 'priority'> & { hasAttachments: boolean }
   deletionProgress?: { completed: number; total: number; running: boolean }
 }
 

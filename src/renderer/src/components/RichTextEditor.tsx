@@ -3,7 +3,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { useEffect, useState } from 'react'
 import { useI18n, type TranslationKey } from '../i18n'
-import { cleanComposeHtml, composeImageWidth, isComposeImage, isComposeLink, MAX_COMPOSE_IMAGE_BYTES, textToEditorContent } from '../lib/composeHtml'
+import { COMPOSE_FONTS, cleanComposeHtml, composeImageWidth, isComposeImage, isComposeLink, MAX_COMPOSE_IMAGE_BYTES, textToEditorContent } from '../lib/composeHtml'
 import { Icon } from './Icon'
 import { TooltipButton } from './Tooltip'
 
@@ -41,7 +41,7 @@ const ImageNode = Node.create({
 const TextStyle = Mark.create({
   name: 'textStyle',
   addAttributes() {
-    return Object.fromEntries(([['color', 'color'], ['backgroundColor', 'background-color'], ['fontSize', 'font-size']] as const).map(([name, property]) => [name, {
+    return Object.fromEntries(([['color', 'color'], ['backgroundColor', 'background-color'], ['fontSize', 'font-size'], ['fontFamily', 'font-family']] as const).map(([name, property]) => [name, {
       default: null,
       parseHTML: (element: HTMLElement) => element.style.getPropertyValue(property) || null,
       renderHTML: (attributes: Record<string, string | null>) => attributes[name] ? { style: `${property}:${attributes[name]}` } : {}
@@ -157,6 +157,11 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, child
           aria-pressed={tool.active} disabled={disabled || !editor || tool.disabled}
           onMouseDown={event => event.preventDefault()} onClick={tool.run}><Icon name={tool.icon} size={17} /></TooltipButton>)}
         <span className="formatbar__sep" />
+        <Select className="formatbar__font" aria-label={t('compose.format.font')} value={style.fontFamily ?? ''} disabled={disabled || !editor}
+          onChange={event => changeStyle('fontFamily', event.target.value || null)}>
+          <option value="">{t('compose.format.defaultFont')}</option>
+          {COMPOSE_FONTS.map(font => <option key={font.family} value={font.family}>{font.name}</option>)}
+        </Select>
         <Select className="formatbar__size" aria-label={t('compose.format.size')} value={style.fontSize ?? ''} disabled={disabled || !editor}
           onChange={event => changeStyle('fontSize', event.target.value || null)}>
           <option value="">{t('compose.format.defaultSize')}</option>

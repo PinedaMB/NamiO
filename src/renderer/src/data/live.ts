@@ -1,7 +1,7 @@
 import type { TranslationKey } from '../i18n'
 import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 export { isSpamMailbox } from '@shared/mailboxes'
-import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail } from '@shared/ipc'
+import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail, OutboxItem } from '@shared/ipc'
 import type { Attachment, Message, Person, Thread } from './demo'
 import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 
@@ -194,8 +194,11 @@ export function configFromAccount(account: AccountConfig | null): AccountConfig 
   )
 }
 
-export function pendingDraftThreads(threads: readonly Thread[], drafts: readonly Draft[], path: string, locale: string, label: string): Thread[] {
-  const pending = drafts.filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer)
+export function pendingDraftThreads(threads: readonly Thread[], drafts: readonly Draft[], path: string, locale: string, label: string, outbox: readonly OutboxItem[] = []): Thread[] {
+  const sending = new Set(outbox.filter(item => item.kind === 'send').map(item => item.send?.draftId).filter(Boolean))
+  const hidden = new Set(drafts.filter(draft => sending.has(draft.id)).flatMap(draft => [draft.server, draft.previousServer]
+    .filter(reference => reference?.path === path).map(reference => `live:${reference!.uid}`)))
+  const pending = drafts.filter(draft => !sending.has(draft.id)).filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer)
   const replaced = new Set(pending.flatMap(draft => [draft.server, draft.previousServer]
     .filter(reference => reference?.path === path).map(reference => `live:${reference!.uid}`)))
   return [...pending.map(draft => ({
@@ -205,5 +208,20 @@ export function pendingDraftThreads(threads: readonly Thread[], drafts: readonly
     priority: draft.priority, unread: false, starred: false, vip: false, messageCount: 1, tags: [],
     participants: [personFrom(null, draft.to || label)],
     messages: [{ id: `draft:${draft.id}`, from: personFrom(null, label), to: [], date: draft.updatedAt, sentAt: formatMessageDateTime(draft.updatedAt, locale), body: [draft.body], html: draft.html }], hasAttachments: Boolean(draft.attachments?.length)
-  })), ...threads.filter(thread => !replaced.has(thread.id)).map(thread => ({ ...thread, messageIds: undefined, messageCount: 1 }))]
+  })), ...threads.filter(thread => !replaced.has(thread.id) && !hidden.has(thread.id)).map(thread => ({ ...thread, messageIds: undefined, messageCount: 1 }))]
+}
+
+export function pendingSendThreads(threads: readonly Thread[], outbox: readonly OutboxItem[], sender: string, locale: string): Thread[] {
+  return [...outbox.filter(item => item.kind === 'send' && item.send).map(item => {
+    const send = item.send!
+    const from = personFrom(null, sender)
+    return {
+      id: `outbox:${item.id}`, subject: send.subject || item.label, preview: send.text.slice(0, 120),
+      date: item.createdAt, receivedAt: formatMessageDate(item.createdAt, locale),
+      priority: send.priority, sendStatus: item.status, unread: false, starred: false, vip: false,
+      messageCount: 1, tags: [], participants: [personFrom(null, send.to)], hasAttachments: send.hasAttachments,
+      messages: [{ id: `outbox:${item.id}`, from, to: [personFrom(null, send.to)], date: item.createdAt,
+        sentAt: formatMessageDateTime(item.createdAt, locale), body: [send.text], html: send.html }]
+    }
+  }), ...threads]
 }

@@ -11,6 +11,17 @@ const result=live.pendingDraftThreads([{id:'live:2'},{id:'live:3'}],drafts,'Draf
 assert.deepEqual(Array.from(result,item=>item.id),['draft:local-one','draft:local-two','live:3'])
 assert.equal(result[0].messages[0].body[0],'Hello')
 assert.equal(live.mailboxToFolder({path:'Drafts',name:'Drafts',specialUse:'\\Drafts',messages:4,unseen:0}).count,4)
+const sending=[{id:'queued',kind:'send',status:'queued',createdAt:100,send:{draftId:'local-two',to:'two@example.com',cc:'',subject:'Pending edit',text:'Updated',html:'<p>Updated</p>',hasAttachments:true}}]
+const whileSending=live.pendingDraftThreads([{id:'live:2'},{id:'live:3'}],drafts,'Drafts','es','Draft',sending)
+assert.deepEqual(Array.from(whileSending,item=>item.id),['draft:local-one','live:3'],'Queued sends hide both local and remote draft copies')
+const sentList=live.pendingSendThreads([{id:'live:9'}],sending,'me@example.com','es')
+assert.deepEqual(Array.from(sentList,item=>item.id),['outbox:queued','live:9'])
+assert.equal(sentList[0].sendStatus,'queued')
+assert.equal(sentList[0].messages[0].html,'<p>Updated</p>')
+assert.equal(sentList[0].hasAttachments,true)
+assert.equal(live.pendingSendThreads([], [{...sending[0],status:'failed'}],'me@example.com','es')[0].sendStatus,'failed')
+assert.equal(live.pendingSendThreads([], [],'me@example.com','es').length,0,'Completed or canceled sends leave no phantom row')
+assert.deepEqual(Array.from(live.pendingDraftThreads([{id:'live:2'},{id:'live:3'}],drafts,'Drafts','es','Draft'),item=>item.id),Array.from(result,item=>item.id),'Canceling the queue exposes the preserved draft again')
 const source=fs.readFileSync('src/renderer/src/App.tsx','utf8'),ast=ts.createSourceFile('App.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
 let code
 function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='select')code=node.initializer.getText(ast);ts.forEachChild(node,visit)}visit(ast)

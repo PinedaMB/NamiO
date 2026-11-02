@@ -2,6 +2,8 @@
 
 ## Sin publicar
 
+- Los envíos pendientes aparecen en Enviados con su estado de envío o error y se ocultan de Borradores mientras permanecen en la cola. Los borradores se conservan para recuperarlos si se cancela el envío.
+
 - El modo de lectura permite alternar entre un fondo blanco y oscuro. Al volver al modo que coincide con la apariencia de la app se recupera su superficie integrada; la cabecera y los adjuntos mantienen su apariencia.
 
 - Dentro del borde de cada mensaje, la cabecera, la franja de adjuntos y el cuerpo se distinguen mediante superficies neutras y divisores suaves. El cuerpo mantiene el fondo de la aplicación.

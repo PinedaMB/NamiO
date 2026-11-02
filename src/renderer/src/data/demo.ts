@@ -57,6 +57,7 @@ export interface Message {
 }
 
 export interface Thread {
+  sendStatus?: 'queued' | 'failed'
   priority?: import('@shared/ipc').MailPriority
   date?: string | number
   hasAttachments?: boolean

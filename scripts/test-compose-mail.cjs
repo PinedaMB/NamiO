@@ -82,6 +82,11 @@ async function main() {
     const queued = await mail.sendMail({...payload,attachments:[]})
     assert.equal(queued.ok,true)
     assert.equal(queued.queued,true)
+    const pendingSend=mail.outboxItems().find(item=>item.kind==='send')
+    assert.equal(pendingSend.send.text,payload.text,'Queue exposes the message for the Sent preview')
+    assert.equal(pendingSend.send.to,payload.to)
+    assert.equal(pendingSend.send.bcc,undefined,'Queue presentation does not expose BCC or attachment storage IDs')
+    assert.equal(pendingSend.send.attachments,undefined)
     assert.equal(JSON.parse(db.listOutbox().find(row=>row.kind==='send').payload).priority,'high')
     assert.equal(db.listOutbox().length,1)
     const pendingId = db.listOutbox()[0].id

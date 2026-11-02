@@ -424,6 +424,10 @@ export function ThreadList({
                   {thread.priority && thread.priority !== 'normal' && <span className={cx('mail-priority', thread.priority === 'high' && 'mail-priority--high')} role="img" aria-label={t(thread.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')} data-tooltip={t(thread.priority === 'high' ? 'mail.priorityHigh' : 'mail.priorityLow')}>
                     <Icon name={thread.priority === 'high' ? 'priority_high' : 'arrow_downward'} size={16} />
                   </span>}
+                  {thread.sendStatus && <span className="thread__processing" role="status">
+                    <Icon name={thread.sendStatus === 'failed' ? 'error' : 'schedule'} size={15} />
+                    {t(thread.sendStatus === 'failed' ? 'mail.sendFailed' : 'mail.sending')}
+                  </span>}
                   {deleting && <span className="thread__processing" role="status"><Icon name="progress_activity" size={15} className="spin" />{t('common.deleting')}</span>}
                   {hasFiles && <span role="img" aria-label={t('thread.attachments')} title={t('thread.attachments')}><Icon name="attach_file" size={15} /></span>}
                   {thread.unread && (

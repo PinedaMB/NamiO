@@ -62,6 +62,9 @@ app.whenReady().then(async()=>{
  button('Lista numerada').click();await tick();button('Cita').click();await tick();assert(editor.getHTML().includes('<blockquote>'),'Quote works');
  button('Cita').click();await tick();
  editor.commands.selectAll();
+ const font=document.querySelector('[aria-label="Fuente"]');
+ font.value='Georgia, serif';font.dispatchEvent(new Event('change',{bubbles:true}));await tick();
+ assert(editor.getAttributes('textStyle').fontFamily==='Georgia, serif','Font applies to selected text');
  const size=document.querySelector('[aria-label="Tamaño de letra"]');
  size.value='24px';size.dispatchEvent(new Event('change',{bubbles:true}));await tick();
  assert(editor.getAttributes('textStyle').fontSize==='24px','Font size toolbar applies selected size');
@@ -82,6 +85,11 @@ app.whenReady().then(async()=>{
  assert(helpers.composeEmailHtml(formatted).includes('background-color:'),'Email keeps highlight');
  restore({text:'fallback',html:formatted});await tick();
  assert(editor.getAttributes('textStyle').fontSize==='24px','Formatting survives restoring a draft');
+ assert(editor.getAttributes('textStyle').fontFamily==='Georgia, serif','Font survives draft restoration');
+ assert(helpers.composeEmailHtml(formatted).includes('font-family:Georgia, serif'),'Sent HTML retains font and fallback');
+ editor.commands.selectAll();font.value='';font.dispatchEvent(new Event('change',{bubbles:true}));await tick();
+ assert(!editor.getAttributes('textStyle').fontFamily&&editor.getAttributes('textStyle').fontSize==='24px','Default font removes only the font family');
+ assert(!helpers.cleanComposeHtml('<span style="font-family:Untrusted">Text</span>').includes('font-family'),'Unsupported fonts are removed');
  editor.commands.selectAll();button('Quitar color de texto').click();await tick();
  assert(!editor.getAttributes('textStyle').color&&editor.getAttributes('textStyle').fontSize==='24px','Reset color preserves size and highlight');
  button('Quitar resaltado').click();await tick();assert(!editor.getAttributes('textStyle').backgroundColor,'Highlight reset works');

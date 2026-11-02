@@ -20,16 +20,16 @@ contextBridge.exposeInMainWorld('api',{
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
 });`)
   await writeFile(join(folder, 'drafts-preload.cjs'), `
-const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let showSent=false,emptySentCache=false;let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];const progressListeners=[];let syncProgressState=null;let deletionJob=null;const meta={offline:false,syncedAt:1};let testOffline=false,bodyCached=true,networkReads=0;
+const {contextBridge}=require('electron');const listeners=[];const syncs=[];const moves=[];let showSent=false,emptySentCache=false;let inboxPresent=true,finishDelete,deleteCalls=0;const backgroundDeletes=[];const outboxListeners=[];const progressListeners=[];let syncProgressState=null;let deletionJob=null;let pendingSend=null;const meta={offline:false,syncedAt:1};let testOffline=false,bodyCached=true,networkReads=0;
 const remote={id:'remote-draft',to:'recipient@example.test',cc:'copy@example.test',bcc:'hidden@example.test',subject:'Borrador servidor',body:'Remote body',html:'<p><strong>Remote body</strong></p>',updatedAt:2,syncedAt:2,server:{path:'Drafts',uid:7,uidValidity:'1'}};
 const messageRequests=[];let draftSequence=0;let drafts=[{id:'pending-draft',to:'local@example.test',cc:'',subject:'Pendiente local',body:'Local body',updatedAt:1}];
 const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,from:{name:'Author',address:'author@example.test'},date:new Date().toISOString(),unread:false,flagged:false,size:100};
-const boxes=[{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0},{path:'Spam',name:'Spam',specialUse:String.fromCharCode(92)+'Junk',messages:2,unseen:0},{path:'Trash',name:'Trash',specialUse:String.fromCharCode(92)+'Trash',messages:2,unseen:0}];
+const boxes=[{path:'Sent',name:'Sent',specialUse:String.fromCharCode(92)+'Sent',messages:0,unseen:0},{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0},{path:'Spam',name:'Spam',specialUse:String.fromCharCode(92)+'Junk',messages:2,unseen:0},{path:'Trash',name:'Trash',specialUse:String.fromCharCode(92)+'Trash',messages:2,unseen:0}];
 const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
 contextBridge.exposeInMainWorld('api',{
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
- accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>deletionJob?[deletionJob]:[],syncProgress:async()=>syncProgressState,senderLogo:async()=>null,
+ accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>[...(deletionJob?[deletionJob]:[]),...(pendingSend?[pendingSend]:[])],setTestPendingSend:async status=>{pendingSend=status?{id:"sending-test",kind:"send",status,attempts:0,lastError:null,createdAt:Date.now(),label:"Envío en curso",send:{to:"recipient@example.test",cc:"",subject:"Envío en curso",text:"Contenido pendiente",html:"<p>Contenido pendiente</p>",hasAttachments:false}}:null;outboxListeners.forEach(fn=>fn())},syncProgress:async()=>syncProgressState,senderLogo:async()=>null,
  listMailboxes:async()=>({ok:true,data:boxes,meta}),listEnvelopes:async path=>{const data=path==='Drafts'?[envelope]:inboxPresent?[{...envelope,uid:11,subject:'Inbox sample',messageId:'<inbox@example.test>'},...(showSent?[{...envelope,uid:12,subject:'Inbox sample',messageId:'<followup@example.test>',inReplyTo:'<inbox@example.test>'},{...envelope,uid:13,subject:'Unopened conversation',messageId:'<unopened@example.test>'}]:[])]:[];return{ok:true,data,meta,counts:{total:data.length,unread:0,availableOffline:bodyCached?data.length:0}}},
  search:async query=>query==='hilo con respuesta'?[{...envelope,uid:11,subject:'Inbox sample',mailbox:'INBOX',mailboxName:'INBOX',snippet:'hilo con respuesta'}]:query==='contenido cacheado'?[{...envelope,uid:777,subject:'Correo fuera de la lista',mailbox:'Spam',mailboxName:'Spam',snippet:'contenido cacheado'}]:[],
  getSentReplies:async(path,uids,cachedOnly)=>{if(emptySentCache){if(cachedOnly)return{ok:true,data:[],meta:{offline:testOffline}};await new Promise(resolve=>setTimeout(resolve,200));emptySentCache=false}return{ok:true,data:showSent&&path==='INBOX'?[11,13].filter(uid=>uids.includes(uid)).map(uid=>({mailbox:'Sent',uid,sourceUids:uid===11?[11,12]:[13],envelope:{...envelope,uid,messageId:uid===11?'<own-sent@example.test>':'<own-unopened@example.test>',inReplyTo:uid===11?'<inbox@example.test>':'<unopened@example.test>',from:{name:'My account',address:'author@example.test'},date:new Date(Date.parse(envelope.date)-1000).toISOString()}})):[],meta:{offline:testOffline}}},
@@ -582,6 +582,19 @@ app.whenReady().then(async()=>{
  await until(async()=>{const requests=await window.api.inspectMessageRequests();return requests.some(request=>request.path==='Spam'&&request.uid===777)&&!document.querySelector('.palette')});
 })()`)});
  console.log('Global command search: cached body match outside visible mail opens its actual folder and UID');
+ await live.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async predicate=>{for(let i=0;i<150;i++){if(predicate())return;await new Promise(r=>setTimeout(r,30))}throw new Error('Pending Sent message did not settle: '+JSON.stringify({reading:document.querySelector('.reading')?.textContent,frames:[...document.querySelectorAll('.reading iframe')].map(f=>f.contentDocument?.body?.textContent),active:document.querySelector('.thread--active')?.textContent}))};
+ await window.api.setTestPendingSend('queued');
+ document.querySelector('.rail__nav [data-mailbox="Sent"]').click();
+ await until(()=>!document.querySelector('.list-loading')&&[...document.querySelectorAll('.thread')].some(row=>row.textContent.includes('Envío en curso')&&row.textContent.includes('Enviando')));
+ const row=[...document.querySelectorAll('.thread')].find(row=>row.textContent.includes('Envío en curso'));row.querySelector('.thread__content').click();
+ await until(()=>document.querySelector('.reading iframe')?.contentDocument?.body?.textContent.includes('Contenido pendiente'));
+ await window.api.setTestPendingSend('failed');
+ await until(()=>[...document.querySelectorAll('.thread')].some(row=>row.textContent.includes('Envío en curso')&&row.textContent.includes('Error de envío')));
+ await window.api.setTestPendingSend(null);
+ await until(()=>![...document.querySelectorAll('.thread')].some(row=>row.textContent.includes('Envío en curso')));
+})()`)});
+ console.log('Sent queue: pending message is readable, shows sending/failure status and disappears when cleared');
  if(errors.length)throw new Error(errors.join('\\n'));
  console.log('Drafts folder: remote editing, local pending drafts, independent discard and multiple saved drafts passed');
  console.log('Full app compose regression: lazy load, typing, formatting and four close/reopen cycles preserve the mailbox without renderer errors');app.exit(0);

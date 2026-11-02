@@ -19,7 +19,7 @@ import type {
 } from '@shared/ipc'
 import { isDraftMailbox, isSpamMailbox, organizedSidebarMailboxes, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread, type Message } from './data/demo'
-import { detailToMessage, pendingDraftThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
+import { detailToMessage, pendingDraftThreads, pendingSendThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ContextMenu, type ContextAnchor, type ContextAction } from './components/ContextMenu'
@@ -343,8 +343,10 @@ export function App(): React.JSX.Element {
 
   const draftsFolder = live && mailboxes.some(box => box.path === folder && isDraftMailbox(box))
   const listedThreads = useMemo(() => draftsFolder
-    ? pendingDraftThreads(threads, localDrafts, folder, locale, t('draft.local')) : threads,
-  [draftsFolder, threads, localDrafts, folder, locale, t])
+    ? pendingDraftThreads(threads, localDrafts, folder, locale, t('draft.local'), outbox)
+    : live && mailboxes.some(box => box.path === folder && (box.specialUse === '\\Sent' || /^sent$/i.test(box.path)))
+      ? pendingSendThreads(threads, outbox, account?.account?.user ?? '', locale) : threads,
+  [draftsFolder, threads, localDrafts, folder, locale, t, outbox, live, mailboxes, account])
 
   const conversationThreads = useMemo(() => collapseConversations(listedThreads), [listedThreads])
 
@@ -1678,7 +1680,7 @@ export function App(): React.JSX.Element {
                   onToggleFocus={() => setReadingFocused(current => !current)}
                   contextOpen={contextOpen}
                   canToggleContext={!live}
-                  canMutate={!selected.id.startsWith('draft:') && !bulkBusy && pendingDelete === null}
+                  canMutate={!selected.sendStatus && !selected.id.startsWith('draft:') && !bulkBusy && pendingDelete === null}
                   deleting={deletingId === selected.id}
                   unread={selected.unread}
                   onToggleContext={toggleContext}
