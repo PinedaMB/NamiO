@@ -68,7 +68,7 @@ async function deduplicate(changeAccount=false) {
   const detail={uid:7,text:'Body',html:null,to:[],cc:[],attachments:[]}
   const context={syncGeneration:1,offline:false,readBody:()=>({fetched:stored}),cachedDetail:()=>detail,
     syncMeta:()=>({}),serial:fn=>{const run=chain.then(fn,fn);chain=run.catch(()=>{});return run},
-    fetchMessage:()=>{fetches++;return new Promise(resolve=>{release=()=>resolve(detail)})},
+    fetchMessage:()=>{fetches++;const generation=context.syncGeneration;return new Promise(resolve=>{release=()=>{if(generation===context.syncGeneration){stored=true;writes++}resolve(detail)}})},
     notify(){}, saveBody:()=>{stored=true;writes++},classify:()=> 'unknown',isOfflineError:()=>false,describe:error=>error.message}
   const get=vm.runInNewContext(compile(`${source};getMessage`),context)
   const localOnly=await get('INBOX',7,true)

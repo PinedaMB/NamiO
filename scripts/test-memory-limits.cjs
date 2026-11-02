@@ -45,10 +45,12 @@ async function main() {
     })
     await assert.rejects(mail.registerAttachments(null), /25 MB/, 'oversized attachments are rejected before reading')
 
-    // Descarga: el stream se corta al pasar de 50 MB, sin concatenar todo.
+    // El cuerpo selectivo se corta al pasar de 30 MB, sin concatenar todo.
     const imapFunctions = declarations('src/main/imap.ts')
     let chunks = 0
     const client = {
+      mailbox: { uidValidity: 1n },
+      fetchOne: async () => ({ uid: 1, bodyStructure: { type: 'text/plain', part: '1' } }),
       getMailboxLock: async () => ({ release() {} }),
       download: async () => ({
         content: (async function* () { while (chunks < 55) { chunks++; yield Buffer.alloc(MB) } })()
@@ -56,21 +58,23 @@ async function main() {
     }
     const fetchMessage = vm.runInNewContext(compile(`
       ${imapFunctions.get('readLimited')}
+      ${imapFunctions.get('cacheMessageBody')}
       ${imapFunctions.get('fetchMessage')}
       fetchMessage
     `), {
       Buffer,
-      MAX_MESSAGE_BYTES: 50 * MB,
+      MAX_MESSAGE_BYTES: 50 * MB, MAX_BODY_BYTES: 30 * MB, MAX_OFFLINE_MESSAGE_BYTES: 30 * MB,
+      syncGeneration: 1, getMailboxMeta: () => ({ uidValidity: 1 }),
       ensureClient: async () => client,
       readEnvelope: () => ({ size: 0 }),
       simpleParser: async () => { throw new Error('no debe parsearse un mensaje por encima del límite') },
       toAddress: () => null,
       toDate: value => new Date(value)
     })
-    await assert.rejects(fetchMessage('INBOX', 1), /límite de 50 MB/)
-    assert.ok(chunks <= 51, 'the download stops as soon as the limit is exceeded')
+    await assert.rejects(fetchMessage('INBOX', 1), /límite de tamaño/)
+    assert.ok(chunks <= 31, 'the download stops as soon as the limit is exceeded')
 
-    console.log('Memory limits: preview 20 MB, attachment 25 MB and streamed message 50 MB fail early with clear errors')
+    console.log('Memory limits: preview 20 MB, attachment 25 MB and streamed body 30 MB fail early with clear errors')
   } finally {
     await fs.rm(directory, { recursive: true, force: true })
   }

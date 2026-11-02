@@ -97,12 +97,28 @@ let cacheListener: ((mailbox: string) => void) | null = null
  * IMAP es un protocolo con estado y un solo buzón seleccionado por conexión:
  * serializar las operaciones evita locks cruzados y respuestas mezcladas.
  */
-let chain: Promise<unknown> = Promise.resolve()
+const operations: { background: boolean; run: () => Promise<void> }[] = []
+let operationRunning = false
 
-function serial<T>(fn: () => Promise<T>): Promise<T> {
-  const run = chain.then(fn, fn)
-  chain = run.catch(() => undefined)
-  return run
+function serial<T>(fn: () => Promise<T>, priority: 'normal' | 'background' | 'interactive' = 'normal'): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const operation = { background: priority === 'background', run: async (): Promise<void> => {
+      try { resolve(await fn()) } catch (error) { reject(error) }
+    } }
+    let index = operations.length
+    // Solo adelanta tareas de fondo: cambios de cuenta y escrituras conservan su orden.
+    if (priority === 'interactive') while (index > 0 && operations[index - 1]!.background) index--
+    operations.splice(index, 0, operation)
+    const drain = async (): Promise<void> => {
+      if (operationRunning) return
+      operationRunning = true
+      try {
+        let next: (typeof operations)[number] | undefined
+        while ((next = operations.shift())) await next.run()
+      } finally { operationRunning = false }
+    }
+    void Promise.resolve().then(drain)
+  })
 }
 
 export function setCacheListener(listener: (mailbox: string) => void): void {
@@ -584,7 +600,7 @@ function scheduleSync(path: string, limit: number, broadcast = false): void {
   const key = `${cacheAccountId()}:${path}`
   if (pendingSyncs.has(key)) return
   pendingSyncs.add(key)
-  void serial(() => syncMessages(path, limit))
+  void serial(() => syncMessages(path, limit), 'background')
     .then(() => {
       notify(path)
       if (broadcast) notify('*')
@@ -612,7 +628,7 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       } finally {
         lock.release()
       }
-    })
+    }, 'background')
 
     const pendingMetadata = new Set(missingEnvelopeMetadata(path))
     for (let end = uids.length; end > 0; end -= chunk) {
@@ -632,7 +648,7 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
         } finally {
           lock.release()
         }
-      })
+      }, 'background')
       if (generation !== syncGeneration) return
       if (fetched) {
         const complete = countMessages(path) - missingEnvelopeMetadata(path).length
@@ -657,7 +673,7 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
         if ((await readSettings()).offlineDownload !== true || generation !== syncGeneration) return false
         await cacheMessageBody(path, uid)
         return generation === syncGeneration
-      })
+      }, 'background')
       if (generation !== syncGeneration) return
       if (!downloaded && (await readSettings()).offlineDownload !== true) break
       if (downloaded) available++
@@ -726,7 +742,7 @@ export async function listMailboxes(sync = true): Promise<CachedResult<MailboxIn
     }
 
     // Con caché, se responde ya y se actualiza en segundo plano.
-    void serial(syncMailboxes)
+    void serial(syncMailboxes, 'background')
       .then(() => notify('*'))
       .catch((error: unknown) => {
         // Un certificado o una contraseña inválidos no significan "sin conexión".
@@ -768,22 +784,27 @@ export async function listEnvelopes(
   return cached
 }
 
-/** Guarda únicamente los cuerpos de lectura; los binarios siguen bajo demanda. */
-async function cacheMessageBody(path: string, uid: number): Promise<void> {
+/** Guarda texto y HTML; al abrir, resuelve solo las imágenes CID referenciadas. */
+async function cacheMessageBody(path: string, uid: number, includeInlineImages = false): Promise<void> {
   const generation = syncGeneration
   const envelope = readEnvelope(path, uid)
   // Los mensajes enormes no se guardan para offline: se abren bajo demanda.
-  if (!envelope || envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return
+  if (!envelope || (!includeInlineImages && envelope.size > MAX_OFFLINE_MESSAGE_BYTES)) return
   const client = await ensureClient()
   const lock = await client.getMailboxLock(path)
   try {
     const validity = getMailboxMeta(path)?.uidValidity
-    if (validity == null || !client.mailbox || String(client.mailbox.uidValidity) !== String(validity)) throw new Error('La identidad de la carpeta cambió; no se guardó el cuerpo')
+    // Enviados puede descubrirse al abrir una conversación, antes de sincronizar su carpeta.
+    if (!client.mailbox || (validity == null ? !includeInlineImages : String(client.mailbox.uidValidity) !== String(validity))) throw new Error('La identidad de la carpeta cambió; no se guardó el cuerpo')
     const message = await client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true }, { uid: true })
     if (!message || message.uid !== uid || !message.bodyStructure) throw new Error('No se encontró la estructura del mensaje')
+    const inlineImages = new Map<string, MessageStructureObject>()
     const parts: { part: string; type: string }[] = []
     const attachments: { name: string; size: number; type: string; part?: string }[] = []
     const collect = (node: MessageStructureObject): void => {
+      if (node.id && node.part && /^image\/(png|jpeg|gif|webp|avif|bmp|x-icon|vnd.microsoft.icon)$/i.test(node.type)) {
+        inlineImages.set(node.id.replace(/^<|>$/g, ''), node)
+      }
       const filename = node.dispositionParameters?.filename ?? node.parameters?.name
       const attached = node.disposition?.toLowerCase() === 'attachment' || Boolean(filename) || node.type.toLowerCase() === 'message/rfc822'
       if (!attached && node.childNodes?.length) { node.childNodes.forEach(collect); return }
@@ -795,16 +816,34 @@ async function cacheMessageBody(path: string, uid: number): Promise<void> {
     }
     collect(message.bodyStructure)
     const text: string[] = [], html: string[] = []
+    let downloaded = 0
     for (const part of parts) {
       const download = await client.download(String(uid), part.part, { uid: true })
       if (!download.content) throw new Error('El cuerpo del mensaje no está disponible')
-      const content = (await readLimited(download.content, MAX_BODY_BYTES, 'El cuerpo del mensaje supera el límite de tamaño')).toString('utf8')
+      const bytes = await readLimited(download.content, MAX_BODY_BYTES - downloaded, 'El cuerpo del mensaje supera el límite de tamaño')
+      downloaded += bytes.length
+      const content = bytes.toString('utf8')
       if (part.type === 'text/html') html.push(content)
       else text.push(content)
     }
-    const markup = html.length ? html.join('\n') : null
+    let markup = html.length ? html.join('\n') : null
     const plain = text.length ? text.join('\n') : markup
       ? (await simpleParser(Buffer.from(`Content-Type: text/html; charset=utf-8\r\n\r\n${markup}`))).text ?? '' : ''
+    if (includeInlineImages && markup) {
+      const images = new Map<string, string>()
+      const references = new Set([...markup.matchAll(/\bcid:([^"'<>\s)]+)/gi)].map(match => match[1]!))
+      for (const cid of references) {
+        const image = inlineImages.get(cid)
+        if (!image) continue
+        if ((image.size ?? 0) > MAX_ATTACHMENT_BYTES) throw new Error('La imagen incrustada supera el límite de 25 MB')
+        const download = await client.download(String(uid), image.part, { uid: true })
+        if (!download.content) throw new Error('La imagen incrustada no está disponible')
+        const content = await readLimited(download.content, Math.min(MAX_ATTACHMENT_BYTES, MAX_BODY_BYTES - downloaded), 'Las imágenes incrustadas superan el límite de tamaño')
+        downloaded += content.length
+        images.set(cid, `data:${image.type.toLowerCase()};base64,${content.toString('base64')}`)
+      }
+      markup = markup.replace(/\bcid:([^"'<>\s)]+)/gi, (reference, cid: string) => images.get(cid) ?? reference)
+    }
     if (generation !== syncGeneration || !readEnvelope(path, uid)) return
     saveBody(path, uid, {
       text: plain, html: markup,
@@ -815,64 +854,10 @@ async function cacheMessageBody(path: string, uid: number): Promise<void> {
 }
 
 async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
-  const client = await ensureClient()
-  const lock = await client.getMailboxLock(path)
-
-  try {
-    const cachedEnvelope = readEnvelope(path, uid)
-    if (cachedEnvelope && cachedEnvelope.size > MAX_MESSAGE_BYTES) throw new Error('El mensaje supera el límite de 50 MB para abrirlo')
-    const download = await client.download(String(uid), undefined, { uid: true })
-    if (!download.content) throw new Error('Message body unavailable')
-
-    const raw = await readLimited(download.content, MAX_MESSAGE_BYTES, 'El mensaje supera el límite de 50 MB para abrirlo')
-
-    const parsed = await simpleParser(raw)
-    const priority = parsed.headers.get('priority')
-
-    const to = (parsed.to ? (Array.isArray(parsed.to) ? parsed.to : [parsed.to]) : []).flatMap((entry) =>
-      entry.value.flatMap((value) => {
-        const address = toAddress(value)
-        return address ? [address] : []
-      })
-    )
-
-    const cc = (parsed.cc ? (Array.isArray(parsed.cc) ? parsed.cc : [parsed.cc]) : []).flatMap((entry) =>
-      entry.value.flatMap((value) => {
-        const address = toAddress(value)
-        return address ? [address] : []
-      })
-    )
-
-    const attachments: MessageAttachment[] = parsed.attachments.map((attachment, index) => ({
-      name: attachment.filename ?? `adjunto-${index + 1}`,
-      size: attachment.size ?? 0,
-      type: attachment.contentType ?? 'application/octet-stream',
-      index
-    }))
-
-    const envelope = cachedEnvelope
-
-    return {
-      uid,
-      priority: priority === 'high' || priority === 'low' ? priority : 'normal',
-      messageId: parsed.messageId ?? envelope?.messageId,
-      inReplyTo: parsed.inReplyTo ?? envelope?.inReplyTo,
-      references: typeof parsed.references === 'string' ? [parsed.references] : parsed.references ?? envelope?.references ?? [],
-      subject: parsed.subject ?? envelope?.subject ?? '',
-      from: parsed.from ? toAddress(parsed.from.value[0]) : (envelope?.from ?? null),
-      to,
-      cc,
-      date: (parsed.date ?? toDate(envelope?.date)).toISOString(),
-      unread: envelope?.unread ?? false,
-      flagged: envelope?.flagged ?? false,
-      size: raw.length,
-      text: parsed.text ?? '',
-      html: typeof parsed.html === 'string' ? parsed.html : null,
-      attachments
-    }
-  } finally {
-    lock.release()
-  }
+  await cacheMessageBody(path, uid, true)
+  const detail = cachedDetail(path, uid)
+  if (!detail || !readBody(path, uid).fetched) throw new Error('El cuerpo del mensaje no está disponible')
+  return detail
 }
 
 function cachedDetail(path: string, uid: number): MessageDetail | null {
@@ -989,18 +974,10 @@ export async function getMessage(path: string, uid: number, cachedOnly = false):
       }
       const fetched = await fetchMessage(path, uid)
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
-      // El parser completo no conoce la numeración MIME del servidor; se
-      // conserva la parte que ya había guardado la sincronización de cuerpo.
-      const previous = readBody(path, uid)?.attachments ?? []
-      const attachments = fetched.attachments.map((attachment, index) => ({
-        ...attachment,
-        part: previous[index]?.part
-      }))
-      saveBody(path, uid, { text: fetched.text, html: fetched.html, to: fetched.to, cc: fetched.cc, attachments })
       notify(path)
       offline = false
       return fetched
-    })
+    }, 'interactive')
     return { ok: true, data: detail, meta: syncMeta() }
   } catch (error) {
     if (generation !== syncGeneration) return { ok: false, code: 'unknown', detail: 'La cuenta activa cambió' }
@@ -1142,7 +1119,7 @@ export function readAttachment(
     } finally {
       lock.release()
     }
-  })
+  }, 'interactive')
 }
 
 /** Ruta del buzón de archivo, si el servidor la expone. */
