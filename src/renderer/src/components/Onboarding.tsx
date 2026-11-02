@@ -430,6 +430,10 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                 </>
               )}
 
+              {busy && choice === 'gmail' && preset?.oauth && (
+                <p className="account-hint" role="status"><Icon name="open_in_new" size={16} /><span>{t('account.googleWaiting')}</span></p>
+              )}
+
               {error && (
                 <p className="onboarding__error" role="alert">
                   <Icon name="error" size={15} />

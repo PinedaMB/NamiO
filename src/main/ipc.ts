@@ -204,6 +204,14 @@ export function registerIpcHandlers(): void {
       const result = await connectAccountOAuth(normalized, (url) => {
         if (!event.sender.isDestroyed()) event.sender.send(IPC.oauthUrl, url)
       })
+      if (config.oauth.provider === 'google' && !event.sender.isDestroyed()) {
+        const owner = BrowserWindow.fromWebContents(event.sender)
+        if (owner && !owner.isDestroyed()) {
+          if (owner.isMinimized()) owner.restore()
+          owner.show()
+          owner.focus()
+        }
+      }
       if (result.ok) void processOutbox()
       return result
     }

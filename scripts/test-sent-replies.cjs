@@ -10,7 +10,7 @@ async function backend(mode) {
   const context = {
     syncGeneration: 1, syncMeta: () => ({}),
     readMailboxes: () => [{ path: 'Enviados', specialUse: '\\Sent' }],
-    readEnvelope: () => ({ messageId: '<inbox>', inReplyTo: '<root>', references: ['<root>'] }),
+    readEnvelope: () => ({ messageId: '<inbox>', inReplyTo: '<root>', references: mode === 'large-query' ? ['<root>', ...Array.from({length:30},(_,index)=>`<ancestor-${index}>`)] : ['<root>'] }),
     relatedMessageUids: () => [7, 9], getMeta: () => mode === 'validity' ? '1' : '2', getMailboxMeta: () => null,
     clearMailbox: path => { assert.equal(path, 'Enviados'); cleared++ }, setMeta() {},
     fetchRange: async () => [], upsertEnvelopes: () => { writes++ },
@@ -23,8 +23,12 @@ async function backend(mode) {
         search: async (query, options) => {
           searches++; assert.equal(options.uid, true)
           if (query.uid) return mode === 'index-lag' ? [7] : []
-          assert.ok(query.or.some(item => item.header.References === '<root>'))
-          assert.ok(query.or.some(item => item.header['Message-ID'] === '<inbox>'))
+          assert.ok(query.or.length <= 30, 'header searches are bounded even for long conversations')
+          if (!['refusal', 'large-query'].includes(mode)) {
+            assert.ok(query.or.some(item => item.header.References === '<root>'))
+            assert.ok(query.or.some(item => item.header['Message-ID'] === '<inbox>'))
+          }
+          if (mode === 'refusal' && query.or.length > 3) return false
           return mode === 'index-lag' ? [] : [7]
         }
       }
@@ -35,7 +39,7 @@ async function backend(mode) {
   if (mode === 'switch') { assert.equal(result.ok, false); assert.equal(writes, 0); assert.equal(searches, 0); return }
   assert.equal(result.ok, true)
   assert.deepEqual(Array.from(result.data, item => [item.mailbox, item.uid]), mode === 'cached' || mode === 'offline' ? [['Enviados', 7], ['Enviados', 9]] : [['Enviados', 7]], 'online results exclude deleted cached messages')
-  assert.equal(searches, mode === 'cached' || mode === 'offline' ? 0 : 2)
+  assert.equal(searches, mode === 'cached' || mode === 'offline' ? 0 : mode === 'large-query' ? 5 : mode === 'refusal' ? 4 : 2)
   assert.equal(cleared, mode === 'validity' ? 1 : 0, 'changed UIDVALIDITY cannot reuse stale bodies')
   if (searches) assert.equal(released, 1)
   if (mode === 'offline') assert.equal(result.meta.offline, true)
@@ -131,7 +135,7 @@ async function prefetch(stale = false) {
 }
 ;(async () => {
   await prefetch(); await prefetch(true)
-  for (const mode of ['cached', 'online', 'offline', 'switch', 'validity', 'index-lag']) await backend(mode)
+  for (const mode of ['cached', 'online', 'offline', 'switch', 'validity', 'index-lag', 'large-query', 'refusal']) await backend(mode)
   await renderer(); await renderer(true); await renderer(false, true); await renderer(true, false, true)
   console.log('Sent replies: exact header search, cache/offline access, account and UID isolation, stale-result cancellation and reader locations passed')
 })().catch(error => { console.error(error); process.exitCode = 1 })

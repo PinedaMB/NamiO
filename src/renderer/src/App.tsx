@@ -1798,7 +1798,8 @@ export function App(): React.JSX.Element {
       <AccountDialog
         open={accountOpen}
         account={addingAccount ? null : account}
-        onClose={() => {
+        onClose={() => setAccountOpen(false)}
+        onDisconnected={() => {
           setAccountOpen(false)
           void refreshAccount()
         }}

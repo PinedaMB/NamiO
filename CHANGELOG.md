@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar
+
+- Cerrar el diálogo de cuentas deja de recargar carpetas y disparar sincronizaciones; una desconexión confirmada conserva su actualización de estado. Las búsquedas de respuestas enviadas se dividen en grupos pequeños y reintentan por identificador cuando el servidor rechaza la consulta combinada.
+
+- El acceso de Gmail muestra que espera autorización en el navegador, tanto en la bienvenida como al agregar una cuenta. Al finalizar el intento, NamiO restaura su ventana y solicita el foco para mostrar la cuenta conectada o el error.
+
+- El instalador de Windows usa un nombre explícito sin espacios, compartido por el archivo publicado y el manifiesto de actualización. Evita los errores 404 causados por la normalización diferente del nombre al adjuntarlo a GitHub.
+
 ## 1.0.0-rc.6 — 2026-11-01
 
 - Los hilos agrupan respuestas mediante `Message-ID`, `In-Reply-To` y `References`, incluso cuando falta un mensaje intermedio en Inbox.

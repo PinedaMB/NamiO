@@ -927,8 +927,19 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
         const previous = getMeta(`sentRepliesValidity:${sent}`) ?? getMailboxMeta(sent)?.uidValidity?.toString()
         if (previous && previous !== validity) clearMailbox(sent)
         setMeta(`sentRepliesValidity:${sent}`, validity)
-        const found = await client.search({ or: ids.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true })
-        if (!found) throw new Error('No se pudieron consultar las respuestas enviadas')
+        let found: number[] = []
+        const searchIds = async (group: string[]): Promise<void> => {
+          const result = await client.search({ or: group.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true })
+          if (result === false) {
+            if (group.length === 1) throw new Error('El servidor rechazó la búsqueda de respuestas en Enviados')
+            for (const id of group) await searchIds([id])
+          } else {
+            found.push(...result)
+          }
+        }
+        // Evita búsquedas OR enormes que algunos servidores rechazan.
+        for (let offset = 0; offset < ids.length; offset += 10) await searchIds(ids.slice(offset, offset + 10))
+        found = [...new Set(found)]
         // Un índice de cabeceras atrasado no debe ocultar copias ya relacionadas en caché.
         const missing = relatedMessageUids(sent, ids).filter(uid => !found.includes(uid))
         if (missing.length > 0) {

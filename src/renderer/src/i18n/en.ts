@@ -572,6 +572,7 @@ export const en: Dictionary = {
   'rules.describe': '{field} {op} “{value}” → {action}',
 
   'account.connect': 'Connect account',
+  'account.googleWaiting': 'Waiting for Google authorization. Complete sign-in in your browser; NamiO will return to the foreground when finished.',
   'account.oauthUrlHint': 'If the browser did not open, copy this address or open it manually.',
   'account.openBrowser': 'Open in browser',
   'account.switch': 'Switch account',

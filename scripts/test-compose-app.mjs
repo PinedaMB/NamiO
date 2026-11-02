@@ -8,12 +8,13 @@ const require = createRequire(import.meta.url)
 const folder = await mkdtemp(join(tmpdir(), 'namio-compose-app-'))
 try {
   await writeFile(join(folder, 'preload.cjs'), `
-const {contextBridge}=require('electron');const noop=()=>()=>{};const updateListeners=new Set();let updateState={phase:'downloading',version:'0.4.4',percent:42};let installs=0;let settings={onboarded:true,language:'es'};
+const {contextBridge}=require('electron');const noop=()=>()=>{};const updateListeners=new Set();let updateState={phase:'downloading',version:'0.4.4',percent:42};let installs=0;let settings={onboarded:true,language:'es'};let finishGoogle;const oauthListeners=new Set();
 contextBridge.exposeInMainWorld('api',{
  updateStatus:async()=>updateState,onUpdateChanged:fn=>{updateListeners.add(fn);return()=>updateListeners.delete(fn)},checkForUpdates:async()=>{},installUpdate:async()=>{installs++},testUpdate:async next=>{updateState=next;updateListeners.forEach(fn=>fn(next))},testInstalls:async()=>installs,
  getSettings:async()=>settings,setSettings:async patch=>{settings={...settings,...patch}},
  getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:false,connected:false,account:null}),
+ accountConnectOAuth:async()=>{oauthListeners.forEach(fn=>fn('https://accounts.google.com/test'));return new Promise(resolve=>{finishGoogle=resolve})},onOauthUrl:fn=>{oauthListeners.add(fn);return()=>oauthListeners.delete(fn)},testFinishGoogle:async()=>{finishGoogle({ok:false,code:'auth',detail:'Test authorization declined'})},
  accounts:async()=>[],checkAccounts:async()=>[],listOutbox:async()=>[],
  getDraft:async()=>null,listDrafts:async()=>[],syncProgress:async()=>null,
  onCacheChanged:noop,onSyncProgress:noop,onAccountsActivity:noop,onOutboxChanged:noop,onRulesChanged:noop
@@ -291,6 +292,14 @@ app.whenReady().then(async()=>{
      for(const [surface,selector] of [[onboarding,'.onboarding__form'],[win,'.account-form']]){
        await surface.webContents.executeJavaScript('('+${JSON.stringify(`async selector=>{
  const form=document.querySelector(selector);
+ const email=form.querySelector('input[autocomplete="username"]');
+ Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(email,'tester@example.test');email.dispatchEvent(new Event('input',{bubbles:true}));
+ await new Promise(resolve=>setTimeout(resolve,50));form.querySelector('button[type="submit"]').click();
+ for(let i=0;i<100&&!form.querySelector('[role="status"]')?.textContent.includes('Esperando autorización de Google');i++)await new Promise(resolve=>setTimeout(resolve,30));
+ if(!form.querySelector('[role="status"]')?.textContent.includes('Esperando autorización de Google'))throw new Error('Google browser authorization must expose its pending status');
+ await window.api.testFinishGoogle();
+ for(let i=0;i<100&&!form.querySelector('[role="alert"]');i++)await new Promise(resolve=>setTimeout(resolve,30));
+ if(form.querySelector('[role="status"]')?.textContent.includes('Esperando autorización de Google'))throw new Error('Google waiting status must clear when sign-in finishes');
  const button=[...form.querySelectorAll('button')].find(button=>button.textContent.trim()==='Contraseña de aplicación'&&button.getBoundingClientRect().width>0);
  if(!button)throw new Error('Gmail authentication choice must be visible without opening advanced settings');
  button.click();await new Promise(resolve=>setTimeout(resolve,50));
@@ -371,7 +380,7 @@ app.whenReady().then(async()=>{
  await until(()=>document.querySelector('.participants__sent'),'Outgoing reply did not appear in the Inbox thread');
  if(document.querySelectorAll('.thread-message').length!==3)throw new Error('Sent reply must join the received message without replacing it');
  const outgoing=document.querySelector('.thread-message .participants__sent').closest('.thread-message');
- if(!outgoing.querySelector('iframe')?.contentDocument?.body.textContent.includes('My sent reply'))await until(()=>outgoing.querySelector('iframe')?.contentDocument?.body.textContent.includes('My sent reply'),'Outgoing body missing');
+ if(!outgoing.querySelector('iframe')?.contentDocument?.body?.textContent.includes('My sent reply'))await until(()=>outgoing.querySelector('iframe')?.contentDocument?.body?.textContent.includes('My sent reply'),'Outgoing body missing');
  if(!document.querySelector('.thread-message__actions [aria-haspopup="menu"]'))throw new Error('Incoming message actions must remain available when the latest message is sent');
  await until(()=>[...document.querySelectorAll('.thread-group')].find(item=>item.querySelector('.thread__subject')?.textContent.includes('Unopened conversation'))?.querySelector('.thread-group__message')?.textContent.includes('Enviado'),'Unopened conversation must show its outgoing reply without selecting it');
  const unopened=[...document.querySelectorAll('.thread-group')].find(item=>item.querySelector('.thread__subject')?.textContent.includes('Unopened conversation'));
@@ -390,7 +399,7 @@ app.whenReady().then(async()=>{
  await until(()=>sentMember.getAttribute('aria-current')==='true','Sent lateral selection missing');
  if(document.querySelectorAll('.thread-message').length!==3)throw new Error('Selecting sent member lost the conversation');
  await until(()=>outgoing.open&&outgoing.getBoundingClientRect().top>=readerViewport.getBoundingClientRect().top-1&&outgoing.getBoundingClientRect().top<readerViewport.getBoundingClientRect().bottom,'Clicking sent reply must bring its own body into view');
- if(!outgoing.querySelector('iframe')?.contentDocument?.body.textContent.includes('My sent reply'))throw new Error('Selected sent reply displays the wrong body');
+ if(!outgoing.querySelector('iframe')?.contentDocument?.body?.textContent.includes('My sent reply'))throw new Error('Selected sent reply displays the wrong body');
  incomingCard.style.minHeight='';
  const originalSentFrame=outgoing.querySelector('iframe');
  await window.api.testSentCacheLag();await new Promise(resolve=>setTimeout(resolve,70));

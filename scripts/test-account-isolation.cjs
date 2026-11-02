@@ -22,6 +22,26 @@ function load(file, name, context) {
 }
 
 async function main() {
+  const app = ts.createSourceFile('App.tsx', readFileSync('src/renderer/src/App.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const callbacks = {}
+  function findDialog(node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(app) === 'AccountDialog') {
+      for (const attribute of node.attributes.properties) {
+        if (ts.isJsxAttribute(attribute) && ['onClose', 'onDisconnected'].includes(attribute.name.text)) callbacks[attribute.name.text] = attribute.initializer.expression.getText(app)
+      }
+    }
+    ts.forEachChild(node, findDialog)
+  }
+  findDialog(app)
+  let opened = true, refreshes = 0
+  const dialogContext = { setAccountOpen: value => { opened = value }, refreshAccount: () => { refreshes++ } }
+  const callback = name => vm.runInNewContext(ts.transpile(`(${callbacks[name]})`, { target: ts.ScriptTarget.ES2022 }), dialogContext)
+  callback('onClose')()
+  assert.equal(opened, false)
+  assert.equal(refreshes, 0, 'closing account settings must not reload mailboxes or synchronize')
+  callback('onDisconnected')()
+  assert.equal(refreshes, 1, 'a confirmed disconnect still refreshes account state')
+
   let accounts = []
   const accountIdFor = load('src/main/imap.ts', 'accountIdFor', {
     createHash, readAccounts: async () => ({ accounts })

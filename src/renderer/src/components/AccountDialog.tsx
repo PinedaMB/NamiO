@@ -26,6 +26,7 @@ interface AccountDialogProps {
   open: boolean
   account: AccountState | null
   onClose: () => void
+  onDisconnected: () => void
   onConnected: (state: AccountState) => void
 }
 
@@ -57,7 +58,7 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
   }
 ]
 
-export function AccountDialog({ open, account, onClose, onConnected }: AccountDialogProps): React.JSX.Element | null {
+export function AccountDialog({ open, account, onClose, onDisconnected, onConnected }: AccountDialogProps): React.JSX.Element | null {
   const { t } = useI18n()
   const { mounted, closing } = usePresence(open, 160)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -187,6 +188,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     if (!valid || busy) return
     setBusy(true)
     setError(null)
+    setOauthUrl('')
 
     const config: AccountConfig = {
       host: host.trim(),
@@ -234,7 +236,7 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
     try {
       if (!await window.api.accountDisconnect()) return
       setPassword('')
-      onClose()
+      onDisconnected()
     } catch (cause) {
       setError({ code: 'unknown', detail: cause instanceof Error ? cause.message : String(cause) })
     } finally { setBusy(false) }
@@ -592,6 +594,10 @@ export function AccountDialog({ open, account, onClose, onConnected }: AccountDi
               <Icon name="key_off" size={14} />
               {t('account.notStored')}
             </p>
+          )}
+
+          {busy && auth === 'oauth2' && provider === 'google' && (
+            <p className="account-hint" role="status"><Icon name="open_in_new" size={16} /><span>{t('account.googleWaiting')}</span></p>
           )}
 
           {oauthUrl && (

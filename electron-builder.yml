@@ -53,5 +53,6 @@ win:
   icon: icon.png
 
 nsis:
+  artifactName: "${productName}-Setup-${version}.${ext}"
   perMachine: false
   allowElevation: false

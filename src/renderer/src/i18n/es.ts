@@ -575,6 +575,7 @@ export const es = {
   'rules.describe': '{field} {op} «{value}» → {action}',
 
   'account.connect': 'Conectar cuenta',
+  'account.googleWaiting': 'Esperando autorización de Google. Completa el inicio de sesión en tu navegador; NamiO volverá al frente al terminar.',
   'account.oauthUrlHint': 'Si el navegador no se abrió, copia esta dirección o ábrela manualmente.',
   'account.openBrowser': 'Abrir en el navegador',
   'account.switch': 'Cambiar de cuenta',
