@@ -89,11 +89,14 @@ app.whenReady().then(async()=>{
  assert(doc.body.textContent.includes('Respuesta actual'),'Current response remains outside history');
  assert(!history.textContent.includes('Respuesta actual')&&!history.textContent.includes('Firma actual'),'Current response and signature must remain visible');
  const collapsed=frame.clientHeight;
- history.querySelector('summary').click();
- try { await until(()=>history.open&&frame.clientHeight>collapsed) } catch(error) { throw new Error(JSON.stringify({html,open:history.open,collapsed,height:frame.clientHeight,body:doc.body.scrollHeight,bottom:doc.body.getBoundingClientRect().bottom,language:history.querySelector('summary').getAttribute('aria-label')})) }
- assert(history.querySelector('summary').getAttribute('aria-label').includes('Ocultar'),'Toggle exposes its collapse action');
- history.querySelector('summary').click();
- await until(()=>!history.open&&frame.clientHeight<=collapsed+2);
+ const toggle=history.querySelector('summary');
+ const showLabel=toggle.querySelector('.namio-quote-show').textContent;
+ const hideLabel=toggle.querySelector('.namio-quote-hide').textContent;
+ assert(toggle.getAttribute('aria-label')===showLabel,'Collapsed history exposes its localized expand action');
+ toggle.click();
+ try { await until(()=>history.open&&frame.clientHeight>collapsed&&toggle.getAttribute('aria-label')===hideLabel) } catch(error) { throw new Error(JSON.stringify({html,open:history.open,collapsed,height:frame.clientHeight,body:doc.body.scrollHeight,bottom:doc.body.getBoundingClientRect().bottom,language:history.querySelector('summary').getAttribute('aria-label')})) }
+ toggle.click();
+ await until(()=>!history.open&&frame.clientHeight<=collapsed+2&&toggle.getAttribute('aria-label')===showLabel);
  }
  window.setHtml('<p>Respuesta actual</p><blockquote>Una cita literaria</blockquote><p>De: este tema podemos hablar mañana.</p>');
  await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.body.textContent.includes('Una cita literaria')});
