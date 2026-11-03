@@ -65,7 +65,7 @@ function Body({ message, theme, onRetry }: { message: Message; theme?: BodyTheme
 
   if (message.partial) {
     return (
-      <div className={cx('body', theme === 'light' && 'body--light')}>
+      <div className={cx('body', theme && `body--${theme}`)}>
         <p style={{ color: theme === 'light' ? '#555555' : 'var(--outline)' }}>{t('offline.bodyUnavailable')}</p>
         {onRetry && <button className="tool-btn" type="button" onClick={onRetry}><Icon name="refresh" size={16} />{t('offline.retry')}</button>}
       </div>
@@ -76,7 +76,7 @@ function Body({ message, theme, onRetry }: { message: Message; theme?: BodyTheme
   const after = message.body.slice(2)
 
   return (
-    <div className={cx('body', theme === 'light' && 'body--light')}>
+    <div className={cx('body', theme && `body--${theme}`)}>
       {before.map((paragraph, index) => (
         <p key={`lead-${index}`}>{paragraph}</p>
       ))}
@@ -160,10 +160,10 @@ export function ThreadPane({
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
-  const defaultBodyTheme = appTheme ? (appTheme === 'dark' || (appTheme === 'system' && systemDark) ? 'dark' : 'light') : preferredTheme
-  const themeKey = `${mailbox}:${thread.messageIds?.join(',') ?? thread.id}:${preferredTheme}:${defaultBodyTheme}`
+  const appBodyTheme = appTheme ? (appTheme === 'dark' || (appTheme === 'system' && systemDark) ? 'dark' : 'light') : preferredTheme
+  const themeKey = `${mailbox}:${thread.messageIds?.join(',') ?? thread.id}:${preferredTheme}:${appBodyTheme}`
   const [themeOverride, setThemeOverride] = useState<{ key: string; theme: BodyTheme } | null>(null)
-  const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : defaultBodyTheme
+  const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : preferredTheme
   useEffect(() => { setThemeOverride(null) }, [themeKey])
   const [messageExpansion, setMessageExpansion] = useState<Record<string, boolean>>({})
   const focusedMessage = useRef<HTMLDetailsElement | null>(null)
@@ -401,7 +401,7 @@ export function ThreadPane({
                   </details>
                 )}
 
-              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === defaultBodyTheme} /> : <Body message={message} theme={bodyTheme === defaultBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} />}
+              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} />}
               </details>
               )
             })

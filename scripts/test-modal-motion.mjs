@@ -72,7 +72,7 @@ app.whenReady().then(async()=>{
  await check('palette','.palette','document.querySelector(".palette [role=option]").click();if(window.paletteAction)throw Error("Palette action ran before exit")');
  assert.equal(await run('window.paletteAction'),true);
  await run('window.openModal("settings")');await until('!!document.querySelector(".settings-nav__item")');
- await run('document.querySelectorAll(".settings-nav__item")[1].click()');await until('!!document.querySelector(".shortcut-row")');
+ await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==="Atajos de teclado").click()');await until('!!document.querySelector(".shortcut-row")');
  await run('document.querySelector(".shortcut-row").click()');await until('!!document.querySelector(".remap")');
  assert.equal(await run('getComputedStyle(document.querySelector(".remap")).animationName'),'dialog-in');await delay(200);
  await run('window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');await delay(25);

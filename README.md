@@ -77,13 +77,14 @@ Con **Iniciar sesión con Google**, NamiO utiliza su registro OAuth de escritori
 
 NamiO puede avisarte de mensajes nuevos en **todas tus cuentas**. La cuenta activa se revisa cada minuto y las demás, cada tres minutos; los avisos no son instantáneos.
 
-En **Configuración → General y velocidad** puedes:
+En **Configuración → Notificaciones** puedes:
 
 - Activar o desactivar las notificaciones.
 - Elegir si reproducen sonido.
 - Ocultar el remitente y el asunto; esta opción viene activada inicialmente.
 - Probar un aviso.
-- Activar **Mantener en segundo plano al cerrar**, desactivado por defecto.
+
+En **Configuración → General → Segundo plano** puedes activar **Mantener en segundo plano al cerrar**, desactivado por defecto.
 
 Con el segundo plano activado, cerrar la ventana mantiene NamiO funcionando. El ícono de bandeja ofrece **Abrir NamiO** y **Salir** para terminar la aplicación por completo. Si el escritorio no ofrece una bandeja disponible, se conserva el cierre normal.
 
@@ -114,7 +115,7 @@ NamiO está orientado a **Linux, Windows y macOS**. La disponibilidad actual es 
 
 ## Lectura sin conexión
 
-La descarga para lectura sin conexión está desactivada por defecto. Se activa en **Configuración → General → Descargar correos para leer sin conexión**. Al desactivarla se detienen las nuevas descargas en segundo plano, sin borrar el contenido guardado. Los correos abiertos se conservan en caché como antes.
+La descarga para lectura sin conexión está desactivada por defecto. Se activa en **Configuración → Lectura → Descargar correos para leer sin conexión**. Al desactivarla se detienen las nuevas descargas en segundo plano, sin borrar el contenido guardado. Los correos abiertos se conservan en caché como antes.
 
 Con la opción activada, la sincronización guarda primero los encabezados y después el texto y HTML de los mensajes de la carpeta, en segundo plano y sin volver a descargar los cuerpos ya guardados. El contador «sin conexión» indica cuántos mensajes tienen contenido disponible en este equipo; la barra de progreso distingue encabezados y cuerpos.
 

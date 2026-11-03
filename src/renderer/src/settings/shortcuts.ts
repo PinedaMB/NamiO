@@ -64,6 +64,7 @@ export function comboFromEvent(event: KeyboardEvent): string | null {
   const parts: string[] = []
   if (event.metaKey || event.ctrlKey) parts.push('mod')
   if (event.altKey) parts.push('alt')
+  if (event.shiftKey) parts.push('shift')
 
   const key = event.key === ' ' ? 'space' : event.key.toLowerCase()
   parts.push(key)

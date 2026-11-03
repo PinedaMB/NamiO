@@ -50,9 +50,10 @@ assert.match(css, /@media \(max-width: 520px\)[\s\S]{0,900}?\.account-modal, \.r
 assert.doesNotMatch(block('.settings-card {'), /linear-gradient|radial-gradient|backdrop-filter|blur\(/, 'flat sections cannot use gradients or blur')
 assert.doesNotMatch(css, /\.rules \.settings-card__title \{ font-size: 20px/, 'rules follows the section-title role')
 
-for (const id of ['general', 'shortcuts', 'accounts', 'copilot', 'rules', 'about']) {
+for (const id of ['general', 'reading', 'notifications', 'shortcuts', 'accounts', 'rules', 'about']) {
   assert.match(settings, new RegExp(`id:\\s*'${id}'`), `navigation entry ${id}`)
 }
+assert.doesNotMatch(settings, /settings\.nav\.copilot/, 'unavailable copilot settings are not offered')
 assert.match(settings, /className="settings__hero"/, 'settings header pattern')
 assert.match(settings, /className="settings__grid"/, 'settings grid pattern')
 assert.match(settings, /<nav className="settings-nav"/, 'settings navigation pattern')

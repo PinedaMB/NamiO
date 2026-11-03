@@ -29,3 +29,13 @@ for (const [platform, expected] of [['MacIntel', 'command'], ['Linux x86_64', 'c
  assert.equal(target.defaultShortcutModifier(), expected)
 }
 console.log('Shortcut symbols: Ctrl/Command, modifiers, Enter, platform defaults and unchanged key bindings passed')
+
+const event = (key, extra = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...extra })
+assert.equal(shortcuts.comboFromEvent(event('R', { shiftKey: true })), 'shift+r')
+assert.equal(shortcuts.comboFromEvent(event('K', { ctrlKey: true, shiftKey: true })), 'mod+shift+k')
+assert.equal(shortcuts.comboFromEvent(event('K', { metaKey: true, shiftKey: true })), 'mod+shift+k')
+assert.equal(shortcuts.comboFromEvent(event('ArrowDown', { altKey: true, shiftKey: true })), 'alt+shift+arrowdown')
+assert.equal(shortcuts.comboFromEvent(event('r')), 'r')
+assert.equal(shortcuts.comboFromEvent(event('Shift', { shiftKey: true })), null)
+assert.equal(shortcuts.actionForCombo({ ...shortcuts.DEFAULT_BINDINGS, reply: 'mod+shift+r' }, shortcuts.comboFromEvent(event('R', { ctrlKey: true, shiftKey: true }))), 'reply')
+assert.equal(shortcuts.actionForCombo(shortcuts.DEFAULT_BINDINGS, shortcuts.comboFromEvent(event('R', { shiftKey: true }))), undefined, 'Shift does not trigger the unmodified action')

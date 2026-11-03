@@ -5,7 +5,7 @@ const ts = require('typescript-test')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const source = fs.readFileSync('src/renderer/src/components/Settings.tsx', 'utf8')
-function settings(accounts, events, section = 'accounts') {
+function settings(accounts, events, section = 'accounts', notifications = true) {
   let stateIndex = 0
   const exports = {}
   const requireMock = id => {
@@ -14,7 +14,7 @@ function settings(accounts, events, section = 'accounts') {
     if (id === '../lib/useAnimatedClose') return {useAnimatedClose: onClose => ({closing: false, close: (action = onClose) => action()})}
     if (id === '../i18n') return { LOCALES: [], useI18n: () => ({ t: key => key, locale: 'es' }) }
     if (id === '../settings/ShortcutsProvider') return { useShortcuts: () => ({ bindings: {} }), useFormatCombo: () => combo => combo }
-    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ appTheme: 'system', setAppTheme: theme => events.push(theme), offlineDownload: false, setOfflineDownload: enabled => events.push(enabled), timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
+    if (id === '../settings/PreferencesProvider') return { usePreferences: () => ({ appTheme: 'system', setAppTheme: theme => events.push(theme), offlineDownload: false, setOfflineDownload: enabled => events.push(enabled), timeFormat: '24h', setTimeFormat: format => events.push(format), notificationPreferences: { notifications, notificationSound: true, notificationPrivate: true, keepInBackground: false } }) }
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === '../lib/useFocusTrap') return { useFocusTrap() {} }
@@ -72,11 +72,17 @@ assert.deepEqual(aboutEvents, ['https://github.com/PinedaMB/NamiO', 'https://git
 console.log('About: project identity, license and external project/support actions passed')
 
 const generalHtml = renderToStaticMarkup(settings(accounts, [], 'general'))
-assert.ok(generalHtml.includes('settings.notifications.title'))
-assert.equal((generalHtml.match(/role="switch"/g) || []).length, 5)
-assert.ok(generalHtml.includes('settings.notifications.test'))
+const notificationHtml = renderToStaticMarkup(settings(accounts, [], 'notifications'))
+const readingHtml = renderToStaticMarkup(settings(accounts, [], 'reading'))
+assert.ok(notificationHtml.includes('settings.notifications.title'))
+assert.equal((generalHtml.match(/role="switch"/g) || []).length, 1)
+assert.equal((notificationHtml.match(/role="switch"/g) || []).length, 3)
+assert.equal((readingHtml.match(/role="switch"/g) || []).length, 1)
+assert.ok(notificationHtml.includes('settings.notifications.test'))
+assert.ok(!generalHtml.includes('settings-notifications-title'))
+assert.ok(!notificationHtml.includes('notification-keepInBackground'))
 const generalSections = [...generalHtml.matchAll(/<section class="settings-card" aria-labelledby="([^"]+)"/g)].map(match => match[1])
-assert.deepEqual(generalSections, ['settings-theme-title', 'settings-language-title', 'settings-time-title', 'settings-reading-title', 'settings-offline-title', 'settings-notifications-title'])
+assert.deepEqual(generalSections, ['settings-theme-title', 'settings-language-title', 'settings-time-title', 'settings-background-title'])
 assert.ok(!generalHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings.general.diagnostics'))
 assert.ok(aboutHtml.includes('settings-updates-title'))
@@ -106,7 +112,7 @@ function checkOfflineSwitch(node) {
   }
   React.Children.forEach(node.props.children, checkOfflineSwitch)
 }
-checkOfflineSwitch(settings(accounts, offlineEvents, 'general'))
+checkOfflineSwitch(settings(accounts, offlineEvents, 'reading'))
 assert.deepEqual(offlineEvents,[true],'offline switch explicitly enables background downloads')
 
 const themeEvents = []
@@ -121,3 +127,32 @@ function checkThemeButtons(node) {
 }
 checkThemeButtons(settings(accounts,themeEvents,'general'))
 assert.deepEqual(themeEvents,['light','dark','system'])
+
+for (const enabled of [true, false]) {
+  const switches = []
+  function inspect(node) {
+    if (!React.isValidElement(node)) return
+    if (node.props.role === 'switch') switches.push(node)
+    React.Children.forEach(node.props.children, inspect)
+  }
+  inspect(settings(accounts, [], 'notifications', enabled))
+  for (const key of ['notificationSound', 'notificationPrivate']) {
+    const control = switches.find(node => node.props['aria-labelledby'] === `notification-${key}`)
+    assert.equal(control.props.disabled, !enabled, `${key} depends on automatic notifications`)
+    assert.equal(control.props['aria-checked'], true, 'disabling alerts preserves the dependent preference')
+  }
+  assert.equal(switches.some(node => node.props['aria-labelledby'] === 'notification-keepInBackground'), false, 'background mode belongs to General')
+}
+assert.ok(!generalHtml.includes('settings.nav.copilot'))
+assert.ok(html.includes('settings.cache.hint'), 'cache measurement scope is visible')
+
+assert.ok(readingHtml.includes('settings-reading-title'))
+assert.ok(readingHtml.includes('settings-offline-title'))
+assert.ok(!generalHtml.includes('settings-reading-title'))
+function signatureSections(node) {
+  if (!React.isValidElement(node)) return 0
+  return (node.type.name === 'SignatureSection' ? 1 : 0) + React.Children.toArray(node.props.children).reduce((sum, child) => sum + signatureSections(child), 0)
+}
+assert.equal(signatureSections(settings(accounts, [], 'accounts')), 1, 'active account owns the signature editor')
+assert.equal(signatureSections(settings(accounts, [], 'general')), 0)
+assert.equal(signatureSections(settings([], [], 'accounts')), 0, 'no signature setting without a real account')

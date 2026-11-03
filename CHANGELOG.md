@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar
+
+- Configuración separa General, Lectura y Notificaciones; la firma se edita en Cuentas y se retira el apartado de copiloto sin opciones. Se aclaran los alcances por cuenta y los requisitos del sistema en español e inglés.
+- El lector respeta el tema del correo guardado, independiente de la apariencia de la aplicación. Los atajos registran Shift y los controles de sonido y privacidad dependen de los avisos automáticos sin perder sus preferencias.
+
 ## 1.0.0-rc.7 — 2026-11-03
 
 - Se mejora el cambio de cuenta, la recuperación de mensajes sin conexión y la conservación de respuestas enviadas en caché.

@@ -80,14 +80,33 @@ app.whenReady().then(async()=>{
  const contrast=await run(contrastCheck);
  for(const [selector,ratio] of contrast)assert.ok(ratio>=4.5,selector+' contrast '+ratio);
  await capture('light-settings-1440');
- await run('document.querySelectorAll(".settings-nav__item")[5].click()');await until('!!document.querySelector(".settings-about__details")');await capture('light-about-1440');
+ const checkSettingsPages=async mode=>{
+  const open=async label=>{await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==='+JSON.stringify(label)+').click()');await delay(100)};
+  await open('Lectura');await until('!!document.querySelector("#settings-offline-title")');
+  assert.equal(await run('!!document.querySelector("#settings-theme-title")'),false,'Reading settings are separate from app appearance');
+  await viewport(1440);await capture(mode+'-reading-settings-1440');await viewport(800);await capture(mode+'-reading-settings-800');
+  await open('Notificaciones');await until('!!document.querySelector("#notification-notifications")');
+  assert.equal(await run('!!document.querySelector("#notification-keepInBackground")'),false,'Background mode belongs to General');
+  await run('document.getElementById("notification-notifications").closest(".notification-option").querySelector("button").click()');
+  await until('document.getElementById("notification-notificationSound").closest(".notification-option").querySelector("button").disabled');
+  assert.equal(await run('getComputedStyle(document.getElementById("notification-notificationSound").closest(".notification-option").querySelector("button")).opacity'),'0.45','Disabled dependent settings are visibly distinct');
+  await capture(mode+'-notifications-800');
+  await run('document.getElementById("notification-notifications").closest(".notification-option").querySelector("button").click()');
+  await until('!document.getElementById("notification-notificationSound").closest(".notification-option").querySelector("button").disabled');
+  await viewport(1440);await capture(mode+'-notifications-1440');
+  assert.ok(await run('document.querySelector(".settings__main").scrollWidth<=document.querySelector(".settings__main").clientWidth'),'Settings copy fits content width');
+  await open('General');await until('!!document.querySelector("#settings-theme-title")');
+ };
+ await checkSettingsPages('light');
+
+ await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==="Acerca de").click()');await until('!!document.querySelector(".settings-about__details")');await capture('light-about-1440');
  assert.equal(await run('document.querySelector(".settings-about__details").open'),false,'Technical information starts collapsed');
  await run('document.querySelector(".settings-about__details > summary").click()');await until('document.querySelector(".settings-about__details").open');await capture('light-about-details-1440');
  assert.ok(await run('document.querySelector(".settings-about__details").textContent.includes("settings.json")'),'Support information remains available');
  await run('document.querySelector(".settings-about__details > summary").click()');await viewport(800);await capture('light-about-800');
  await viewport(1440);await run('document.querySelectorAll(".settings-nav__item")[0].click()');await until('!!document.querySelector("#settings-theme-title")');
 
- await run('document.querySelectorAll(".settings-nav__item")[4].click()');await until('!!document.querySelector(".rules__empty")');await capture('light-rules-1440');
+ await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==="Reglas y filtros").click()');await until('!!document.querySelector(".rules__empty")');await capture('light-rules-1440');
  await viewport(800);await capture('light-rules-800');
  assert.equal(await run('document.querySelector(".rules__head-actions")'),null,'Empty rules have one available action');
  await run('document.querySelector(".rules__empty .btn").click()');await until('!!document.querySelector(".rules__form")');
@@ -95,7 +114,7 @@ app.whenReady().then(async()=>{
  await capture('light-rule-form-800');
  await run('document.querySelector(".rules__head-actions button").click()');await until('!!document.querySelector(".rules__empty")');
  await viewport(1440);
- await run('document.querySelectorAll(".settings-nav__item")[1].click()');await until('!!document.querySelector(".shortcut-row")');await capture('light-shortcuts-1440');
+ await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==="Atajos de teclado").click()');await until('!!document.querySelector(".shortcut-row")');await capture('light-shortcuts-1440');
  await run('document.querySelector(".shortcut-row").click()');await until('!!document.querySelector(".remap")');await capture('light-remap-1440');
  await viewport(800);await capture('light-remap-800');
  assert.ok(await run('(()=>{const r=document.querySelector(".remap").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()'),'Remap fits compact window');
@@ -106,11 +125,18 @@ app.whenReady().then(async()=>{
  assert.ok(await run('(()=>{const r=document.querySelector(".account-modal").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()'),'Account dialog fits compact window');
  await run('document.querySelector(".account-modal__head button").click()');await until('!document.querySelector(".account-modal")');
 
- await choose(1,'dark');await media('light');assert.equal(await run('getComputedStyle(document.body).backgroundColor'),'rgb(32, 33, 36)','explicit Dark wins over light system');await capture('dark-settings-800');await run('document.querySelectorAll(".settings-nav__item")[4].click()');await until('!!document.querySelector(".rules__empty")');await capture('dark-rules-800');await run('document.querySelectorAll(".settings-nav__item")[5].click()');await until('!!document.querySelector(".settings-about__details")');await capture('dark-about-800');await run('document.querySelectorAll(".settings-nav__item")[0].click()');await until('!!document.querySelector("#settings-theme-title")');
+ await choose(1,'dark');await media('light');assert.equal(await run('getComputedStyle(document.body).backgroundColor'),'rgb(32, 33, 36)','explicit Dark wins over light system');await capture('dark-settings-800');await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==="Reglas y filtros").click()');await until('!!document.querySelector(".rules__empty")');await capture('dark-rules-800');await run('Array.from(document.querySelectorAll(".settings-nav__item")).find(item=>item.querySelector(".settings-nav__label")?.textContent==="Acerca de").click()');await until('!!document.querySelector(".settings-about__details")');await capture('dark-about-800');await run('document.querySelectorAll(".settings-nav__item")[0].click()');await until('!!document.querySelector("#settings-theme-title")');
+ await checkSettingsPages('dark');
  await choose(2,'system');assert.equal(await run('getComputedStyle(document.body).backgroundColor'),'rgb(255, 255, 255)');await media('dark');assert.equal(await run('getComputedStyle(document.body).backgroundColor'),'rgb(32, 33, 36)');
  await choose(0,'light');await new Promise(resolve=>{win.webContents.once('did-finish-load',resolve);win.reload()});await until('document.documentElement.dataset.appTheme==="light"');assert.equal(await run('getComputedStyle(document.body).backgroundColor'),'rgb(255, 255, 255)','theme survives renderer reload');
  await capture('light-mailbox-800');await viewport(1440);await capture('light-mailbox-1440');
  await run('document.querySelector(".thread__content").click()');await until('!!document.querySelector(".letter__subject")');await capture('light-reading-1440');
+ await run('document.querySelector(".letter__badges button").click()');
+ await until('!!document.querySelector(".body--dark")');
+ assert.equal(await run('getComputedStyle(document.querySelector(".body--dark")).backgroundColor'),'rgb(32, 33, 36)','Plain text dark reading works on a light app');
+ assert.equal(await run('getComputedStyle(document.querySelector(".body--dark")).color'),'rgb(238, 238, 241)');
+ await run('document.querySelector(".letter__badges button").click()');
+ await until('!document.querySelector(".body--dark")');
  assert.ok(await run('!!document.querySelector(".thread__avatar-wrap > .avatar")'),'Sender avatar occupies the selection position');
  assert.ok(await run('!!document.querySelector(".participants__who > .avatar")'),'Reader shows the sender avatar');
  assert.equal(await run('getComputedStyle(document.querySelector(".thread__check")).opacity'),'0','Checkbox is hidden at rest');

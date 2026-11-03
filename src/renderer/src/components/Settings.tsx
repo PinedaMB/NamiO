@@ -35,13 +35,14 @@ interface SettingsProps {
 
 const PLATFORM_NAMES: Record<string, string> = { linux: 'Linux', win32: 'Windows', darwin: 'macOS' }
 
-type Section = 'general' | 'shortcuts' | 'accounts' | 'copilot' | 'rules' | 'about'
+type Section = 'general' | 'reading' | 'notifications' | 'shortcuts' | 'accounts' | 'rules' | 'about'
 
 const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }> = [
   { id: 'general', icon: 'tune', labelKey: 'settings.nav.general' },
+  { id: 'reading', icon: 'auto_stories', labelKey: 'settings.nav.reading' },
+  { id: 'notifications', icon: 'notifications', labelKey: 'settings.nav.notifications' },
   { id: 'shortcuts', icon: 'keyboard', labelKey: 'settings.nav.shortcuts' },
   { id: 'accounts', icon: 'alternate_email', labelKey: 'settings.nav.accounts' },
-  { id: 'copilot', icon: 'neurology', labelKey: 'settings.nav.copilot' },
   { id: 'rules', icon: 'filter_alt', labelKey: 'settings.nav.rules' },
   { id: 'about', icon: 'info', labelKey: 'settings.nav.about' }
 ]
@@ -396,6 +397,28 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             </div>
           </section>
 
+          <section className="settings-card" aria-labelledby="settings-background-title">
+            <h2 id="settings-background-title" className="settings-card__title">{t('settings.background.title')}</h2>
+            <div className="notification-option">
+              <div className="notification-option__text">
+                <span id="notification-keepInBackground">{t('settings.notifications.keepInBackground')}</span>
+                <p id="notification-keepInBackground-hint">{t('settings.notifications.keepInBackgroundHint')}</p>
+              </div>
+              <button type="button" role="switch" aria-checked={notificationPreferences.keepInBackground}
+                aria-labelledby="notification-keepInBackground" aria-describedby="notification-keepInBackground-hint"
+                className={cx('rules__switch', notificationPreferences.keepInBackground && 'rules__switch--on')}
+                onClick={() => void setNotificationPreference('keepInBackground', !notificationPreferences.keepInBackground)}>
+                <span className="rules__knob" />
+              </button>
+            </div>
+          </section>
+        </div>
+      )
+    }
+
+    if (section === 'reading') {
+      return (
+        <div className="settings-stack">
           <section className="settings-card" aria-labelledby="settings-reading-title">
             <h2 id="settings-reading-title" className="settings-card__title">{t('settings.general.reading')}</h2>
             <div className="settings-reading__option">
@@ -457,8 +480,6 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             </div>
           </section>
 
-          <SignatureSection key={accountKey} accountKey={accountKey} />
-
           <section className="settings-card" aria-labelledby="settings-offline-title">
             <div className="notification-option">
               <div className="notification-option__text">
@@ -473,7 +494,13 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               </button>
             </div>
           </section>
+        </div>
+      )
+    }
 
+    if (section === 'notifications') {
+      return (
+        <div className="settings-stack">
           <section className="settings-card" aria-labelledby="settings-notifications-title">
             <div className="settings-card__head">
               <div>
@@ -482,7 +509,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               </div>
             </div>
             <div className="notification-options">
-              {(['notifications', 'notificationSound', 'notificationPrivate', 'keepInBackground'] as const).map(key => (
+              {(['notifications', 'notificationSound', 'notificationPrivate'] as const).map(key => (
                 <div className="notification-option" key={key}>
                   <div className="notification-option__text">
                     <span id={`notification-${key}`}>{t(`settings.notifications.${key}`)}</span>
@@ -490,6 +517,7 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                   </div>
                   <button type="button" role="switch" aria-checked={notificationPreferences[key]}
                     aria-labelledby={`notification-${key}`} aria-describedby={`notification-${key}-hint`}
+                    disabled={key !== 'notifications' && !notificationPreferences.notifications}
                     className={cx('rules__switch', notificationPreferences[key] && 'rules__switch--on')}
                     onClick={() => void setNotificationPreference(key, !notificationPreferences[key])}>
                     <span className="rules__knob" />
@@ -516,9 +544,9 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
       )
     }
 
-    if (section === 'accounts') {
-      return (
-        <div className="settings-card">
+    return (
+      <div className="settings-stack">
+        <section className="settings-card">
           <div className="settings-card__head">
             <div>
               <h2 className="settings-card__title">{t('settings.accounts.title')}</h2>
@@ -529,17 +557,18 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
               {t('account.add')}
             </button>
           </div>
-            <section className="settings-cache" aria-label={t('settings.cache.title')}>
-              <div className="settings-cache__total">
-                <span><Icon name="storage" size={16} />{t('settings.cache.title')}</span>
-                <strong className="mono">{status?.cacheUsage ? formatSize(status.cacheUsage.totalBytes) : '—'}</strong>
-              </div>
-              {status && !status.cacheUsage && <p className="settings-card__subtitle">{t('settings.cache.unavailable')}</p>}
-              {status?.cacheUsage && status.cacheUsage.unassignedBytes > 0 && <p className="settings-card__subtitle">
-                {t('settings.cache.unassigned')}: {formatSize(status.cacheUsage.unassignedBytes)}
-              </p>}
-              <p className="settings-card__subtitle">{t('settings.cache.clearHint')}</p>
-            </section>
+          <section className="settings-cache" aria-label={t('settings.cache.title')}>
+            <div className="settings-cache__total">
+              <span><Icon name="storage" size={16} />{t('settings.cache.title')}</span>
+              <strong className="mono">{status?.cacheUsage ? formatSize(status.cacheUsage.totalBytes) : '—'}</strong>
+            </div>
+            {status && !status.cacheUsage && <p className="settings-card__subtitle">{t('settings.cache.unavailable')}</p>}
+            {status?.cacheUsage && status.cacheUsage.unassignedBytes > 0 && <p className="settings-card__subtitle">
+              {t('settings.cache.unassigned')}: {formatSize(status.cacheUsage.unassignedBytes)}
+            </p>}
+            <p className="settings-card__subtitle">{t('settings.cache.hint')}</p>
+            <p className="settings-card__subtitle">{t('settings.cache.clearHint')}</p>
+          </section>
           {cacheError && <p className="account-error" role="alert">{t('toast.actionFailed', { error: cacheError })}</p>}
           {cacheCleared && <p className="settings-card__subtitle" role="status">{t('settings.cache.cleared')}</p>}
           {accounts.length === 0 ? (
@@ -560,25 +589,17 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                       <Icon name={clearingCache === account.id ? 'progress_activity' : 'cleaning_services'} size={15} className={clearingCache === account.id ? 'spin' : undefined} />
                       {t(clearingCache === account.id ? 'settings.cache.clearing' : 'settings.cache.clear')}
                     </button>
-                  <button className="tool-btn" type="button" disabled={clearingCache !== null} onClick={() => account.active ? onManageAccount() : onSelectAccount(account.id)}>
-                    <Icon name={account.active ? 'tune' : 'swap_horiz'} size={15} />
-                    {t(account.active ? 'account.manage' : 'settings.accounts.select')}
-                  </button>
+                    <button className="tool-btn" type="button" disabled={clearingCache !== null} onClick={() => account.active ? onManageAccount() : onSelectAccount(account.id)}>
+                      <Icon name={account.active ? 'tune' : 'swap_horiz'} size={15} />
+                      {t(account.active ? 'account.manage' : 'settings.accounts.select')}
+                    </button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </div>
-      )
-    }
-
-    return (
-      <div className="settings-card settings-card--empty">
-        <span className="empty-state__icon"><Icon name="neurology" size={26} /></span>
-        <h2 className="settings-card__title">{t('settings.copilot.title')}</h2>
-        <p className="settings-card__subtitle">{t('settings.copilot.empty')}</p>
-        <span className="chip chip--outline">{t('settings.soon')}</span>
+        </section>
+        {accounts.some(account => account.active) && <SignatureSection key={accountKey} accountKey={accountKey} />}
       </div>
     )
   }

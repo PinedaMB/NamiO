@@ -62,9 +62,20 @@ assert.equal(render().theme, 'dark')
 assert.equal(render().integrated, true, 'switching back restores the dark app surface')
 override = null
 appTheme = 'light'
-assert.equal(render().theme, 'light', 'reader follows the light app appearance')
+assert.equal(render().theme, 'dark', 'saved reading theme stays independent from the app appearance')
+assert.equal(render().integrated, false)
+preferred = 'light'
+assert.equal(render().theme, 'light', 'matching reading theme integrates with the app')
 assert.equal(render().integrated, true)
 render().toggle()
 assert.equal(render().theme, 'dark')
 assert.equal(render().integrated, false, 'dark reading mode remains available on a light app')
 console.log('Message theme: temporary toggle, folder/message isolation and global preference passed')
+
+override = null
+appTheme = 'dark'
+assert.equal(render().theme, 'light', 'saved light reading theme wins over a dark app')
+assert.equal(render().integrated, false)
+preferred = 'dark'
+assert.equal(render().theme, 'dark')
+assert.equal(render().integrated, true)

@@ -211,6 +211,8 @@ Herramientas transparentes con superficie suave al pasar el puntero; botones pri
 
 ### Settings
 
+General reúne apariencia, idioma, hora y segundo plano. Lectura agrupa el tema del correo, imágenes remotas y descarga sin conexión; Notificaciones contiene los avisos, sonido y privacidad. Cuentas reúne la gestión, caché y firma de la cuenta activa. Reglas, atajos y Acerca de conservan sus secciones.
+
 Título simple y navegación sin contadores. La selección de sección usa la superficie suave compartida; el contenido se organiza en bloques transparentes con divisores. Evitar el encabezado técnico del motor y el perfil duplicado. Los campos y controles segmentados usan sans; los estados de error, guardado y operaciones mantienen sus mensajes y acciones.
 
 ### Dialogs

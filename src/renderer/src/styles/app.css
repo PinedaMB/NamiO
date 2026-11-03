@@ -1401,6 +1401,12 @@
   color: var(--on-surface);
 }
 
+.body--dark {
+  color-scheme: dark;
+  background: var(--surface);
+  color: var(--on-surface);
+}
+
 .body--light {
   padding: 20px;
   border-radius: var(--r-lg);
@@ -4372,6 +4378,11 @@
   border-radius: var(--r-full);
   background: var(--surface-container-highest);
   transition: background var(--fast) var(--ease);
+}
+
+.rules__switch:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .rules__switch--on {
