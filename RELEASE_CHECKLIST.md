@@ -1,6 +1,6 @@
 # Preparación de NamiO 1.0
 
-Estado al 1 de noviembre de 2026. La candidata actual es `1.0.0-rc.6`; sus cambios están en el changelog. Su tag activa los workflows de empaquetado y publicación como prerelease para Linux y Windows. Los instalables locales anteriores en `release/1.0.0-rc.5/` corresponden a rc.5 y no validan los artefactos de esta candidata.
+Estado al 3 de noviembre de 2026. La candidata actual es `1.0.0-rc.7`; sus cambios están en el changelog. Su tag activa los workflows de empaquetado y publicación como prerelease para Linux y Windows. Los instalables locales anteriores en `release/1.0.0-rc.5/` corresponden a rc.5 y no validan los artefactos de esta candidata.
 
 ## Alcance propuesto
 
@@ -9,6 +9,8 @@ Cliente IMAP/SMTP con lectura, redacción, respuesta y respuesta a todos, adjunt
 La bandeja unificada, la IA, traducción, impresión y bloqueo de remitentes quedan fuera de 1.0. Una plataforma solo debe anunciarse como soportada tras validar su instalador y su uso real.
 
 ## Comprobaciones locales
+
+- [x] Candidata `1.0.0-rc.7`: 91 pruebas de regresión y 9 de interfaz, tipos, compilación, licencias y auditoría de CSS correctos. Los instaladores y sus hashes quedan pendientes de los workflows del tag.
 
 - [x] Candidata `1.0.0-rc.6`: 80 pruebas de regresión y 6 de interfaz, tipos, compilación, licencias y auditoría de CSS correctos. Los instaladores y sus hashes deben comprobarse al finalizar los workflows del tag.
 
@@ -54,7 +56,7 @@ Las pruebas de Electron de este entorno usan modo headless y `--no-sandbox`. No 
 
 1. Registrar proveedor, sistema operativo, versión y resultado de las pruebas externas; no usar correos privados en capturas ni logs compartidos.
 2. Resolver los fallos encontrados y repetir las comprobaciones afectadas.
-3. Usar los instalables `1.0.0-rc.6` generados por los workflows del tag y comprobar sus hashes; si se corrigen fallos, generar una nueva candidata identificable.
+3. Usar los instalables `1.0.0-rc.7` generados por los workflows del tag y comprobar sus hashes; si se corrigen fallos, generar una nueva candidata identificable.
 4. Validar la candidata en uso diario y su actualización antes de publicar `1.0.0`.
 
 SMTP no permite garantizar entrega única si el servidor acepta un correo y se pierde su confirmación. Las pruebas simuladas no sustituyen las pruebas de recuperación con los proveedores reales.

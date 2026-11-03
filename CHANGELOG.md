@@ -1,6 +1,11 @@
 # Cambios
 
-## Sin publicar
+## 1.0.0-rc.7 — 2026-11-03
+
+- Se mejora el cambio de cuenta, la recuperación de mensajes sin conexión y la conservación de respuestas enviadas en caché.
+- El compositor permite elegir el tema, normaliza los prefijos del asunto al responder e incorpora la gestión de firmas.
+- Se mejora la recuperación de credenciales OAuth, el cifrado asíncrono y la sincronización al iniciar.
+- Las vistas previas de adjuntos muestran sus fases de carga y aprovechan la caché; se ajustan el foco del modal de comandos y las animaciones de cierre.
 
 - Los envíos pendientes aparecen en Enviados con su estado de envío o error y se ocultan de Borradores mientras permanecen en la cola. Los borradores se conservan para recuperarlos si se cancela el envío.
 
