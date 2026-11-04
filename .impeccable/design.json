@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-31T17:06:19.055192+00:00",
+  "generatedAt": "2026-11-04T17:51:04.557610+00:00",
   "title": "Design System: NamiO Calma",
   "extensions": {
     "shadows": [
@@ -141,14 +141,12 @@
   ],
   "narrative": {
     "northStar": "NamiO Calma",
-    "overview": "Interfaz de correo minimalista inspirada en macOS: superficies neutras, herramientas discretas y contenido protagonista.",
+    "overview": "Una interfaz de correo minimalista, inspirada en macOS: superficies neutras, herramientas discretas y jerarquía basada en texto y espacio. El contenido del mensaje concentra la atención. La propuesta aprobada reemplaza Veloce sin cambiar el motor de correo.\n\nLa implementación vive en `src/renderer/src/styles/tokens.css`, `app.css` y los componentes del renderer. Los tokens son normativos; esta guía describe su aplicación. Configuración, diálogos y redacción comparten las superficies planas y la jerarquía de Calma, conservando sus funciones.",
     "keyCharacteristics": [
-      "Lista plana",
-      "Detalles bajo demanda",
-      "Selección suave",
-      "Lectura enfocada",
-      "Configuración y diálogos planos",
-      "Remitentes reconocibles y adjuntos desplegables"
+      "lista plana",
+      "detalles bajo demanda",
+      "selección suave",
+      "navegación de tres columnas y lectura enfocada"
     ],
     "rules": [
       {
@@ -158,16 +156,16 @@
       }
     ],
     "dos": [
-      "Conservar teclado, foco y nombres accesibles.",
-      "Mantener visibles errores, operaciones pendientes y avances.",
-      "Usar los recursos empaquetados y el mapache original.",
-      "Mostrar avatar en reposo y casilla al pasar el puntero, enfocar o seleccionar; respetar la preferencia de imágenes remotas, spam y demostración."
+      "dejar el contenido como elemento dominante y desplazar metadatos al diálogo correspondiente.",
+      "mantener visibles errores, colas y avances cuando requieren atención.",
+      "conservar teclado, foco, nombres accesibles y traducciones en español e inglés.",
+      "usar Material Symbols Outlined empaquetados; conservar el mapache original sin recolorearlo."
     ],
     "donts": [
-      "Restaurar filtros duplicados, pie permanente de atajos o tarjetas para cada mensaje.",
-      "Eliminar funciones o validaciones al reducir etiquetas.",
-      "Añadir fuentes o iconos desde CDN.",
-      "Envolver cada sección de Configuración en tarjetas o añadir gradientes y blur a la paleta."
+      "restaurar filtros duplicados, el pie permanente de atajos ni tarjetas para cada mensaje.",
+      "eliminar validaciones o funciones al reducir etiquetas visibles.",
+      "volver a envolver cada sección de Configuración en una tarjeta ni añadir gradientes o blur a la paleta.",
+      "extender la paleta con valores locales o cargar fuentes e iconos desde CDN."
     ]
   }
 }

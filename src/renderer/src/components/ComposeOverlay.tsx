@@ -94,7 +94,14 @@ export function ComposeOverlay({
   const composerRef = useRef<HTMLDivElement>(null)
   useFocusTrap(composerRef, open && mounted && !minimized)
   const [replyMode, setReplyMode] = useState(reply?.mode ?? 'sender')
-  const [composeTheme, setComposeTheme] = useState<'' | 'light' | 'dark'>('')
+  const [composeTheme, setComposeTheme] = useState<'' | 'light' | 'dark'>(() => {
+    try {
+      const stored = window.localStorage.getItem('namio.composeTheme')
+      return stored === 'light' || stored === 'dark' ? stored : ''
+    } catch {
+      return ''
+    }
+  })
   const [toValue, setToValue] = useState(to)
   const [subjectValue, setSubjectValue] = useState(subject)
   const [priorityValue, setPriorityValue] = useState<MailPriority>(priority)
@@ -291,13 +298,8 @@ export function ComposeOverlay({
               <span className="chip">{t('compose.threadId')}</span>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
-            <Select aria-label={t('compose.theme')} value={composeTheme} onChange={event => setComposeTheme(event.target.value as '' | 'light' | 'dark')}>
-              <option value="">{t('compose.themeApp')}</option>
-              <option value="light">{t('compose.themeLight')}</option>
-              <option value="dark">{t('compose.themeDark')}</option>
-            </Select>
-            {onRestoreDraft && !toValue && !ccValue && !bccValue && !subjectValue && !bodyValue && !picked.length && (
+          <div className="composer__window-actions">
+            {!minimized && onRestoreDraft && !toValue && !ccValue && !bccValue && !subjectValue && !bodyValue && !picked.length && (
               <button className="tool-btn" type="button" onClick={() => {
                 if (sendingRef.current) return
                 sendingRef.current = true
@@ -324,6 +326,19 @@ export function ComposeOverlay({
           <div className="field-row">
             <span className="field-label">{t('compose.from')}</span>
             <span className="composer__sender"><Icon name="alternate_email" size={16} />{sender || t('account.demo')}</span>
+            <Select aria-label={t('compose.theme')} value={composeTheme} onChange={event => {
+                const theme = event.target.value as '' | 'light' | 'dark'
+                setComposeTheme(theme)
+                try {
+                  window.localStorage.setItem('namio.composeTheme', theme)
+                } catch {
+                  // La apariencia sigue funcionando si el almacenamiento no está disponible.
+                }
+              }}>
+              <option value="">{t('compose.themeApp')}</option>
+              <option value="light">{t('compose.themeLight')}</option>
+              <option value="dark">{t('compose.themeDark')}</option>
+            </Select>
           </div>
           <div className="field-row">
             <span className="field-label">{t('compose.to')}</span>

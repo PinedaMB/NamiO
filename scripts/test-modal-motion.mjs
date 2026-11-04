@@ -79,6 +79,16 @@ app.whenReady().then(async()=>{
  assert.equal(await run('getComputedStyle(document.querySelector(".remap")).animationName'),'dialog-out');await until('!document.querySelector(".remap")');
  await run('document.querySelector(".dedication").showModal()');await delay(30);
  assert.equal(await run('document.querySelector(".dedication").getAnimations().length>0'),true,'Dedication entrance');await delay(300);
+ assert.equal(await run('document.activeElement===document.querySelector(".dedication button")'),true,'Dedication focuses the close action');
+ for (const width of [1080, 390]) {
+  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:false});
+  for (const theme of ['light','dark']) {
+   await run('document.documentElement.dataset.appTheme="'+theme+'"');
+   await delay(50);
+   assert.equal(await run('(()=>{const d=document.querySelector(".dedication"),img=d.querySelector("img"),message=d.querySelector(".dedication__message"),a=img.getBoundingClientRect(),b=message.getBoundingClientRect();return img.complete&&img.naturalWidth>0&&d.scrollWidth<=d.clientWidth&&(innerWidth>520?a.right<=b.left:a.bottom<=b.top)})()'),true,'Dedication fits '+width+'px in '+theme);
+  }
+ }
+ await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1080,height:800,deviceScaleFactor:1,mobile:false});
  await run('document.querySelector(".dedication").close()');await delay(25);
  assert.equal(await run('document.querySelector(".dedication").getAnimations().length>0'),true,'Dedication exit');await delay(300);
  await run('window.openModal("color")');await until('!!document.querySelector(".color-picker")');

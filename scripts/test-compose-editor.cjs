@@ -3,9 +3,10 @@ const compile=text=>ts.transpile(text,{module:ts.ModuleKind.CommonJS,target:ts.S
 const addresses={};vm.runInNewContext(compile(fs.readFileSync('src/shared/mailAddresses.ts','utf8')),{exports:addresses})
 const exportsObject={}, state=[],refs=[];let index=0,refIndex=0,effects=[], keyHandler,failSend=false
 const sent=[],closed=[],discarded=[],minimized=[]
+const storage = new Map([['namio.composeTheme', 'dark']])
 vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeOverlay.tsx','utf8')),{
- exports:exportsObject,Error,window:{addEventListener:(_name,fn)=>{keyHandler=fn},removeEventListener(){}},require:id=>{
- if(id==='react')return {...React,useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=initial;return[state[slot],value=>{state[slot]=typeof value==='function'?value(state[slot]):value}]},useRef:initial=>{const slot=refIndex++;return refs[slot]??(refs[slot]={current:initial})},useEffect:fn=>effects.push(fn),useMemo:fn=>fn()}
+ exports:exportsObject,Error,window:{localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},addEventListener:(_name,fn)=>{keyHandler=fn},removeEventListener(){}},require:id=>{
+ if(id==='react')return {...React,useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=typeof initial==='function'?initial():initial;return[state[slot],value=>{state[slot]=typeof value==='function'?value(state[slot]):value}]},useRef:initial=>{const slot=refIndex++;return refs[slot]??(refs[slot]={current:initial})},useEffect:fn=>effects.push(fn),useMemo:fn=>fn()}
  if(id==='@shared/mailAddresses')return addresses
  if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if(id==='../i18n')return{useI18n:()=>({t:(key,values)=>key==='compose.sendToMany'?`${key}:${values.count}`:key})}
@@ -27,6 +28,16 @@ function find(tree,predicate){let result;function visit(node){if(!React.isValidE
 const flush=()=>new Promise(resolve=>setImmediate(resolve))
 ;(async()=>{
  let tree=render()
+ assert.equal(find(tree,n=>n.props['data-compose-theme']).props['data-compose-theme'],'dark','composer restores the saved appearance')
+ assert.ok(find(find(tree,n=>n.props.className==='composer__fields'),n=>n.props['aria-label']==='compose.theme'),'theme selector belongs to the fields')
+ assert.ok(!find(find(tree,n=>n.props.className==='composer__head'),n=>n.props['aria-label']==='compose.theme'),'theme selector does not crowd the window controls')
+ find(tree,n=>n.props['aria-label']==='compose.theme').props.onChange({target:{value:'light'}})
+ assert.equal(storage.get('namio.composeTheme'),'light')
+ state.length=0;refs.length=0
+ tree=render()
+ assert.equal(find(tree,n=>n.props['data-compose-theme']).props['data-compose-theme'],'light','appearance survives remounting')
+ assert.ok(!find(render({minimized:true,onRestoreDraft:async()=>{},subject:'',body:''}),n=>n.type==='button'&&React.Children.toArray(n.props.children).includes('draft.restore')),'minimized header hides draft recovery')
+ tree=render()
  assert.ok(React.Children.toArray(find(tree,n=>n.props.className==='composer__sender').props.children).includes('sender@example.com'),'composer displays the actual sending address')
  assert.ok(!find(tree,n=>n.props['aria-label']==='mail.priority'),'priority is hidden in sending options')
  find(tree,n=>n.props.title==='compose.sendingOptions').props.onClick()

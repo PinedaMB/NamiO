@@ -2124,6 +2124,19 @@
   border-bottom: 1px solid var(--surface-container-highest);
 }
 
+.composer__window-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  flex-shrink: 0;
+}
+
+.composer__sender + .select {
+  width: auto;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .composer__title {
   display: flex;
   align-items: center;
@@ -5601,7 +5614,7 @@
 }
 
 .dedication {
-  width: min(420px, calc(100% - 40px));
+  width: min(640px, calc(100% - 40px));
   max-height: calc(100% - 40px);
   padding: var(--sp-xl);
   border: 0;
@@ -5609,7 +5622,13 @@
   background: var(--surface);
   color: var(--on-surface);
   box-shadow: var(--shadow-lg);
-  text-align: center;
+}
+
+.dedication[open] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-xl);
 }
 
 .dedication::backdrop {
@@ -5619,26 +5638,46 @@
 
 .dedication__portrait {
   display: block;
-  width: auto;
-  max-width: 100%;
-  height: min(280px, 38vh);
-  margin: 0 auto var(--sp-lg);
+  width: 100%;
+  max-height: 360px;
   object-fit: contain;
-  filter: drop-shadow(0 0 10px rgba(192, 193, 255, 0.25));
+}
+
+.dedication__message {
+  min-width: 0;
 }
 
 .dedication h2 {
   margin: 0 0 var(--sp-md);
-  color: var(--primary);
+  font-size: 26px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 .dedication p {
   margin: 0 0 var(--sp-xl);
-  text-wrap: balance;
+  color: var(--on-surface-variant);
+  font-size: 15px;
+  line-height: 1.8;
+  text-wrap: pretty;
 }
 
-.dedication .tool-btn {
-  margin: 0 auto;
+@media (max-width: 520px) {
+  .dedication[open] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-lg);
+    text-align: center;
+  }
+
+  .dedication__portrait {
+    height: min(260px, 34vh);
+  }
+
+  .dedication .tool-btn {
+    margin-inline: auto;
+  }
 }
 
 

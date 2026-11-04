@@ -647,12 +647,14 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
 
       <dialog ref={dedication} className="dedication" aria-labelledby="dedication-title" aria-describedby="dedication-message">
         <img className="dedication__portrait" src={naomi} alt="" />
-        <h2 id="dedication-title">{t('settings.about.dedicationTitle')}</h2>
-        <p id="dedication-message">{t('settings.about.dedicationMessage')}</p>
-        <button className="tool-btn" type="button" autoFocus onClick={() => dedication.current?.close()}>
-          {t('common.close')}
-          <kbd className="kbd">Esc</kbd>
-        </button>
+        <div className="dedication__message">
+          <h2 id="dedication-title">{t('settings.about.dedicationTitle')}</h2>
+          <p id="dedication-message">{t('settings.about.dedicationMessage')}</p>
+          <button className="tool-btn" type="button" autoFocus onClick={() => dedication.current?.close()}>
+            {t('common.close')}
+            <kbd className="kbd">Esc</kbd>
+          </button>
+        </div>
       </dialog>
 
       {remap && (
