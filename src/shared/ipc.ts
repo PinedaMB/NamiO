@@ -19,6 +19,7 @@ export const IPC = {
   copilotStatus: 'copilot:status',
   copilotKey: 'copilot:key',
   copilotConfigure: 'copilot:configure',
+  ollamaModels: 'copilot:ollama-models',
   copilotGenerate: 'copilot:generate',
   copilotCancel: 'copilot:cancel',
   settingsGet: 'settings:get',
@@ -483,6 +484,7 @@ export interface MailApi {
   clearMailCache(accountId: string): Promise<{ canceled: boolean }>
   copilotStatus(): Promise<CopilotStatus>
   configureCopilot(config: CopilotConfig): Promise<void>
+  listOllamaModels(server: string): Promise<string[]>
   setCopilotKey(key: string): Promise<CopilotKeyStorage>
   generateCopilot(input: CopilotRequest): Promise<CopilotResult>
   cancelCopilot(): Promise<void>

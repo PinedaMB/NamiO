@@ -705,7 +705,7 @@ export const es = {
   "ai.saved": "Configuración guardada.",
   "ai.ollamaUrl": "Dirección de Ollama (sin /api)",
   "ai.ollamaModel": "Modelo de Ollama",
-  "ai.ollamaHint": "Inicia Ollama e instala un modelo de texto antes de usarlo. Escribe su nombre tal como aparece en ollama list. No se descargan modelos desde NamiO.",
+  "ai.ollamaHint": "Conecta con tu servidor Ollama y elige uno de sus modelos instalados. NamiO no descarga modelos.",
   "ai.error.configuration": "Revisa el proveedor y su configuración en Configuración → Copiloto IA.",
   "ai.error.model": "Ollama no encontró el modelo. Instálalo y revisa su nombre en Configuración → Copiloto IA.",
   "ai.privacy.ollama": "Al generar, se envían tus instrucciones y el borrador al servidor Ollama configurado. El correo original requiere activar su casilla. Un modelo local se ejecuta en ese servidor; los modelos cloud pueden enviar el texto a la nube.",
@@ -719,6 +719,13 @@ export const es = {
   "ai.reviewHint": "Puede contener errores. Revisa la propuesta antes de sustituir el texto del borrador.",
   "ai.applied": "Propuesta aplicada al borrador.",
 
+  "ai.connectOllama": "Conectar con Ollama",
+  "ai.connectingOllama": "Conectando…",
+  "ai.refreshModels": "Actualizar modelos",
+  "ai.modelsError": "No se pudo consultar Ollama. Comprueba la dirección y que el servidor esté ejecutándose; después vuelve a conectar.",
+  "ai.modelsEmpty": "El servidor no tiene modelos instalados. Instala un modelo de texto en Ollama y actualiza la lista.",
+  "ai.modelsFound": "Modelos disponibles: {count}",
+  "ai.chooseModel": "Elige un modelo",
 } as const
 
 export type TranslationKey = keyof typeof es

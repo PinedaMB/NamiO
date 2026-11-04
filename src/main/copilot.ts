@@ -4,14 +4,32 @@ import type { CopilotConfig, CopilotStatus, CopilotKeyStorage, CopilotRequest, C
 const pending = new Map<number, AbortController>()
 let sessionGeminiKey = ''
 
-function validateConfig(input: CopilotConfig): CopilotConfig {
-  if (!input || !['gemini', 'ollama'].includes(input.provider) || typeof input.ollamaUrl !== 'string' || input.ollamaUrl.length > 2048 ||
-      typeof input.ollamaModel !== 'string' || input.ollamaModel.length > 128 ||
-      (input.ollamaModel && !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/.test(input.ollamaModel)) ||
-      (input.provider === 'ollama' && !input.ollamaModel)) throw new Error('Invalid copilot configuration')
-  const url = new URL(input.ollamaUrl)
+function ollamaUrl(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 2048) throw new Error('Invalid Ollama URL')
+  const url = new URL(value)
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error('Invalid Ollama URL')
-  return { provider: input.provider, ollamaUrl: url.origin, ollamaModel: input.ollamaModel }
+  return url.origin
+}
+
+function validModelName(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 128 && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/.test(value)
+}
+
+export async function listOllamaModels(server: string): Promise<string[]> {
+  const response = await fetch(`${ollamaUrl(server)}/api/tags`, { redirect: 'error', signal: AbortSignal.timeout(15000) })
+  if (!response.ok) throw new Error('Ollama connection failed')
+  const data = await response.json() as { models?: { name?: unknown }[] }
+  if (!Array.isArray(data.models) || data.models.length > 1000) throw new Error('Invalid Ollama response')
+  const names = data.models.map(model => model?.name)
+  if (!names.every(validModelName)) throw new Error('Invalid Ollama model list')
+  return [...new Set(names)].sort()
+}
+
+function validateConfig(input: CopilotConfig): CopilotConfig {
+  if (!input || !['gemini', 'ollama'].includes(input.provider) || typeof input.ollamaModel !== 'string' || input.ollamaModel.length > 128 ||
+      (input.ollamaModel && !validModelName(input.ollamaModel)) ||
+      (input.provider === 'ollama' && !input.ollamaModel)) throw new Error('Invalid copilot configuration')
+  return { provider: input.provider, ollamaUrl: ollamaUrl(input.ollamaUrl), ollamaModel: input.ollamaModel }
 }
 
 export async function copilotStatus(): Promise<CopilotStatus> {

@@ -6257,3 +6257,5 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 .ai-panel__foot p { margin: 0; font-size: 12px; line-height: 18px; }
 .ai-panel__foot .btn, .ai-panel__foot .tool-btn { justify-content: center; min-height: 34px; }
 .ai-panel p.account-error { color: var(--on-error-container); }
+
+.ai-settings .ai-field .select { width: 100%; min-width: 0; }

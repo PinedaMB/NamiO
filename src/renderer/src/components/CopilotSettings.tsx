@@ -3,6 +3,7 @@ import type { CopilotConfig, CopilotKeyStorage } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { PasswordField } from './PasswordField'
 import { Icon } from './Icon'
+import { Select } from './Select'
 
 export function CopilotSettings(): React.JSX.Element {
   const { t } = useI18n()
@@ -14,6 +15,9 @@ export function CopilotSettings(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<'' | 'ai.saveError' | 'ai.keyError'>('')
   const [saved, setSaved] = useState(false)
+  const [models, setModels] = useState<string[] | null>(null)
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState(false)
   useEffect(() => {
     void window.api.copilotStatus?.().then(status => {
       setConfig({ provider: status.provider, ollamaUrl: status.ollamaUrl, ollamaModel: status.ollamaModel })
@@ -21,6 +25,18 @@ export function CopilotSettings(): React.JSX.Element {
       setLoaded(true)
     }).catch(() => setError('ai.saveError'))
   }, [])
+  const connectOllama = async (): Promise<void> => {
+    if (modelsLoading || busy) return
+    setModelsLoading(true)
+    setModelsError(false)
+    setSaved(false)
+    try {
+      const installed = await window.api.listOllamaModels(config.ollamaUrl)
+      setModels(installed)
+      setConfig(current => ({ ...current, ollamaModel: installed.includes(current.ollamaModel) ? current.ollamaModel : '' }))
+    } catch { setModels(null); setModelsError(true) }
+    finally { setModelsLoading(false) }
+  }
   const save = async (): Promise<void> => {
     if (busy) return
     setBusy(true)
@@ -50,7 +66,7 @@ export function CopilotSettings(): React.JSX.Element {
     <h2 className="settings-card__title" id="settings-copilot-title">{t('ai.title')}</h2>
     <p className="settings-card__subtitle">{t('ai.settingsHint')}</p>
     <form className="settings-stack" onChange={() => setSaved(false)} onSubmit={event => { event.preventDefault(); void save() }}>
-      <fieldset disabled={busy || !loaded} className="ai-key-fields">
+      <fieldset disabled={busy || !loaded || modelsLoading} className="ai-key-fields">
         <div className="ai-provider-options" role="group" aria-label={t('ai.provider')}>
           {(['gemini', 'ollama'] as const).map(provider => <label className="ai-provider-choice" key={provider}>
             <input className="sr-only" type="radio" name="ai-provider" value={provider} checked={config.provider === provider} onChange={() => { setConfig(current => ({ ...current, provider })); setSaved(false) }} />
@@ -72,10 +88,19 @@ export function CopilotSettings(): React.JSX.Element {
           </div>
         </> : <>
           <p className="ai-settings__hint">{t('ai.ollamaHint')}</p>
-          <label className="ai-field">{t('ai.ollamaUrl')}<input type="url" required maxLength={2048} value={config.ollamaUrl} onChange={event => setConfig(current => ({ ...current, ollamaUrl: event.target.value.trim() }))} /></label>
-          <label className="ai-field">{t('ai.ollamaModel')}<input required maxLength={128} placeholder="modelo:etiqueta" value={config.ollamaModel} onChange={event => setConfig(current => ({ ...current, ollamaModel: event.target.value.trim() }))} /></label>
+          <label className="ai-field">{t('ai.ollamaUrl')}<input type="url" required maxLength={2048} value={config.ollamaUrl} onChange={event => { setConfig(current => ({ ...current, ollamaUrl: event.target.value.trim(), ollamaModel: '' })); setModels(null); setModelsError(false) }} /></label>
+          <button className="btn btn--surface" type="button" onClick={() => void connectOllama()}>{modelsLoading && <Icon name="progress_activity" size={16} className="spin" />}{t(modelsLoading ? 'ai.connectingOllama' : models === null ? 'ai.connectOllama' : 'ai.refreshModels')}</button>
+          {modelsError && <p className="account-error" role="alert">{t('ai.modelsError')}</p>}
+          {models !== null && <p className="ai-settings__status" role="status">{models.length ? t('ai.modelsFound', { count: models.length }) : t('ai.modelsEmpty')}</p>}
+          <label className="ai-field">{t('ai.ollamaModel')}
+            <Select required value={config.ollamaModel} disabled={!models?.length} onChange={event => setConfig(current => ({ ...current, ollamaModel: event.target.value }))}>
+              <option value="">{t('ai.chooseModel')}</option>
+              {models === null && config.ollamaModel && <option value={config.ollamaModel}>{config.ollamaModel}</option>}
+              {models?.map(model => <option key={model} value={model}>{model}</option>)}
+            </Select>
+          </label>
         </>}
-        <div className="ai-actions"><button className="btn btn--primary" type="submit">{busy && <Icon name="progress_activity" size={16} className="spin" />}{t('ai.save')}</button></div>
+        <div className="ai-actions"><button className="btn btn--primary" type="submit" disabled={config.provider === 'ollama' && !config.ollamaModel}>{busy && <Icon name="progress_activity" size={16} className="spin" />}{t('ai.save')}</button></div>
       </fieldset>
       {saved && <p role="status">{t(keyStorage === 'session' && config.provider === 'gemini' ? 'ai.savedSession' : 'ai.saved')}</p>}
       {error && <p className="account-error" role="alert">{t(error)}</p>}

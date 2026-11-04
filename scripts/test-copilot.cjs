@@ -6,7 +6,7 @@ const compiled = ts.transpile(fs.readFileSync('src/main/copilot.ts', 'utf8'), {m
 const exported = {}
 let settings = {}, canEncrypt = true, calls = [], response = { candidates: [{finishReason:'STOP',content:{parts:[{text:'Hidden thought',thought:true},{text:'Hello <script>literal</script>'}]}}] }, status = 200, hold = false, writeFails = false
 vm.runInNewContext(compiled, {
- exports: exported, URL, AbortController, setTimeout, clearTimeout,
+ exports: exported, URL, AbortSignal, AbortController, setTimeout, clearTimeout,
  require: id => {
   assert.equal(id,'./settings')
   return {
@@ -104,5 +104,18 @@ const input={provider:'gemini',action:'draft',prompt:'Write a reply',body:'Draft
  await exported.configureCopilot({...config,provider:'gemini'})
  response={candidates:[{finishReason:'STOP',content:{parts:[{text:'Cloud proposal'}]}}]}
  assert.equal((await exported.generateCopilot(1,input)).text,'Cloud proposal','Switching back to Gemini works')
+ status=200;response={models:[{name:'qwen2.5:3b'},{name:'test/model:latest'},{name:'qwen2.5:3b'}]}
+ assert.deepEqual(Array.from(await exported.listOllamaModels('http://localhost:11434/')),['qwen2.5:3b','test/model:latest'])
+ assert.equal(calls.at(-1).url,'http://localhost:11434/api/tags')
+ assert.equal(calls.at(-1).options.headers,undefined,'Listing models does not transmit Gemini credentials')
+ assert.equal(calls.at(-1).options.redirect,'error')
+ for(const server of [null,{},'file:///tmp/file','http://user:secret@localhost:11434','http://localhost:11434/api']) {
+  const count=calls.length;await assert.rejects(exported.listOllamaModels(server));assert.equal(calls.length,count,'Invalid server is rejected before networking')
+ }
+ response={models:[]};assert.equal((await exported.listOllamaModels('http://localhost:11434')).length,0)
+ for(const invalid of [{},{models:[null]},{models:[{name:'bad model'}]},{models:[{name:1}]},{models:'bad'}]) {
+  response=invalid;await assert.rejects(exported.listOllamaModels('http://localhost:11434'))
+ }
+ status=500;await assert.rejects(exported.listOllamaModels('http://localhost:11434'))
  console.log('Copilot providers: Gemini/Ollama routing, configuration, retained credentials, encrypted key, removal, validation, bounded requests, safe output, HTTP errors and owner-scoped cancellation passed')
 })().catch(error=>{console.error(error);process.exitCode=1})

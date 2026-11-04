@@ -24,8 +24,8 @@ import '${project}/node_modules/@fontsource-variable/inter/index.css';
 import '${project}/node_modules/material-symbols/outlined.css';
 localStorage.setItem('namio.language','es');
 let configured=false,finish;let config={provider:'gemini',ollamaUrl:'http://127.0.0.1:11434',ollamaModel:''};
-window.inputs=[];window.cancels=0;
-window.api={getSettings:async()=>({language:'es'}),setSettings:async()=>{},copilotStatus:async()=>({...config,hasGeminiKey:configured,geminiKeyStorage:configured?(window.sessionOnly?'session':'encrypted'):'none'}),configureCopilot:async next=>{config={...next};window.savedConfig=config},
+window.inputs=[];window.cancels=0;window.modelRequests=[];window.installedModels=['qwen2.5:3b','test-local:latest'];
+window.api={listOllamaModels:async server=>{window.modelRequests.push(server);if(window.modelsFail)throw Error('Connection refused');return window.installedModels},getSettings:async()=>({language:'es'}),setSettings:async()=>{},copilotStatus:async()=>({...config,hasGeminiKey:configured,geminiKeyStorage:configured?(window.sessionOnly?'session':'encrypted'):'none'}),configureCopilot:async next=>{config={...next};window.savedConfig=config},
  setCopilotKey:async key=>{if(key.includes(' '))throw Error('Invalid API key');configured=!!key;window.lastKey=key;return configured?(window.sessionOnly?'session':'encrypted'):'none'},generateCopilot:async input=>{window.inputs.push(input);return new Promise(resolve=>{finish=resolve})},cancelCopilot:async()=>{window.cancels++;finish?.({error:'canceled'})}};
 window.resolveProposal=result=>finish(result);
 function Harness(){const [settings,setSettings]=useState(true);const [minimized,setMinimized]=useState(false);window.showSettings=setSettings;
@@ -76,9 +76,16 @@ app.whenReady().then(async()=>{
  const provider=value=>document.querySelector('input[name="ai-provider"][value="'+value+'"]').click();
  provider('ollama');await until(()=>document.querySelector('input[type=url]'));
  change(document.querySelector('input[type=url]'),'http://127.0.0.1:11434');
- change(document.querySelector('input[placeholder="modelo:etiqueta"]'),'test-local:latest');await tick();
+ assert(window.modelRequests.length===0,'Ollama is queried only when connecting');
+ window.modelsFail=true;button('Conectar con Ollama').click();await until(()=>document.querySelector('[role=alert]')?.textContent.includes('No se pudo consultar Ollama'));await tick();
+ window.modelsFail=false;window.installedModels=[];button('Conectar con Ollama').click();await until(()=>document.querySelector('[role=status]')?.textContent.includes('no tiene modelos'));await tick();
+ assert(button('Guardar configuración').disabled,'An empty server cannot save a missing model');
+ window.installedModels=['qwen2.5:3b','test-local:latest'];button('Actualizar modelos').click();await until(()=>!document.querySelector('.ai-field select').disabled);await tick();
+ assert(window.modelRequests.at(-1)==='http://127.0.0.1:11434','Models are queried from the configured address');
+ change(document.querySelector('.ai-field select'),'test-local:latest');await tick();
  button('Guardar configuración').click();await until(()=>window.savedConfig?.provider==='ollama');await tick();
  assert(window.savedConfig.ollamaModel==='test-local:latest','Ollama model saved');
+ button('Actualizar modelos').click();await until(()=>!document.querySelector('fieldset').disabled);await tick();assert(document.querySelector('.ai-field select').value==='test-local:latest','Refreshing preserves the selected installed model');
  provider('gemini');await until(()=>button('Eliminar clave'));
  assert(document.querySelector('[role=status]').textContent.includes('Clave guardada'),'Gemini key retained when switching');
  button('Guardar configuración').click();await until(()=>window.savedConfig.provider==='gemini');await tick();
@@ -93,7 +100,7 @@ app.whenReady().then(async()=>{
  await until(()=>document.querySelector('[role=alert]')?.textContent.includes('formato no válido'));
 
  provider('ollama');await until(()=>document.querySelector('input[type=url]'));
- assert(document.querySelector('input[placeholder="modelo:etiqueta"]').value==='test-local:latest','Ollama config retained');
+ assert(document.querySelector('.ai-field select').value==='test-local:latest','Ollama config retained');
  button('Guardar configuración').click();await until(()=>window.savedConfig.provider==='ollama');await tick();
  window.showSettings(false);await until(()=>document.querySelector('.tiptap')?.editor);
  document.querySelector('.composer__editor-heading button').click();await until(()=>document.querySelector('.ai-panel textarea'));

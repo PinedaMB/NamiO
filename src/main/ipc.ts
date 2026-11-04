@@ -1,4 +1,4 @@
-import { copilotStatus, configureCopilot, setCopilotKey, generateCopilot, cancelCopilot } from './copilot'
+import { copilotStatus, configureCopilot, listOllamaModels, setCopilotKey, generateCopilot, cancelCopilot } from './copilot'
 import { attachmentPreview } from './attachmentPreview'
 import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
 import { setBackgroundMode } from './background'
@@ -115,6 +115,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.notificationTest, () => testNotification())
 
+  ipcMain.handle(IPC.ollamaModels, (_event, server: string) => listOllamaModels(server))
   ipcMain.handle(IPC.copilotConfigure, (_event, config) => configureCopilot(config))
   ipcMain.handle(IPC.copilotStatus, () => copilotStatus())
   ipcMain.handle(IPC.copilotKey, (_event, key: string) => setCopilotKey(key))

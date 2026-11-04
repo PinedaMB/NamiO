@@ -64,6 +64,7 @@ const api: MailApi = {
   suggestRecipients: (query: string): Promise<RecipientSuggestion[]> => ipcRenderer.invoke(IPC.recipientSuggestions, query),
   clearMailCache: (accountId: string): Promise<{ canceled: boolean }> => ipcRenderer.invoke(IPC.cacheClear, accountId),
   getCoreStatus: (): Promise<CoreStatus> => ipcRenderer.invoke(IPC.coreStatus),
+  listOllamaModels: (server: string) => ipcRenderer.invoke(IPC.ollamaModels, server),
   configureCopilot: (config: CopilotConfig) => ipcRenderer.invoke(IPC.copilotConfigure, config),
   copilotStatus: () => ipcRenderer.invoke(IPC.copilotStatus),
   setCopilotKey: (key: string) => ipcRenderer.invoke(IPC.copilotKey, key),

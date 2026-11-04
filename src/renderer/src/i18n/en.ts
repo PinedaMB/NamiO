@@ -702,7 +702,7 @@ export const en: Dictionary = {
   "ai.saved": "Settings saved.",
   "ai.ollamaUrl": "Ollama address (without /api)",
   "ai.ollamaModel": "Ollama model",
-  "ai.ollamaHint": "Start Ollama and install a text model first. Enter its name as shown by ollama list. NamiO does not download models.",
+  "ai.ollamaHint": "Connect to your Ollama server and choose one of its installed models. NamiO does not download models.",
   "ai.error.configuration": "Check the provider and its settings in Settings → AI Copilot.",
   "ai.error.model": "Ollama could not find the model. Install it and check its name in Settings → AI Copilot.",
   "ai.privacy.ollama": "Generating sends your instructions and draft to the configured Ollama server. Including the original email requires enabling its checkbox. Local models run on that server; cloud models may send the text to the cloud.",
@@ -716,4 +716,11 @@ export const en: Dictionary = {
   "ai.reviewHint": "May contain mistakes. Review the proposal before replacing the draft text.",
   "ai.applied": "Proposal applied to the draft.",
 
+  "ai.connectOllama": "Connect to Ollama",
+  "ai.connectingOllama": "Connecting…",
+  "ai.refreshModels": "Refresh models",
+  "ai.modelsError": "Could not query Ollama. Check the address and that the server is running, then connect again.",
+  "ai.modelsEmpty": "The server has no installed models. Install a text model in Ollama and refresh the list.",
+  "ai.modelsFound": "Available models: {count}",
+  "ai.chooseModel": "Choose a model",
 }
