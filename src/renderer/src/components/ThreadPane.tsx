@@ -410,7 +410,7 @@ export function ThreadPane({
       </div>
       <div className="quick-reply">
         <div className="quick-reply__actions">
-          <TooltipButton className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} disabled title={t('thread.quickDraftSoon')}>
+          <TooltipButton className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} title={t('thread.quickDraft')}>
             <Icon name="bolt" size={14} />
             {t('thread.quickDraft')}
           </TooltipButton>

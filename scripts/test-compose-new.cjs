@@ -64,5 +64,10 @@ const load=name=>vm.runInNewContext(ts.transpile(`(${declarations.get(name)})`,{
    assert.equal(context.selected.subject,subject,'received message subjects remain unchanged')
   }
  }
+ context.compose=null
+ load('openReply')('',false,true)
+ assert.equal(value.aiOpen,true,'AI quick draft opens the copilot with the reply')
+ assert.equal(quoteArgs[0],'','AI reply starts without invented reply text')
+ assert.equal(value.inReplyTo,'<reply-target>','AI reply targets the selected message')
  console.log('New compose: fresh content and instance per message, with explicit draft restoration passed')
 })().catch(error=>{console.error(error);process.exitCode=1})

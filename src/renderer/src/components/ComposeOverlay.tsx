@@ -45,6 +45,7 @@ interface ComposeOverlayProps {
   /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
   copilot?: boolean
   ai?: boolean
+  initialAiOpen?: boolean
   onClose: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
   onSend: (payload: Omit<Draft, 'updatedAt'>) => Promise<void>
   /** Abre el diálogo del sistema; solo existe con cuenta real. */
@@ -87,6 +88,7 @@ export function ComposeOverlay({
   onRestoreDraft,
   copilot = true,
   ai = false,
+  initialAiOpen = false,
   onClose,
   onSend,
   onPickAttachments
@@ -133,7 +135,7 @@ export function ComposeOverlay({
   const [sendOptionsOpen, setSendOptionsOpen] = useState(false)
   const sendOptionsRef = useRef<HTMLDivElement>(null)
   const sendCaretRef = useRef<HTMLButtonElement>(null)
-  const [aiOpen, setAiOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(initialAiOpen)
   const [expanded, setExpanded] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
   const [tone, setTone] = useState<TranslationKey>('compose.toneDirect')

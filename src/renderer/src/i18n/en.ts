@@ -200,7 +200,6 @@ export const en: Dictionary = {
   'mail.showImages': 'Show images',
   'mail.frameTitle': 'Message body',
   'thread.quickDraft': 'AI Quick Draft',
-  'thread.quickDraftSoon': 'Coming soon',
   'thread.star': 'Star (S)',
   'thread.unstar': 'Unstar (S)',
   'thread.previous': 'Previous (K)',

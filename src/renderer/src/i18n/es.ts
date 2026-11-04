@@ -203,7 +203,6 @@ export const es = {
   'mail.showImages': 'Mostrar imágenes',
   'mail.frameTitle': 'Cuerpo del mensaje',
   'thread.quickDraft': 'Borrador IA',
-  'thread.quickDraftSoon': 'Disponible próximamente',
   'thread.star': 'Destacar (S)',
   'thread.unstar': 'Quitar destacado (S)',
   'thread.previous': 'Anterior (K)',

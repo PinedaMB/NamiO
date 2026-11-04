@@ -30,6 +30,7 @@ const envelope={uid:7,messageId:'<draft@example.test>',subject:remote.subject,fr
 const boxes=[{path:'Sent',name:'Sent',specialUse:String.fromCharCode(92)+'Sent',messages:0,unseen:0},{path:'INBOX',name:'INBOX',specialUse:String.fromCharCode(92)+'Inbox',messages:0,unseen:0},{path:'Drafts',name:'Drafts',specialUse:String.fromCharCode(92)+'Drafts',messages:1,unseen:0},{path:'Spam',name:'Spam',specialUse:String.fromCharCode(92)+'Junk',messages:2,unseen:0},{path:'Trash',name:'Trash',specialUse:String.fromCharCode(92)+'Trash',messages:2,unseen:0}];
 const noop=()=>()=>{};const notify=()=>listeners.forEach(fn=>fn('*'));
 contextBridge.exposeInMainWorld('api',{
+ copilotStatus:async()=>({provider:'gemini',ollamaUrl:'http://127.0.0.1:11434',ollamaModel:'',hasGeminiKey:false,geminiKeyStorage:'none'}),
  getSettings:async()=>({onboarded:true,language:'es'}),setSettings:async()=>{},getCoreStatus:async()=>({appVersion:'test',stage:'M8',cacheUsage:null}),
  accountStatus:async()=>({configured:true,connected:true,passwordStored:true,account:{host:'mail.example.test',port:993,secure:true,user:'author@example.test',smtp:{host:'mail.example.test',port:465,secure:true}}}),
  accounts:async()=>[{id:'one',label:'Test',active:true,user:'author@example.test',host:'mail.example.test',port:993,auth:'password'}],checkAccounts:async()=>[],listOutbox:async()=>[...(deletionJob?[deletionJob]:[]),...(pendingSend?[pendingSend]:[])],setTestPendingSend:async status=>{pendingSend=status?{id:"sending-test",kind:"send",status,attempts:0,lastError:null,createdAt:Date.now(),label:"Envío en curso",send:{to:"recipient@example.test",cc:"",subject:"Envío en curso",text:"Contenido pendiente",html:"<p>Contenido pendiente</p>",hasAttachments:false}}:null;outboxListeners.forEach(fn=>fn())},syncProgress:async()=>syncProgressState,senderLogo:async()=>null,
@@ -539,6 +540,14 @@ app.whenReady().then(async()=>{
  await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes('Disponibles sin conexión 1/2'),'Offline body progress is unclear');
  await window.api.testSyncProgress(null);
  console.log('Offline recovery: cached body, explicit missing-body state, no network reads while offline, DNS banner and automatic online retry passed');
+ const quickDraft=document.querySelector('.quick-reply__ai');
+ if(!quickDraft||quickDraft.disabled)throw new Error('AI quick draft must be enabled');
+ quickDraft.click();await until(()=>document.querySelector('.ai-panel textarea')&&document.querySelector('.tiptap')?.editor,'AI quick draft did not open the copilot');
+ if(document.querySelector('#composer-ai').hidden)throw new Error('AI quick draft hides the copilot');
+ if(document.querySelector('.tiptap').editor.getText().trim()!=='')throw new Error('AI quick draft inserted demo content into a real reply');
+ if(!document.querySelector('.composer__history'))throw new Error('AI reply lost the original message');
+ document.querySelector('.composer__foot .btn--danger').click();await until(()=>!document.querySelector('.composer'),'AI reply did not discard');
+
 
  document.querySelector('[data-mailbox="Drafts"]').click();
  await until(()=>card('Pendiente local')&&card('Borrador servidor'),'Drafts list did not combine remote and pending drafts');

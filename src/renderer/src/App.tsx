@@ -45,7 +45,7 @@ import { actionForCombo, comboFromEvent } from './settings/shortcuts'
 import { replyComposeHtml } from './lib/composeHtml'
 import { formatElapsed, formatMessageDateTime } from './lib/dates'
 
-type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string; reply?: ReplyContext }
+type ComposeState = Omit<Draft, 'updatedAt' | 'cc'> & { cc?: string; reply?: ReplyContext; aiOpen?: boolean }
 
 type View = 'mailbox' | 'settings'
 
@@ -1226,7 +1226,7 @@ export function App(): React.JSX.Element {
     setToast(selected.starred ? t('toast.unstarred') : t('toast.starred'))
   }
 
-  const openReply = (body = '', replyAll = false): void => {
+  const openReply = (body = '', replyAll = false, aiOpen = false): void => {
     if (compose) { setComposeMinimized(false); setToast(t('compose.finishFirst')); return }
     if (!selected) return
     setComposeMinimized(false)
@@ -1253,6 +1253,7 @@ export function App(): React.JSX.Element {
       to,
       cc,
       reply: { mode: replyAll ? 'all' : 'sender', sender: sender?.email ?? '', to: allTo, cc: allCc },
+      aiOpen,
       subject: prefix,
       inReplyTo: message?.messageId,
       references: [...new Set([...(message?.references ?? []), message?.inReplyTo, message?.messageId].filter((id): id is string => Boolean(id)))],
@@ -1722,7 +1723,7 @@ export function App(): React.JSX.Element {
                   onReplyAll={() => openReply('', true)}
                   savingAttachment={savingAttachment}
                   onOpenAttachment={openAttachment}
-                  onQuickDraft={() => openReply(COPILOT_DRAFT)}
+                  onQuickDraft={() => openReply(live ? '' : COPILOT_DRAFT, false, live)}
                   onPrev={() => step(-1)}
                   onNext={() => step(1)}
                 />
@@ -1803,6 +1804,7 @@ export function App(): React.JSX.Element {
         priority={compose?.priority}
         copilot={!live}
         ai={live}
+        initialAiOpen={compose?.aiOpen}
         onRestoreDraft={live ? restoreDraft : undefined}
         onClose={async values => {
           const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length
