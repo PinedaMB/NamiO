@@ -1723,6 +1723,7 @@ export function App(): React.JSX.Element {
                   onReplyAll={() => openReply('', true)}
                   savingAttachment={savingAttachment}
                   onOpenAttachment={openAttachment}
+                  ai={live}
                   onQuickDraft={() => openReply(live ? '' : COPILOT_DRAFT, false, live)}
                   onPrev={() => step(-1)}
                   onNext={() => step(1)}

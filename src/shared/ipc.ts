@@ -113,9 +113,12 @@ export interface CopilotStatus extends CopilotConfig {
   hasGeminiKey: boolean
 }
 
+export type CopilotAction = 'draft' | 'improve' | 'shorten' | 'expand' | 'correct' | 'translate' | 'summarize' | 'tasks'
+
 export interface CopilotRequest {
   provider: CopilotConfig['provider']
-  action: 'draft' | 'improve'
+  action: CopilotAction
+  targetLocale?: 'es' | 'en'
   prompt: string
   body: string
   context: string

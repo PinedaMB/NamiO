@@ -540,6 +540,10 @@ app.whenReady().then(async()=>{
  await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes('Disponibles sin conexión 1/2'),'Offline body progress is unclear');
  await window.api.testSyncProgress(null);
  console.log('Offline recovery: cached body, explicit missing-body state, no network reads while offline, DNS banner and automatic online retry passed');
+ const analysisButton=document.querySelector('.reading__toolbar [aria-controls="thread-copilot"]');
+ if(!analysisButton)throw new Error('Thread AI analysis action missing');
+ analysisButton.click();await until(()=>document.querySelector('#thread-copilot .ai-panel')&&!document.querySelector('#thread-copilot').hidden,'Thread AI analysis did not open');
+ analysisButton.click();await until(()=>document.querySelector('#thread-copilot').hidden,'Thread AI analysis did not hide');
  const quickDraft=document.querySelector('.quick-reply__ai');
  if(!quickDraft||quickDraft.disabled)throw new Error('AI quick draft must be enabled');
  quickDraft.click();await until(()=>document.querySelector('.ai-panel textarea')&&document.querySelector('.tiptap')?.editor,'AI quick draft did not open the copilot');

@@ -75,6 +75,7 @@ vm.runInNewContext(compile('src/renderer/src/components/ThreadPane.tsx'), { expo
   if (id === '../i18n') return { useI18n: () => ({ t: (key, values) => key === 'thread.moreAttachments' ? `+${values.count} more` : key, locale: 'es' }) }
   if (id === '../settings/shortcuts') return { formatCombo: () => '' }
   if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
+  if (id === './ThreadCopilot') return { ThreadCopilot: () => null }
   if (id === './RecipientsDialog') return { RecipientsDialog: () => null }
   if (id === './EmailBody') return { EmailBody: () => null }
   if (id === './SenderAvatar') return { SenderAvatar: () => null }

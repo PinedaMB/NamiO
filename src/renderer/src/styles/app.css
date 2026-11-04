@@ -6259,3 +6259,11 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 .ai-panel p.account-error { color: var(--on-error-container); }
 
 .ai-settings .ai-field .select { width: 100%; min-width: 0; }
+
+.ai-rewrite-actions { display: flex; flex-wrap: wrap; gap: var(--sp-sm); margin-top: var(--sp-md); }
+.ai-translate { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-sm); margin-top: var(--sp-md); }
+.ai-translate .select { width: auto; min-width: 120px; }
+.thread-copilot { max-height: min(640px, 70vh); margin-bottom: var(--sp-xl); border: 1px solid var(--surface-container-highest); border-radius: var(--r-lg); overflow: hidden; }
+#thread-copilot > p { padding: var(--sp-md); color: var(--on-surface-variant); }
+
+.thread-copilot .ai-panel { height: auto; max-height: inherit; }

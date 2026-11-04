@@ -726,6 +726,21 @@ export const es = {
   "ai.modelsEmpty": "El servidor no tiene modelos instalados. Instala un modelo de texto en Ollama y actualiza la lista.",
   "ai.modelsFound": "Modelos disponibles: {count}",
   "ai.chooseModel": "Elige un modelo",
+  "ai.threadTitle": "Resumen y pendientes",
+  "ai.rewriteActions": "Acciones de redacción",
+  "ai.shorten": "Acortar",
+  "ai.expand": "Ampliar",
+  "ai.correct": "Corregir",
+  "ai.translate": "Traducir",
+  "ai.targetLanguage": "Idioma de traducción",
+  "ai.summarize": "Resumir hilo",
+  "ai.tasks": "Extraer pendientes",
+  "ai.threadPrivacy": "Al pulsar una acción se envían al proveedor activo el asunto, los remitentes, las fechas y el texto de los mensajes cargados de este hilo. No se incluyen adjuntos ni otros correos.",
+  "ai.threadChanged": "El hilo cambió. Genera otro resultado para incluir los cambios.",
+  "ai.analysisReview": "Resultado generado por IA. Verifica los datos y las fechas; no se ejecutan tareas ni se envían mensajes.",
+  "ai.threadIncomplete": "Espera a que termine de cargar el hilo. Si faltan cuerpos, vuelve a descargarlos antes de analizarlo.",
+  "ai.threadTooLong": "El texto de este hilo supera el límite de 40 000 caracteres para el análisis.",
+
 } as const
 
 export type TranslationKey = keyof typeof es

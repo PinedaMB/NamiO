@@ -8,18 +8,20 @@ interface Props {
   body: string
   revision: string
   context: string
-  onApply: (text: string) => { revision: string; undo: () => void }
+  mode?: 'compose' | 'thread'
+  onApply?: (text: string) => { revision: string; undo: () => void }
 }
 
-export function CopilotPanel({ body, revision, context, onApply }: Props): React.JSX.Element {
+export function CopilotPanel({ body, revision, context, onApply, mode = 'compose' }: Props): React.JSX.Element {
   const { t, locale } = useI18n()
   const [status, setStatus] = useState<CopilotStatus | null>(null)
   const [prompt, setPrompt] = useState('')
+  const [targetLocale, setTargetLocale] = useState<'es' | 'en'>(locale === 'es' ? 'en' : 'es')
   const [tone, setTone] = useState<CopilotRequest['tone']>('direct')
   const [includeContext, setIncludeContext] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [proposal, setProposal] = useState<{ text: string; source: string } | null>(null)
+  const [proposal, setProposal] = useState<{ text: string; source: string; action: CopilotRequest['action'] } | null>(null)
   const [applied, setApplied] = useState(false)
   const [appliedRevision, setAppliedRevision] = useState('')
   const undo = useRef<(() => void) | null>(null)
@@ -42,10 +44,10 @@ export function CopilotPanel({ body, revision, context, onApply }: Props): React
     setApplied(false)
     const source = revision
     try {
-      const result = await window.api.generateCopilot({ provider: status.provider, action, prompt, body, context: includeContext ? context : '', tone, locale })
+      const result = await window.api.generateCopilot({ provider: status.provider, action, targetLocale, prompt: mode === 'thread' ? '' : prompt, body, context: includeContext ? context : '', tone, locale })
       if (!mounted.current) return
       if (result.error) setError(t(`ai.error.${result.error}`))
-      else setProposal({ text: result.text, source })
+      else setProposal({ text: result.text, source, action })
     } catch { if (mounted.current) setError(t('ai.error.service')) }
     finally {
       active.current = false
@@ -57,11 +59,12 @@ export function CopilotPanel({ body, revision, context, onApply }: Props): React
     <header className="ai-panel__head">
       <div className="ai-provider-heading">
         {status && <span className={`provider-icon provider-icon--${status.provider}`} aria-hidden="true" />}
-        <div><h3>{t('ai.title')}</h3>{status && <p>{status.provider === 'gemini' ? 'Gemini · 3.6 Flash' : `Ollama · ${status.ollamaModel}`}</p>}</div>
+        <div><h3>{t(mode === 'thread' ? 'ai.threadTitle' : 'ai.title')}</h3>{status && <p>{status.provider === 'gemini' ? 'Gemini · 3.6 Flash' : `Ollama · ${status.ollamaModel}`}</p>}</div>
       </div>
     </header>
     <div className="ai-panel__scroll">
-      {status && <details className="ai-panel__privacy"><summary><Icon name="shield" size={14} />{t('ai.dataShared')}<Icon name="expand_more" size={16} className="ai-panel__privacy-chevron" /></summary><p>{t(status.provider === 'gemini' ? 'ai.privacy' : 'ai.privacy.ollama')}</p></details>}
+      {status && mode === 'compose' && <details className="ai-panel__privacy"><summary><Icon name="shield" size={14} />{t('ai.dataShared')}<Icon name="expand_more" size={16} className="ai-panel__privacy-chevron" /></summary><p>{t(status.provider === 'gemini' ? 'ai.privacy' : 'ai.privacy.ollama')}</p></details>}
+      {mode === 'compose' && <>
       <label className="ai-field">{t('compose.voice')}
         <Select value={tone} disabled={busy} onChange={event => setTone(event.target.value as CopilotRequest['tone'])}>
           <option value="direct">{t('compose.toneDirect')}</option>
@@ -79,18 +82,36 @@ export function CopilotPanel({ body, revision, context, onApply }: Props): React
         <button className="tool-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate('improve')}>{t('ai.improve')}</button>
         {busy && <button className="tool-btn" type="button" onClick={() => void window.api.cancelCopilot().catch(() => setError(t('ai.error.service')))}>{t('ai.cancel')}</button>}
       </div>
+      <div className="ai-rewrite-actions" role="group" aria-label={t('ai.rewriteActions')}>
+        {(['shorten', 'expand', 'correct'] as const).map(action => <button key={action} className="micro-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate(action)}>{t(`ai.${action}`)}</button>)}
+      </div>
+      <div className="ai-translate">
+        <Select aria-label={t('ai.targetLanguage')} value={targetLocale} disabled={busy} onChange={event => setTargetLocale(event.target.value as 'es' | 'en')}>
+          <option value="es">Español</option><option value="en">English</option>
+        </Select>
+        <button className="tool-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate('translate')}><Icon name="translate" size={16} />{t('ai.translate')}</button>
+      </div>
+      </>}
+      {mode === 'thread' && <>
+        <p>{t('ai.threadPrivacy')}</p>
+        <div className="ai-actions ai-panel__generate">
+          <button className="btn btn--primary" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate('summarize')}>{t('ai.summarize')}</button>
+          <button className="tool-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate('tasks')}>{t('ai.tasks')}</button>
+          {busy && <button className="tool-btn" type="button" onClick={() => void window.api.cancelCopilot().catch(() => setError(t('ai.error.service')))}>{t('ai.cancel')}</button>}
+        </div>
+      </>}
       {busy && <p className="ai-panel__progress" role="status"><Icon name="progress_activity" size={16} className="spin" />{t('compose.generating')}</p>}
       {error && <p className="account-error" role="alert">{error}</p>}
       {proposal && <section className="ai-panel__result" aria-label={t('ai.proposal')}>
-        <h4>{t('ai.proposal')}</h4>
+        <h4>{t(mode === 'thread' ? proposal.action === 'tasks' ? 'ai.tasks' : 'ai.summarize' : 'ai.proposal')}</h4>
         <div className="ai-proposal" tabIndex={0}>{proposal.text}</div>
       </section>}
     </div>
     {proposal && <footer className="ai-panel__foot">
-      <p role="status">{t(changed ? 'ai.changed' : applied ? 'ai.applied' : 'ai.reviewHint')}</p>
-      {applied
+      <p role="status">{t(mode === 'thread' ? changed ? 'ai.threadChanged' : 'ai.analysisReview' : changed ? 'ai.changed' : applied ? 'ai.applied' : 'ai.reviewHint')}</p>
+      {mode === 'compose' && onApply && (applied
         ? <button className="tool-btn" type="button" disabled={Boolean(changed)} onClick={() => { undo.current?.(); setApplied(false) }}><Icon name="undo" size={16} />{t('ai.undo')}</button>
-        : <button className="btn btn--primary" type="button" disabled={Boolean(changed) || busy} onClick={() => { const result = onApply(proposal.text); undo.current = result.undo; setAppliedRevision(result.revision); setApplied(true) }}><Icon name="input" size={16} />{t('compose.apply')}</button>}
+        : <button className="btn btn--primary" type="button" disabled={Boolean(changed) || busy} onClick={() => { const result = onApply(proposal.text); undo.current = result.undo; setAppliedRevision(result.revision); setApplied(true) }}><Icon name="input" size={16} />{t('compose.apply')}</button>)}
     </footer>}
   </aside>
 }

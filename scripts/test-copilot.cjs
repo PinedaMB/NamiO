@@ -104,6 +104,17 @@ const input={provider:'gemini',action:'draft',prompt:'Write a reply',body:'Draft
  await exported.configureCopilot({...config,provider:'gemini'})
  response={candidates:[{finishReason:'STOP',content:{parts:[{text:'Cloud proposal'}]}}]}
  assert.equal((await exported.generateCopilot(1,input)).text,'Cloud proposal','Switching back to Gemini works')
+ for(const [action,instruction] of [['shorten','Shorten the draft'],['expand','Expand the wording'],['correct','Correct only spelling'],['translate','Translate the draft faithfully into English'],['summarize','Summarize the email thread'],['tasks','Extract only explicit pending tasks']]) {
+  assert.ok((await exported.generateCopilot(1,{...input,action,targetLocale:'en'})).text)
+  const request=JSON.parse(calls.at(-1).options.body)
+  assert.ok(request.systemInstruction.parts[0].text.includes(instruction),'Each action has its own trusted task instruction')
+  assert.equal(JSON.parse(request.contents[0].parts[0].text).action,action)
+ }
+ const beforeInvalid=calls.length
+ assert.equal((await exported.generateCopilot(1,{...input,action:'translate'})).error,'invalid')
+ assert.equal((await exported.generateCopilot(1,{...input,action:'translate',targetLocale:'unknown'})).error,'invalid')
+ assert.equal((await exported.generateCopilot(1,{...input,action:'tasks',body:''})).error,'invalid')
+ assert.equal(calls.length,beforeInvalid,'Invalid actions never reach the provider')
  status=200;response={models:[{name:'qwen2.5:3b'},{name:'test/model:latest'},{name:'qwen2.5:3b'}]}
  assert.deepEqual(Array.from(await exported.listOllamaModels('http://localhost:11434/')),['qwen2.5:3b','test/model:latest'])
  assert.equal(calls.at(-1).url,'http://localhost:11434/api/tags')

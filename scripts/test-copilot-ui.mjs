@@ -15,6 +15,7 @@ try {
 import React,{useState} from '${project}/node_modules/react';
 import {createRoot} from '${project}/node_modules/react-dom/client';
 import {ComposeOverlay} from '${project}/src/renderer/src/components/ComposeOverlay';
+import {ThreadCopilot} from '${project}/src/renderer/src/components/ThreadCopilot';
 import {CopilotSettings} from '${project}/src/renderer/src/components/CopilotSettings';
 import {I18nProvider} from '${project}/src/renderer/src/i18n';
 import {PreferencesProvider} from '${project}/src/renderer/src/settings/PreferencesProvider';
@@ -28,8 +29,10 @@ window.inputs=[];window.cancels=0;window.modelRequests=[];window.installedModels
 window.api={listOllamaModels:async server=>{window.modelRequests.push(server);if(window.modelsFail)throw Error('Connection refused');return window.installedModels},getSettings:async()=>({language:'es'}),setSettings:async()=>{},copilotStatus:async()=>({...config,hasGeminiKey:configured,geminiKeyStorage:configured?(window.sessionOnly?'session':'encrypted'):'none'}),configureCopilot:async next=>{config={...next};window.savedConfig=config},
  setCopilotKey:async key=>{if(key.includes(' '))throw Error('Invalid API key');configured=!!key;window.lastKey=key;return configured?(window.sessionOnly?'session':'encrypted'):'none'},generateCopilot:async input=>{window.inputs.push(input);return new Promise(resolve=>{finish=resolve})},cancelCopilot:async()=>{window.cancels++;finish?.({error:'canceled'})}};
 window.resolveProposal=result=>finish(result);
-function Harness(){const [settings,setSettings]=useState(true);const [minimized,setMinimized]=useState(false);window.showSettings=setSettings;
-return settings?<div className="settings"><main className="settings__main"><CopilotSettings/></main></div>:<ComposeOverlay open copilot={false} ai minimized={minimized} onMinimize={async()=>setMinimized(true)} onRestore={()=>setMinimized(false)} to="a@example.test" subject="Test" body="Original draft" html='<p><strong>Original draft</strong></p><blockquote data-namio-reply-quote="true"><p>Original context</p></blockquote>' onClose={async()=>{}} onDiscard={async()=>{}} onSend={async()=>{}}/>}
+const originalThread={subject:'Hilo de pruebas',messages:[{id:'one',from:{name:'Ana',email:'ana@example.test'},sentAt:'2026-11-04',body:['Enviar el informe el viernes.']},{id:'two',from:{name:'Luis',email:'luis@example.test'},sentAt:'2026-11-04',body:[''],html:'<p>Confirmo la entrega.</p><script>ignored-instructions</script>'}]};
+function Harness(){const [analysis,setAnalysis]=useState(false);const [thread,setThread]=useState(originalThread);window.showAnalysis=setAnalysis;window.resetThread=()=>setThread(originalThread);window.partialThread=()=>setThread({...originalThread,messages:originalThread.messages.map(m=>({...m,partial:true}))});window.longThread=()=>setThread({...originalThread,messages:[{...originalThread.messages[0],body:['x'.repeat(40001)]}]});
+const [settings,setSettings]=useState(true);const [minimized,setMinimized]=useState(false);window.showSettings=setSettings;
+return analysis?<div style={{maxWidth:760,margin:'24px auto'}}><ThreadCopilot thread={thread}/></div>:settings?<div className="settings"><main className="settings__main"><CopilotSettings/></main></div>:<ComposeOverlay open copilot={false} ai minimized={minimized} onMinimize={async()=>setMinimized(true)} onRestore={()=>setMinimized(false)} to="a@example.test" subject="Test" body="Original draft" html='<p><strong>Original draft</strong></p><blockquote data-namio-reply-quote="true"><p>Original context</p></blockquote>' onClose={async()=>{}} onDiscard={async()=>{}} onSend={async()=>{}}/>}
 createRoot(document.getElementById('root')).render(<I18nProvider><PreferencesProvider><Harness/></PreferencesProvider></I18nProvider>);
 `)
  await build({configFile:false,root:folder,base:'./',plugins:[react()],resolve:{alias:{'@shared':join(project,'src/shared'),react:join(project,'node_modules/react'),'react-dom':join(project,'node_modules/react-dom')}},build:{outDir:join(folder,'dist'),emptyOutDir:true},logLevel:'error'})
@@ -151,6 +154,45 @@ app.whenReady().then(async()=>{
    assert.equal(await win.webContents.executeJavaScript('(()=>{const p=document.querySelector(".ai-panel");return p.scrollWidth<=p.clientWidth})()'),true,'Copilot does not overflow');
    assert.equal(await win.webContents.executeJavaScript('(()=>{const s=document.querySelector(".ai-panel__scroll"),head=document.querySelector(".ai-panel__head"),foot=document.querySelector(".ai-panel__foot"),h=head.getBoundingClientRect(),f=foot.getBoundingClientRect();s.scrollTop=s.scrollHeight;const after=head.getBoundingClientRect();return h.top===after.top&&f.bottom<=innerHeight&&f.top>=h.bottom})()'),true,'Copilot header and apply action remain visible while scrolling');
    await fs.writeFile('/tmp/namio-copilot-'+width+'-'+theme+'.png',(await win.webContents.capturePage()).toPNG());
+  }
+ }
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async fn=>{for(let i=0;i<150;i++){if(fn())return;await new Promise(r=>setTimeout(r,20))}throw Error('AI actions timed out')};
+ const button=text=>[...document.querySelectorAll('button')].find(b=>{const label=b.cloneNode(true);label.querySelectorAll('[aria-hidden=true]').forEach(i=>i.remove());return label.textContent.trim()===text});
+ for(const [label,action] of [['Acortar','shorten'],['Ampliar','expand'],['Corregir','correct'],['Traducir','translate']]) {
+  const before=window.inputs.length,original=document.querySelector('.tiptap').editor.getHTML();
+  button(label).click();await until(()=>window.inputs.length===before+1);
+  if(window.inputs.at(-1).action!==action)throw Error('Wrong rewrite action');
+  if(action==='translate'&&window.inputs.at(-1).targetLocale!=='en')throw Error('Translation target missing');
+  window.resolveProposal({text:'Resultado '+action});await until(()=>document.querySelector('.ai-proposal')?.textContent==='Resultado '+action);
+  if(document.querySelector('.tiptap').editor.getHTML()!==original)throw Error('Rewriting changed the draft before applying');
+ }
+ const before=window.inputs.length;window.showAnalysis(true);await until(()=>button('Resumir hilo')&&!button('Resumir hilo').disabled);
+ if(window.inputs.length!==before)throw Error('Thread text shared before explicit action');
+ button('Resumir hilo').click();await until(()=>window.inputs.length===before+1);
+ const request=window.inputs.at(-1),thread=JSON.parse(request.body);
+ if(request.action!=='summarize'||thread.subject!=='Hilo de pruebas'||thread.messages.length!==2||!thread.messages[1].body.includes('Confirmo la entrega.')||request.body.includes('ignored-instructions'))throw Error('Incorrect thread scope or HTML extraction');
+ window.resolveProposal({text:'Resumen <script>literal</script>'});await until(()=>document.querySelector('.ai-proposal')?.textContent.includes('Resumen'));
+ if(document.querySelector('.ai-proposal script')||button('Aplicar al editor'))throw Error('Analysis must be read-only and safe');
+ button('Extraer pendientes').click();await until(()=>window.inputs.length===before+2);
+ if(window.inputs.at(-1).action!=='tasks')throw Error('Wrong tasks action');
+ window.resolveProposal({text:'Enviar informe — Ana — viernes.'});await until(()=>document.querySelector('.ai-proposal')?.textContent.includes('Enviar informe'));
+ window.partialThread();await until(()=>document.querySelector('[role=status]')?.textContent.includes('Espera a que termine'));
+ window.longThread();await until(()=>document.querySelector('[role=status]')?.textContent.includes('40 000'));
+ if(window.inputs.length!==before+2)throw Error('Incomplete or oversized threads must not be sent');
+})()`)});
+ await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const until=async fn=>{for(let i=0;i<150;i++){if(fn())return;await new Promise(r=>setTimeout(r,20))}throw Error('Analysis preview timed out')};
+ window.resetThread();await until(()=>document.querySelector('.thread-copilot .ai-panel__generate button:not(:disabled)'));
+ const count=window.inputs.length;document.querySelector('.thread-copilot .ai-panel__generate button').click();await until(()=>window.inputs.length===count+1);
+ window.resolveProposal({text:'Tema: entrega del informe. La conversación confirma una entrega el viernes. No se han indicado otros acuerdos.'});await until(()=>document.querySelector('.ai-proposal'));
+})()`)});
+ for(const width of [1080,480]){
+  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width,height:850,deviceScaleFactor:1,mobile:false});
+  for(const theme of ['light','dark']){
+   await win.webContents.executeJavaScript('document.documentElement.dataset.appTheme="'+theme+'"');await new Promise(r=>setTimeout(r,200));
+   assert.equal(await win.webContents.executeJavaScript('(()=>{const p=document.querySelector(".thread-copilot");return p.scrollWidth<=p.clientWidth})()'),true,'Thread analysis fits the viewport');
+   await fs.writeFile('/tmp/namio-thread-copilot-'+width+'-'+theme+'.png',(await win.webContents.capturePage()).toPNG());
   }
  }
  assert.deepEqual(errors,[]);console.log('Copilot UI: Gemini/Ollama selection and persistence, key settings, review, plain output, rich undo, stale response, cancellation, quota errors and light/dark responsive layouts passed');app.exit(0);

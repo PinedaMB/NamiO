@@ -1,3 +1,4 @@
+import { ThreadCopilot } from './ThreadCopilot'
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { useEffect, useRef, useState } from 'react'
 import type { BodyTheme } from '@shared/ipc'
@@ -44,6 +45,7 @@ interface ThreadPaneProps {
   onReplyAll: () => void
   onReply: () => void
   onQuickDraft: () => void
+  ai?: boolean
   savingAttachment?: { mailbox: string; messageId: string; index: number } | null
   onOpenAttachment: (index: number, messageId?: string) => void
   onPrev: () => void
@@ -143,6 +145,7 @@ export function ThreadPane({
   onReply,
   onReplyAll,
   onQuickDraft,
+  ai = false,
   onOpenAttachment,
   savingAttachment = null,
   onPrev,
@@ -174,6 +177,8 @@ export function ThreadPane({
     const frame = requestAnimationFrame(() => focusedMessage.current?.scrollIntoView({ block: 'start' }))
     return () => cancelAnimationFrame(frame)
   }, [mailbox, focusedMessageId, focusedMessagePresent])
+  const [aiThread, setAiThread] = useState<{ key: string; open: boolean } | null>(null)
+  const aiThreadKey = `${mailbox}:${thread.id}`
   const [recipientsId, setRecipientsId] = useState<string | null>(null)
   const recipientsMessage = thread.messages.find(message => message.id === recipientsId)
 
@@ -222,6 +227,7 @@ export function ThreadPane({
         </div>
 
         <div className="toolbar-group">
+          {ai && <TooltipButton className="tool-btn" type="button" title={t('ai.threadTitle')} aria-expanded={aiThread?.key === aiThreadKey && aiThread.open} aria-controls="thread-copilot" onClick={() => setAiThread(current => ({ key: aiThreadKey, open: current?.key === aiThreadKey ? !current.open : true }))}><Icon name="auto_awesome" size={16} />{t('ai.threadTitle')}</TooltipButton>}
           <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onToggleFocus} title={t(readingFocused ? 'thread.exitFocus' : 'thread.focus')} aria-pressed={readingFocused}>
             <Icon name={readingFocused ? 'left_panel_open' : 'left_panel_close'} size={18} />
           </TooltipButton>
@@ -277,6 +283,8 @@ export function ThreadPane({
               </TooltipButton>
             </div>
           </div>
+
+          {ai && aiThread?.key === aiThreadKey && <section hidden={!aiThread.open} id="thread-copilot" key={aiThreadKey} aria-label={t('ai.threadTitle')}><ThreadCopilot thread={thread} /></section>}
 
           {thread.messages.length === 0 ? (
             <div className="letter-loading">
