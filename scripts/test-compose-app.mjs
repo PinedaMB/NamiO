@@ -115,9 +115,13 @@ app.whenReady().then(async()=>{
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('.rail [aria-label="Configuración"]').click();
  for(let i=0;i<100&&!document.querySelector('.settings-nav');i++)await new Promise(r=>setTimeout(r,30));
+ const reading=[...document.querySelectorAll('.settings-nav__item')].find(button=>button.querySelector('.settings-nav__label')?.textContent===${JSON.stringify(translations.es['settings.nav.reading'])});
+ if(!reading)throw new Error('Reading settings navigation missing');
+ reading.click();
  const offline=()=>document.querySelector('[aria-labelledby="settings-offline-title"][role="switch"]');
  for(let i=0;i<100&&!offline();i++)await new Promise(r=>setTimeout(r,30));
- if(offline()?.getAttribute('aria-checked')!=='false')throw new Error('Offline download must default off');
+ if(!offline())throw new Error('Offline download switch missing in Reading settings');
+ if(offline().getAttribute('aria-checked')!=='false')throw new Error('Offline download must default off');
  offline().click();
  for(let i=0;i<100&&offline().getAttribute('aria-checked')!=='true';i++)await new Promise(r=>setTimeout(r,30));
  if((await window.api.getSettings()).offlineDownload!==true)throw new Error('Offline opt-in must persist');
