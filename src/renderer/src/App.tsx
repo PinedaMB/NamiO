@@ -1802,6 +1802,7 @@ export function App(): React.JSX.Element {
         initialAttachments={compose?.attachments}
         priority={compose?.priority}
         copilot={!live}
+        ai={live}
         onRestoreDraft={live ? restoreDraft : undefined}
         onClose={async values => {
           const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length

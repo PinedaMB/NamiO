@@ -18,6 +18,7 @@ function settings(accounts, events, section = 'accounts', notifications = true) 
     if (id === '../settings/shortcuts') return { SHORTCUTS: [], SHORTCUT_GROUPS: [] }
     if (id === '../lib/cx') return { cx: (...values) => values.filter(Boolean).join(' ') }
     if (id === '../lib/useFocusTrap') return { useFocusTrap() {} }
+ if(id==='./CopilotSettings')return{CopilotSettings:()=>null}
     if (id === './Icon') return { Icon: () => null }
     if (id === './Tooltip') return { TooltipButton: props => React.createElement('button', props) }
     if (id === './UpdateNotice') return { UpdateNotice: () => null }

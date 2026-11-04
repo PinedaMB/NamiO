@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
+  type CopilotRequest,
+  type CopilotConfig,
   type UpdateState,
   type NotificationTarget,
   type AccountConfig,
@@ -62,6 +64,11 @@ const api: MailApi = {
   suggestRecipients: (query: string): Promise<RecipientSuggestion[]> => ipcRenderer.invoke(IPC.recipientSuggestions, query),
   clearMailCache: (accountId: string): Promise<{ canceled: boolean }> => ipcRenderer.invoke(IPC.cacheClear, accountId),
   getCoreStatus: (): Promise<CoreStatus> => ipcRenderer.invoke(IPC.coreStatus),
+  configureCopilot: (config: CopilotConfig) => ipcRenderer.invoke(IPC.copilotConfigure, config),
+  copilotStatus: () => ipcRenderer.invoke(IPC.copilotStatus),
+  setCopilotKey: (key: string) => ipcRenderer.invoke(IPC.copilotKey, key),
+  generateCopilot: (input: CopilotRequest) => ipcRenderer.invoke(IPC.copilotGenerate, input),
+  cancelCopilot: () => ipcRenderer.invoke(IPC.copilotCancel),
   getSettings: (): Promise<Partial<AppSettings>> => ipcRenderer.invoke(IPC.settingsGet),
   setSettings: (settings: Partial<AppSettings>): Promise<void> => ipcRenderer.invoke(IPC.settingsSet, settings),
 

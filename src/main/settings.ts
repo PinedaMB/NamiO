@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import type { MailNotificationCursor } from './notificationCursor'
 import { MAX_SIGNATURE_HTML_LENGTH } from '@shared/ipc'
-import type { AppSettings, AuthMethod, OAuthConfig, SmtpConfig } from '@shared/ipc'
+import type { AppSettings, AuthMethod, CopilotConfig, OAuthConfig, SmtpConfig } from '@shared/ipc'
 
 /** Cuenta guardada: las credenciales solo se persisten cifradas por el SO. */
 export interface StoredAccount {
@@ -28,6 +28,8 @@ export interface StoredAccount {
 }
 
 export interface StoredSettings extends Partial<AppSettings> {
+  geminiSecret?: string
+  copilot?: CopilotConfig
   mailNotificationCursors?: Record<string, MailNotificationCursor>
   /** Una o más cuentas. Una instalación vieja migra `account` a esta lista. */
   accounts?: StoredAccount[]

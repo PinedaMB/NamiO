@@ -16,6 +16,11 @@ export const IPC = {
   recipientSuggestions: 'recipients:suggest',
   notificationTest: 'notifications:test',
   notificationOpen: 'notifications:open',
+  copilotStatus: 'copilot:status',
+  copilotKey: 'copilot:key',
+  copilotConfigure: 'copilot:configure',
+  copilotGenerate: 'copilot:generate',
+  copilotCancel: 'copilot:cancel',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   accountStatus: 'account:status',
@@ -93,6 +98,32 @@ export type BodyTheme = 'light' | 'dark'
 export type AppTheme = 'light' | 'dark' | 'system'
 
 export const MAX_SIGNATURE_HTML_LENGTH = 2 * 1024 * 1024
+
+export interface CopilotConfig {
+  provider: 'gemini' | 'ollama'
+  ollamaUrl: string
+  ollamaModel: string
+}
+
+export type CopilotKeyStorage = 'none' | 'encrypted' | 'session'
+
+export interface CopilotStatus extends CopilotConfig {
+  geminiKeyStorage: CopilotKeyStorage
+  hasGeminiKey: boolean
+}
+
+export interface CopilotRequest {
+  provider: CopilotConfig['provider']
+  action: 'draft' | 'improve'
+  prompt: string
+  body: string
+  context: string
+  tone: 'direct' | 'warm' | 'executive' | 'legal'
+  locale: 'es' | 'en'
+}
+
+export type CopilotError = 'invalid' | 'busy' | 'key' | 'limit' | 'service' | 'empty' | 'canceled' | 'configuration' | 'model'
+export type CopilotResult = { text: string; error?: never } | { error: CopilotError; text?: never }
 
 export interface AppSettings {
   /** HTML de firma por identidad de cuenta (host, puerto y usuario). */
@@ -450,6 +481,11 @@ export interface MailApi {
   suggestRecipients(query: string): Promise<RecipientSuggestion[]>
   getCoreStatus(): Promise<CoreStatus>
   clearMailCache(accountId: string): Promise<{ canceled: boolean }>
+  copilotStatus(): Promise<CopilotStatus>
+  configureCopilot(config: CopilotConfig): Promise<void>
+  setCopilotKey(key: string): Promise<CopilotKeyStorage>
+  generateCopilot(input: CopilotRequest): Promise<CopilotResult>
+  cancelCopilot(): Promise<void>
   /** Devuelve solo lo que el usuario ya configuró (puede venir vacío). */
   getSettings(): Promise<Partial<AppSettings>>
   setSettings(settings: Partial<AppSettings>): Promise<void>

@@ -1,3 +1,4 @@
+import { CopilotPanel } from './CopilotPanel'
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,6 +44,7 @@ interface ComposeOverlayProps {
   onRestoreDraft?: () => Promise<void>
   /** El copiloto y los adjuntos de ejemplo son de la demo, no de una cuenta real. */
   copilot?: boolean
+  ai?: boolean
   onClose: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
   onSend: (payload: Omit<Draft, 'updatedAt'>) => Promise<void>
   /** Abre el diálogo del sistema; solo existe con cuenta real. */
@@ -84,6 +86,7 @@ export function ComposeOverlay({
   onRestore,
   onRestoreDraft,
   copilot = true,
+  ai = false,
   onClose,
   onSend,
   onPickAttachments
@@ -130,6 +133,7 @@ export function ComposeOverlay({
   const [sendOptionsOpen, setSendOptionsOpen] = useState(false)
   const sendOptionsRef = useRef<HTMLDivElement>(null)
   const sendCaretRef = useRef<HTMLButtonElement>(null)
+  const [aiOpen, setAiOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
   const [tone, setTone] = useState<TranslationKey>('compose.toneDirect')
@@ -414,9 +418,13 @@ export function ComposeOverlay({
           </div>
         </div>}
 
-        <div className={cx('composer__split', !copilot && 'composer__split--solo')} inert={sending}>
+        <div className={cx('composer__split', !copilot && 'composer__split--solo', ai && aiOpen && 'composer__split--ai')} inert={sending}>
           <div className="editor">
-            <span className="composer__editor-label">{t(quote ? 'compose.yourReply' : 'compose.yourMessage')}</span>
+            <div className="composer__editor-heading">
+              <span className="composer__editor-label">{t(quote ? 'compose.yourReply' : 'compose.yourMessage')}</span>
+              {ai && <button className="tool-btn" type="button" aria-expanded={aiOpen} aria-controls="composer-ai" onClick={() => setAiOpen(value => !value)}><Icon name="auto_awesome" size={16} />{t('ai.title')}</button>}
+            </div>
+
             <Suspense fallback={<div className="letter-loading" role="status">{t('compose.loadingEditor')}</div>}>
             <RichTextEditor text={bodyValue} html={htmlValue} signature={signature} disabled={sending}
               onChange={(text, markup) => { bodyRef.current = { body: text, html: markup }; setBodyValue(text); setHtmlValue(markup) }}
@@ -446,6 +454,21 @@ export function ComposeOverlay({
             </Suspense>
 
           </div>
+
+          {ai && <div id="composer-ai" hidden={!aiOpen || !open || minimized}>
+            <CopilotPanel body={bodyValue} revision={htmlValue ?? bodyValue} context={history.text} onApply={text => {
+              const previous = { ...bodyRef.current }
+              const markup = text.split(/\n{2,}/).map(replyPlainHtml).join('')
+              bodyRef.current = { body: text, html: markup }
+              setBodyValue(text)
+              setHtmlValue(markup)
+              return { revision: markup, undo: () => {
+                bodyRef.current = previous
+                setBodyValue(previous.body)
+                setHtmlValue(previous.html)
+              } }
+            }} />
+          </div>}
 
           <div className="copilot">
             <div className="copilot__scroll">

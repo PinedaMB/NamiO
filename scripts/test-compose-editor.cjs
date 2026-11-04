@@ -19,6 +19,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if(id==='./RichTextEditor')return{RichTextEditor:()=>null}
  if(id==='./RecipientInput')return{RecipientInput:()=>null}
  if(id==='./Select')return{Select:()=>null}
+ if(id==='./CopilotPanel')return{CopilotPanel:()=>null}
  if(id==='./Icon')return{Icon:()=>null}
  if(id==='./Tooltip')return{TooltipButton:()=>null}
  return require(id)

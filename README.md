@@ -92,6 +92,17 @@ Al pulsar un aviso, NamiO abre la cuenta y el mensaje correspondientes. Si está
 
 > **En Linux:** el sonido usa el tema del escritorio y necesita `canberra-gtk-play`. El volumen de efectos del sistema influye en su reproducción. Los permisos y el modo No molestar también pueden afectar a los avisos.
 
+## Copiloto con Gemini u Ollama
+
+En **Configuración → Copiloto IA**, elige **Gemini** u **Ollama** y guarda la configuración. Cambiar de proveedor conserva la clave de Gemini y la dirección y el modelo de Ollama.
+
+- **Gemini:** introduce una clave de [Google AI Studio](https://aistudio.google.com/apikey). Se conserva cifrada por el sistema; si el almacén seguro no está disponible, funciona solo en memoria hasta salir de NamiO y deberás introducirla al reiniciar. Puedes eliminarla desde la misma sección. La clave es de la aplicación y no se elimina al desvincular una cuenta de correo. Usa Gemini 3.6 Flash y está sujeto a las cuotas, condiciones y posibles cargos del proyecto de Google.
+- **Ollama:** inicia tu servidor e instala un modelo de texto. La dirección predeterminada es `http://127.0.0.1:11434` (sin `/api`); el nombre del modelo debe coincidir con `ollama list`. Puedes indicar otro servidor HTTP/HTTPS sin autenticación; no se admiten credenciales en la URL. NamiO no instala Ollama ni descarga modelos. La primera carga puede tardar; las solicitudes se cancelan a los dos minutos si no terminan.
+
+Al redactar desde una cuenta real, abre **Copiloto IA** junto a «Tu mensaje». El panel indica el proveedor activo. Puedes redactar desde instrucciones o mejorar el borrador actual. Revisa la propuesta antes de aplicarla; sustituye el cuerpo del borrador y puedes deshacerla conservando el formato anterior mientras no lo hayas vuelto a editar. El copiloto no envía mensajes.
+
+Cada generación envía las instrucciones y el texto del borrador a Google o al servidor Ollama configurado, según el proveedor elegido. El texto del correo original requiere activar su casilla; no se cargan adjuntos ni el resto del buzón. En Ollama, un modelo local procesa el texto en ese servidor; si eliges un modelo cloud, puede enviarse a la nube. La demostración conserva sus ejemplos ficticios.
+
 ## 🛡️ Tu correo y tu privacidad
 
 - **Datos locales por cuenta.** Los mensajes descargados se guardan en tu equipo para consultarlos sin conexión.
@@ -127,7 +138,7 @@ La primera descarga puede tardar y ocupar espacio según el historial. Mantén N
 
 - La bandeja muestra **una cuenta a la vez**; no hay bandeja unificada.
 - La revisión de cuentas inactivas detecta nuevos mensajes para los avisos; no equivale a sincronizar todo su contenido continuamente.
-- Las funciones de copiloto con IA todavía no están disponibles.
+- El copiloto permite elegir Gemini u Ollama para redactar y mejorar borradores; las pruebas automatizadas usan respuestas simuladas.
 - Sigue pendiente ampliar las pruebas con servidores reales, interrupciones de conexión y recuperación tras cierres inesperados.
 
 Puedes consultar las novedades en el [historial de cambios](CHANGELOG.md). El estado de preparación de la versión 1.0 y las validaciones externas pendientes están en la [lista de lanzamiento](RELEASE_CHECKLIST.md).

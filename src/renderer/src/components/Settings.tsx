@@ -1,3 +1,4 @@
+import { CopilotSettings } from './CopilotSettings'
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import logo from '../assets/logo.png'
 import naomi from '../assets/naomi.png'
@@ -35,7 +36,7 @@ interface SettingsProps {
 
 const PLATFORM_NAMES: Record<string, string> = { linux: 'Linux', win32: 'Windows', darwin: 'macOS' }
 
-type Section = 'general' | 'reading' | 'notifications' | 'shortcuts' | 'accounts' | 'rules' | 'about'
+type Section = 'general' | 'reading' | 'notifications' | 'shortcuts' | 'accounts' | 'rules' | 'about' | 'copilot'
 
 const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }> = [
   { id: 'general', icon: 'tune', labelKey: 'settings.nav.general' },
@@ -44,6 +45,7 @@ const NAV: ReadonlyArray<{ id: Section; icon: string; labelKey: TranslationKey }
   { id: 'shortcuts', icon: 'keyboard', labelKey: 'settings.nav.shortcuts' },
   { id: 'accounts', icon: 'alternate_email', labelKey: 'settings.nav.accounts' },
   { id: 'rules', icon: 'filter_alt', labelKey: 'settings.nav.rules' },
+  { id: 'copilot', icon: 'auto_awesome', labelKey: 'ai.title' },
   { id: 'about', icon: 'info', labelKey: 'settings.nav.about' }
 ]
 
@@ -415,6 +417,8 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
         </div>
       )
     }
+
+    if (section === 'copilot') return <CopilotSettings />
 
     if (section === 'reading') {
       return (

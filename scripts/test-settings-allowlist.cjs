@@ -18,6 +18,8 @@ async function main() {
   try {
     await fs.writeFile(path.join(directory, 'settings.json'), JSON.stringify({
       language: 'es',
+      geminiSecret: 'encrypted-gemini-key',
+      copilot: { provider: 'ollama', ollamaUrl: 'http://localhost:11434', ollamaModel: 'example' },
       appTheme: 'dark',
       shortcuts: { next: 'j' },
       onboarded: true,
@@ -33,6 +35,7 @@ async function main() {
 
     const publicSettings = await settings.readAppSettings()
     assert.deepEqual(Object.keys(publicSettings).sort(), ['appTheme', 'language', 'onboarded', 'shortcuts'])
+    assert.equal(publicSettings.geminiSecret, undefined, 'Gemini key never reaches public settings')
     assert.equal(publicSettings.accounts, undefined, 'accounts never reach the renderer')
     assert.equal(publicSettings.activeAccount, undefined)
     assert.equal(publicSettings.mailNotificationCursors, undefined)
@@ -52,6 +55,8 @@ async function main() {
 
     for (const invalid of [
       { accounts: [] },
+      { geminiSecret: 'replacement' },
+      { copilot: { provider: 'other' } },
       { activeAccount: 'two' },
       { mailNotificationCursors: {} },
       JSON.parse('{"__proto__": {"polluted": true}}')
