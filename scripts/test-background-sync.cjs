@@ -8,17 +8,18 @@ let code
 for (const node of ast.statements) {
   if (ts.isFunctionDeclaration(node) && node.name?.text === 'fullSyncMailbox') code = node.getText(ast)
 }
-async function check(initial, switchAccount = false, fail = false, metadata = false, disableDuringDownload = false) {
-  const server = [7, 8, 1000, 9000, 20000]
+async function check(initial, switchAccount = false, fail = false, metadata = false, disableDuringDownload = false, recent = false) {
+  const server = recent ? initial : [7, 8, 1000, 9000, 20000]
   const cached = new Set(initial)
   const pendingMetadata = new Set(metadata ? initial : [])
   const progress = []
-  const bodies = new Set(initial)
+  const bodies = new Set(recent ? [] : initial)
   const bodyRequests = []
   const requests = []
+  const events = []
   let releases = 0
   const resumed = []
-  let enabled = true
+  let enabled = !recent
   const context = { readSettings: async () => ({ offlineDownload: enabled }),
     syncGeneration: 0, fullSyncRunning: false, pendingFullSync: new Set(['Archive']), ensureFullSync: path => resumed.push(path),
     MAX_OFFLINE_MESSAGE_BYTES: 30 * 1024 * 1024,
@@ -30,13 +31,14 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
     missingBodyUids: () => server.filter(uid=>!bodies.has(uid)),
     readEnvelope: (_path, uid) => cached.has(uid) ? { uid } : null,
     readBody: (_path, uid) => ({ fetched: bodies.has(uid) }), countBodies: () => bodies.size,
-    cacheMessageBody: async (_path, uid) => { bodyRequests.push(uid); bodies.add(uid); if (disableDuringDownload) enabled = false },
+    cacheMessageBody: async (_path, uid) => { bodyRequests.push(uid); events.push('body:'+uid); bodies.add(uid); if (disableDuringDownload) enabled = false },
     classify: () => 'network', isOfflineError: () => true,
     missingEnvelopeMetadata: () => [...pendingMetadata],
     messagesByUids: (_path, uids) => uids.filter(uid => cached.has(uid)).map(uid => ({ uid })),
     fetchRange: async (_client, range, byUid) => {
       assert.equal(byUid, true)
       requests.push(range)
+      events.push('headers:'+range)
       if (fail) throw new Error('network down')
       if (switchAccount) context.syncGeneration++
       return range.split(',').map(Number).map(uid => ({ uid }))
@@ -50,6 +52,11 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   await sync('INBOX', 2)
   assert.equal(context.fullSyncRunning, false)
   if (!switchAccount) assert.equal(progress.at(-1), null, 'completion always clears the progress indicator')
+  if (recent) {
+    assert.deepEqual([...bodies].sort((a,b)=>a-b),server.slice(-100),'automatic download is bounded to the newest 100 messages')
+    assert.ok(progress.some(item=>item?.phase==='bodies' && item.total===100 && item.cached===100))
+    return
+  }
   if (metadata && initial.length === server.length) {
     const headers = progress.filter(item => item?.phase === 'headers')
     assert.deepEqual(headers.map(item => item.cached), [2, 4, 5], 'metadata backfill reports completed headers rather than total cached rows')
@@ -59,12 +66,13 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   if (switchAccount || fail) {
     assert.deepEqual([...cached], initial, 'interrupted work cannot write into another account or discard cached mail')
   } else {
+    if (!initial.length) assert.ok(events.indexOf('body:20000') < events.indexOf('headers:8,1000'),'recent bodies are ready before historical headers finish')
     assert.deepEqual([...cached].sort((a, b) => a - b), server)
     const fetched = requests.flatMap(range => range.split(',').map(Number))
     assert.ok(fetched.every(uid => metadata || !initial.includes(uid)), 'already cached messages are not fetched again')
     assert.equal(fetched.length, server.length - (metadata ? 0 : initial.length))
     if (disableDuringDownload) {
-      assert.equal(bodyRequests.length,1,'disabling during a pass stops further body downloads')
+      assert.equal(bodyRequests.length,server.length-initial.length,'disabling full history keeps the recent window available')
       assert.ok(bodies.has(initial[0]),'previously saved content remains available')
       return
     }
@@ -73,6 +81,7 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   }
 }
 (async () => {
+  await check(Array.from({length:150},(_,i)=>i+1),false,false,false,false,true)
   await check([7, 8, 1000, 9000, 20000], false, false, true)
   await check([20000])
   await check([20000], false, false, false, true)

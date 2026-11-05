@@ -12,15 +12,16 @@ function visit(node) {
 visit(ast)
 const flush = () => new Promise(resolve=>setImmediate(resolve))
 async function progressive(individualMessageId=null, stale=false) {
-  const calls=[],resolvers=[]
+  const calls=[],resolvers=[],loading=[]
   let threads=[{id:'live:1',messageIds:[1,2,3],messages:[]}]
   const context={ view:'mailbox',live:true,selected:threads[0],folder:'INBOX',locale:'es',individualMessageId,
     activeFolderRef:{current:'INBOX'},folderRequest:{current:1},accountGeneration:{current:1},
-    uidOf:id=>Number(id.slice(5)),detailToMessage:data=>({id:`live:${data.uid}`}),setToast(){},setLiveError(){},setSync(){},t:key=>key,
+    uidOf:id=>Number(id.slice(5)),detailToMessage:data=>({id:`live:${data.uid}`}),setLoadingBody:value=>loading.push(value),setToast(){},setLiveError(){},setSync(){},t:key=>key,
     setThreads:update=>{threads=update(threads)},window:{api:{getMessage:(_folder,uid,cachedOnly)=>{if(cachedOnly)return Promise.resolve({ok:false});calls.push(uid);return new Promise(resolve=>resolvers.push(resolve))}}}}
   const cleanup=vm.runInNewContext(compile(`(${effect})`),context)()
   await flush()
   const first=individualMessageId?1:3
+  assert.equal(loading.at(-1),true,'reading exposes its download state')
   assert.deepEqual(calls,[first],'fetch the explicit message or newest one first')
   if(stale)context.folderRequest.current++
   resolvers.shift()({ok:true,data:{uid:first},meta:{}})
@@ -29,6 +30,7 @@ async function progressive(individualMessageId=null, stale=false) {
   if(!stale){
     assert.equal(calls.length,2)
     cleanup()
+    assert.equal(loading.at(-1),false,'leaving the reader clears download state')
     resolvers.shift()({ok:true,data:{uid:calls[1]},meta:{}})
     await flush()
     assert.equal(calls.length,2,'leaving the thread stops scheduling older bodies')
@@ -41,7 +43,7 @@ async function cachedFirst(disconnected, inlineOnly=false) {
   const network=[]
   const context={view:'mailbox',live:true,selected:threads[0],folder:'INBOX',locale:'es',individualMessageId:null,
     activeFolderRef:{current:'INBOX'},folderRequest:{current:1},accountGeneration:{current:1},navigator:{onLine:!disconnected},
-    uidOf:id=>Number(id.slice(5)),detailToMessage:(data,_locale,partial)=>({id:`live:${data.uid}`,partial}),setToast(){},setLiveError(){},setSync:update=>{connection=update(connection)},t:key=>key,
+    uidOf:id=>Number(id.slice(5)),detailToMessage:(data,_locale,partial)=>({id:`live:${data.uid}`,partial}),setLoadingBody(){},setToast(){},setLiveError(){},setSync:update=>{connection=update(connection)},t:key=>key,
     setThreads:update=>{threads=update(threads)},window:{api:{getMessage:async(_folder,uid,cachedOnly)=>{
       if(cachedOnly)return {ok:true,data:{uid},meta:{partial:uid===3&&!inlineOnly,inlineImagesPending:uid===3&&inlineOnly}}
       network.push(uid)

@@ -54,12 +54,15 @@ async function main() {
     fetchRange: async () => { throw new Error('Headers already exist; no envelope refetch expected') }, classify: error => error.code === 'ENETUNREACH' ? 'network' : 'unknown', isOfflineError: code => code === 'network', describe: error => error.message }
   const functions = ['toAddress','readLimited','cacheMessageBody','fullSyncMailbox','ensureFullSync'].map(name => declarations.get(name)).join('\n')
   const api = vm.runInNewContext(compile(`${functions}; ({cacheMessageBody, fullSyncMailbox, ensureFullSync})`), context)
+  failure = true
   context.readSettings = async () => ({})
   await api.fullSyncMailbox('INBOX',100)
-  assert.equal(downloads.length,0,'missing preference defaults to no background body downloads')
+  assert.ok(downloads.length > 0,'recent body downloads run without opting into the complete history')
+  downloads.length = 0
   context.readSettings = async () => ({ offlineDownload: false })
   await api.fullSyncMailbox('INBOX',100)
-  assert.equal(downloads.length,0,'explicit opt-out prevents background body downloads')
+  assert.ok(downloads.length > 0,'turning off full history still prepares recent bodies')
+  downloads.length = 0
   assert.equal(db.readBody('INBOX',1).text,'Already saved','opting out preserves cached content')
   context.readSettings = async () => ({ offlineDownload: true })
   failure = true

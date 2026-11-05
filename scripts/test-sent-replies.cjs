@@ -87,6 +87,7 @@ async function renderer(offline = false, stale = false, preserveFull = false, st
     live: true, selected: { id: 'live:7', messageIds: [7] }, view: 'mailbox', folder: 'INBOX', locale: 'es', sentRepliesKey: 'one:INBOX:7',
     accountGeneration: { current: 1 }, folderRequest: { current: 1 }, navigator: { onLine: !offline }, uidOf: () => 7,
     detailToMessage: (data, _locale, partial) => ({ partial, id: `live:${data.uid}`, from: {}, to: [], body: ['Reply'] }),
+    setLoadingSentBodies() {},
     setLiveError: error => { throw new Error(JSON.stringify(error)) }, setToast: error => { throw new Error(error) }, t: key => key,
     setSentReplies: update => { state = update(state); updates.push(state) },
     window: { api: {
@@ -139,6 +140,7 @@ async function prefetch(stale = false) {
     collapseConversations: threads => threads, conversationKey: thread => thread.messageIds.join(','), uidOf: id => Number(id.slice(5)),
     accountIdentity: { current: 'one' }, accountGeneration: { current: 1 }, folderRequest: { current: 1 }, navigator: { onLine: true },
     setSentReplies: update => { state = update(state) }, detailToMessage: (detail, _locale, partial) => ({ from: detail.from, partial }),
+    setLoadingSentBodies() {},
     setLiveError: error => { throw new Error(JSON.stringify(error)) }, setToast: error => { throw new Error(error) }, t: key => key,
     window: { api: { getSentReplies: async (folder, uids, cachedOnly) => {
       queries.push([folder, uids, cachedOnly])

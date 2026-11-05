@@ -100,7 +100,7 @@ export function CopilotSettings(): React.JSX.Element {
             </Select>
           </label>
         </>}
-        <div className="ai-actions"><button className="btn btn--primary ai-settings__save" type="submit" disabled={busy || modelsLoading || (config.provider === 'ollama' && !config.ollamaModel)}><Icon name="progress_activity" size={16} className={busy ? 'spin' : 'ai-settings__save-idle'} />{t('ai.save')}</button></div>
+        <div className="ai-actions"><button className="btn btn--primary" type="submit" disabled={busy || modelsLoading || (config.provider === 'ollama' && !config.ollamaModel)}><Icon name="progress_activity" size={16} className={busy ? 'spin' : 'ai-settings__save-idle'} />{t('ai.save')}</button></div>
       </fieldset>
       <p className="ai-settings__feedback" role="status">{saved ? t(keyStorage === 'session' && config.provider === 'gemini' ? 'ai.savedSession' : 'ai.saved') : ''}</p>
       {error && <p className="account-error" role="alert">{t(error)}</p>}

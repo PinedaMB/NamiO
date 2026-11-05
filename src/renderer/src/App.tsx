@@ -230,6 +230,8 @@ export function App(): React.JSX.Element {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
   const [messageRetry, setMessageRetry] = useState(0)
+  const [loadingBody, setLoadingBody] = useState(false)
+  const [loadingSentBodies, setLoadingSentBodies] = useState(false)
   const [liveError, setLiveError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
   const [loadingFolder, setLoadingFolder] = useState(false)
   const [sync, setSync] = useState<{ offline: boolean; syncedAt: number | null }>({
@@ -884,6 +886,7 @@ export function App(): React.JSX.Element {
         return { ...thread, messages: (thread.messageIds ?? [uid]).flatMap(messageUid => loaded.get(`live:${messageUid}`) ?? []) }
       }))
     }
+    setLoadingBody(true)
     void (async () => {
       const cached = await Promise.all(ordered.map(messageUid => window.api.getMessage(folder, messageUid, true).catch(() => null)))
       if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
@@ -906,10 +909,11 @@ export function App(): React.JSX.Element {
         if (!result.meta.offline) setSync(current => current.offline ? { ...current, offline: false } : current)
         applyMessage(result)
       }
-    })()
+    })().finally(() => { if (!cancelled) setLoadingBody(false) })
 
     return () => {
       cancelled = true
+      setLoadingBody(false)
     }
   }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view, sync.offline, sync.syncedAt, messageRetry])
 
@@ -995,11 +999,12 @@ export function App(): React.JSX.Element {
         }
       }))
     }
+    setLoadingSentBodies(true)
     void (async () => {
       await load(true)
       if (current() && navigator.onLine !== false) await load(false)
-    })().catch(error => { if (current()) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })) })
-    return () => { cancelled = true }
+    })().catch(error => { if (current()) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })) }).finally(() => { if (current()) setLoadingSentBodies(false) })
+    return () => { cancelled = true; setLoadingSentBodies(false) }
   }, [live, sentRepliesKey, sentMessages.map(message => message.id).join(','), sentRepliesVersion, folder, locale, view, sync.syncedAt, messageRetry, t])
 
   const select = (id: string, messageId?: string): void => {
@@ -1697,6 +1702,7 @@ export function App(): React.JSX.Element {
 
               {selected ? (
                 <ThreadPane
+                  loadingMessage={loadingBody || loadingSentBodies}
                   onRetryMessage={live ? () => setMessageRetry(value => value + 1) : undefined}
                   onBack={() => {
                     setReadingFocused(false)

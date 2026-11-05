@@ -634,6 +634,36 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       }
     }, 'background')
 
+    const downloadBodies = async (includeHistory: boolean): Promise<void> => {
+      const downloadAll = (await readSettings()).offlineDownload === true
+      const targetUids = includeHistory && downloadAll ? uids : uids.slice(-100)
+      const missingBodies = new Set(missingBodyUids(path))
+      const bodyUids = targetUids.filter(uid => missingBodies.has(uid))
+      let available = targetUids.filter(uid => readBody(path, uid).fetched).length
+      publishProgress({ mailbox: path, cached: available, total: targetUids.length, running: true, phase: 'bodies' })
+      for (let index = bodyUids.length - 1; index >= 0; index--) {
+        if (generation !== syncGeneration) return
+        const uid = bodyUids[index]!
+        const downloaded = await serial(async () => {
+          const envelope = readEnvelope(path, uid)
+          if (generation !== syncGeneration || !envelope || readBody(path, uid).fetched) return false
+          if (envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return false
+          if (generation !== syncGeneration || (downloadAll && (await readSettings()).offlineDownload !== true)) return false
+          await cacheMessageBody(path, uid)
+          return generation === syncGeneration
+        }, 'background')
+        if (generation !== syncGeneration) return
+        if (!downloaded && downloadAll && (await readSettings()).offlineDownload !== true) break
+        if (downloaded) available++
+        if (index % chunk === 0) available = targetUids.filter(uid => readBody(path, uid).fetched).length
+        if (downloaded || index % chunk === 0) {
+          publishProgress({ mailbox: path, cached: available, total: targetUids.length, running: true, phase: 'bodies' })
+          notify(path)
+        }
+        if (downloaded) await sleep(20)
+      }
+    }
+
     const pendingMetadata = new Set(missingEnvelopeMetadata(path))
     for (let end = uids.length; end > 0; end -= chunk) {
       if (generation !== syncGeneration) return
@@ -660,34 +690,11 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
         notify(path)
         await sleep(120)
       }
+      // El tramo reciente queda listo antes de completar las cabeceras del historial.
+      if (end === uids.length) await downloadBodies(false)
     }
     if (generation !== syncGeneration) return
-    if ((await readSettings()).offlineDownload !== true) return
-    const missingBodies = new Set(missingBodyUids(path))
-    const bodyUids = uids.filter(uid => missingBodies.has(uid))
-    let available = countBodies(path)
-    publishProgress({ mailbox: path, cached: available, total: uids.length, running: true, phase: 'bodies' })
-    for (let index = bodyUids.length - 1; index >= 0; index--) {
-      if (generation !== syncGeneration) return
-      const uid = bodyUids[index]!
-      const downloaded = await serial(async () => {
-        const envelope = readEnvelope(path, uid)
-        if (generation !== syncGeneration || !envelope || readBody(path, uid).fetched) return false
-        if (envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return false
-        if ((await readSettings()).offlineDownload !== true || generation !== syncGeneration) return false
-        await cacheMessageBody(path, uid)
-        return generation === syncGeneration
-      }, 'background')
-      if (generation !== syncGeneration) return
-      if (!downloaded && (await readSettings()).offlineDownload !== true) break
-      if (downloaded) available++
-      if (index % chunk === 0) available = countBodies(path)
-      if (downloaded || index % chunk === 0) {
-        publishProgress({ mailbox: path, cached: available, total: uids.length, running: true, phase: 'bodies' })
-        notify(path)
-      }
-      if (downloaded) await sleep(20)
-    }
+    await downloadBodies(true)
   } catch (error) {
     if (generation === syncGeneration && isOfflineError(classify(error))) offline = true
     console.error('[imap] background sync failed:', describe(error))
@@ -719,9 +726,10 @@ async function ensureFullSync(path: string): Promise<void> {
   const meta = getMailboxMeta(path)
   if (!meta) return
   const headersComplete = meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0
-  // Sin descarga offline, los cuerpos faltantes son lo normal: no se relanza
-  // un SEARCH ALL del buzón en cada sincronización.
-  const bodiesPending = (await readSettings()).offlineDownload === true && countBodies(path) < countMessages(path)
+  const downloadAll = (await readSettings()).offlineDownload === true
+  const bodiesPending = downloadAll
+    ? missingBodyUids(path).some(uid => (readEnvelope(path, uid)?.size ?? Infinity) <= MAX_OFFLINE_MESSAGE_BYTES)
+    : readEnvelopes(path, 100).some(message => message.size <= MAX_OFFLINE_MESSAGE_BYTES && !readBody(path, message.uid).fetched)
   if (headersComplete && !bodiesPending) return
   void fullSyncMailbox(path, 100)
 }
@@ -934,7 +942,7 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
       } finally {
         lock.release()
       }
-    })
+    }, 'background')
     if (generation !== syncGeneration) throw accountChangedError()
     offline = false
     return { ok: true, data: locations(matches), meta: syncMeta() }
