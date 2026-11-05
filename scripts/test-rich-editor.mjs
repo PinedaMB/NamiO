@@ -35,6 +35,7 @@ createRoot(document.getElementById('root')).render(<React.StrictMode><I18nProvid
   await build({ configFile:false, root:folder, base:'./', plugins:[react()], resolve:{alias:{'@shared':join(project,'src/shared'),'react':join(project,'node_modules/react'),'react-dom':join(project,'node_modules/react-dom')}}, build:{outDir:join(folder,'dist'),emptyOutDir:true}, logLevel:'error' })
   await writeFile(join(folder, 'runner.cjs'), `
 const {app,BrowserWindow}=require('electron');const fs=require('node:fs/promises');
+const capturePage=require(${JSON.stringify(join(project,'scripts/capture-page.cjs'))});
 app.setPath('userData',${JSON.stringify(join(folder,'profile'))});app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1080,height:760,webPreferences:{offscreen:true}});
@@ -298,23 +299,23 @@ app.whenReady().then(async()=>{
  await win.webContents.executeJavaScript('document.activeElement.blur();document.querySelector(".rich-editor__content img[src]").scrollIntoView({block:"center"})');
  win.setSize(1081,760);await new Promise(resolve=>setTimeout(resolve,100));win.setSize(1080,760);
  await new Promise(resolve=>setTimeout(resolve,200));
- await fs.writeFile('/tmp/namio-rich-editor-desktop.png',(await win.webContents.capturePage()).toPNG());
+ await fs.writeFile('/tmp/namio-rich-editor-desktop.png',(await capturePage(win.webContents)).toPNG());
  await win.webContents.executeJavaScript(${JSON.stringify(`(()=>{const select=document.querySelector('[aria-label="Apariencia de la redacción"]');select.value='dark';select.dispatchEvent(new Event('change',{bubbles:true}));})()`)});
  await new Promise(resolve=>setTimeout(resolve,100));
- await fs.writeFile('/tmp/namio-compose-dark.png',(await win.webContents.capturePage()).toPNG());
+ await fs.writeFile('/tmp/namio-compose-dark.png',(await capturePage(win.webContents)).toPNG());
  await win.webContents.executeJavaScript(${JSON.stringify(`(()=>{const select=document.querySelector('[aria-label="Apariencia de la redacción"]');select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));})()`)});
  win.setSize(560,760);await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:560,height:760,deviceScaleFactor:1,mobile:false});await new Promise(resolve=>setTimeout(resolve,100));
  await win.webContents.executeJavaScript('document.querySelector(".rich-editor__content img[src]").scrollIntoView({block:"center"})');
  const dimensions=await win.webContents.executeJavaScript('({width:innerWidth,scroll:document.documentElement.scrollWidth})');
  if(dimensions.scroll>dimensions.width)throw new Error('Narrow editor overflows');
- await fs.writeFile('/tmp/namio-rich-editor-compact.png',(await win.webContents.capturePage()).toPNG());
+ await fs.writeFile('/tmp/namio-rich-editor-compact.png',(await capturePage(win.webContents)).toPNG());
  await win.webContents.executeJavaScript('(async()=>{restore({text:"Respuesta",html:window.replyFixture});for(let i=0;i<100&&!document.querySelector(".composer__history iframe")?.contentDocument?.querySelector("details.namio-quote");i++)await new Promise(requestAnimationFrame);document.querySelector(".composer__body").scrollTop=0;await document.fonts.ready})()');
- await fs.writeFile('/tmp/namio-history-collapsed.png',(await win.webContents.capturePage()).toPNG());
+ await fs.writeFile('/tmp/namio-history-collapsed.png',(await capturePage(win.webContents)).toPNG());
  win.setSize(1080,760);await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1080,height:760,deviceScaleFactor:1,mobile:false});
  await win.webContents.executeJavaScript('(async()=>{document.querySelector(".composer__history iframe").contentDocument.querySelector("details.namio-quote > summary").click();for(let i=0;i<100&&!document.querySelector(".composer__history iframe")?.contentDocument?.querySelector("table");i++)await new Promise(requestAnimationFrame);document.querySelector(".composer__history").scrollIntoView({block:"center"});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))})()');
- await fs.writeFile('/tmp/namio-history-expanded.png',(await win.webContents.capturePage()).toPNG());
+ await fs.writeFile('/tmp/namio-history-expanded.png',(await capturePage(win.webContents)).toPNG());
  await win.webContents.executeJavaScript('(async()=>{document.documentElement.dataset.appTheme="dark";const frame=document.querySelector(".composer__history iframe");for(let i=0;i<100&&getComputedStyle(frame.contentDocument.body).backgroundColor!==getComputedStyle(document.querySelector(".composer")).backgroundColor;i++)await new Promise(requestAnimationFrame);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))})()');
- await fs.writeFile('/tmp/namio-history-app-dark.png',(await win.webContents.capturePage()).toPNG());
+ await fs.writeFile('/tmp/namio-history-app-dark.png',(await capturePage(win.webContents)).toPNG());
  const payloads=await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  document.querySelector('.send-btn').click();
  for(let i=0;i<100&&!window.sent;i++)await new Promise(requestAnimationFrame);

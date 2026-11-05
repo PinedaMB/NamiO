@@ -535,9 +535,9 @@ app.whenReady().then(async()=>{
  delete navigator.onLine;
  await until(()=>document.querySelector('.list__queue')?.textContent.includes('1/1 SIN CONEXIÓN'),'Offline body counter did not update after download');
  await window.api.testSyncProgress('headers');
- await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes('Guardando encabezados 1/2'),'Header progress is unclear');
+ await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes(${JSON.stringify(translations.es['sync.progress'].replace('{cached}', '1').replace('{total}', '2'))}),'Header progress is unclear');
  await window.api.testSyncProgress('bodies');
- await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes('Disponibles sin conexión 1/2'),'Offline body progress is unclear');
+ await until(()=>document.querySelector('.statusbar .sync-progress__label')?.textContent.includes(${JSON.stringify(translations.es['sync.bodiesProgress'].replace('{cached}', '1').replace('{total}', '2'))}),'Offline body progress is unclear');
  await window.api.testSyncProgress(null);
  console.log('Offline recovery: cached body, explicit missing-body state, no network reads while offline, DNS banner and automatic online retry passed');
  const analysisButton=document.querySelector('.reading__toolbar [aria-controls="thread-copilot"]');
