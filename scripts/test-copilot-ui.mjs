@@ -27,7 +27,7 @@ localStorage.setItem('namio.language','es');
 let configured=false,finish;let config={provider:'gemini',ollamaUrl:'http://127.0.0.1:11434',ollamaModel:''};
 window.inputs=[];window.cancels=0;window.modelRequests=[];window.installedModels=['qwen2.5:3b','test-local:latest'];
 window.api={listOllamaModels:async server=>{window.modelRequests.push(server);if(window.modelsFail)throw Error('Connection refused');return window.installedModels},getSettings:async()=>({language:'es'}),setSettings:async()=>{},copilotStatus:async()=>({...config,hasGeminiKey:configured,geminiKeyStorage:configured?(window.sessionOnly?'session':'encrypted'):'none'}),configureCopilot:async next=>{config={...next};window.savedConfig=config},
- setCopilotKey:async key=>{if(key.includes(' '))throw Error('Invalid API key');configured=!!key;window.lastKey=key;return configured?(window.sessionOnly?'session':'encrypted'):'none'},generateCopilot:async input=>{window.inputs.push(input);return new Promise(resolve=>{finish=resolve})},cancelCopilot:async()=>{window.cancels++;finish?.({error:'canceled'})}};
+ setCopilotKey:async key=>{if(key.includes(' '))throw Error('Invalid API key');configured=!!key;window.lastKey=key;return configured?(window.sessionOnly?'session':'encrypted'):'none'},generateCopilot:async(input,onChunk)=>{window.pushProposal=onChunk;window.inputs.push(input);return new Promise(resolve=>{finish=resolve})},cancelCopilot:async()=>{window.cancels++;finish?.({error:'canceled'})}};
 window.resolveProposal=result=>finish(result);
 const originalThread={subject:'Hilo de pruebas',messages:[{id:'one',from:{name:'Ana',email:'ana@example.test'},sentAt:'2026-11-04',body:['Enviar el informe el viernes.']},{id:'two',from:{name:'Luis',email:'luis@example.test'},sentAt:'2026-11-04',body:[''],html:'<p>Confirmo la entrega.</p><script>ignored-instructions</script>'}]};
 function Harness(){const [analysis,setAnalysis]=useState(false);const [thread,setThread]=useState(originalThread);window.showAnalysis=setAnalysis;window.resetThread=()=>setThread(originalThread);window.partialThread=()=>setThread({...originalThread,messages:originalThread.messages.map(m=>({...m,partial:true}))});window.longThread=()=>setThread({...originalThread,messages:[{...originalThread.messages[0],body:['x'.repeat(40001)]}]});
@@ -113,15 +113,20 @@ app.whenReady().then(async()=>{
  change(document.querySelector('.ai-panel textarea'),'Write a reply');await until(()=>!button('Redactar').disabled);button('Redactar').click();
  await until(()=>window.inputs.length===1);assert(window.inputs[0].provider==='ollama','Generation uses the displayed provider');assert(window.inputs[0].context==='','Context excluded by default');
  assert(editor.getText()==='Original draft','Generation does not overwrite draft');
- window.resolveProposal({text:'Proposal <script>alert(1)</script>\\n\\nSegundo párrafo.'});await until(()=>document.querySelector('.ai-proposal'));
+ window.pushProposal('Proposal <script>');await until(()=>document.querySelector('.ai-proposal')?.textContent==='Proposal <script>');
+ assert(button('Aplicar al editor').disabled,'Streaming proposal cannot be applied before completion');
+ window.pushProposal('alert(1)</script>');await until(()=>document.querySelector('.ai-proposal')?.textContent==='Proposal <script>alert(1)</script>');
+ assert(!document.querySelector('.ai-proposal script')&&editor.getText()==='Original draft','Partial text is escaped and preserves the draft');
+ window.resolveProposal({text:'**Proposal** <script>alert(1)</script>\\n\\nSegundo párrafo.'});await until(()=>document.querySelector('.ai-proposal')?.textContent.includes('Segundo párrafo.'));
  assert(!document.querySelector('.ai-proposal script'),'Proposal renders as text');
+ assert(document.querySelector('.ai-proposal strong')?.textContent==='Proposal'&&!document.querySelector('.ai-proposal').textContent.includes('**'),'Proposal bold formatting is rendered');
  const panel=document.querySelector('.ai-panel');
  const toggle=()=>document.querySelector('.composer__editor-heading button').click();
- change(document.querySelector('.ai-panel select'),'warm');await tick();
+ change(document.querySelector('.ai-panel [aria-label="Voz y tono"]'),'warm');await tick();
  toggle();await until(()=>document.querySelector('#composer-ai').hidden);
  toggle();await until(()=>!document.querySelector('#composer-ai').hidden);
  assert(document.querySelector('.ai-panel')===panel,'Hiding the copilot preserves its mounted state');
- assert(document.querySelector('.ai-panel textarea').value==='Write a reply'&&document.querySelector('.ai-panel select').value==='warm','Instructions and tone survive reopening');
+ assert(document.querySelector('.ai-panel textarea').value==='Write a reply'&&document.querySelector('.ai-panel [aria-label="Voz y tono"]').value==='warm','Instructions and tone survive reopening');
  assert(document.querySelector('.ai-proposal').textContent.includes('Segundo párrafo.'),'Proposal survives reopening');
  document.querySelector('.composer__head [aria-label="Minimizar"]').click();await until(()=>document.querySelector('.composer--minimized'));
  document.querySelector('.composer__head [aria-label="Restaurar mensaje"]').click();await until(()=>!document.querySelector('.composer--minimized'));
@@ -131,6 +136,7 @@ app.whenReady().then(async()=>{
  assert(!button('Deshacer aplicación').disabled,'Applied proposal is not incorrectly marked as changed');
  toggle();await tick();toggle();await tick();assert(!button('Deshacer aplicación').disabled,'Undo survives closing and reopening the copilot');
  assert(!editor.view.dom.querySelector('script'),'Applied AI text is escaped in the editor');
+ assert(editor.getHTML().includes('<strong>Proposal</strong>')&&!editor.getText().includes('**'),'Applying preserves formatting without Markdown markers');
  assert(editor.view.dom.querySelectorAll('p').length===2&&!editor.view.dom.querySelector('p:empty'),'AI paragraph breaks do not add empty paragraphs');
  button('Deshacer aplicación').click();await until(()=>editor.getText()==='Original draft');assert(editor.getHTML().includes('<strong>'),'Undo restores rich formatting');
  document.querySelector('.ai-context input').click();
@@ -141,7 +147,8 @@ app.whenReady().then(async()=>{
  assert(document.querySelector('.ai-context input').checked,'Context choice survives hiding');
  assert(button('Aplicar al editor').disabled,'Stale response cannot overwrite formatting edits');
  editor.commands.insertContent(' changed');
- button('Redactar').click();await until(()=>window.inputs.length===3);button('Cancelar').click();await until(()=>document.querySelector('.ai-panel [role=alert]'));
+ button('Redactar').click();await until(()=>window.inputs.length===3);window.pushProposal('Respuesta parcial');await until(()=>document.querySelector('.ai-proposal')?.textContent==='Respuesta parcial');button('Cancelar').click();await until(()=>document.querySelector('.ai-panel [role=alert]'));
+ assert(button('Aplicar al editor').disabled,'Canceled partial output cannot be applied');
  assert(window.cancels===1&&editor.getText().includes('changed'),'Cancel preserves edits');
  button('Redactar').click();await until(()=>window.inputs.length===4);window.resolveProposal({error:'limit'});await until(()=>document.querySelector('.ai-panel [role=alert]')?.textContent.includes('límite'));
  button('Redactar').click();await until(()=>window.inputs.length===5);window.resolveProposal({text:['Estimado equipo:', 'Espero que se encuentren muy bien.', 'Les escribo para solicitar permiso para retirarme una hora antes de mi horario habitual este viernes.', 'Dejaré organizados mis pendientes para que puedan revisarlos antes de mi salida.', 'Agradezco su atención y quedo pendiente de su respuesta.', 'Saludos cordiales.'].join(String.fromCharCode(10,10))});await until(()=>document.querySelector('.ai-proposal'));
@@ -169,10 +176,16 @@ app.whenReady().then(async()=>{
  }
  const before=window.inputs.length;window.showAnalysis(true);await until(()=>button('Resumir hilo')&&!button('Resumir hilo').disabled);
  if(window.inputs.length!==before)throw Error('Thread text shared before explicit action');
+ const language=document.querySelector('[aria-label="Idioma de la respuesta"]');
+ if(language.value!=='es')throw Error('Response language should default to the interface locale');
+ Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(language,'en');language.dispatchEvent(new Event('change',{bubbles:true}));
+ await new Promise(resolve=>requestAnimationFrame(resolve));
  button('Resumir hilo').click();await until(()=>window.inputs.length===before+1);
  const request=window.inputs.at(-1),thread=JSON.parse(request.body);
+ if(request.locale!=='en')throw Error('Selected response language was not sent');
  if(request.action!=='summarize'||thread.subject!=='Hilo de pruebas'||thread.messages.length!==2||!thread.messages[1].body.includes('Confirmo la entrega.')||request.body.includes('ignored-instructions'))throw Error('Incorrect thread scope or HTML extraction');
- window.resolveProposal({text:'Resumen <script>literal</script>'});await until(()=>document.querySelector('.ai-proposal')?.textContent.includes('Resumen'));
+ window.pushProposal('Resumen progresivo');await until(()=>document.querySelector('.ai-proposal')?.textContent==='Resumen progresivo');
+ window.resolveProposal({text:'Resumen <script>literal</script>'});await until(()=>document.querySelector('.ai-proposal')?.textContent==='Resumen <script>literal</script>');
  if(document.querySelector('.ai-proposal script')||button('Aplicar al editor'))throw Error('Analysis must be read-only and safe');
  button('Extraer pendientes').click();await until(()=>window.inputs.length===before+2);
  if(window.inputs.at(-1).action!=='tasks')throw Error('Wrong tasks action');
@@ -184,8 +197,10 @@ app.whenReady().then(async()=>{
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
  const until=async fn=>{for(let i=0;i<150;i++){if(fn())return;await new Promise(r=>setTimeout(r,20))}throw Error('Analysis preview timed out')};
  window.resetThread();await until(()=>document.querySelector('.thread-copilot .ai-panel__generate button:not(:disabled)'));
+ const language=document.querySelector('[aria-label="Idioma de la respuesta"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(language,'es');language.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>requestAnimationFrame(resolve));
  const count=window.inputs.length;document.querySelector('.thread-copilot .ai-panel__generate button').click();await until(()=>window.inputs.length===count+1);
- window.resolveProposal({text:'Tema: entrega del informe. La conversación confirma una entrega el viernes. No se han indicado otros acuerdos.'});await until(()=>document.querySelector('.ai-proposal'));
+ window.resolveProposal({text:['**Tema:** Entrega del informe','**Datos importantes:**','- La conversación confirma una entrega el viernes.','- No se han indicado otros acuerdos.','**Pendientes:**','1. Revisar el informe.','2. Confirmar la entrega.'].join(String.fromCharCode(10,10))});await until(()=>document.querySelector('.ai-proposal'));
+ if(!document.querySelector('.ai-proposal strong')||!document.querySelector('.ai-proposal ul')||!document.querySelector('.ai-proposal ol')||document.querySelector('.ai-proposal').textContent.includes('**'))throw Error('Thread Markdown formatting missing');
 })()`)});
  for(const width of [1080,480]){
   await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width,height:850,deviceScaleFactor:1,mobile:false});

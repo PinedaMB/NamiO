@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type CopilotRequest,
+  type CopilotResult,
   type CopilotConfig,
   type UpdateState,
   type NotificationTarget,
@@ -36,6 +37,8 @@ import {
  * Única superficie que la UI puede tocar. Agregar un canal acá es una decisión
  * de seguridad, no un detalle de implementación.
  */
+let copilotRequest = 0
+
 const api: MailApi = {
   onZoomChanged: listener => {
     const handler = (_event: unknown, percent: number): void => listener(percent)
@@ -68,7 +71,15 @@ const api: MailApi = {
   configureCopilot: (config: CopilotConfig) => ipcRenderer.invoke(IPC.copilotConfigure, config),
   copilotStatus: () => ipcRenderer.invoke(IPC.copilotStatus),
   setCopilotKey: (key: string) => ipcRenderer.invoke(IPC.copilotKey, key),
-  generateCopilot: (input: CopilotRequest) => ipcRenderer.invoke(IPC.copilotGenerate, input),
+  generateCopilot: async (input: CopilotRequest, onChunk?: (text: string) => void): Promise<CopilotResult> => {
+    const request = ++copilotRequest
+    const chunk = (_event: unknown, value: { request: number; text: string }): void => {
+      if (value.request === request) onChunk?.(value.text)
+    }
+    ipcRenderer.on(IPC.copilotChunk, chunk)
+    try { return await ipcRenderer.invoke(IPC.copilotGenerate, input, request) }
+    finally { ipcRenderer.removeListener(IPC.copilotChunk, chunk) }
+  },
   cancelCopilot: () => ipcRenderer.invoke(IPC.copilotCancel),
   getSettings: (): Promise<Partial<AppSettings>> => ipcRenderer.invoke(IPC.settingsGet),
   setSettings: (settings: Partial<AppSettings>): Promise<void> => ipcRenderer.invoke(IPC.settingsSet, settings),

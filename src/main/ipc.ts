@@ -119,11 +119,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.copilotConfigure, (_event, config) => configureCopilot(config))
   ipcMain.handle(IPC.copilotStatus, () => copilotStatus())
   ipcMain.handle(IPC.copilotKey, (_event, key: string) => setCopilotKey(key))
-  ipcMain.handle(IPC.copilotGenerate, async (event, input) => {
+  ipcMain.handle(IPC.copilotGenerate, async (event, input, request: number) => {
+    if (!Number.isSafeInteger(request) || request < 1) return { error: 'invalid' }
     const owner = event.sender.id
     const cancel = (): void => cancelCopilot(owner)
     event.sender.once('destroyed', cancel)
-    try { return await generateCopilot(owner, input) }
+    try { return await generateCopilot(owner, input, text => {
+      if (!event.sender.isDestroyed()) event.sender.send(IPC.copilotChunk, { request, text })
+    }) }
     finally { event.sender.removeListener('destroyed', cancel) }
   })
   ipcMain.handle(IPC.copilotCancel, event => cancelCopilot(event.sender.id))

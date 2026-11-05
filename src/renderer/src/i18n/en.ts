@@ -738,4 +738,8 @@ export const en: Dictionary = {
   "ai.threadIncomplete": "Wait for the thread to finish loading. Download any missing message bodies before analyzing it.",
   "ai.threadTooLong": "This thread exceeds the 40,000-character analysis limit.",
 
+  "ai.incomplete": "The response is incomplete. Generate it again before applying.",
+
+  "ai.outputLanguage": "Response language",
+
 }

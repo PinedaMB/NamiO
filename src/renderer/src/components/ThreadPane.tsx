@@ -418,18 +418,18 @@ export function ThreadPane({
       </div>
       <div className="quick-reply">
         <div className="quick-reply__actions">
-          <TooltipButton className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} title={t('thread.quickDraft')}>
+          <button className="tool-btn quick-reply__ai" type="button" onClick={onQuickDraft} aria-label={t('thread.quickDraft')}>
             <Icon name="bolt" size={14} />
             {t('thread.quickDraft')}
-          </TooltipButton>
-          <TooltipButton className="btn btn--surface" type="button" onClick={onReply} title={t('thread.replySender')}>
+          </button>
+          <button className="btn btn--surface" type="button" onClick={onReply} aria-label={t('thread.replySender')}>
             <Icon name="reply" size={16} />
             {t('common.reply')}
-          </TooltipButton>
-          <TooltipButton className="btn btn--primary" type="button" onClick={onReplyAll} title={t('thread.replyEveryone')}>
+          </button>
+          <button className="btn btn--primary" type="button" onClick={onReplyAll} aria-label={t('thread.replyEveryone')}>
             <Icon name="reply_all" size={16} />
             {t('common.replyAll')}
-          </TooltipButton>
+          </button>
         </div>
       </div>
       {recipientsMessage && <RecipientsDialog key={`${mailbox}:${recipientsMessage.id}`} message={recipientsMessage} onClose={() => setRecipientsId(null)} />}

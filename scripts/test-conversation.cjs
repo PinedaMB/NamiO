@@ -100,7 +100,7 @@ const attachmentSections = []
 const senderAvatars = []
 function visit(node) {
   if (!React.isValidElement(node)) return
-  if (node.props.title === 'thread.replySender' || node.props.title === 'thread.replyEveryone') node.props.onClick()
+  if (node.props['aria-label'] === 'thread.replySender' || node.props['aria-label'] === 'thread.replyEveryone') node.props.onClick()
   if (node.props.className === 'participants__details') {
     detailsCount++
     assert.equal(node.props['aria-haspopup'], 'dialog')

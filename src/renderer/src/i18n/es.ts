@@ -741,6 +741,10 @@ export const es = {
   "ai.threadIncomplete": "Espera a que termine de cargar el hilo. Si faltan cuerpos, vuelve a descargarlos antes de analizarlo.",
   "ai.threadTooLong": "El texto de este hilo supera el límite de 40 000 caracteres para el análisis.",
 
+  "ai.incomplete": "La respuesta quedó incompleta. Vuelve a generar antes de aplicarla.",
+
+  "ai.outputLanguage": "Idioma de la respuesta",
+
 } as const
 
 export type TranslationKey = keyof typeof es

@@ -6267,3 +6267,22 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 #thread-copilot > p { padding: var(--sp-md); color: var(--on-surface-variant); }
 
 .thread-copilot .ai-panel { height: auto; max-height: inherit; }
+
+.ai-language { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-md); margin-bottom: var(--sp-lg); font-size: 13px; color: var(--on-surface-variant); }
+.ai-language .select { width: auto; min-width: 120px; }
+.ai-panel .ai-proposal { white-space: normal; user-select: text; }
+.ai-proposal p { margin: 0 0 12px; }
+.ai-proposal p:last-child, .ai-proposal ul:last-child, .ai-proposal ol:last-child { margin-bottom: 0; }
+.ai-proposal p:has(> strong:only-child) { margin-top: 20px; }
+.ai-proposal p:first-child { margin-top: 0; }
+.ai-proposal strong { font-weight: 600; color: var(--on-surface); }
+.ai-proposal ul, .ai-proposal ol { padding-left: 22px; margin: 0 0 16px; }
+.ai-proposal li { margin-block: 4px; }
+.ai-proposal li p { margin: 0; }
+.ai-proposal code { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.thread-copilot { border-radius: var(--r-xl); }
+.thread-copilot .ai-panel { background: var(--surface); }
+.thread-copilot .ai-panel__head { background: var(--surface-container-low); }
+.thread-copilot .ai-panel__scroll { padding: 20px; }
+.thread-copilot .ai-proposal { background: transparent; padding: 0; border-radius: 0; }
+.thread-copilot .ai-panel__result { margin-top: 20px; padding-top: 20px; }

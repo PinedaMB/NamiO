@@ -1,3 +1,4 @@
+import { copilotHtml } from '../lib/copilotHtml'
 import { CopilotPanel } from './CopilotPanel'
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import { TooltipButton } from './Tooltip'
@@ -460,9 +461,13 @@ export function ComposeOverlay({
           {ai && <div id="composer-ai" hidden={!aiOpen || !open || minimized}>
             <CopilotPanel body={bodyValue} revision={htmlValue ?? bodyValue} context={history.text} onApply={text => {
               const previous = { ...bodyRef.current }
-              const markup = text.split(/\n{2,}/).map(replyPlainHtml).join('')
-              bodyRef.current = { body: text, html: markup }
-              setBodyValue(text)
+              const markup = copilotHtml(text)
+              const document_ = new DOMParser().parseFromString(markup, 'text/html')
+              document_.querySelectorAll('br').forEach(node => node.replaceWith('\n'))
+              document_.querySelectorAll('p').forEach(node => node.append('\n\n'))
+              const plain = (document_.body.textContent ?? '').trim()
+              bodyRef.current = { body: plain, html: markup }
+              setBodyValue(plain)
               setHtmlValue(markup)
               return { revision: markup, undo: () => {
                 bodyRef.current = previous

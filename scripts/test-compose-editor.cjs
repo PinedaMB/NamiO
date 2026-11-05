@@ -14,6 +14,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeO
  if(id==='../lib/useFocusTrap')return{useFocusTrap(){}}
  if(id==='../lib/cx')return{cx:(...v)=>v.filter(Boolean).join(' ')}
  if(id==='../data/demo')return{COPILOT_DRAFT:''}
+ if(id==='../lib/copilotHtml')return{copilotHtml:text=>text}
  if(id==='../lib/composeHtml')return{composeEmailHtml:html=>html,splitReplyHtml:html=>({html,quote:''})}
  if(id==='./EmailBody')return{EmailBody:()=>null}
  if(id==='./RichTextEditor')return{RichTextEditor:()=>null}
