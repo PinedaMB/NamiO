@@ -36,6 +36,7 @@ export const IPC = {
   accountDisconnect: 'account:disconnect',
   accountRename: 'account:rename',
   mailboxesList: 'mailboxes:list',
+  mailboxChange: 'mailboxes:change',
   messagesList: 'messages:list',
   messageGet: 'message:get',
   sentReplies: 'message:sent-replies',
@@ -511,6 +512,7 @@ export interface MailApi {
   accountDisconnect(): Promise<boolean>
 
   /** `sync` dispara una actualización en segundo plano cuando ya hay caché. */
+  changeMailbox(path: string, remove: boolean): Promise<ImapResult<boolean>>
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
   listEnvelopes(path: string, limit: number, sync?: boolean, options?: EnvelopeListOptions): Promise<EnvelopeListResult>
   getSentReplies(path: string, uids: number[], cachedOnly?: boolean): Promise<CachedResult<SentReply[]>>

@@ -35,6 +35,7 @@ import {
   listAccounts,
   listEnvelopes,
   listMailboxes,
+  changeMailbox,
   mailboxDeletionSnapshot,
   readAttachment,
   searchMail,
@@ -277,6 +278,19 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle(IPC.mailboxChange, async (event, path: string, remove: boolean) => {
+    const account = await readActiveAccount()
+    if (!account || account.id !== cacheAccountId() || typeof path !== 'string' || typeof remove !== 'boolean') return { ok: false, code: 'unknown', detail: 'Cuenta o carpeta inválida' }
+    if (remove) {
+      const settings = await readSettings()
+      const es = settings.language !== 'en'
+      const options = { type: 'warning' as const, title: es ? 'Eliminar carpeta' : 'Delete folder', message: es ? `¿Eliminar «${path}» y todos sus mensajes del servidor?` : `Delete “${path}” and all its messages from the server?`, detail: es ? 'Esta acción no se puede deshacer.' : 'This cannot be undone.', buttons: es ? ['Cancelar', 'Eliminar carpeta'] : ['Cancel', 'Delete folder'], defaultId: 0, cancelId: 0, noLink: true }
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const answer = await (window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options))
+      if (answer.response !== 1) return { ok: true, data: false }
+    }
+    return changeMailbox(path, remove, account.id)
+  })
   ipcMain.handle(IPC.mailboxesList, (_event, sync: boolean = true) => listMailboxes(sync))
   ipcMain.handle(IPC.messagesList, (_event, path: string, limit: number, sync: boolean = true, options: EnvelopeListOptions = {}) => {
     if (typeof path !== 'string' || !Number.isSafeInteger(limit) || limit < 1 ||

@@ -100,6 +100,7 @@ const api: MailApi = {
   accountRename: (label: string): Promise<ImapResult<AccountState>> => ipcRenderer.invoke(IPC.accountRename, label),
   accountDisconnect: (): Promise<boolean> => ipcRenderer.invoke(IPC.accountDisconnect),
 
+  changeMailbox: (path: string, remove: boolean): Promise<ImapResult<boolean>> => ipcRenderer.invoke(IPC.mailboxChange, path, remove),
   listMailboxes: (sync = true): Promise<CachedResult<MailboxInfo[]>> => ipcRenderer.invoke(IPC.mailboxesList, sync),
   listEnvelopes: (path: string, limit: number, sync = true, options?: EnvelopeListOptions): Promise<EnvelopeListResult> =>
     ipcRenderer.invoke(IPC.messagesList, path, limit, sync, options),

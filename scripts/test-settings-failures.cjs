@@ -76,10 +76,12 @@ async function checkRules() {
   }
 }
 function checkRulePresentation() {
-  const state = [], exports = {}
+  const state = [], exports = {}, mailboxes = {}
+  vm.runInNewContext(compile(fs.readFileSync('src/shared/mailboxes.ts', 'utf8')), { exports: mailboxes })
   let index = 0
   vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/RulesSection.tsx', 'utf8')), {
     exports, require: id => {
+      if (id === '@shared/mailboxes') return mailboxes
       if (id === 'react') return { ...React, useEffect() {}, useCallback: fn => fn,
         useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value }] }
       }

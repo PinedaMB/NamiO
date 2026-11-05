@@ -1,3 +1,4 @@
+import { FolderDialog } from './components/FolderDialog'
 import { usePreferences } from './settings/PreferencesProvider'
 import { isSelectAll, selectTextContents } from './lib/selection'
 import { flushSync } from 'react-dom'
@@ -17,7 +18,7 @@ import type {
   SyncProgress,
   EnvelopeListOptions
 } from '@shared/ipc'
-import { isDraftMailbox, isSpamMailbox, organizedSidebarMailboxes, sidebarMailboxes } from '@shared/mailboxes'
+import { canDeleteMailbox, isAdditionalSpamMailbox, isDraftMailbox, isSpamMailbox, organizedSidebarMailboxes, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread, type Message } from './data/demo'
 import { detailToMessage, pendingDraftThreads, pendingSendThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
@@ -229,6 +230,8 @@ export function App(): React.JSX.Element {
   const [settings, setSettings] = useState<Partial<AppSettings>>({})
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [mailboxes, setMailboxes] = useState<readonly MailboxInfo[]>([])
+  const [folderDialog, setFolderDialog] = useState(false)
+  const [folderBusy, setFolderBusy] = useState(false)
   const [messageRetry, setMessageRetry] = useState(0)
   const [loadingBody, setLoadingBody] = useState(false)
   const [loadingSentBodies, setLoadingSentBodies] = useState(false)
@@ -324,7 +327,8 @@ export function App(): React.JSX.Element {
       accountIdentity.current = identity
       accountGeneration.current += 1
       setThreads([])
-      setSentReplies({})
+      setFolderDialog(false)
+    setSentReplies({})
       setListCounts(null)
       setSelectedId(null)
       setIndividualMessageId(null)
@@ -472,7 +476,9 @@ export function App(): React.JSX.Element {
   const folderViews = useMemo<readonly FolderView[]>(() => {
     if (live) return organizedSidebarMailboxes(mailboxes).map(({ mailbox, depth, parentId, hasChildren }) => {
       const folder = mailboxToFolder(mailbox, depth, parentId, hasChildren)
-      return { ...folder, label: folder.labelKey ? t(folder.labelKey) : folder.label }
+      return { ...folder, label: isAdditionalSpamMailbox(mailbox, mailboxes)
+        ? t('sidebar.additionalSpam', { name: mailbox.path })
+        : folder.labelKey ? t(folder.labelKey) : folder.label }
     })
     return FOLDERS.map((item) => ({
       id: item.id,
@@ -1528,10 +1534,30 @@ export function App(): React.JSX.Element {
   const spamTarget = inSpam ? mailboxes.find(box => /^inbox$/i.test(box.path))?.path : spamFolder?.path
   const moveFolders = mailboxes.filter(box => box.path !== folder)
 
+  const changeFolder = async (path: string, remove: boolean): Promise<void> => {
+    const generation = accountGeneration.current
+    setFolderBusy(true)
+    try {
+      const result = await window.api.changeMailbox(path, remove)
+      if (generation !== accountGeneration.current) return
+      if (!result.ok) throw new Error(result.detail ?? result.code)
+      if (!result.data) return
+      const boxes = await window.api.listMailboxes(false)
+      if (generation !== accountGeneration.current) return
+      if (boxes.ok) {
+        setMailboxes(boxes.data)
+        if (remove && activeFolderRef.current === path) selectFolder(boxes.data.find(box => /^inbox$/i.test(box.path))?.path ?? boxes.data[0]?.path ?? 'INBOX')
+      }
+      setToast(t(remove ? 'folder.deleted' : 'folder.created'))
+    } finally { setFolderBusy(false) }
+  }
+
   const contextActions: ContextAction[] = contextMenu?.kind === 'folder'
     ? [
+      { label: t('folder.create'), icon: 'create_new_folder', run: () => setFolderDialog(true), disabled: !live || folderBusy },
       { label: t('context.openFolder'), icon: 'folder_open', run: () => selectFolder(contextMenu.id) },
       { label: t('topbar.sync'), icon: 'sync', run: () => { void handleSync(contextMenu.id) }, disabled: !live || manualSyncing },
+      ...(mailboxes.some(box => box.path === contextMenu.id && canDeleteMailbox(box, mailboxes)) ? [{ label: t('folder.delete'), icon: 'folder_delete', danger: true, disabled: !live || folderBusy, run: () => { void changeFolder(contextMenu.id, true).catch(error => setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' }))) } }] : []),
       ...(canEmptyMailbox(contextMenu.id) ? [{ label: t('context.emptyFolder'), icon: 'delete_sweep', run: () => { void emptyFolder(contextMenu.id) }, danger: true, disabled: !live || bulkBusy || pendingDelete !== null }] : [])
     ]
     : selected && selected.id === contextMenu?.id
@@ -1787,6 +1813,7 @@ export function App(): React.JSX.Element {
       />
 
       {moveOpen && selected && <MoveDialog subject={selected.subject} folders={moveFolders} onClose={() => setMoveOpen(false)} onMove={moveSelected} />}
+      {folderDialog && <FolderDialog onClose={() => setFolderDialog(false)} onCreate={name => changeFolder(name, false)} />}
       {contextMenu && contextActions.length > 0 && <ContextMenu anchor={contextMenu} label={contextMenu.kind === 'folder' ? folderViews.find(item => item.id === contextMenu.id)?.label ?? contextMenu.id : selected?.subject ?? ''} actions={contextActions} onClose={closeContextMenu} />}
 
       <ComposeOverlay

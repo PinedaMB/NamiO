@@ -58,12 +58,13 @@ async function main() {
   const context = {
     attachmentRequest: { current: 0 }, listOptions: { current: {} }, folder: 'inbox', folderRequest: { current: 0 }, activeFolderRef: { current: 'inbox' }, locale: 'es', listLimit: 50, useCallback: fn => fn, accountIdentity: { current: 'previous' }, accountGeneration: { current: 0 }
   }
-  for (const name of ['ListCounts', 'Threads', 'SentReplies', 'SelectedId', 'IndividualMessageId', 'LocalDrafts', 'Mailboxes', 'Query', 'Hits', 'AttachmentPreview', 'Searching', 'LoadingFolder', 'Folder', 'LiveError', 'Sync', 'SyncProgress', 'Outbox', 'Account']) {
+  for (const name of ['FolderDialog', 'ListCounts', 'Threads', 'SentReplies', 'SelectedId', 'IndividualMessageId', 'LocalDrafts', 'Mailboxes', 'Query', 'Hits', 'AttachmentPreview', 'Searching', 'LoadingFolder', 'Folder', 'LiveError', 'Sync', 'SyncProgress', 'Outbox', 'Account']) {
     context[`set${name}`] = value => { state[name[0].toLowerCase() + name.slice(1)] = value }
   }
   const applyAccount = load('src/renderer/src/App.tsx', 'applyAccount', context)
   const account = { configured: true, account: { host: 'mail.example.com', port: 993, user: 'new@example.com' } }
   applyAccount(account)
+  assert.equal(state.folderDialog, false, 'account switches close pending folder creation')
   assert.equal(state.threads.length, 0)
   assert.equal(Object.keys(state.sentReplies).length, 0, 'switching accounts clears sent replies')
   assert.equal(state.selectedId, null)

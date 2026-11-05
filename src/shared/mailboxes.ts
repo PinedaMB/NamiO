@@ -8,6 +8,10 @@ export function isSpamMailbox(mailbox: { path: string; name?: string; specialUse
 }
 
 
+export function isAdditionalSpamMailbox(mailbox: MailboxInfo, mailboxes: readonly MailboxInfo[]): boolean {
+  return mailbox.specialUse !== '\\Junk' && isSpamMailbox(mailbox) && mailboxes.some(box => box.specialUse === '\\Junk')
+}
+
 /** Conserva la carpeta oficial y cualquier carpeta adicional que tenga contenido. */
 export function sidebarMailboxes(mailboxes: readonly MailboxInfo[]): readonly MailboxInfo[] {
   if (!mailboxes.some(mailbox => mailbox.specialUse === '\\Junk')) return mailboxes
@@ -89,4 +93,12 @@ export function organizedSidebarMailboxes(mailboxes: readonly MailboxInfo[]): re
   roots.sort((a, b) => rootRank(a) - rootRank(b) || byName(a, b))
   for (const root of roots) visit(root, 0, null)
   return ordered
+}
+
+/** Las carpetas del sistema y los padres con subcarpetas no se eliminan. */
+export function canDeleteMailbox(mailbox: MailboxInfo, mailboxes: readonly MailboxInfo[]): boolean {
+  return !mailbox.specialUse && (!isSpamMailbox(mailbox) || isAdditionalSpamMailbox(mailbox, mailboxes)) && !isDraftMailbox(mailbox) && !isTrashMailbox(mailbox) &&
+    !/^(inbox|sent|sent items|enviados|archive|archives|archivo|archivados|outbox)$/i.test(mailbox.name) &&
+    !/^inbox$/i.test(mailbox.path) &&
+    !mailboxes.some(child => child.path.startsWith(`${mailbox.path}/`) || child.path.startsWith(`${mailbox.path}\\`))
 }

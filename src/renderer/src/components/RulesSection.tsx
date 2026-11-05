@@ -1,3 +1,4 @@
+import { isAdditionalSpamMailbox } from '@shared/mailboxes'
 import { TooltipButton } from './Tooltip'
 import { Select } from './Select'
 import { useCallback, useEffect, useState } from 'react'
@@ -239,7 +240,7 @@ export function RulesSection(): React.JSX.Element {
                     <option value="">{t('rules.target.placeholder')}</option>
                     {mailboxes.map((box) => (
                       <option key={box.path} value={box.path}>
-                        {box.name}
+                        {box.specialUse === '\\Junk' ? `${t('sidebar.spam')} (${box.path})` : isAdditionalSpamMailbox(box, mailboxes) ? t('sidebar.additionalSpam', { name: box.path }) : box.name}
                       </option>
                     ))}
                   </Select>

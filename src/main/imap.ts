@@ -1,7 +1,7 @@
 import { cachedAttachment, cacheAttachment, clearAttachmentCache } from './attachmentCache'
 import { messageParts } from './messageParts'
 import { trackNewMail } from './notificationCursor'
-import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
+import { canDeleteMailbox, isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 import { createHash } from 'node:crypto'
 import { ImapFlow, type MessageStructureObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
@@ -1657,5 +1657,36 @@ export function uploadDraft(draft: Draft, raw: Buffer, messageId: string, accoun
     if (current) storeDraft({ ...current, server: saved.server, syncedAt: draft.updatedAt, previousServer: undefined })
     await syncMessages(folder.path, 50)
     notify(folder.path)
+  })
+}
+
+export function changeMailbox(path: string, remove: boolean, accountId: string): Promise<ImapResult<boolean>> {
+  return serial(async () => {
+    try {
+      if (typeof path !== 'string' || !path.trim() || path.length > 255 || /[\x00-\x1f\x7f]/.test(path) || typeof remove !== 'boolean') throw new Error('Nombre de carpeta inválido')
+      if (!remove && (path !== path.trim() || /[/\\]/.test(path))) throw new Error('Usa un nombre sin barras para la nueva carpeta')
+      if (accountId !== cacheAccountId()) throw accountChangedError()
+      const boxes = await syncMailboxes()
+      const client = await ensureClient()
+      if (remove) {
+        const box = boxes.find(box => box.path === path)
+        if (!box || !canDeleteMailbox(box, boxes)) throw new Error('No se puede eliminar una carpeta especial o con subcarpetas')
+        const hierarchy = await client.list()
+        const delimiter = hierarchy.find(box => box.path === path)?.delimiter
+        if (delimiter && hierarchy.some(box => box.path.startsWith(`${path}${delimiter}`))) throw new Error('La carpeta contiene subcarpetas')
+        if (!await client.mailboxDelete(path)) throw new Error('El servidor no confirmó la eliminación')
+      } else {
+        const hierarchy = await client.list()
+        if (hierarchy.some(box => box.delimiter && path.includes(box.delimiter))) throw new Error('El nombre contiene un separador de carpetas del servidor')
+        if (boxes.some(box => box.path.toLowerCase() === path.toLowerCase())) throw new Error('Ya existe una carpeta con ese nombre')
+        const created = await client.mailboxCreate(path)
+        if (!created) throw new Error('El servidor no confirmó la creación')
+      }
+      await syncMailboxes()
+      notify('*')
+      return { ok: true, data: true }
+    } catch (error) {
+      return { ok: false, code: classify(error), detail: describe(error) }
+    }
   })
 }
