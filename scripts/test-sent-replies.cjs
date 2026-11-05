@@ -79,7 +79,7 @@ const combined = vm.runInNewContext(compile(`(${readerExpression})`), {
 })
 assert.deepEqual(Array.from(combined.messages, message => message.id), ['live:7', 'sent:Sent:7'], 'reader preserves chronology and deduplicates mailbox copies by Message-ID')
 const flush = () => new Promise(resolve => setImmediate(resolve))
-async function renderer(offline = false, stale = false, preserveFull = false, staleOffline = false, slow = false) {
+async function renderer(offline = false, stale = false, preserveFull = false, staleOffline = false, slow = false, slowSearch = false) {
   const lookups = [], bodies = [], updates = []
   let release
   let state = preserveFull ? { 'one:INBOX:7': [{ id: 'sent:Enviados:7', mailbox: 'Enviados', uid: 7, body: ['Full reply'], partial: false }] } : {}
@@ -92,7 +92,7 @@ async function renderer(offline = false, stale = false, preserveFull = false, st
     window: { api: {
       getSentReplies: async (_path, _uids, cachedOnly) => {
         lookups.push(cachedOnly)
-        if (stale) await new Promise(resolve => { release = resolve })
+        if (stale || (slowSearch && !cachedOnly)) await new Promise(resolve => { release = resolve })
         return { ok: true, data: [{ mailbox: 'Enviados', uid: 7 }, ...(slow ? [{ mailbox: 'Enviados', uid: 8 }] : [])], meta: { offline: staleOffline } }
       },
       getMessage: async (mailbox, uid, cachedOnly) => {
@@ -105,6 +105,11 @@ async function renderer(offline = false, stale = false, preserveFull = false, st
   const cleanup = vm.runInNewContext(compile(`(${effect})`), context)()
   if (stale) { context.accountGeneration.current++; release() }
   await flush(); await flush()
+  if (slowSearch) {
+    assert.deepEqual(lookups, [true, false])
+    assert.equal(state['one:INBOX:7'][0].partial, false, 'known sent bodies download before a slow server search completes')
+    cleanup(); release(); await flush(); return
+  }
   if (slow) {
     const messages = state['one:INBOX:7']
     assert.equal(messages.find(message => message.uid === 7).partial, false, 'ready sent messages render while another download is still waiting')
@@ -159,5 +164,6 @@ async function prefetch(stale = false) {
   await renderer(); await renderer(true); await renderer(false, true); await renderer(true, false, true)
   await renderer(false, false, false, true)
   await renderer(false, false, false, false, true)
+  await renderer(false, false, false, false, false, true)
   console.log('Sent replies: exact header search, cache/offline access, account and UID isolation, stale-result cancellation and reader locations passed')
 })().catch(error => { console.error(error); process.exitCode = 1 })

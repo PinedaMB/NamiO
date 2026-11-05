@@ -980,12 +980,19 @@ export function App(): React.JSX.Element {
       }) }
       apply([])
       await Promise.all(result.data.map(async location => {
+        const applyResponse = (response: Awaited<ReturnType<typeof window.api.getMessage>>): void => {
+          if (!current()) return
+          if (!response.ok) { setLiveError({ code: response.code, detail: response.detail }); return }
+          apply([{ ...detailToMessage(response.data, locale, response.meta.partial === true),
+            id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,
+            inlineImagesPending: response.meta.inlineImagesPending === true }])
+        }
         const response = await window.api.getMessage(location.mailbox, location.uid, cachedOnly)
-        if (!current()) return
-        if (!response.ok) { setLiveError({ code: response.code, detail: response.detail }); return }
-        apply([{ ...detailToMessage(response.data, locale, response.meta.partial === true),
-          id: `sent:${encodeURIComponent(location.mailbox)}:${location.uid}`, mailbox: location.mailbox, uid: location.uid,
-          inlineImagesPending: response.meta.inlineImagesPending === true }])
+        applyResponse(response)
+        // Descarga las copias conocidas antes de repetir las búsquedas de cabeceras en el servidor.
+        if (cachedOnly && current() && navigator.onLine !== false && (!response.ok || response.meta.partial || response.meta.inlineImagesPending)) {
+          applyResponse(await window.api.getMessage(location.mailbox, location.uid, false))
+        }
       }))
     }
     void (async () => {
