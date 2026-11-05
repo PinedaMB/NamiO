@@ -65,8 +65,8 @@ export function CopilotSettings(): React.JSX.Element {
   return <section className="settings-card ai-settings" aria-labelledby="settings-copilot-title">
     <h2 className="settings-card__title" id="settings-copilot-title">{t('ai.title')}</h2>
     <p className="settings-card__subtitle">{t('ai.settingsHint')}</p>
-    <form className="settings-stack" onChange={() => setSaved(false)} onSubmit={event => { event.preventDefault(); void save() }}>
-      <fieldset disabled={busy || !loaded || modelsLoading} className="ai-key-fields">
+    <form className="settings-stack" aria-busy={busy} onChange={() => setSaved(false)} onSubmit={event => { event.preventDefault(); void save() }}>
+      <fieldset disabled={!loaded} inert={busy || modelsLoading} className="ai-key-fields">
         <div className="ai-provider-options" role="group" aria-label={t('ai.provider')}>
           {(['gemini', 'ollama'] as const).map(provider => <label className="ai-provider-choice" key={provider}>
             <input className="sr-only" type="radio" name="ai-provider" value={provider} checked={config.provider === provider} onChange={() => { setConfig(current => ({ ...current, provider })); setSaved(false) }} />
@@ -100,9 +100,9 @@ export function CopilotSettings(): React.JSX.Element {
             </Select>
           </label>
         </>}
-        <div className="ai-actions"><button className="btn btn--primary" type="submit" disabled={config.provider === 'ollama' && !config.ollamaModel}>{busy && <Icon name="progress_activity" size={16} className="spin" />}{t('ai.save')}</button></div>
+        <div className="ai-actions"><button className="btn btn--primary ai-settings__save" type="submit" disabled={busy || modelsLoading || (config.provider === 'ollama' && !config.ollamaModel)}><Icon name="progress_activity" size={16} className={busy ? 'spin' : 'ai-settings__save-idle'} />{t('ai.save')}</button></div>
       </fieldset>
-      {saved && <p role="status">{t(keyStorage === 'session' && config.provider === 'gemini' ? 'ai.savedSession' : 'ai.saved')}</p>}
+      <p className="ai-settings__feedback" role="status">{saved ? t(keyStorage === 'session' && config.provider === 'gemini' ? 'ai.savedSession' : 'ai.saved') : ''}</p>
       {error && <p className="account-error" role="alert">{t(error)}</p>}
     </form>
   </section>

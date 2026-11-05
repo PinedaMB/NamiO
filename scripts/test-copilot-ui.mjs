@@ -26,7 +26,7 @@ import '${project}/node_modules/material-symbols/outlined.css';
 localStorage.setItem('namio.language','es');
 let configured=false,finish;let config={provider:'gemini',ollamaUrl:'http://127.0.0.1:11434',ollamaModel:''};
 window.inputs=[];window.cancels=0;window.modelRequests=[];window.installedModels=['qwen2.5:3b','test-local:latest'];
-window.api={listOllamaModels:async server=>{window.modelRequests.push(server);if(window.modelsFail)throw Error('Connection refused');return window.installedModels},getSettings:async()=>({language:'es'}),setSettings:async()=>{},copilotStatus:async()=>({...config,hasGeminiKey:configured,geminiKeyStorage:configured?(window.sessionOnly?'session':'encrypted'):'none'}),configureCopilot:async next=>{config={...next};window.savedConfig=config},
+window.api={listOllamaModels:async server=>{window.modelRequests.push(server);if(window.modelsFail)throw Error('Connection refused');return window.installedModels},getSettings:async()=>({language:'es'}),setSettings:async()=>{},copilotStatus:async()=>({...config,hasGeminiKey:configured,geminiKeyStorage:configured?(window.sessionOnly?'session':'encrypted'):'none'}),configureCopilot:async next=>{if(window.holdConfig)await new Promise(resolve=>{window.finishConfigSave=resolve});config={...next};window.savedConfig=config},
  setCopilotKey:async key=>{if(key.includes(' '))throw Error('Invalid API key');configured=!!key;window.lastKey=key;return configured?(window.sessionOnly?'session':'encrypted'):'none'},generateCopilot:async(input,onChunk)=>{window.pushProposal=onChunk;window.inputs.push(input);return new Promise(resolve=>{finish=resolve})},cancelCopilot:async()=>{window.cancels++;finish?.({error:'canceled'})}};
 window.resolveProposal=result=>finish(result);
 const originalThread={subject:'Hilo de pruebas',messages:[{id:'one',from:{name:'Ana',email:'ana@example.test'},sentAt:'2026-11-04',body:['Enviar el informe el viernes.']},{id:'two',from:{name:'Luis',email:'luis@example.test'},sentAt:'2026-11-04',body:[''],html:'<p>Confirmo la entrega.</p><script>ignored-instructions</script>'}]};
@@ -86,7 +86,16 @@ app.whenReady().then(async()=>{
  window.installedModels=['qwen2.5:3b','test-local:latest'];button('Actualizar modelos').click();await until(()=>!document.querySelector('.ai-field select').disabled);await tick();
  assert(window.modelRequests.at(-1)==='http://127.0.0.1:11434','Models are queried from the configured address');
  change(document.querySelector('.ai-field select'),'test-local:latest');await tick();
- button('Guardar configuración').click();await until(()=>window.savedConfig?.provider==='ollama');await tick();
+ const chosen=document.querySelector('.ai-provider-choice:has(input:checked)'),beforeOpacity=getComputedStyle(chosen).opacity;
+ const saveButton=button('Guardar configuración'),saveWidth=saveButton.getBoundingClientRect().width,formHeight=document.querySelector('form').getBoundingClientRect().height,settingsNode=document.querySelector('.settings__main');
+ window.holdConfig=true;button('Guardar configuración').click();await until(()=>window.finishConfigSave);await tick();
+ assert(getComputedStyle(chosen).opacity===beforeOpacity,'Saving must not dim and flash the provider configuration');
+ assert(document.querySelector('fieldset').inert&&saveButton.disabled,'Saving prevents edits and duplicate submits without fading the form');
+ assert(saveButton.getBoundingClientRect().width===saveWidth,'Save feedback does not change the button width');
+ assert(document.querySelector('.settings__main')===settingsNode,'Saving does not remount the settings surface');
+ assert(!document.querySelector('.settings__main').getAnimations().some(a=>a.playState==='running'),'Saving does not restart the settings entrance animation');
+ window.holdConfig=false;window.finishConfigSave();await until(()=>window.savedConfig?.provider==='ollama');await tick();
+ assert(document.querySelector('form').getBoundingClientRect().height===formHeight,'Success feedback does not resize the form');
  assert(window.savedConfig.ollamaModel==='test-local:latest','Ollama model saved');
  button('Actualizar modelos').click();await until(()=>!document.querySelector('fieldset').disabled);await tick();assert(document.querySelector('.ai-field select').value==='test-local:latest','Refreshing preserves the selected installed model');
  provider('gemini');await until(()=>button('Eliminar clave'));
@@ -161,6 +170,9 @@ app.whenReady().then(async()=>{
    assert.equal(await win.webContents.executeJavaScript('(()=>{const p=document.querySelector(".ai-panel");return p.scrollWidth<=p.clientWidth})()'),true,'Copilot does not overflow');
    assert.equal(await win.webContents.executeJavaScript('(()=>{const s=document.querySelector(".ai-panel__scroll"),head=document.querySelector(".ai-panel__head"),foot=document.querySelector(".ai-panel__foot"),h=head.getBoundingClientRect(),f=foot.getBoundingClientRect();s.scrollTop=s.scrollHeight;const after=head.getBoundingClientRect();return h.top===after.top&&f.bottom<=innerHeight&&f.top>=h.bottom})()'),true,'Copilot header and apply action remain visible while scrolling');
    await fs.writeFile('/tmp/namio-copilot-'+width+'-'+theme+'.png',(await win.webContents.capturePage()).toPNG());
+   await win.webContents.executeJavaScript('document.querySelector(".ai-panel__scroll").scrollTop=0');
+   await new Promise(r=>setTimeout(r,100));
+   await fs.writeFile('/tmp/namio-copilot-controls-'+width+'-'+theme+'.png',(await win.webContents.capturePage()).toPNG());
   }
  }
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{

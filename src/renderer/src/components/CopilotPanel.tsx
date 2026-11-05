@@ -73,21 +73,23 @@ export function CopilotPanel({ body, revision, context, onApply, mode = 'compose
       </div>
     </header>
     <div className="ai-panel__scroll" ref={scroll} onScroll={event => { const node = event.currentTarget; follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48 }}>
+      <div className="ai-panel__preferences">
       <label className="ai-language">{t('ai.outputLanguage')}
         <Select aria-label={t('ai.outputLanguage')} value={outputLocale} disabled={busy} onChange={event => setOutputLocale(event.target.value as 'es' | 'en')}>
           <option value="es">Español</option><option value="en">English</option>
         </Select>
       </label>
-      {status && mode === 'compose' && <details className="ai-panel__privacy"><summary><Icon name="shield" size={14} />{t('ai.dataShared')}<Icon name="expand_more" size={16} className="ai-panel__privacy-chevron" /></summary><p>{t(status.provider === 'gemini' ? 'ai.privacy' : 'ai.privacy.ollama')}</p></details>}
-      {mode === 'compose' && <>
-      <label className="ai-field">{t('compose.voice')}
+      {mode === 'compose' && <label className="ai-field">{t('compose.voice')}
         <Select aria-label={t('compose.voice')} value={tone} disabled={busy} onChange={event => setTone(event.target.value as CopilotRequest['tone'])}>
           <option value="direct">{t('compose.toneDirect')}</option>
           <option value="warm">{t('compose.toneWarm')}</option>
           <option value="executive">{t('compose.toneExecutive')}</option>
           <option value="legal">{t('compose.toneLegal')}</option>
         </Select>
-      </label>
+      </label>}
+      </div>
+      {status && mode === 'compose' && <details className="ai-panel__privacy"><summary><Icon name="shield" size={14} />{t('ai.dataShared')}<Icon name="expand_more" size={16} className="ai-panel__privacy-chevron" /></summary><p>{t(status.provider === 'gemini' ? 'ai.privacy' : 'ai.privacy.ollama')}</p></details>}
+      {mode === 'compose' && <>
       <label className="ai-field">{t('compose.prompt')}
         <textarea value={prompt} maxLength={40000} disabled={busy} rows={3} onChange={event => setPrompt(event.target.value)} />
       </label>
@@ -97,14 +99,17 @@ export function CopilotPanel({ body, revision, context, onApply, mode = 'compose
         <button className="tool-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate('improve')}>{t('ai.improve')}</button>
         {busy && <button className="tool-btn" type="button" onClick={() => void window.api.cancelCopilot().catch(() => setError(t('ai.error.service')))}>{t('ai.cancel')}</button>}
       </div>
+      <div className="ai-panel__refine">
+      <h4>{t('ai.rewriteActions')}</h4>
       <div className="ai-rewrite-actions" role="group" aria-label={t('ai.rewriteActions')}>
-        {(['shorten', 'expand', 'correct'] as const).map(action => <button key={action} className="micro-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate(action)}>{t(`ai.${action}`)}</button>)}
+        {(['shorten', 'expand', 'correct'] as const).map(action => <button key={action} className="tool-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate(action)}>{t(`ai.${action}`)}</button>)}
       </div>
       <div className="ai-translate">
         <Select aria-label={t('ai.targetLanguage')} value={targetLocale} disabled={busy} onChange={event => setTargetLocale(event.target.value as 'es' | 'en')}>
           <option value="es">Español</option><option value="en">English</option>
         </Select>
         <button className="tool-btn" type="button" disabled={!status || busy || !body.trim()} onClick={() => void generate('translate')}><Icon name="translate" size={16} />{t('ai.translate')}</button>
+      </div>
       </div>
       </>}
       {mode === 'thread' && <>
