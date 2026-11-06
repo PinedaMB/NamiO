@@ -79,10 +79,10 @@ export function applyEmailTheme(document: Document, theme: 'light' | 'dark'): st
 }
 
 /** Usa la superficie más grande del contenido, sin tomar imágenes ni fondos transparentes. */
-export function emailBackground(document: Document): string | undefined {
+export function emailBackground(document: Document, fallback?: string): string | undefined {
   const view = document.defaultView
   if (!view || !document.body) return
-  let background = view.getComputedStyle(document.body).backgroundColor
+  let background = fallback ?? view.getComputedStyle(document.body).backgroundColor
   let largest = 0
   for (const element of document.body.querySelectorAll<HTMLElement>('table, div')) {
     const computed = view.getComputedStyle(element)

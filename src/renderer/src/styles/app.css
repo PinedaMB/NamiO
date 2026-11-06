@@ -5976,7 +5976,7 @@ input, textarea, [contenteditable="true"], .search-results-list { user-select: t
 
 .composer__history { margin-top: var(--sp-lg); }
 .composer__history-content { padding: var(--sp-md) 0; }
-.email-body--integrated .email-body__frame { background-color: var(--surface) !important; color: var(--on-surface); box-shadow: none; }
+.email-body--integrated .email-body__frame { color: var(--on-surface); box-shadow: none; }
 
 .recipients-trigger {
   display: inline-flex;

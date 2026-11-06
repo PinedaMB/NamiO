@@ -294,9 +294,9 @@ export function ThreadPane({
               {t('thread.loading')}
             </div>
           ) : (
-            [...thread.messages].reverse().map((message, messageIndex) => {
+            [...thread.messages].reverse().map(message => {
               const expansionKey = `${mailbox}:${message.id}`
-              const expanded = messageExpansion?.[expansionKey] ?? (message.id === focusedMessageId || messageIndex === 0)
+              const expanded = messageExpansion?.[expansionKey] ?? true
               const from = message.from
               return (
               <details className="thread-message" aria-current={message.id === focusedMessageId ? 'true' : undefined} key={message.id} ref={message.id === focusedMessageId ? focusedMessage : undefined} open={expanded} onToggle={event => {

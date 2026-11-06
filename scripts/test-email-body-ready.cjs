@@ -14,8 +14,8 @@ const listeners = new Map()
 const animationFrame = { current: 0 }
 const inner = {
   defaultView: { ResizeObserver: class { constructor(callback) { resize = callback } observe(target) { observed.push(target) } disconnect() { disconnected++ } } },
-  documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return 1250 } },
-  body: { scrollHeight: 1250, getBoundingClientRect: () => ({ bottom: 1250 }) }, querySelector: () => null, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
+  documentElement: { get scrollHeight() { assert.ok(darkened); measured = true; return inner.body.scrollHeight } },
+  body: { get scrollHeight() { assert.ok(darkened); measured = true; return this.height ?? 1250 }, set scrollHeight(value) { this.height = value }, getBoundingClientRect: () => ({ bottom: 1250 }) }, querySelector: () => null, querySelectorAll: () => [], addEventListener: (name, fn) => listeners.set(name, fn)
 }
 const exportsObject = {}
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/EmailBody.tsx', 'utf8'), {
@@ -32,7 +32,7 @@ vm.runInNewContext(ts.transpile(fs.readFileSync('src/renderer/src/components/Ema
   require: id => {
     if (id === 'react') return { ...React,
       useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = initial; return [state[slot], value => { state[slot] = value }] },
-      useRef: initial => typeof initial === 'number' ? animationFrame : ({ current: { contentDocument: inner, disconnect() {} } }), useEffect() {}, useLayoutEffect() {}, useMemo: fn => fn()
+      useRef: initial => typeof initial === 'number' ? animationFrame : ({ current: { contentDocument: inner, style: { height: '1250px' }, disconnect() {} } }), useEffect() {}, useLayoutEffect() {}, useMemo: fn => fn()
     }
     if (id === 'dompurify') return { default: { sanitize: html => html } }
     if (id === '../i18n') return { useI18n: () => ({ t: key => key }) }
@@ -83,6 +83,12 @@ resize([{ contentRect: { width: 600, height: 1800.25 } }])
 pendingMeasure()
 frame = render()
 assert.equal(frame.props.style.height, 1801, 'include body overflow and round fractional pixels up')
+inner.body.scrollHeight = 600
+inner.body.getBoundingClientRect = () => ({ bottom: 600 })
+resize([{ contentRect: { width: 900, height: 600 } }])
+pendingMeasure()
+frame = render()
+assert.equal(frame.props.style.height, 600, 'shrink to content even when the root retains the previous iframe height')
 assert.equal(render('<p>Next message</p>').props.style.visibility, 'hidden')
 assert.equal(render(undefined, 'light').props.style.visibility, 'visible')
 assert.equal(render(undefined, 'light').props.srcDoc, frame.props.srcDoc)

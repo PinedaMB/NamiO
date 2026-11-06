@@ -72,6 +72,16 @@ app.whenReady().then(async()=>{
     return false;
    })()`)});
    assert.ok(grew,'Late content growth must resize percentage-height emails');
+   const shrank=await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+    const frame=document.querySelector('iframe'),doc=frame.contentDocument,before=frame.clientHeight;
+    doc.querySelector('#footer').style.height='20px';
+    for(let i=0;i<100;i++){await new Promise(resolve=>requestAnimationFrame(resolve));if(frame.clientHeight<before-500&&Math.abs(frame.clientHeight-doc.body.getBoundingClientRect().bottom)<=2)return true}
+    return false;
+   })()`)});
+   assert.ok(shrank,'Shorter content must shrink the iframe without retaining its old height');
+   await win.webContents.executeJavaScript("document.querySelector('iframe').contentDocument.querySelector('#footer').style.height='800px'");
+   await new Promise(resolve=>setTimeout(resolve,100));
+
 
   }
  }
@@ -113,6 +123,7 @@ app.whenReady().then(async()=>{
  win.webContents.invalidate();await new Promise(resolve=>setTimeout(resolve,250));
  await win.webContents.capturePage().then(image=>require('node:fs').writeFileSync('/tmp/namio-quoted-history-dark.png',image.toPNG()));
  await win.webContents.executeJavaScript(${JSON.stringify(`(async()=>{
+ const assert=(value,message)=>{if(!value)throw new Error(message)};
  const until=async fn=>{for(let i=0;i<200;i++){if(fn())return;await new Promise(resolve=>requestAnimationFrame(resolve))}throw new Error('Integrated reader mode did not settle')};
  window.setHtml('<p id="black" style="color:#000000">Dark text</p><p id="white" style="color:#ffffff">Light text</p><div id="card" style="background:#ffffff;color:#000000">Original card</div>');window.setIntegrated(true);
  for(const appTheme of ['dark','light']){
@@ -121,15 +132,34 @@ app.whenReady().then(async()=>{
  window.setTheme(readingTheme);
  await until(()=>{const frame=document.querySelector('iframe'),doc=frame?.contentDocument;return frame?.style.visibility==='visible'&&doc?.querySelector('#black')&&doc.documentElement.dataset.emailTheme===readingTheme&&frame.contentWindow.getComputedStyle(doc.body).backgroundColor===getComputedStyle(frame).backgroundColor});
  const frame=document.querySelector('iframe'),doc=frame.contentDocument,view=frame.contentWindow;
- for(const id of ['black','white']){const color=view.getComputedStyle(doc.getElementById(id)).color;if(color===(appTheme==='dark'?'rgb(0, 0, 0)':'rgb(255, 255, 255)'))throw new Error('Unbacked text became unreadable: '+JSON.stringify({id,appTheme,readingTheme,color}))}
+ const luminance=color=>color.match(/[0-9.]+/g).slice(0,3).map(Number).reduce((sum,channel,index)=>{const value=channel/255;return sum+(value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4)*[0.2126,0.7152,0.0722][index]},0);
+ const surface=luminance(view.getComputedStyle(doc.body).backgroundColor);
+ for(const id of ['black','white']){const color=view.getComputedStyle(doc.getElementById(id)).color,text=luminance(color);assert((Math.max(text,surface)+0.05)/(Math.min(text,surface)+0.05)>=4.5,'Unbacked text must contrast with the email background: '+JSON.stringify({id,appTheme,readingTheme,color}))}
  const cardBackground=view.getComputedStyle(doc.getElementById('card')).backgroundColor;
  if((readingTheme==='light')!==(cardBackground==='rgb(255, 255, 255)'))throw new Error('Reading mode must still adapt authored card backgrounds');
  }
  }
+
+ window.setHtml('<div id="sender-surface" style="background:#ece8df;min-height:300px">Sender background</div>');window.setTheme('light');
+ await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.querySelector('#sender-surface')&&frame.contentDocument.documentElement.dataset.emailTheme==='light'});
+ await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ {
+ const frame=document.querySelector('iframe'),doc=frame.contentDocument,view=frame.contentWindow;
+ const expected=view.getComputedStyle(doc.querySelector('#sender-surface')).backgroundColor;
+ for(const element of [doc.documentElement,doc.body])assert(view.getComputedStyle(element).backgroundColor===expected,'HTML canvas must use the sender background');
+ assert(getComputedStyle(frame).backgroundColor===expected,'Iframe must use the sender background');
+ assert(getComputedStyle(frame.parentElement).backgroundColor===expected,'Email container must use the sender background');
+ }
+ window.setHtml('<p id="plain">Plain message</p>');
  document.documentElement.dataset.appTheme='dark';window.setIntegrated(false);window.setTheme('light');
  await until(()=>{const frame=document.querySelector('iframe');return frame?.style.visibility==='visible'&&frame.contentDocument?.documentElement.dataset.emailTheme==='light'&&frame.contentWindow.getComputedStyle(frame.contentDocument.body).backgroundColor==='rgb(255, 255, 255)'});
  window.setIntegrated(true);window.setTheme('dark');
  await until(()=>{const frame=document.querySelector('iframe');return frame?.contentDocument?.documentElement.dataset.emailTheme==='dark'&&frame.contentWindow.getComputedStyle(frame.contentDocument.body).backgroundColor===getComputedStyle(frame).backgroundColor});
+
+ for(const appTheme of ['dark','light','dark']){
+ document.documentElement.dataset.appTheme=appTheme;window.setTheme(appTheme);
+ await until(()=>{const frame=document.querySelector('iframe'),doc=frame?.contentDocument;return doc?.querySelector('#plain')&&doc.documentElement.dataset.emailTheme===appTheme&&frame.contentWindow.getComputedStyle(doc.body).backgroundColor===getComputedStyle(document.body).backgroundColor&&getComputedStyle(frame).backgroundColor===getComputedStyle(document.body).backgroundColor});
+ }
 
  })()`)});
  assert.deepEqual(errors,[],'Email resizing and theme toggles must not produce renderer errors');

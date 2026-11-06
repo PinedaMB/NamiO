@@ -165,20 +165,23 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
     const frame = frameRef.current
     const inner = frame?.contentDocument
     if (!frame || !inner?.body) return
-    const surface = getComputedStyle(frame)
     const appTheme = document.documentElement.dataset.appTheme
     const contentTheme = theme ?? (appTheme === 'dark' || (appTheme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light')
     if (themedDocument.current?.theme !== contentTheme) {
       applyEmailTheme(inner, contentTheme)
       themedDocument.current = { document: inner, theme: contentTheme }
     }
+    const surface = getComputedStyle(frame.closest('.reading, .composer') ?? document.body)
+    const background = emailBackground(inner, surface.backgroundColor)
+    if (!background) return
+    const foreground = background === surface.backgroundColor ? surface.color : inner.defaultView!.getComputedStyle(inner.body).color
     for (const element of [inner.documentElement, inner.body, ...inner.querySelectorAll<HTMLElement>('details.namio-quote, details.namio-quote > summary')]) {
-      element.style.setProperty('background-color', surface.backgroundColor, 'important')
-      element.style.setProperty('color', surface.color, 'important')
+      element.style.setProperty('background-color', background, 'important')
+      element.style.setProperty('color', foreground, 'important')
     }
-    fitEmailTextToSurface(inner, surface.backgroundColor, surface.color)
-    setBackground(surface.backgroundColor)
-    return surface.backgroundColor
+    fitEmailTextToSurface(inner, background, foreground)
+    setBackground(background)
+    return background
   }
 
   useLayoutEffect(() => {
@@ -203,21 +206,25 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
 
     // El iframe comparte origen (sin scripts), así que el padre puede medirlo:
     // así el correo crece a su altura real y hay un solo scroll (el del lector).
-    const measure = (contentOnly = false): void => {
+    const measure = (): void => {
       // Al expandir un mensaje, sus superficies ya tienen dimensiones reales.
       const background = integrated ? integrateSurface() : emailBackground(inner)
       if (background) {
         inner.body.style.setProperty('background-color', background, 'important')
         setBackground(background)
       }
-      const next = Math.max(contentOnly ? 0 : inner.documentElement.scrollHeight, inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 140)
+      // Medir sin el alto anterior permite encoger y conserva el contenido desbordado.
+      const previousHeight = frame.style.height
+      frame.style.height = '0px'
+      const next = Math.max(inner.documentElement.scrollHeight, inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 140)
+      frame.style.height = previousHeight
       setHeight(next)
     }
     inner.addEventListener('toggle', event => {
       const details = event.target as HTMLDetailsElement
       if (!details.matches('details.namio-quote')) return
       details.querySelector('summary')?.setAttribute('aria-label', t(details.open ? 'mail.hideQuote' : 'mail.showQuote'))
-      measure(true)
+      measure()
     }, true)
     measure()
     setReadyDocument(documentHtml)

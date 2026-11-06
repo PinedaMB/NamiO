@@ -80,6 +80,8 @@ const backgroundDocument = {
   defaultView: { getComputedStyle: el => el.computed }
 }
 assert.equal(emailBackground(backgroundDocument), 'rgb(41, 41, 41)')
+assert.equal(emailBackground(backgroundDocument, 'rgb(32, 33, 36)'), 'rgb(41, 41, 41)', 'sender surface wins over the app fallback')
 backgroundDocument.body.querySelectorAll = () => [transparent]
 assert.equal(emailBackground(backgroundDocument), 'rgb(20, 22, 27)')
+assert.equal(emailBackground(backgroundDocument, 'rgb(32, 33, 36)'), 'rgb(32, 33, 36)', 'ordinary mail uses the app surface')
 console.log('Email background: largest content surface, ignoring transparent/image backgrounds, body fallback')
