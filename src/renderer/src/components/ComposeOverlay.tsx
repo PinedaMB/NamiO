@@ -1,3 +1,4 @@
+import { usePreferences } from '../settings/PreferencesProvider'
 import { copilotHtml } from '../lib/copilotHtml'
 import { CopilotPanel } from './CopilotPanel'
 import { useFormatCombo } from '../settings/ShortcutsProvider'
@@ -132,6 +133,7 @@ export function ComposeOverlay({
   const [bccOpen, setBccOpen] = useState(Boolean(bcc))
   const sendingRef = useRef(false)
   const [sending, setSending] = useState(false)
+  const { spellcheckLanguage, setSpellcheckLanguage, saveError } = usePreferences()
   const [error, setError] = useState<string | null>(null)
   const [sendOptionsOpen, setSendOptionsOpen] = useState(false)
   const sendOptionsRef = useRef<HTMLDivElement>(null)
@@ -333,6 +335,10 @@ export function ComposeOverlay({
           <div className="field-row">
             <span className="field-label">{t('compose.from')}</span>
             <span className="composer__sender"><Icon name="alternate_email" size={16} />{sender || t('account.demo')}</span>
+            <Select aria-label={t('compose.spellcheckLanguage')} title={t('compose.spellcheckLanguage')} value={spellcheckLanguage} disabled={sending} onChange={event => void setSpellcheckLanguage(event.target.value as 'es' | 'en')}>
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </Select>
             <Select aria-label={t('compose.theme')} value={composeTheme} onChange={event => {
                 const theme = event.target.value as '' | 'light' | 'dark'
                 setComposeTheme(theme)
@@ -584,6 +590,7 @@ export function ComposeOverlay({
           </div>
         </div>
 
+        {saveError && <p className="account-error" role="alert">{t('compose.spellcheckSaveError')}</p>}
         {error && <p className="account-error" role="alert">{error}</p>}
         <div className="composer__foot">
           <div className="send-group">

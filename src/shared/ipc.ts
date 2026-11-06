@@ -142,6 +142,7 @@ export interface AppSettings {
   notificationSound?: boolean
   notificationPrivate?: boolean
   language: Language
+  spellcheckLanguage?: 'es' | 'en'
   /** Acción → combinación normalizada (`j`, `mod+k`). */
   shortcuts?: Record<string, string>
   shortcutModifier?: 'ctrl' | 'command'

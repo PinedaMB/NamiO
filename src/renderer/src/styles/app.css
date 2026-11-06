@@ -2156,11 +2156,12 @@
   flex-shrink: 0;
 }
 
-.composer__sender + .select {
+.composer__sender ~ .select {
   width: auto;
   flex-shrink: 0;
-  margin-left: auto;
 }
+
+.composer__sender + .select { margin-left: auto; }
 
 .composer__title {
   display: flex;

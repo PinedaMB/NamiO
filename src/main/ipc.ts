@@ -1,3 +1,4 @@
+import { setSpellcheckLanguage } from './spellcheck'
 import { copilotStatus, configureCopilot, listOllamaModels, setCopilotKey, generateCopilot, cancelCopilot } from './copilot'
 import { attachmentPreview } from './attachmentPreview'
 import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
@@ -140,6 +141,7 @@ export function registerIpcHandlers(): void {
     const settings = sanitizeSettingsPatch(patch)
     if (Object.keys(settings).length === 0) return
     await writeSettings(settings)
+    if (settings.spellcheckLanguage !== undefined) setSpellcheckLanguage(_event.sender.session, settings.spellcheckLanguage)
     if (settings.appTheme !== undefined) nativeTheme.themeSource = settings.appTheme
     if (settings.offlineDownload === true) resumeOfflineDownload()
     if (typeof settings.keepInBackground === 'boolean') setBackgroundMode(settings.keepInBackground)

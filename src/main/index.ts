@@ -11,6 +11,7 @@ import { migrateOAuthSecrets, readActiveAccount, readSettings } from './settings
 import { registerIpcHandlers } from './ipc'
 import { outboxItems, processOutbox, setOutboxListener } from './mail'
 import { setupAutoUpdate } from './updater'
+import { setupSpellcheck } from './spellcheck'
 import icon from '../../build/icon.png?asset'
 
 const isDev = !app.isPackaged
@@ -82,6 +83,8 @@ function createWindow(): void {
       spellcheck: true
     }
   })
+
+  void setupSpellcheck(mainWindow).catch(error => console.warn('NamiO spellcheck:', error))
 
   // Zoom y selección se resuelven antes del menú nativo para admitir distintos teclados.
   mainWindow.webContents.on('before-input-event', (event, input) => {

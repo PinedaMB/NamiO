@@ -5,6 +5,8 @@
  * Interpolación: `{nombre}` se reemplaza con las variables de `t(key, vars)`.
  */
 export const es = {
+  'compose.spellcheckLanguage': 'Idioma del corrector',
+  'compose.spellcheckSaveError': 'No se pudo guardar el idioma del corrector. Vuelve a intentarlo.',
   'thread.backToList': 'Volver a los mensajes',
   'update.latest': 'Estás usando la última versión',
   'update.unchecked': 'Busca actualizaciones para comprobar tu versión.',

@@ -23,6 +23,7 @@ import '${project}/node_modules/material-symbols/outlined.css';
 import '${project}/src/renderer/src/styles/tokens.css';
 import '${project}/src/renderer/src/styles/app.css';
 localStorage.setItem('namio.language','es');
+window.api={getSettings:async()=>JSON.parse(localStorage.getItem('test.settings')||'{}'),setSettings:async patch=>localStorage.setItem('test.settings',JSON.stringify({...JSON.parse(localStorage.getItem('test.settings')||'{}'),...patch}))};
 window.helpers={cleanComposeHtml,composeEmailHtml,textToEditorContent,replyComposeHtml,splitReplyHtml};
 function Harness(){
 const [value,setValue]=useState({text:'Hola, equipo.\\nTexto <literal>',html:undefined});
@@ -49,6 +50,11 @@ app.whenReady().then(async()=>{
  for(let i=0;i<30&&!document.querySelector('.tiptap')?.editor;i++)await tick();
  const editor=document.querySelector('.tiptap')?.editor;
  const assert=(value,message)=>{if(!value)throw new Error(message)};
+ const dictionary=document.querySelector('select[aria-label="Idioma del corrector"]');
+ assert(dictionary?.value==='es','Spanish dictionary is selected initially');
+ const changeDictionary=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;
+ changeDictionary.call(dictionary,'en');dictionary.dispatchEvent(new Event('change',{bubbles:true}));await tick();await tick();
+ assert(dictionary.value==='en'&&JSON.parse(localStorage.getItem('test.settings')).spellcheckLanguage==='en','Dictionary selection is applied and saved');
  assert(editor,'Editor mounted');assert(document.getElementById('mailbox'),'Mailbox stays mounted');
  assert(editor.getText({blockSeparator:'\\n'}).includes('Texto <literal>'),'Legacy plain text remains literal');
  const button=label=>document.querySelector('[data-tooltip="'+label+'"]');

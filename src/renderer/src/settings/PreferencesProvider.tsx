@@ -15,6 +15,8 @@ interface PreferencesValue {
   setOfflineDownload: (enabled: boolean) => Promise<void>
   timeFormat: TimeFormat
   setTimeFormat: (format: TimeFormat) => void
+  spellcheckLanguage: 'es' | 'en'
+  setSpellcheckLanguage: (language: 'es' | 'en') => Promise<void>
   bodyTheme: BodyTheme
   setBodyTheme: (theme: BodyTheme) => void
 }
@@ -31,6 +33,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const [saveError, setSaveError] = useState<string | null>(null)
   const [remoteImages, setRemoteImagesState] = useState<RemoteImagePolicy>('block')
   const [timeFormat, setTimeFormatState] = useState<TimeFormat>('24h')
+  const [spellcheckLanguage, setSpellcheckLanguageState] = useState<'es' | 'en'>('es')
   const [bodyTheme, setBodyThemeState] = useState<BodyTheme>('light')
 
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({ notifications: true, notificationSound: true, notificationPrivate: true, keepInBackground: false })
@@ -45,6 +48,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         if (settings?.remoteImages === 'allow' || settings?.remoteImages === 'block') {
           setRemoteImagesState(settings.remoteImages)
         }
+        if (settings?.spellcheckLanguage === 'es' || settings?.spellcheckLanguage === 'en') setSpellcheckLanguageState(settings.spellcheckLanguage)
         if (settings?.timeFormat === '12h' || settings?.timeFormat === '24h') setTimeFormatState(settings.timeFormat)
         if (settings?.bodyTheme === 'dark' || settings?.bodyTheme === 'light') {
           setBodyThemeState(settings.bodyTheme)
@@ -99,6 +103,16 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
   }, [])
 
+  const setSpellcheckLanguage = useCallback(async (language: 'es' | 'en') => {
+    setSaveError(null)
+    try {
+      await window.api.setSettings({ spellcheckLanguage: language })
+      setSpellcheckLanguageState(language)
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }, [])
+
   const setTimeFormat = useCallback(async (format: TimeFormat) => {
     setSaveError(null)
     try {
@@ -121,8 +135,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }, [])
 
   const value = useMemo<PreferencesValue>(
-    () => ({ appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, timeFormat, setTimeFormat }),
-    [appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, timeFormat, setTimeFormat]
+    () => ({ appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, timeFormat, setTimeFormat, spellcheckLanguage, setSpellcheckLanguage }),
+    [appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, saveError, remoteImages, setRemoteImages, bodyTheme, setBodyTheme, timeFormat, setTimeFormat, spellcheckLanguage, setSpellcheckLanguage]
   )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

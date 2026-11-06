@@ -47,7 +47,7 @@ async function main() {
       appTheme: 'light', offlineDownload: true, keepInBackground: true, notifications: false,
       notificationSound: false, notificationPrivate: false, language: 'en', shortcuts: { next: 'k' },
       shortcutModifier: 'command', contextPanel: true, remoteImages: 'allow', timeFormat: '12h',
-      bodyTheme: 'dark', onboarded: true
+      bodyTheme: 'dark', spellcheckLanguage: 'en', onboarded: true
     }
     const clean = settings.sanitizeSettingsPatch(valid)
     assert.deepEqual(JSON.parse(JSON.stringify(clean)), valid, 'valid settings survive unchanged')
@@ -64,6 +64,7 @@ async function main() {
       assert.throws(() => settings.sanitizeSettingsPatch(invalid), /Unknown setting/)
     }
 
+    assert.throws(() => settings.sanitizeSettingsPatch({ spellcheckLanguage: 'fr' }), /Invalid setting value/)
     assert.throws(() => settings.sanitizeSettingsPatch({ appTheme: 'blue' }), /Invalid app theme/)
     assert.throws(() => settings.sanitizeSettingsPatch({ timeFormat: 'auto' }), /Invalid time format/)
     assert.throws(() => settings.sanitizeSettingsPatch({ shortcutModifier: 'meta' }), /Invalid shortcut modifier/)

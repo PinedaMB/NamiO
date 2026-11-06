@@ -73,6 +73,7 @@ const APP_SETTING_KEYS = [
   'notificationSound',
   'notificationPrivate',
   'language',
+  'spellcheckLanguage',
   'shortcuts',
   'shortcutModifier',
   'contextPanel',
@@ -96,6 +97,7 @@ const BOOLEAN_SETTINGS = [
 const ENUM_SETTINGS: Partial<Record<keyof AppSettings, readonly string[]>> = {
   appTheme: ['light', 'dark', 'system'],
   language: ['es', 'en'],
+  spellcheckLanguage: ['es', 'en'],
   shortcutModifier: ['ctrl', 'command'],
   remoteImages: ['block', 'allow'],
   timeFormat: ['12h', '24h'],

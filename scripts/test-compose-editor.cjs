@@ -3,10 +3,12 @@ const compile=text=>ts.transpile(text,{module:ts.ModuleKind.CommonJS,target:ts.S
 const addresses={};vm.runInNewContext(compile(fs.readFileSync('src/shared/mailAddresses.ts','utf8')),{exports:addresses})
 const exportsObject={}, state=[],refs=[];let index=0,refIndex=0,effects=[], keyHandler,failSend=false
 const sent=[],closed=[],discarded=[],minimized=[]
+let spellcheckLanguage = 'es'
 const storage = new Map([['namio.composeTheme', 'dark']])
 vm.runInNewContext(compile(fs.readFileSync('src/renderer/src/components/ComposeOverlay.tsx','utf8')),{
  exports:exportsObject,Error,window:{localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},addEventListener:(_name,fn)=>{keyHandler=fn},removeEventListener(){}},require:id=>{
  if(id==='react')return {...React,useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=typeof initial==='function'?initial():initial;return[state[slot],value=>{state[slot]=typeof value==='function'?value(state[slot]):value}]},useRef:initial=>{const slot=refIndex++;return refs[slot]??(refs[slot]={current:initial})},useEffect:fn=>effects.push(fn),useMemo:fn=>fn()}
+ if(id==='../settings/PreferencesProvider')return{usePreferences:()=>({spellcheckLanguage,setSpellcheckLanguage:async value=>{spellcheckLanguage=value},saveError:null})}
  if(id==='@shared/mailAddresses')return addresses
  if (id === '../settings/ShortcutsProvider') return { useFormatCombo: () => combo => combo }
   if(id==='../i18n')return{useI18n:()=>({t:(key,values)=>key==='compose.sendToMany'?`${key}:${values.count}`:key})}
@@ -30,6 +32,10 @@ function find(tree,predicate){let result;function visit(node){if(!React.isValidE
 const flush=()=>new Promise(resolve=>setImmediate(resolve))
 ;(async()=>{
  let tree=render()
+ assert.equal(find(tree,n=>n.props['aria-label']==='compose.spellcheckLanguage').props.value,'es')
+ find(tree,n=>n.props['aria-label']==='compose.spellcheckLanguage').props.onChange({target:{value:'en'}})
+ tree=render()
+ assert.equal(find(tree,n=>n.props['aria-label']==='compose.spellcheckLanguage').props.value,'en','composer shows the selected dictionary')
  assert.equal(find(tree,n=>n.props['data-compose-theme']).props['data-compose-theme'],'dark','composer restores the saved appearance')
  assert.ok(find(find(tree,n=>n.props.className==='composer__fields'),n=>n.props['aria-label']==='compose.theme'),'theme selector belongs to the fields')
  assert.ok(!find(find(tree,n=>n.props.className==='composer__head'),n=>n.props['aria-label']==='compose.theme'),'theme selector does not crowd the window controls')

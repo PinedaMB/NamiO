@@ -18,7 +18,8 @@ async function main() {
       exports.updateAccount('one', { label: 'Trabajo' }),
       exports.updateAccount('one', { refreshToken: 'rotated-token' }),
       exports.writeSettings({ onboarded: true }),
-      exports.writeSettings({ contextPanel: false })
+      exports.writeSettings({ contextPanel: false }),
+      exports.writeSettings({ spellcheckLanguage: 'en' })
     ])
     const saved = JSON.parse(await fs.readFile(join(dir, 'settings.json'), 'utf8'))
     assert.equal(saved.accounts[0].label, 'Trabajo')
@@ -26,6 +27,7 @@ async function main() {
     assert.equal(saved.accounts[0].refreshToken, 'rotated-token')
     assert.equal(saved.onboarded, true)
     assert.equal(saved.contextPanel, false)
+    assert.equal((await exports.readAppSettings()).spellcheckLanguage, 'en', 'spellcheck selection survives reloading settings')
     await exports.saveAccount({ ...saved.accounts[0], label: undefined })
     assert.equal((await exports.readAccounts()).accounts[0].label, 'Trabajo')
     await exports.updateAccount('deleted', { refreshToken: 'ignored' })

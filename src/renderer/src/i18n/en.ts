@@ -2,6 +2,8 @@ import type { Dictionary } from './es'
 
 /** English copy. Typed as a complete Dictionary: una clave faltante rompe el build. */
 export const en: Dictionary = {
+  'compose.spellcheckLanguage': 'Spellcheck language',
+  'compose.spellcheckSaveError': 'Could not save the spellcheck language. Please try again.',
   'thread.backToList': 'Back to messages',
   'update.latest': 'You’re using the latest version',
   'update.unchecked': 'Check for updates to verify your version.',
