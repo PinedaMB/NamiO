@@ -24,6 +24,11 @@ publish:
   owner: PinedaMB
   repo: NamiO
 
+protocols:
+  - name: Correo electrónico
+    schemes:
+      - mailto
+
 asar: true
 asarUnpack:
   # Nada nativo por ahora: node:sqlite viene en Electron, no hay .node que extraer.

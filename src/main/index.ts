@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, Menu, session, shell, nativeTheme } from 'electron'
+import { parseMailto, type MailtoDraft } from '@shared/mailto'
 import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
@@ -30,6 +31,24 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let mainWindow: BrowserWindow | null = null
+const pendingMailto: MailtoDraft[] = []
+let mailtoReady = false
+
+function receiveMailto(value: string): void {
+  const draft = parseMailto(value)
+  if (!draft) return
+  if (mailtoReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.mailtoOpen, draft)
+  else pendingMailto.push(draft)
+  if (app.isReady() && mainWindow) openWindow()
+}
+
+for (const argument of process.argv) {
+  if (/^mailto:/i.test(argument)) receiveMailto(argument)
+}
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  receiveMailto(url)
+})
 
 function openWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return }
@@ -39,6 +58,7 @@ function openWindow(): void {
 }
 
 function createWindow(): void {
+  mailtoReady = false
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -75,6 +95,11 @@ function createWindow(): void {
       }
     }
     mainWindow?.webContents.setIgnoreMenuShortcuts(input.type === 'keyDown' && (input.control || input.meta) && !input.alt && !input.shift && input.key.toLowerCase() === 'a')
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mailtoReady = true
+    for (const draft of pendingMailto.splice(0)) mainWindow?.webContents.send(IPC.mailtoOpen, draft)
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
@@ -161,7 +186,12 @@ function hardenSession(): void {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
 }
 
-app.on('second-instance', openWindow)
+app.on('second-instance', (_event, argv) => {
+  for (const argument of argv) {
+    if (/^mailto:/i.test(argument)) receiveMailto(argument)
+  }
+  if (app.isReady() && mainWindow) openWindow()
+})
 
 void app.whenReady().then(async () => {
   const { appTheme } = await readSettings()
@@ -170,6 +200,7 @@ void app.whenReady().then(async () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0f131c' : '#f5f6fb')
   })
   app.setAppUserModelId('dev.namio.app')
+  if (app.isPackaged && process.platform === 'win32') app.setAsDefaultProtocolClient('mailto')
   hardenSession()
   setupAutoUpdate()
 

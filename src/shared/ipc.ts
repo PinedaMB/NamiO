@@ -6,6 +6,7 @@
  */
 
 export const IPC = {
+  mailtoOpen: 'mail:mailto-open',
   coreStatus: 'core:status',
   zoomChanged: 'window:zoom-changed',
   updateStatus: 'update:status',
@@ -476,6 +477,7 @@ export interface UpdateState {
 }
 
 export interface MailApi {
+  onMailtoOpen(listener: (draft: import('./mailto').MailtoDraft) => void): () => void
   onZoomChanged(listener: (percent: number) => void): () => void
   onOauthUrl(listener: (url: string) => void): () => void
   updateStatus(): Promise<UpdateState | null>

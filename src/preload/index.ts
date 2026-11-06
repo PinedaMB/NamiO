@@ -1,3 +1,4 @@
+import type { MailtoDraft } from '@shared/mailto'
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
@@ -39,7 +40,20 @@ import {
  */
 let copilotRequest = 0
 
+// Buffer links until React subscribes, including links delivered during startup.
+const pendingMailto: MailtoDraft[] = []
+let mailtoListener: ((draft: MailtoDraft) => void) | null = null
+ipcRenderer.on(IPC.mailtoOpen, (_event, draft: MailtoDraft) => {
+  if (mailtoListener) mailtoListener(draft)
+  else pendingMailto.push(draft)
+})
+
 const api: MailApi = {
+  onMailtoOpen: listener => {
+    mailtoListener = listener
+    for (const draft of pendingMailto.splice(0)) listener(draft)
+    return () => { mailtoListener = null }
+  },
   onZoomChanged: listener => {
     const handler = (_event: unknown, percent: number): void => listener(percent)
     ipcRenderer.on(IPC.zoomChanged, handler)

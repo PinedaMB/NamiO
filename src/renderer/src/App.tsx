@@ -1,3 +1,4 @@
+import type { MailtoDraft } from '@shared/mailto'
 import { FolderDialog } from './components/FolderDialog'
 import { usePreferences } from './settings/PreferencesProvider'
 import { isSelectAll, selectTextContents } from './lib/selection'
@@ -201,6 +202,7 @@ export function App(): React.JSX.Element {
     void composeTransition.current.ready.catch(() => {})
   }
   const [composeSession, setComposeSession] = useState(0)
+  const [mailtoDrafts, setMailtoDrafts] = useState<MailtoDraft[]>([])
   const [compose, setCompose] = useState<ComposeState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -1340,6 +1342,24 @@ export function App(): React.JSX.Element {
       setSwitchingAccount(false)
     }
   }
+
+  useEffect(() => window.api?.onMailtoOpen?.(draft => {
+    setMailtoDrafts(queue => [...queue, draft])
+  }), [])
+
+  useEffect(() => {
+    if (!mailtoDrafts.length || !live || switchingAccount) return
+    if (compose) {
+      setComposeMinimized(false)
+      setToast(t('compose.finishFirst'))
+      return
+    }
+    setView('mailbox')
+    setComposeMinimized(false)
+    setComposeSession(session => session + 1)
+    setCompose(mailtoDrafts[0]!)
+    setMailtoDrafts(queue => queue.slice(1))
+  }, [mailtoDrafts, live, switchingAccount, compose, t])
 
   useEffect(() => window.api?.onNotificationOpen?.((target) => {
     setNotificationTarget(target)

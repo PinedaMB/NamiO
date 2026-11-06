@@ -1,5 +1,9 @@
 # Cambios
 
+## Sin publicar
+
+- NamiO se registra como manejador de enlaces `mailto:`. Los enlaces abren el compositor con destinatarios, asunto y texto; si hay un borrador abierto, esperan sin sobrescribirlo.
+
 ## 1.0.0-rc.8 — 2026-11-06
 
 - Se incorpora el copiloto con Gemini y Ollama para redactar y analizar conversaciones, con respuestas en streaming y opciones de idioma.
