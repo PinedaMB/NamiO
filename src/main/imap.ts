@@ -744,7 +744,9 @@ export async function listMailboxes(sync = true): Promise<CachedResult<MailboxIn
   if (sync) {
     if (cached.length === 0) {
       try {
-        return { ok: true, data: await serial(syncMailboxes), meta: syncMeta() }
+        const data = await serial(syncMailboxes)
+        await syncInbox()
+        return { ok: true, data, meta: syncMeta() }
       } catch (error) {
         const code = classify(error)
         if (!isOfflineError(code)) return { ok: false, code, detail: describe(error) }
@@ -755,7 +757,7 @@ export async function listMailboxes(sync = true): Promise<CachedResult<MailboxIn
 
     // Con caché, se responde ya y se actualiza en segundo plano.
     void serial(syncMailboxes, 'background')
-      .then(() => notify('*'))
+      .then(() => { notify('*'); void syncInbox() })
       .catch((error: unknown) => {
         // Un certificado o una contraseña inválidos no significan "sin conexión".
         offline = isOfflineError(classify(error))
@@ -906,43 +908,46 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
   })
   if (cachedOnly) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: syncMeta() }
   try {
-    const matches = await serial(async () => {
+    let validity: string | undefined
+    const inSent = <T,>(run: (client: ImapFlow) => Promise<T>): Promise<T> => serial(async () => {
       if (generation !== syncGeneration) throw accountChangedError()
       const client = await ensureClient()
       const lock = await client.getMailboxLock(sent)
       try {
         if (!client.mailbox) throw new Error('No se pudo abrir Enviados')
-        const validity = String(client.mailbox.uidValidity)
-        const previous = getMeta(`sentRepliesValidity:${sent}`) ?? getMailboxMeta(sent)?.uidValidity?.toString()
-        if (previous && previous !== validity) clearMailbox(sent)
-        setMeta(`sentRepliesValidity:${sent}`, validity)
-        let found: number[] = []
-        const searchIds = async (group: string[]): Promise<void> => {
-          const result = await client.search({ or: group.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true })
-          if (!result) {
-            if (group.length === 1) throw new Error('El servidor rechazó la búsqueda de respuestas en Enviados')
-            for (const id of group) await searchIds([id])
-          } else {
-            found.push(...result)
-          }
+        const currentValidity = String(client.mailbox.uidValidity)
+        if (validity && validity !== currentValidity) throw new Error('La identidad de Enviados cambió durante la búsqueda')
+        if (!validity) {
+          const previous = getMeta(`sentRepliesValidity:${sent}`) ?? getMailboxMeta(sent)?.uidValidity?.toString()
+          if (previous && previous !== currentValidity) clearMailbox(sent)
+          setMeta(`sentRepliesValidity:${sent}`, currentValidity)
+          validity = currentValidity
         }
-        // Evita búsquedas OR enormes que algunos servidores rechazan.
-        for (let offset = 0; offset < ids.length; offset += 10) await searchIds(ids.slice(offset, offset + 10))
-        found = [...new Set(found)]
-        // Un índice de cabeceras atrasado no debe ocultar copias ya relacionadas en caché.
-        const missing = relatedMessageUids(sent, ids).filter(uid => !found.includes(uid))
-        if (missing.length > 0) {
-          const existing = await client.search({ uid: missing.join(',') }, { uid: true })
-          if (!existing) throw new Error('No se pudieron verificar las respuestas enviadas guardadas')
-          found.push(...existing)
-        }
-        if (found.length > 0) upsertEnvelopes(sent, await fetchRange(client, found.join(','), true))
-        const current = new Set(found)
-        return relatedMessageUids(sent, ids).filter(uid => current.has(uid))
-      } finally {
-        lock.release()
-      }
+        return await run(client)
+      } finally { lock.release() }
     }, 'background')
+    const found = new Set<number>()
+    const searchIds = async (group: string[]): Promise<void> => {
+      const result = await inSent(client => client.search({ or: group.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true }))
+      if (!result) {
+        if (group.length === 1) throw new Error('El servidor rechazó la búsqueda de respuestas en Enviados')
+        for (const id of group) await searchIds([id])
+      } else {
+        for (const uid of result) found.add(uid)
+      }
+    }
+    // Cada consulta cede la cola: abrir un cuerpo no espera a toda la búsqueda.
+    for (let offset = 0; offset < ids.length; offset += 10) await searchIds(ids.slice(offset, offset + 10))
+    const matches = await inSent(async client => {
+      const missing = relatedMessageUids(sent, ids).filter(uid => !found.has(uid))
+      if (missing.length > 0) {
+        const existing = await client.search({ uid: missing.join(',') }, { uid: true })
+        if (!existing) throw new Error('No se pudieron verificar las respuestas enviadas guardadas')
+        for (const uid of existing) found.add(uid)
+      }
+      if (found.size > 0) upsertEnvelopes(sent, await fetchRange(client, [...found].join(','), true))
+      return relatedMessageUids(sent, ids).filter(uid => found.has(uid))
+    })
     if (generation !== syncGeneration) throw accountChangedError()
     offline = false
     return { ok: true, data: locations(matches), meta: syncMeta() }
@@ -1052,9 +1057,12 @@ export function syncMailbox(path: string): Promise<ImapResult<boolean>> {
 
 /** Sincroniza la bandeja de entrada y avisa a la UI. Silencioso ante errores. */
 export async function syncInbox(limit = 50): Promise<void> {
-  const inbox = readMailboxes().find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path
-  if (!inbox) return
-  scheduleSync(inbox, limit, true)
+  const boxes = readMailboxes()
+  const inbox = boxes.find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path
+  const sent = boxes.find((box) => box.specialUse === '\\Sent' || /^(sent|sent items|enviados)$/i.test(box.name))?.path
+  // Prepara las respuestas propias sin exigir que el usuario abra Enviados.
+  if (sent && sent !== inbox) scheduleSync(sent, Math.max(limit, 100), true)
+  if (inbox) scheduleSync(inbox, limit, true)
 }
 
 export function setSeen(path: string, uid: number, seen: boolean, accountId?: string): Promise<ImapResult<boolean>> {

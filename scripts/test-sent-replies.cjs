@@ -6,7 +6,8 @@ const compile = code => ts.transpile(code, { target: ts.ScriptTarget.ES2022, mod
 const source = ts.createSourceFile('imap.ts', fs.readFileSync('src/main/imap.ts', 'utf8'), ts.ScriptTarget.Latest, true)
 const fn = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'getSentReplies').getText(source).replace(/^export /, '')
 async function backend(mode) {
-  let searches = 0, writes = 0, cleared = 0, released = 0
+  let searches = 0, writes = 0, cleared = 0, released = 0, queued = 0
+  const events = []
   const context = {
     syncGeneration: 1, offline: true, syncMeta: () => ({ offline: context.offline }),
     readMailboxes: () => [{ path: 'Enviados', specialUse: '\\Sent' }],
@@ -15,13 +16,15 @@ async function backend(mode) {
     clearMailbox: path => { assert.equal(path, 'Enviados'); cleared++ }, setMeta() {},
     fetchRange: async () => [], upsertEnvelopes: () => { writes++ },
     accountChangedError: () => new Error('Account changed'), classify: () => 'network', isOfflineError: code => code === 'network', describe: error => error.message,
-    serial: async action => { if (mode === 'switch') context.syncGeneration++; return action() },
+    serial: async action => { queued++; if (mode === 'switch' || (mode === 'switch-between-searches' && queued === 2)) context.syncGeneration++; return action() },
     ensureClient: async () => {
       if (mode === 'offline') throw new Error('Network down')
       return { mailbox: { uidValidity: 2 },
         getMailboxLock: async path => { assert.equal(path, 'Enviados'); return { release() { released++ } } },
         search: async (query, options) => {
-          searches++; assert.equal(options.uid, true)
+          searches++; events.push('search')
+          if (mode === 'interactive' && searches === 1) void context.serial(async () => { events.push('body') }, 'interactive')
+          assert.equal(options.uid, true)
           if (query.uid) return mode === 'index-lag' ? [7] : []
           assert.ok(query.or.length <= 30, 'header searches are bounded even for long conversations')
           if (!['refusal', 'undefined', 'large-query'].includes(mode)) {
@@ -35,15 +38,21 @@ async function backend(mode) {
       }
     }
   }
+  if (mode === 'interactive') {
+    const serial = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'serial').getText(source)
+    context.operations = []; context.operationRunning = false
+    context.serial = vm.runInNewContext(compile(`${serial};serial`), context)
+  }
   const api = vm.runInNewContext(compile(`${fn};getSentReplies`), context)
   const result = await api('INBOX', [7], mode === 'cached')
-  if (mode === 'switch') { assert.equal(result.ok, false); assert.equal(writes, 0); assert.equal(searches, 0); return }
+  if (mode === 'switch' || mode === 'switch-between-searches') { assert.equal(result.ok, false); assert.equal(writes, 0); assert.equal(searches, mode === 'switch' ? 0 : 1); return }
   assert.equal(result.ok, true)
+  if (mode === 'interactive') assert.deepEqual(events.slice(0,3), ['search','body','search'], 'a foreground body runs before the remaining sent lookup queries')
   assert.deepEqual(Array.from(result.data, item => [item.mailbox, item.uid]), mode === 'cached' || mode === 'offline' ? [['Enviados', 7], ['Enviados', 9]] : [['Enviados', 7]], 'online results exclude deleted cached messages')
   assert.equal(searches, mode === 'cached' || mode === 'offline' ? 0 : mode === 'large-query' ? 5 : ['refusal', 'undefined'].includes(mode) ? 4 : 2)
   assert.equal(cleared, mode === 'validity' ? 1 : 0, 'changed UIDVALIDITY cannot reuse stale bodies')
   if (searches) {
-    assert.equal(released, 1)
+    assert.ok(released >= 2, 'header queries release their locks so interactive bodies can run')
     assert.equal(result.meta.offline, false, 'a successful sent-folder request clears a stale disconnection')
   }
   if (mode === 'offline') assert.equal(result.meta.offline, true)
@@ -162,7 +171,7 @@ async function prefetch(stale = false) {
 }
 ;(async () => {
   await prefetch(); await prefetch(true)
-  for (const mode of ['cached', 'online', 'offline', 'switch', 'validity', 'index-lag', 'large-query', 'refusal', 'undefined']) await backend(mode)
+  for (const mode of ['cached', 'online', 'interactive', 'offline', 'switch', 'switch-between-searches', 'validity', 'index-lag', 'large-query', 'refusal', 'undefined']) await backend(mode)
   await renderer(); await renderer(true); await renderer(false, true); await renderer(true, false, true)
   await renderer(false, false, false, true)
   await renderer(false, false, false, false, true)

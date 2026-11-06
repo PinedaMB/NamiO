@@ -37,7 +37,26 @@ async function check(configured, migrationFails = false) {
   assert.deepEqual(calls, [`cache:${configured ? 'saved-account' : 'default'}`, 'handlers', 'window', ...(configured ? ['sync'] : [])])
 }
 
+async function sentPreparation() {
+  const ast=ts.createSourceFile('imap.ts',fs.readFileSync('src/main/imap.ts','utf8'),ts.ScriptTarget.Latest,true)
+  const code=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='syncInbox').getText(ast).replace(/^export /,'')
+  const calls=[]
+  const context={readMailboxes:()=>[{path:'INBOX',name:'INBOX',specialUse:'\\Inbox'},{path:'Correo enviado',name:'Correo enviado',specialUse:'\\Sent'}],scheduleSync:(...args)=>calls.push(args)}
+  const sync=vm.runInNewContext(ts.transpile(`${code};syncInbox`,{target:ts.ScriptTarget.ES2022}),context)
+  await sync(50)
+  assert.deepEqual(calls,[['Correo enviado',100,true],['INBOX',50,true]],'automatic sync prepares sent bodies without opening that folder')
+  const listCode=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='listMailboxes').getText(ast).replace(/^export /,'')
+  let prepared=0
+  const list=vm.runInNewContext(ts.transpile(`${listCode};listMailboxes`,{target:ts.ScriptTarget.ES2022}),{
+    readMailboxes:()=>[],serial:async fn=>fn(),syncMailboxes:async()=>[{path:'INBOX'}],syncInbox:async()=>{prepared++},syncMeta:()=>({}),classify:()=> 'unknown',isOfflineError:()=>false,describe:error=>error.message
+  })
+  assert.equal((await list()).ok,true)
+  assert.equal(prepared,1,'a new account starts preparation as soon as its folder list arrives')
+  calls.length=0;context.readMailboxes=()=>[{path:'INBOX',name:'INBOX',specialUse:null}]
+  await sync(50);assert.deepEqual(calls,[['INBOX',50,true]],'accounts without a Sent folder still synchronize normally')
+}
 ;(async () => {
+  await sentPreparation()
   await check(true)
   await check(false)
   await check(true, true)
