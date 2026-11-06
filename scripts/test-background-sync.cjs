@@ -53,8 +53,8 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   assert.equal(context.fullSyncRunning, false)
   if (!switchAccount) assert.equal(progress.at(-1), null, 'completion always clears the progress indicator')
   if (recent) {
-    assert.deepEqual([...bodies].sort((a,b)=>a-b),server.slice(-100),'automatic download is bounded to the newest 100 messages')
-    assert.ok(progress.some(item=>item?.phase==='bodies' && item.total===100 && item.cached===100))
+    assert.equal(bodies.size,0,'no bodies are downloaded without offline opt-in')
+    assert.ok(!progress.some(item=>item?.phase==='bodies'),'disabled offline download does not report body progress')
     return
   }
   if (metadata && initial.length === server.length) {
@@ -66,13 +66,12 @@ async function check(initial, switchAccount = false, fail = false, metadata = fa
   if (switchAccount || fail) {
     assert.deepEqual([...cached], initial, 'interrupted work cannot write into another account or discard cached mail')
   } else {
-    if (!initial.length) assert.ok(events.indexOf('body:20000') < events.indexOf('headers:8,1000'),'recent bodies are ready before historical headers finish')
     assert.deepEqual([...cached].sort((a, b) => a - b), server)
     const fetched = requests.flatMap(range => range.split(',').map(Number))
     assert.ok(fetched.every(uid => metadata || !initial.includes(uid)), 'already cached messages are not fetched again')
     assert.equal(fetched.length, server.length - (metadata ? 0 : initial.length))
     if (disableDuringDownload) {
-      assert.equal(bodyRequests.length,server.length-initial.length,'disabling full history keeps the recent window available')
+      assert.equal(bodyRequests.length,1,'disabling offline download stops subsequent body requests')
       assert.ok(bodies.has(initial[0]),'previously saved content remains available')
       return
     }

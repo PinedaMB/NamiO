@@ -634,9 +634,9 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       }
     }, 'background')
 
-    const downloadBodies = async (includeHistory: boolean): Promise<void> => {
-      const downloadAll = (await readSettings()).offlineDownload === true
-      const targetUids = includeHistory && downloadAll ? uids : uids.slice(-100)
+    const downloadBodies = async (): Promise<void> => {
+      if ((await readSettings()).offlineDownload !== true) return
+      const targetUids = uids
       const missingBodies = new Set(missingBodyUids(path))
       const bodyUids = targetUids.filter(uid => missingBodies.has(uid))
       let available = targetUids.filter(uid => readBody(path, uid).fetched).length
@@ -648,12 +648,12 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
           const envelope = readEnvelope(path, uid)
           if (generation !== syncGeneration || !envelope || readBody(path, uid).fetched) return false
           if (envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return false
-          if (generation !== syncGeneration || (downloadAll && (await readSettings()).offlineDownload !== true)) return false
+          if (generation !== syncGeneration || (await readSettings()).offlineDownload !== true) return false
           await cacheMessageBody(path, uid)
           return generation === syncGeneration
         }, 'background')
         if (generation !== syncGeneration) return
-        if (!downloaded && downloadAll && (await readSettings()).offlineDownload !== true) break
+        if (!downloaded && (await readSettings()).offlineDownload !== true) break
         if (downloaded) available++
         if (index % chunk === 0) available = targetUids.filter(uid => readBody(path, uid).fetched).length
         if (downloaded || index % chunk === 0) {
@@ -690,11 +690,9 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
         notify(path)
         await sleep(120)
       }
-      // El tramo reciente queda listo antes de completar las cabeceras del historial.
-      if (end === uids.length) await downloadBodies(false)
     }
     if (generation !== syncGeneration) return
-    await downloadBodies(true)
+    await downloadBodies()
   } catch (error) {
     if (generation === syncGeneration && isOfflineError(classify(error))) offline = true
     console.error('[imap] background sync failed:', describe(error))
@@ -727,9 +725,7 @@ async function ensureFullSync(path: string): Promise<void> {
   if (!meta) return
   const headersComplete = meta.messages <= countMessages(path) && missingEnvelopeMetadata(path).length === 0
   const downloadAll = (await readSettings()).offlineDownload === true
-  const bodiesPending = downloadAll
-    ? missingBodyUids(path).some(uid => (readEnvelope(path, uid)?.size ?? Infinity) <= MAX_OFFLINE_MESSAGE_BYTES)
-    : readEnvelopes(path, 100).some(message => message.size <= MAX_OFFLINE_MESSAGE_BYTES && !readBody(path, message.uid).fetched)
+  const bodiesPending = downloadAll && missingBodyUids(path).some(uid => (readEnvelope(path, uid)?.size ?? Infinity) <= MAX_OFFLINE_MESSAGE_BYTES)
   if (headersComplete && !bodiesPending) return
   void fullSyncMailbox(path, 100)
 }

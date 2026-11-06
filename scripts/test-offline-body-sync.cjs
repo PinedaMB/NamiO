@@ -57,11 +57,13 @@ async function main() {
   failure = true
   context.readSettings = async () => ({})
   await api.fullSyncMailbox('INBOX',100)
-  assert.ok(downloads.length > 0,'recent body downloads run without opting into the complete history')
+  assert.equal(downloads.length,0,'body downloads require opting into offline reading')
   downloads.length = 0
   context.readSettings = async () => ({ offlineDownload: false })
   await api.fullSyncMailbox('INBOX',100)
-  assert.ok(downloads.length > 0,'turning off full history still prepares recent bodies')
+  assert.equal(downloads.length,0,'turning off offline reading stops automatic body downloads')
+  await api.ensureFullSync('INBOX')
+  assert.equal(context.fullSyncRunning,false,'cached headers do not restart work when offline download is disabled')
   downloads.length = 0
   assert.equal(db.readBody('INBOX',1).text,'Already saved','opting out preserves cached content')
   context.readSettings = async () => ({ offlineDownload: true })
