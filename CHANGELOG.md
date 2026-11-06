@@ -1,6 +1,10 @@
 # Cambios
 
-## Sin publicar
+## 1.0.0-rc.8 — 2026-11-06
+
+- Se incorpora el copiloto con Gemini y Ollama para redactar y analizar conversaciones, con respuestas en streaming y opciones de idioma.
+- Se agrega la creación y eliminación de carpetas y se mejora la sincronización de respuestas enviadas y las búsquedas.
+- Se elimina la descarga automática de los 100 mensajes recientes; la descarga para lectura sin conexión requiere activar la opción en Configuración. Los mensajes ya guardados se conservan.
 
 - Configuración separa General, Lectura y Notificaciones; la firma se edita en Cuentas y se retira el apartado de copiloto sin opciones. Se aclaran los alcances por cuenta y los requisitos del sistema en español e inglés.
 - El lector respeta el tema del correo guardado, independiente de la apariencia de la aplicación. Los atajos registran Shift y los controles de sonido y privacidad dependen de los avisos automáticos sin perder sus preferencias.
