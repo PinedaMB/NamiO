@@ -74,10 +74,32 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState(false)
   const [pasteError, setPasteError] = useState<string | null>(null)
+  const insertImages = (view: Parameters<NonNullable<Parameters<typeof useEditor>[0]['editorProps']>['handlePaste'] & {}>[0], files: File[]): boolean => {
+    const imagesOnly = files.filter(file => file.type.startsWith('image/'))
+    setPasteError(null)
+    if (!imagesOnly.length) return false
+    if (imagesOnly.some(file => !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > MAX_COMPOSE_IMAGE_BYTES)) {
+      setPasteError(t('compose.imageLimit'))
+      return true
+    }
+    void Promise.all(imagesOnly.map(file => new Promise<{ src: string; alt: string }>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => typeof reader.result === 'string' && isComposeImage(reader.result)
+        ? resolve({ src: reader.result, alt: file.name || t('compose.pastedImage') }) : reject(new Error(t('compose.imageFailed')))
+      reader.onerror = () => reject(new Error(t('compose.imageFailed')))
+      reader.readAsDataURL(file)
+    }))).then(images => {
+      if (view.isDestroyed || !view.editable) return
+      for (const image of images) view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.image!.create(image)))
+      view.focus()
+    }).catch(() => { if (!view.isDestroyed) setPasteError(t('compose.imageFailed')) })
+    return true
+  }
+
   const instance = useEditor({
     immediatelyRender: false, // Suspense puede descartar una instancia creada durante el render.
     extensions: [StarterKit.configure({
-      heading: false, codeBlock: false, horizontalRule: false, strike: false,
+      heading: false, codeBlock: false,
       link: { openOnClick: false, defaultProtocol: 'https', isAllowedUri: isComposeLink }
     }), TextStyle, ImageNode],
     content: html ? cleanComposeHtml(html) : textToEditorContent(text),
@@ -93,33 +115,33 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
         const position = $from.pos - (after ? 1 : 0)
         return DecorationSet.create(state.doc, [Decoration.node(position, position + 1, { 'data-image-caret': after ? 'after' : 'before' })])
       },
-      handlePaste(view, event) {
-        const files = [...(event.clipboardData?.files ?? [])].filter(file => file.type.startsWith('image/'))
-        setPasteError(null)
-        if (!files.length) return false
-        event.preventDefault()
-        if (files.some(file => !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > MAX_COMPOSE_IMAGE_BYTES)) {
-          setPasteError(t('compose.imageLimit'))
+      handleKeyDown(_view, event) {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault()
+          setLink(instance?.getAttributes('link').href ?? '')
+          setLinkError(false)
+          setLinkOpen(value => !value)
           return true
         }
-        void Promise.all(files.map(file => new Promise<{ src: string; alt: string }>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => typeof reader.result === 'string' && isComposeImage(reader.result)
-            ? resolve({ src: reader.result, alt: file.name || t('compose.pastedImage') }) : reject(new Error(t('compose.imageFailed')))
-          reader.onerror = () => reject(new Error(t('compose.imageFailed')))
-          reader.readAsDataURL(file)
-        }))).then(images => {
-          if (view.isDestroyed || !view.editable) return
-          for (const image of images) view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.image!.create(image)))
-          view.focus()
-        }).catch(() => { if (!view.isDestroyed) setPasteError(t('compose.imageFailed')) })
-        return true
+        return false
+      },
+      handlePaste(view, event) {
+        const files = [...(event.clipboardData?.files ?? [])]
+        if (!files.some(file => file.type.startsWith('image/'))) return false
+        event.preventDefault()
+        return insertImages(view, files)
+      },
+      handleDrop(view, event) {
+        const files = [...(event.dataTransfer?.files ?? [])]
+        if (!files.some(file => file.type.startsWith('image/'))) return false
+        event.preventDefault()
+        return insertImages(view, files)
       }
     },
     onUpdate: ({ editor }) => onChange(editor.getText({ blockSeparator: '\n' }), cleanComposeHtml(editor.getHTML()))
   })
   const editor = instance && !instance.isDestroyed ? instance : null
-  useEditorState({ editor, selector: ({ editor }) => editor ? { textStyle: editor.getAttributes('textStyle'), image: editor.isActive('image') ? editor.getAttributes('image') : null, active: ['bold', 'italic', 'underline', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
+  useEditorState({ editor, selector: ({ editor }) => editor ? { textStyle: editor.getAttributes('textStyle'), image: editor.isActive('image') ? editor.getAttributes('image') : null, active: ['bold', 'italic', 'underline', 'strike', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -144,10 +166,12 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
     { label: 'compose.format.bold', icon: 'format_bold', active: editor?.isActive('bold'), run: () => { editor?.chain().focus().toggleBold().run() } },
     { label: 'compose.format.italic', icon: 'format_italic', active: editor?.isActive('italic'), run: () => { editor?.chain().focus().toggleItalic().run() } },
     { label: 'compose.format.underline', icon: 'format_underlined', active: editor?.isActive('underline'), run: () => { editor?.chain().focus().toggleUnderline().run() } },
+    { label: 'compose.format.strike', icon: 'strikethrough_s', active: editor?.isActive('strike'), run: () => { editor?.chain().focus().toggleStrike().run() } },
     { label: 'compose.format.link', icon: 'link', active: editor?.isActive('link'), run: () => { setLink(editor?.getAttributes('link').href ?? ''); setLinkError(false); setLinkOpen(value => !value) } },
     { label: 'compose.format.bullets', icon: 'format_list_bulleted', active: editor?.isActive('bulletList'), run: () => { editor?.chain().focus().toggleBulletList().run() } },
     { label: 'compose.format.numbered', icon: 'format_list_numbered', active: editor?.isActive('orderedList'), run: () => { editor?.chain().focus().toggleOrderedList().run() } },
     { label: 'compose.format.quote', icon: 'format_quote', active: editor?.isActive('blockquote'), run: () => { editor?.chain().focus().toggleBlockquote().run() } },
+    { label: 'compose.format.divider', icon: 'horizontal_rule', run: () => { editor?.chain().focus().setHorizontalRule().run() } },
     { label: 'compose.format.undo', icon: 'undo', disabled: !editor?.can().undo(), run: () => { editor?.chain().focus().undo().run() } },
     { label: 'compose.format.redo', icon: 'redo', disabled: !editor?.can().redo(), run: () => { editor?.chain().focus().redo().run() } }
   ]

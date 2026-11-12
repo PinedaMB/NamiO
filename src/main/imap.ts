@@ -61,6 +61,7 @@ import {
   setMeta,
   setUnread as cacheUnread,
   cacheAccountId,
+  updateFlags,
   upsertEnvelopes,
 } from './db'
 import { authorize, getAccessToken } from './oauth'
@@ -101,6 +102,35 @@ let cacheListener: ((mailbox: string) => void) | null = null
  */
 const operations: { background: boolean; run: () => Promise<void> }[] = []
 let operationRunning = false
+let idleParkTimer: ReturnType<typeof setTimeout> | null = null
+const activeSyncExists = new Map<string, number>()
+
+function onQueueIdle(): void {
+  if (idleParkTimer !== null) return
+  const inbox = inboxPath()
+  if (!inbox || !session?.client.usable || session.accountId !== cacheAccountId()) return
+  if (session.client.mailbox && session.client.mailbox.path === inbox) return
+  idleParkTimer = setTimeout(() => {
+    idleParkTimer = null
+    if (operations.length > 0 || operationRunning) return
+    const target = inboxPath()
+    if (!target || !session?.client.usable || session.accountId !== cacheAccountId()) return
+    if (session.client.mailbox && session.client.mailbox.path === target) return
+    void serial(async () => {
+      const current = session
+      const client = current?.client
+      if (!current || !client?.usable || current.accountId !== cacheAccountId()) return
+      if (client.mailbox && client.mailbox.path === target) return
+      const lock = await client.getMailboxLock(target)
+      const boxExists = client.mailbox ? client.mailbox.exists : null
+      lock.release()
+      const cached = getMailboxMeta(target)
+      if (boxExists !== null && cached && boxExists > cached.messages) {
+        scheduleSync(target, 50, true)
+      }
+    }, 'background').catch(() => undefined)
+  }, 50)
+}
 
 function serial<T>(fn: () => Promise<T>, priority: 'normal' | 'background' | 'interactive' = 'normal'): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -117,7 +147,10 @@ function serial<T>(fn: () => Promise<T>, priority: 'normal' | 'background' | 'in
       try {
         let next: (typeof operations)[number] | undefined
         while ((next = operations.shift())) await next.run()
-      } finally { operationRunning = false }
+      } finally {
+        operationRunning = false
+        if (operations.length === 0 && typeof onQueueIdle === 'function') onQueueIdle()
+      }
     }
     void Promise.resolve().then(drain)
   })
@@ -162,6 +195,36 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
   client.on('error', () => undefined)
   client.on('close', () => {
     if (session?.client === client) session = null
+  })
+  client.on('exists', (data: { path?: string; count?: number; prevCount?: number }) => {
+    if (session?.client !== client || session.accountId !== cacheAccountId()) return
+    const path = data?.path
+    if (!path) return
+    if (typeof data.count === 'number' && typeof data.prevCount === 'number' && data.count <= data.prevCount) return
+    const inbox = inboxPath()
+    if (inbox && path === inbox) {
+      const synced = activeSyncExists.get(path)
+      if (synced !== undefined && typeof data.count === 'number' && data.count <= synced) return
+      scheduleSync(inbox, 50, true, true)
+    }
+  })
+  client.on('flags', (data: { path?: string; uid?: number; flags?: Set<string> }) => {
+    if (session?.client !== client || session.accountId !== cacheAccountId()) return
+    const path = data?.path
+    if (!path || typeof data.uid !== 'number' || !data.flags) return
+    const unread = !data.flags.has('\\Seen')
+    const flagged = data.flags.has('\\Flagged')
+    const current = readEnvelope(path, data.uid)
+    if (!current || (current.unread === unread && current.flagged === flagged)) return
+    updateFlags(path, [{ uid: data.uid, unread, flagged }])
+    notify(path)
+  })
+  client.on('expunge', (data: { path?: string }) => {
+    if (session?.client !== client || session.accountId !== cacheAccountId()) return
+    const path = data?.path
+    if (!path || activeSyncExists.has(path)) return
+    const inbox = inboxPath()
+    if (inbox && path === inbox) scheduleSync(inbox, 50, true, true)
   })
 
   return client
@@ -355,15 +418,38 @@ async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Prom
     { envelope: true, bodyStructure: true, headers: ['Importance', 'Priority', 'X-Priority', 'X-MSMail-Priority', 'Message-ID', 'In-Reply-To', 'References'], flags: true, uid: true, size: true, internalDate: true },
     options
   )) {
-    const parsedHeaders = message.headers ? await simpleParser(message.headers) : null
-    const priority = parsedHeaders?.headers.get('priority')
+    let priority: 'high' | 'normal' | 'low' = 'normal'
+    let headerMessageId: string | undefined
+    let headerInReplyTo: string | undefined
+    let headerReferences: string[] = []
+    if (message.headers) {
+      const unfolded = message.headers.toString('utf8').replace(/\r?\n[ \t]+/g, ' ')
+      const parsed = new Map<string, string>()
+      for (const line of unfolded.split(/\r?\n/)) {
+        const colon = line.indexOf(':')
+        if (colon <= 0) continue
+        const key = line.slice(0, colon).trim().toLowerCase()
+        const value = line.slice(colon + 1).trim()
+        if (key && value && !parsed.has(key)) parsed.set(key, value)
+      }
+      const importance = parsed.get('importance')?.toLowerCase()
+      const prio = parsed.get('priority')?.toLowerCase()
+      const xPrio = parsed.get('x-priority')
+      const msPrio = parsed.get('x-msmail-priority')?.toLowerCase()
+      if (importance === 'high' || prio === 'urgent' || msPrio === 'high' || (xPrio && /^[12]\b/.test(xPrio))) priority = 'high'
+      else if (importance === 'low' || prio === 'non-urgent' || msPrio === 'low' || (xPrio && /^[45]\b/.test(xPrio))) priority = 'low'
+      headerMessageId = parsed.get('message-id')?.match(/<[^>]+>/)?.[0] ?? parsed.get('message-id')
+      headerInReplyTo = parsed.get('in-reply-to')?.match(/<[^>]+>/)?.[0] ?? parsed.get('in-reply-to')
+      const refsRaw = parsed.get('references')
+      if (refsRaw) headerReferences = refsRaw.match(/<[^>]+>/g) ?? refsRaw.split(/\s+/).filter(Boolean)
+    }
     envelopes.push({
-      priority: priority === 'high' || priority === 'low' ? priority : 'normal',
+      priority,
       uid: message.uid,
       hasAttachments: hasAttachments(message.bodyStructure),
-      messageId: message.envelope?.messageId ?? parsedHeaders?.messageId,
-      inReplyTo: message.envelope?.inReplyTo ?? parsedHeaders?.inReplyTo,
-      references: typeof parsedHeaders?.references === 'string' ? [parsedHeaders.references] : parsedHeaders?.references ?? [],
+      messageId: message.envelope?.messageId ?? headerMessageId,
+      inReplyTo: message.envelope?.inReplyTo ?? headerInReplyTo,
+      references: headerReferences,
       subject: message.envelope?.subject ?? '',
       from: toAddress(message.envelope?.from?.[0]),
       date: toDate(message.internalDate).toISOString(),
@@ -378,30 +464,14 @@ async function fetchRange(client: ImapFlow, range: string, byUid: boolean): Prom
 
 async function syncMailboxes(): Promise<MailboxInfo[]> {
   const client = await ensureClient()
-  const boxes = await client.list()
-  const result: MailboxInfo[] = []
-
-  for (const box of boxes) {
-    let messages = 0
-    let unseen = 0
-    try {
-      const status = await client.status(box.path, { messages: true, unseen: true })
-      if (status) {
-        messages = status.messages ?? 0
-        unseen = status.unseen ?? 0
-      }
-    } catch {
-      // buzones \Noselect o servidores que niegan STATUS fuera de SELECT
-    }
-
-    result.push({
-      path: box.path,
-      name: box.name || box.path,
-      specialUse: box.specialUse ?? null,
-      messages,
-      unseen
-    })
-  }
+  const boxes = await client.list({ statusQuery: { messages: true, unseen: true } })
+  const result: MailboxInfo[] = boxes.map((box) => ({
+    path: box.path,
+    name: box.name || box.path,
+    specialUse: box.specialUse ?? null,
+    messages: box.status?.messages ?? 0,
+    unseen: box.status?.unseen ?? 0
+  }))
 
   replaceMailboxes(result)
   setMeta('lastSync', String(Date.now()))
@@ -449,6 +519,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
     uidValidity ??= box?.uidValidity != null ? Number(box.uidValidity) : null
     if (exists === null || uidNext === null || uidValidity === null) throw new Error('No se pudo verificar el estado de la carpeta; se conservó la caché')
     if (!Number.isSafeInteger(exists) || exists < 0 || !Number.isSafeInteger(uidNext) || uidNext < 1 || !Number.isSafeInteger(uidValidity) || uidValidity < 1) throw new Error('El servidor devolvió un estado de carpeta inválido; se conservó la caché')
+    if (typeof activeSyncExists !== 'undefined') activeSyncExists.set(path, exists)
     if (!statusFresh && cached?.uidValidity === uidValidity && cached.uidNext !== null) uidNext = Math.max(uidNext, cached.uidNext)
     // Menos mensajes puede significar borrados normales, no una caché inválida.
     const reset = statusFresh && cached?.uidNext != null && uidNext < cached.uidNext
@@ -509,7 +580,8 @@ async function syncMessages(path: string, limit: number): Promise<void> {
 
     // Refresca flags y cabeceras del tramo visible. Si la sincronización
     // incremental ya bajó los mensajes nuevos, solo falta el hueco anterior
-    // y no se vuelve a pedir la misma ventana.
+    // y no se vuelve a pedir la misma ventana. Si no hubo nuevos y el tramo
+    // ya está en caché, solo se actualizan los flags sin descargar sobres.
     if (exists > 0) {
       const recentStart = Math.max(1, exists - limit + 1)
       if (fullSync) {
@@ -520,8 +592,18 @@ async function syncMessages(path: string, limit: number): Promise<void> {
           // El rango usa posiciones, no UIDs: estos pueden tener huecos grandes.
           upsertEnvelopes(path, await fetchRange(client, `${recentStart}:${recentEnd}`, false))
         }
-      } else {
+      } else if (countMessages(path) < Math.min(exists, limit)) {
         upsertEnvelopes(path, await fetchRange(client, `${recentStart}:*`, false))
+      } else if (typeof updateFlags === 'function' && typeof client.fetch === 'function') {
+        const flags: { uid: number; unread: boolean; flagged: boolean }[] = []
+        for await (const message of client.fetch(`${recentStart}:*`, { uid: true, flags: true })) {
+          flags.push({
+            uid: message.uid,
+            unread: !message.flags?.has('\\Seen'),
+            flagged: message.flags?.has('\\Flagged') ?? false
+          })
+        }
+        updateFlags(path, flags)
       }
     }
 
@@ -543,6 +625,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       })
     }
   } finally {
+    if (typeof activeSyncExists !== 'undefined') activeSyncExists.delete(path)
     lock.release()
   }
 
@@ -599,21 +682,49 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 // Una sola sincronización pendiente por cuenta y carpeta: varias navegaciones
 // seguidas no deben encolar el mismo trabajo una y otra vez.
 const pendingSyncs = new Set<string>()
+const resyncPending = new Set<string>()
+const prefetchScheduled = new Set<string>()
+const searchedSentReplies = new Set<string>()
 
-function scheduleSync(path: string, limit: number, broadcast = false): void {
+function prefetchRecentBodies(path: string): void {
+  if (path !== inboxPath()) return
   const key = `${cacheAccountId()}:${path}`
-  if (pendingSyncs.has(key)) return
+  if (prefetchScheduled.has(key)) return
+  prefetchScheduled.add(key)
+  const generation = syncGeneration
+  void (async () => {
+    const recent = readEnvelopes(path, 5, {})
+    for (const envelope of recent) {
+      if (generation !== syncGeneration || operations.length > 0) break
+      if (readBody(path, envelope.uid).fetched || envelope.size > MAX_OFFLINE_MESSAGE_BYTES) continue
+      await serial(async () => {
+        if (generation !== syncGeneration || readBody(path, envelope.uid).fetched) return
+        await cacheMessageBody(path, envelope.uid, false)
+      }, 'background').catch(() => undefined)
+    }
+  })().finally(() => prefetchScheduled.delete(key))
+}
+
+function scheduleSync(path: string, limit: number, broadcast = false, forceResync = false): void {
+  const key = `${cacheAccountId()}:${path}`
+  if (pendingSyncs.has(key)) {
+    if (forceResync) resyncPending.add(key)
+    return
+  }
   pendingSyncs.add(key)
   void serial(() => syncMessages(path, limit), 'background')
     .then(() => {
-      notify(path)
-      if (broadcast) notify('*')
+      notify(broadcast ? '*' : path)
+      prefetchRecentBodies(path)
     })
     .catch((error: unknown) => {
       offline = isOfflineError(classify(error))
       notify(path)
     })
-    .finally(() => pendingSyncs.delete(key))
+    .finally(() => {
+      pendingSyncs.delete(key)
+      if (resyncPending.delete(key)) scheduleSync(path, limit, broadcast)
+    })
 }
 
 /** Descarga los UID existentes por tandas; los huecos no detienen la sincronización. */
@@ -727,7 +838,7 @@ async function ensureFullSync(path: string): Promise<void> {
   const downloadAll = (await readSettings()).offlineDownload === true
   const bodiesPending = downloadAll && missingBodyUids(path).some(uid => (readEnvelope(path, uid)?.size ?? Infinity) <= MAX_OFFLINE_MESSAGE_BYTES)
   if (headersComplete && !bodiesPending) return
-  void fullSyncMailbox(path, 100)
+  void fullSyncMailbox(path, 50)
 }
 
 /* ---------------------------------------------------------------------------
@@ -903,6 +1014,12 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
     return [{ mailbox: sent, uid, envelope, sourceUids: sources.filter(source => source.ids.some(id => ancestry.has(id))).map(source => source.uid) }]
   })
   if (cachedOnly) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: syncMeta() }
+  const sentMeta = getMailboxMeta(sent)
+  const searchPrefix = `${generation}:${sent}:${sentMeta?.uidValidity ?? ''}:${sentMeta?.uidNext ?? ''}:`
+  const pendingIds = typeof searchedSentReplies !== 'undefined'
+    ? ids.filter(id => !searchedSentReplies.has(`${searchPrefix}${id}`))
+    : ids
+  if (pendingIds.length === 0) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: syncMeta() }
   try {
     let validity: string | undefined
     const inSent = <T,>(run: (client: ImapFlow) => Promise<T>): Promise<T> => serial(async () => {
@@ -933,7 +1050,7 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
       }
     }
     // Cada consulta cede la cola: abrir un cuerpo no espera a toda la búsqueda.
-    for (let offset = 0; offset < ids.length; offset += 10) await searchIds(ids.slice(offset, offset + 10))
+    for (let offset = 0; offset < pendingIds.length; offset += 10) await searchIds(pendingIds.slice(offset, offset + 10))
     const matches = await inSent(async client => {
       const missing = relatedMessageUids(sent, ids).filter(uid => !found.has(uid))
       if (missing.length > 0) {
@@ -945,6 +1062,9 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
       return relatedMessageUids(sent, ids).filter(uid => found.has(uid))
     })
     if (generation !== syncGeneration) throw accountChangedError()
+    if (typeof searchedSentReplies !== 'undefined') {
+      for (const id of pendingIds) searchedSentReplies.add(`${searchPrefix}${id}`)
+    }
     offline = false
     return { ok: true, data: locations(matches), meta: syncMeta() }
   } catch (error) {
@@ -1125,6 +1245,11 @@ export function readAttachment(
       return result
     } finally { lock.release() }
   }, 'interactive')
+}
+
+function inboxPath(): string | null {
+  const boxes = readMailboxes()
+  return boxes.find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path ?? null
 }
 
 /** Ruta del buzón de archivo, si el servidor la expone. */

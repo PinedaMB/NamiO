@@ -58,7 +58,13 @@ export function RecipientInput({ field, initialValue, onChange, suggest }: Recip
 
   return (
     <div className="recipient-input">
-      {contacts.map(email => <span className="recipient recipient--contact" key={email} title={email}>
+      {contacts.map(email => <span className="recipient recipient--contact" key={email} title={email} onDoubleClick={() => {
+        const next = contacts.filter(item => item !== email)
+        setContacts(next)
+        setDraft(email)
+        setInvalid(false)
+        onChange([...next, email].join(', '))
+      }}>
         <span className="recipient__initials" aria-hidden="true">{(names[email] || email).slice(0, 2).toUpperCase()}</span>
         <strong>{names[email] || email}</strong>
         <button type="button" aria-label={`${t('compose.removeRecipient')}: ${email}`} onClick={() => {
@@ -85,6 +91,10 @@ export function RecipientInput({ field, initialValue, onChange, suggest }: Recip
             else if (event.key === 'ArrowUp' && popup) { event.preventDefault(); setActive(index => (index <= 0 ? options.length : index) - 1) }
             else if (event.key === 'Enter' || event.key === ',' || event.key === ';') {
               event.preventDefault(); commit(event.key === 'Enter' && active >= 0 ? options[active] : undefined)
+            } else if (event.key === 'Backspace' && draft === '' && contacts.length > 0) {
+              const next = contacts.slice(0, -1)
+              setContacts(next)
+              onChange(next.join(', '))
             } else if (event.key === 'Escape' && popup) { event.preventDefault(); event.stopPropagation(); setFocused(false) }
           }} />
         {popup && <div className="recipient-options" id={listId} role="listbox" aria-label={t(`compose.${field}`)}>

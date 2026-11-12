@@ -1842,6 +1842,15 @@ export function App(): React.JSX.Element {
         signatureKey={accountIdentity.current ?? 'demo'}
         minimized={composeMinimized}
         onRestore={() => setComposeMinimized(false)}
+        onAutoSave={live ? async values => {
+          const generation = accountGeneration.current
+          const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length
+          if (!hasContent) return
+          const result = await window.api.saveDraft({ ...values, id: compose?.id, inReplyTo: compose?.inReplyTo, references: compose?.references, updatedAt: Date.now() })
+          if (generation !== accountGeneration.current) return
+          void refreshOutbox()
+          setCompose(current => current ? { ...current, id: result.id } : current)
+        } : undefined}
         onMinimize={async values => {
           const generation = accountGeneration.current
           const hasContent = values.to.trim() || values.cc.trim() || values.bcc?.trim() || values.subject.trim() || values.body.trim() || values.html?.includes('<img ') || values.attachments?.length

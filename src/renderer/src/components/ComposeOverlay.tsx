@@ -10,7 +10,7 @@ import type { Draft, PickedAttachment, MailPriority } from '@shared/ipc'
 import { COPILOT_DRAFT } from '../data/demo'
 import { useI18n, type TranslationKey } from '../i18n'
 import { usePresence } from '../lib/usePresence'
-import { composeEmailHtml, splitReplyHtml } from '../lib/composeHtml'
+import { cleanComposeHtml, composeEmailHtml, splitReplyHtml } from '../lib/composeHtml'
 import { EmailBody } from './EmailBody'
 import { RecipientInput } from './RecipientInput'
 import { Icon } from './Icon'
@@ -40,6 +40,7 @@ interface ComposeOverlayProps {
   bcc?: string
   initialAttachments?: PickedAttachment[]
   minimized?: boolean
+  onAutoSave?: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
   onMinimize?: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
   onRestore?: () => void
   onDiscard: () => Promise<void>
@@ -85,6 +86,7 @@ export function ComposeOverlay({
   initialAttachments,
   onDiscard,
   minimized = false,
+  onAutoSave,
   onMinimize,
   onRestore,
   onRestoreDraft,
@@ -132,7 +134,9 @@ export function ComposeOverlay({
   const [bccValue, setBccValue] = useState(bcc)
   const [bccOpen, setBccOpen] = useState(Boolean(bcc))
   const sendingRef = useRef(false)
+  const missingAttachmentConfirmed = useRef(false)
   const [sending, setSending] = useState(false)
+  const [autoSaved, setAutoSaved] = useState(false)
   const { spellcheckLanguage, setSpellcheckLanguage, saveError } = usePreferences()
   const [error, setError] = useState<string | null>(null)
   const [sendOptionsOpen, setSendOptionsOpen] = useState(false)
@@ -176,6 +180,8 @@ export function ComposeOverlay({
     setCcOpen(Boolean(cc))
     setBccOpen(Boolean(bcc))
     setError(null)
+    setAutoSaved(false)
+    missingAttachmentConfirmed.current = false
     setSendOptionsOpen(false)
     // Los adjuntos de ejemplo solo existen en la demo.
     setAttachments(
@@ -194,7 +200,15 @@ export function ComposeOverlay({
     let canceled = false
     void window.api.getSettings().then(settings => {
       const saved = settings.signatures?.[signatureKey]
-      if (!canceled && typeof saved === 'string') setSignature(saved)
+      if (!canceled && typeof saved === 'string') {
+        setSignature(saved)
+        if (saved && !bodyRef.current.body && !bodyRef.current.html) {
+          const sigHtml = `<p></p>${cleanComposeHtml(saved)}`
+          bodyRef.current = { body: `\n\n${saved}`, html: sigHtml }
+          setBodyValue(`\n\n${saved}`)
+          setHtmlValue(sigHtml)
+        }
+      }
     }).catch(() => { if (!canceled) setError(t('signature.loadError')) })
     return () => { canceled = true }
   }, [open, minimized, signatureKey])
@@ -222,12 +236,38 @@ export function ComposeOverlay({
     if (sendingRef.current) return
     const payload = values()
     if (!validRecipients(payload.to, payload.cc, payload.bcc ?? '')) { setError(t('compose.invalidRecipients')); return }
+    if (
+      !missingAttachmentConfirmed.current &&
+      picked.length === 0 &&
+      attachments.length === 0 &&
+      /\b(adjunt[oa]s?|adjuntamos|attached|attachment)\b/i.test(bodyRef.current.body)
+    ) {
+      missingAttachmentConfirmed.current = true
+      setError(t('compose.missingAttachmentWarning'))
+      return
+    }
     sendingRef.current = true
     setSending(true)
     setError(null)
     try { await onSend({ ...payload, html: formatted && payload.html ? composeEmailHtml(payload.html) : undefined }) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { sendingRef.current = false; setSending(false) }
   }
+
+  useEffect(() => {
+    missingAttachmentConfirmed.current = false
+  }, [bodyValue, picked.length, attachments.length])
+
+  useEffect(() => {
+    if (!open || minimized || sending || !onAutoSave) return
+    const hasContent = toValue.trim() || ccValue.trim() || bccValue.trim() || subjectValue.trim() || bodyValue.trim() || htmlValue?.includes('<img ') || picked.length > 0
+    if (!hasContent) return
+    setAutoSaved(false)
+    const timer = window.setTimeout(() => {
+      if (sendingRef.current) return
+      void onAutoSave(values()).then(() => setAutoSaved(true)).catch(() => undefined)
+    }, 2500)
+    return () => window.clearTimeout(timer)
+  }, [open, minimized, sending, onAutoSave, toValue, ccValue, bccValue, subjectValue, priorityValue, bodyValue, htmlValue, picked])
 
   const minimize = async (): Promise<void> => {
     if (sendingRef.current || !onMinimize) return
@@ -629,6 +669,7 @@ export function ComposeOverlay({
               </label>
             </div>}
             <span className="composer__recipient-count">{t(recipientCount === 1 ? 'compose.sendToOne' : 'compose.sendToMany', { count: recipientCount })}</span>
+            {autoSaved && <span className="composer__recipient-count" aria-live="polite">· {t('compose.draftSaved')}</span>}
           </div>
 
           <div className="composer__foot-right">
