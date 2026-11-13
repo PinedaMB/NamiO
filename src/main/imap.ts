@@ -26,7 +26,8 @@ import type {
   SearchHit,
   SentReply,
   SyncMeta,
-  SyncProgress
+  SyncProgress,
+  UnifiedEnvelope
 } from '@shared/ipc'
 import {
   clearMailbox,
@@ -49,6 +50,7 @@ import {
   readEnvelopes,
   relatedMessageUids,
   readMailboxes,
+  readUnifiedInbox,
   replaceMailboxes,
   pruneExcept,
   readDraft as readLocalDraft,
@@ -103,7 +105,144 @@ let cacheListener: ((mailbox: string) => void) | null = null
 const operations: { background: boolean; run: () => Promise<void> }[] = []
 let operationRunning = false
 let idleParkTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let closingSession = false
 const activeSyncExists = new Map<string, number>()
+
+interface AccountRuntime {
+  accountId: string
+  session: Session | null
+  offline: boolean
+  idleParkTimer: ReturnType<typeof setTimeout> | null
+  reconnectTimer: ReturnType<typeof setTimeout> | null
+  activeSyncExists: Map<string, number>
+  operations: { run: () => Promise<void> }[]
+  operationRunning: boolean
+}
+
+const runtimes = new Map<string, AccountRuntime>()
+
+function runtimeFor(accountId: string): AccountRuntime {
+  let rt = runtimes.get(accountId)
+  if (!rt) {
+    rt = {
+      accountId,
+      session: null,
+      offline: false,
+      idleParkTimer: null,
+      reconnectTimer: null,
+      activeSyncExists: new Map(),
+      operations: [],
+      operationRunning: false
+    }
+    runtimes.set(accountId, rt)
+  }
+  return rt
+}
+
+function stashActiveSession(): void {
+  if (!session) return
+  const rt = runtimeFor(session.accountId)
+  if (idleParkTimer !== null) {
+    clearTimeout(idleParkTimer)
+    idleParkTimer = null
+  }
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  rt.session = session
+  rt.offline = offline
+  rt.activeSyncExists = new Map(activeSyncExists)
+  activeSyncExists.clear()
+  resyncPending.clear()
+  session = null
+}
+
+function restoreAccountSession(accountId: string): Session | null {
+  const rt = runtimes.get(accountId)
+  if (!rt) {
+    offline = false
+    return null
+  }
+  if (!rt.operationRunning && rt.operations.length === 0 && rt.session?.client.usable) {
+    session = rt.session
+    offline = rt.offline
+    activeSyncExists.clear()
+    for (const [k, v] of rt.activeSyncExists) activeSyncExists.set(k, v)
+    rt.session = null
+    rt.activeSyncExists.clear()
+    return session
+  } else {
+    if (rt.session && !rt.session.client.usable) rt.session = null
+    offline = rt.offline
+    return null
+  }
+}
+
+async function dropAccountRuntime(accountId: string): Promise<void> {
+  const rt = runtimes.get(accountId)
+  if (!rt) return
+  runtimes.delete(accountId)
+  if (rt.idleParkTimer !== null) {
+    clearTimeout(rt.idleParkTimer)
+    rt.idleParkTimer = null
+  }
+  if (rt.reconnectTimer !== null) {
+    clearTimeout(rt.reconnectTimer)
+    rt.reconnectTimer = null
+  }
+  const current = rt.session
+  rt.session = null
+  if (!current) return
+  try {
+    await current.client.logout()
+  } catch {
+    try {
+      current.client.close()
+    } catch {
+      // ya estaba cerrada
+    }
+  }
+}
+
+function runInAccountRuntime<T>(accountId: string, fn: (rt: AccountRuntime) => Promise<T>): Promise<T> {
+  const rt = runtimeFor(accountId)
+  return new Promise<T>((resolve, reject) => {
+    rt.operations.push({
+      run: async () => {
+        try { resolve(await fn(rt)) } catch (error) { reject(error) }
+      }
+    })
+    const drain = async (): Promise<void> => {
+      if (rt.operationRunning) return
+      rt.operationRunning = true
+      try {
+        let next: (typeof rt.operations)[number] | undefined
+        while ((next = rt.operations.shift())) await next.run()
+      } finally {
+        rt.operationRunning = false
+      }
+    }
+    void Promise.resolve().then(drain)
+  })
+}
+
+export async function closeAllSessions(): Promise<void> {
+  await closeSession()
+  const ids = [...runtimes.keys()]
+  await Promise.all(ids.map((id) => dropAccountRuntime(id)))
+}
+
+function scheduleIdleReconnect(): void {
+  if (reconnectTimer !== null || closingSession || offline) return
+  const generation = syncGeneration
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    if (generation !== syncGeneration || session || closingSession || offline || operations.length > 0) return
+    void syncInbox().catch(() => undefined)
+  }, 3000)
+}
 
 function onQueueIdle(): void {
   if (idleParkTimer !== null) return
@@ -194,7 +333,13 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
   // Sin listener, un error de socket tira abajo el proceso principal.
   client.on('error', () => undefined)
   client.on('close', () => {
-    if (session?.client === client) session = null
+    if (session?.client === client) {
+      session = null
+      if (!closingSession) scheduleIdleReconnect()
+    }
+    for (const rt of runtimes.values()) {
+      if (rt.session?.client === client) rt.session = null
+    }
   })
   client.on('exists', (data: { path?: string; count?: number; prevCount?: number }) => {
     if (session?.client !== client || session.accountId !== cacheAccountId()) return
@@ -239,9 +384,20 @@ async function openSession(config: ImapAccountConfig, auth: ImapAuth, accountId:
 }
 
 async function closeSession(): Promise<void> {
+  if (idleParkTimer !== null) {
+    clearTimeout(idleParkTimer)
+    idleParkTimer = null
+  }
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  resyncPending.clear()
+  activeSyncExists.clear()
   const current = session
   session = null
   if (!current) return
+  closingSession = true
   try {
     await current.client.logout()
   } catch {
@@ -250,6 +406,8 @@ async function closeSession(): Promise<void> {
     } catch {
       // ya estaba cerrada
     }
+  } finally {
+    closingSession = false
   }
 }
 
@@ -278,10 +436,17 @@ async function authFor(account: StoredAccount): Promise<ImapAuth> {
 
 /** Conecta con la cuenta activa si hace falta. Lanza si no hay credenciales usables. */
 async function ensureClient(): Promise<ImapFlow> {
-  if (session?.client.usable && session.accountId === cacheAccountId()) return session.client
-  // Una sesión de otra cuenta no se reutiliza jamás: se cierra antes de abrir
-  // la de la cuenta que la caché tiene abierta.
-  if (session) await closeSession()
+  const activeId = cacheAccountId()
+  if (session?.client.usable && session.accountId === activeId) return session.client
+  if (!session) {
+    const restored = restoreAccountSession(activeId)
+    if (restored?.client.usable && restored.accountId === activeId) return restored.client
+  }
+  // Una sesión de otra cuenta se conserva en su runtime; si era de la misma cuenta pero no usable, se cierra.
+  if (session) {
+    if (session.accountId !== activeId) stashActiveSession()
+    else await closeSession()
+  }
 
   const stored = await readActiveAccount()
   if (!stored) throw new Error('No account configured')
@@ -332,7 +497,9 @@ export async function activateAccount(account: StoredAccount): Promise<void> {
   await serial(async () => {
     await saveAccount(sealed)
     if (!(await setActiveAccount(sealed.id))) throw new Error('No se pudo activar la cuenta')
+    if (typeof stashActiveSession === 'function' && session && session.accountId !== account.id) stashActiveSession()
     await closeSession()
+    if (typeof dropAccountRuntime === 'function') await dropAccountRuntime(account.id)
     openAccountCache(account.id)
     notify('*')
   })
@@ -685,9 +852,10 @@ const pendingSyncs = new Set<string>()
 const resyncPending = new Set<string>()
 const prefetchScheduled = new Set<string>()
 const searchedSentReplies = new Set<string>()
+const manualSyncAt = new Map<string, number>()
 
 function prefetchRecentBodies(path: string): void {
-  if (path !== inboxPath()) return
+  if (path !== inboxPath() || fullSyncRunning) return
   const key = `${cacheAccountId()}:${path}`
   if (prefetchScheduled.has(key)) return
   prefetchScheduled.add(key)
@@ -695,10 +863,10 @@ function prefetchRecentBodies(path: string): void {
   void (async () => {
     const recent = readEnvelopes(path, 5, {})
     for (const envelope of recent) {
-      if (generation !== syncGeneration || operations.length > 0) break
+      if (generation !== syncGeneration || operations.length > 0 || fullSyncRunning) break
       if (readBody(path, envelope.uid).fetched || envelope.size > MAX_OFFLINE_MESSAGE_BYTES) continue
       await serial(async () => {
-        if (generation !== syncGeneration || readBody(path, envelope.uid).fetched) return
+        if (generation !== syncGeneration || fullSyncRunning || readBody(path, envelope.uid).fetched) return
         await cacheMessageBody(path, envelope.uid, false)
       }, 'background').catch(() => undefined)
     }
@@ -712,7 +880,11 @@ function scheduleSync(path: string, limit: number, broadcast = false, forceResyn
     return
   }
   pendingSyncs.add(key)
-  void serial(() => syncMessages(path, limit), 'background')
+  void serial(async () => {
+    const lastManual = manualSyncAt.get(key)
+    if (!forceResync && lastManual !== undefined && Date.now() - lastManual < 1000) return
+    await syncMessages(path, limit)
+  }, 'background')
     .then(() => {
       notify(broadcast ? '*' : path)
       prefetchRecentBodies(path)
@@ -813,8 +985,9 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       publishProgress(null)
       notify(path)
     }
+    const inbox = typeof inboxPath === 'function' ? inboxPath() : null
     while (!fullSyncRunning && pendingFullSync.size > 0) {
-      const next = pendingFullSync.values().next().value!
+      const next = inbox && pendingFullSync.has(inbox) ? inbox : pendingFullSync.values().next().value!
       pendingFullSync.delete(next)
       void ensureFullSync(next)
     }
@@ -874,6 +1047,16 @@ export async function listMailboxes(sync = true): Promise<CachedResult<MailboxIn
   }
 
   return { ok: true, data: cached, meta: syncMeta() }
+}
+
+export async function listUnifiedInbox(limit: number, options: EnvelopeListOptions = {}): Promise<UnifiedEnvelope[]> {
+  const safeLimit = Math.max(1, Math.min(MAX_ENVELOPE_LIMIT, Math.trunc(limit) || 50))
+  const { accounts } = await readAccounts()
+  const labels = new Map(accounts.map((account) => [account.id, account.label || account.user]))
+  return readUnifiedInbox(accounts.map((account) => account.id), safeLimit, options).map((item) => ({
+    ...item,
+    accountLabel: labels.get(item.accountId) ?? item.accountId
+  }))
 }
 
 export async function listEnvelopes(
@@ -1163,6 +1346,7 @@ export function syncMailbox(path: string): Promise<ImapResult<boolean>> {
       await syncMailboxes()
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
       await syncMessages(path, 50)
+      if (typeof manualSyncAt !== 'undefined') manualSyncAt.set(`${cacheAccountId()}:${path}`, Date.now())
       notify('*')
       return { ok: true, data: true }
     } catch (error) {
@@ -1492,15 +1676,12 @@ async function pollAccountsActivity(): Promise<AccountActivity[]> {
 
     if (isActive) {
       // La cuenta activa ya se sincroniza sola: su contador sale de la caché.
-      unseen = readMailboxes().find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.unseen ?? 0
+      unseen = readMailboxes(account.id).find((box) => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.unseen ?? 0
     } else {
       try {
-        const auth = await authFor(account)
-        const client = createClient(account, auth)
-        await client.connect()
-        try {
+        const pollClient = async (client: ImapFlow): Promise<number> => {
           const status = await client.status('INBOX', { unseen: true, uidNext: true, uidValidity: true })
-          unseen = status !== false ? Number(status.unseen ?? 0) : 0
+          const count = status !== false ? Number(status.unseen ?? 0) : 0
           if (status && status.uidValidity != null && status.uidNext != null) {
             const cursor = { uidValidity: Number(status.uidValidity), uidNext: Number(status.uidNext) }
             const previous = (await readSettings()).mailNotificationCursors?.[account.id]
@@ -1513,8 +1694,40 @@ async function pollAccountsActivity(): Promise<AccountActivity[]> {
             const fresh = await trackNewMail(account.id, cursor, messages)
             if (fresh.length) newMailListener?.(account, 'INBOX', fresh)
           }
-        } finally {
-          await client.logout().catch(() => undefined)
+          return count
+        }
+
+        if (typeof runInAccountRuntime === 'function') {
+          unseen = await runInAccountRuntime(account.id, async (rt) => {
+            let client = rt.session?.client
+            if (!client?.usable) {
+              const auth = await authFor(account)
+              client = createClient(account, auth)
+              await client.connect()
+              rt.session = {
+                client,
+                config: { host: account.host, port: account.port, secure: account.secure, user: account.user },
+                accountId: account.id
+              }
+              rt.offline = false
+            }
+            try {
+              return await pollClient(client)
+            } catch (error) {
+              rt.session = null
+              await client.logout().catch(() => { try { client.close() } catch { /* ya estaba cerrada */ } })
+              throw error
+            }
+          })
+        } else {
+          const auth = await authFor(account)
+          const client = createClient(account, auth)
+          await client.connect()
+          try {
+            unseen = await pollClient(client)
+          } finally {
+            await client.logout().catch(() => undefined)
+          }
         }
       } catch {
         // Sin red o credenciales vencidas: se conserva el último valor conocido.
@@ -1559,8 +1772,10 @@ export async function selectAccount(id: string): Promise<ImapResult<AccountState
     const changed = await serial(async () => {
       const ok = await setActiveAccount(id)
       if (!ok) return false
+      if (typeof stashActiveSession === 'function') stashActiveSession()
       await closeSession()
       openAccountCache(id)
+      if (typeof restoreAccountSession === 'function') restoreAccountSession(id)
       notify('*')
       return true
     })
@@ -1687,6 +1902,7 @@ export async function disconnectAccount(expectedId: string): Promise<void> {
   await serial(async () => {
     if ((await readAccounts()).active !== active) throw new Error('La cuenta activa cambió')
     await closeSession()
+    if (typeof dropAccountRuntime === 'function') await dropAccountRuntime(active)
     try {
       await deleteAccountCache(active)
       const { active: next } = await removeAccount(active)

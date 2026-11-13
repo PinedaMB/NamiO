@@ -39,6 +39,7 @@ export const IPC = {
   mailboxesList: 'mailboxes:list',
   mailboxChange: 'mailboxes:change',
   messagesList: 'messages:list',
+  unifiedInbox: 'messages:unified-inbox',
   messageGet: 'message:get',
   sentReplies: 'message:sent-replies',
   messageFlag: 'message:flag',
@@ -241,6 +242,13 @@ export interface MailboxInfo {
   specialUse: string | null
   messages: number
   unseen: number
+}
+
+export interface UnifiedEnvelope {
+  accountId: string
+  accountLabel: string
+  mailbox: string
+  envelope: Envelope
 }
 
 export interface EnvelopeAddress {
@@ -518,6 +526,7 @@ export interface MailApi {
   changeMailbox(path: string, remove: boolean): Promise<ImapResult<boolean>>
   listMailboxes(sync?: boolean): Promise<CachedResult<MailboxInfo[]>>
   listEnvelopes(path: string, limit: number, sync?: boolean, options?: EnvelopeListOptions): Promise<EnvelopeListResult>
+  listUnifiedInbox(limit: number, options?: EnvelopeListOptions): Promise<UnifiedEnvelope[]>
   getSentReplies(path: string, uids: number[], cachedOnly?: boolean): Promise<CachedResult<SentReply[]>>
   getMessage(path: string, uid: number, cachedOnly?: boolean): Promise<CachedResult<MessageDetail>>
   /** Marca/desmarca `\Flagged` (destacado) en el servidor y en la caché. */

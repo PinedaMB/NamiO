@@ -57,6 +57,9 @@ export interface Message {
 }
 
 export interface Thread {
+  accountId?: string
+  accountLabel?: string
+  mailbox?: string
   sendStatus?: 'queued' | 'failed'
   priority?: import('@shared/ipc').MailPriority
   date?: string | number

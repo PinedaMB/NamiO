@@ -80,6 +80,7 @@ export const en: Dictionary = {
 
   'sidebar.compose': 'Compose',
   'sidebar.inbox': 'Inbox',
+  'sidebar.allInboxes': 'All Inboxes',
   'sidebar.vip': 'VIP',
   'sidebar.starred': 'Starred',
   'sidebar.drafts': 'Drafts',

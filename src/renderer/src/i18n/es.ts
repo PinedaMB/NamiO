@@ -83,6 +83,7 @@ export const es = {
 
   'sidebar.compose': 'Redactar',
   'sidebar.inbox': 'Recibidos',
+  'sidebar.allInboxes': 'Todas las bandejas',
   'sidebar.vip': 'VIP',
   'sidebar.starred': 'Destacados',
   'sidebar.drafts': 'Borradores',

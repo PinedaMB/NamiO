@@ -5,7 +5,7 @@ import { parseMailto, type MailtoDraft } from '@shared/mailto'
 import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
 import { closeCache, initCache } from './db'
-import { checkAccountsActivity, setNewMailListener, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
+import { checkAccountsActivity, closeAllSessions, setNewMailListener, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
 import { showNewMail } from './notifications'
 import { migrateOAuthSecrets, readActiveAccount, readSettings } from './settings'
 import { registerIpcHandlers } from './ipc'
@@ -285,6 +285,7 @@ void app.whenReady().then(async () => {
 })
 
 app.on('will-quit', () => {
+  void closeAllSessions()
   closeCache()
 })
 

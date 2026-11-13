@@ -1,7 +1,9 @@
 import type { TranslationKey } from '../i18n'
 import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 export { isSpamMailbox } from '@shared/mailboxes'
-import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail, OutboxItem } from '@shared/ipc'
+import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail, OutboxItem, UnifiedEnvelope } from '@shared/ipc'
+
+export const UNIFIED_INBOX_ID = '__unified_inbox__'
 import type { Attachment, Message, Person, Thread } from './demo'
 import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 
@@ -74,6 +76,16 @@ export function envelopeToThread(envelope: Envelope, locale: string): Thread {
     participants: [sender],
     messages: []
   }
+}
+
+export function unifiedToThreads(items: UnifiedEnvelope[], locale: string): Thread[] {
+  return items.map((item) => ({
+    ...envelopeToThread(item.envelope, locale),
+    id: `unified:${item.accountId}:${item.envelope.uid}`,
+    accountId: item.accountId,
+    accountLabel: item.accountLabel,
+    mailbox: item.mailbox
+  }))
 }
 
 /** Relaciona respuestas por sus cabeceras, nunca solo por un asunto parecido. */

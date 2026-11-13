@@ -35,6 +35,7 @@ import {
   resumeOfflineDownload,
   listAccounts,
   listEnvelopes,
+  listUnifiedInbox,
   listMailboxes,
   changeMailbox,
   mailboxDeletionSnapshot,
@@ -151,7 +152,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.accountsList, () => listAccounts())
 
-  ipcMain.handle(IPC.accountSelect, (_event, id: string) => selectAccount(String(id)))
+  ipcMain.handle(IPC.accountSelect, async (_event, id: string) => {
+    const result = await selectAccount(String(id))
+    if (result.ok) void processOutbox().catch(error => console.error('[outbox]', error))
+    return result
+  })
 
   ipcMain.handle(IPC.accountsCheck, () => checkAccountsActivity())
 
@@ -303,6 +308,15 @@ export function registerIpcHandlers(): void {
       return { ok: false, code: 'unknown', detail: 'Consulta de mensajes inválida' }
     }
     return listEnvelopes(path, limit, sync, options)
+  })
+  ipcMain.handle(IPC.unifiedInbox, async (_event, limit: number, options?: EnvelopeListOptions) => {
+    if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 1) return []
+    if (options && (
+      typeof options !== 'object' ||
+      (options.filter !== undefined && !['all', 'unread', 'read'].includes(options.filter)) ||
+      (options.oldestFirst !== undefined && typeof options.oldestFirst !== 'boolean')
+    )) return []
+    return listUnifiedInbox(limit, options)
   })
   ipcMain.handle(IPC.sentReplies, (_event, path: string, uids: number[], cachedOnly = false) => getSentReplies(path, uids, cachedOnly === true))
   ipcMain.handle(IPC.messageGet, (_event, path: string, uid: number, cachedOnly = false) => getMessage(path, uid, cachedOnly === true))

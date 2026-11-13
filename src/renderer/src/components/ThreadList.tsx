@@ -441,6 +441,7 @@ export function ThreadList({
 
               <div className="thread__subject">
                 <span>{thread.subject}</span>
+                {thread.accountLabel && <span className="thread__count" title={thread.accountLabel}>{thread.accountLabel}</span>}
                 {thread.messageCount > 1 && members.length < 2 && <span className="thread__count">{thread.messageCount}</span>}
               </div>
 

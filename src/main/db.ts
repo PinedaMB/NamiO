@@ -51,6 +51,7 @@ export interface MailboxMeta {
   syncedAt: number | null
 }
 
+const handles = new Map<string, DatabaseSync>()
 let db: DatabaseSync | null = null
 let openedAccountId = ''
 let openedCacheFile = ''
@@ -61,23 +62,17 @@ export function initCache(accountId: string = 'default'): void {
   openAccountCache(accountId)
 }
 
-/**
- * Abre la caché de una cuenta. Cada cuenta tiene su propio archivo
- * (`cache-<id>.db`): carpetas, búsqueda, cola y reglas quedan separadas sin
- * cambiar el esquema. La cuenta `default` conserva `cache.db` (compatibilidad).
- */
-export function openAccountCache(accountId: string): void {
-  if (db) closeCache()
+function openDatabase(accountId: string): DatabaseSync {
+  const existing = handles.get(accountId)
+  if (existing) return existing
 
   const file = accountCacheFile(accountId)
-
-  db = new DatabaseSync(join(app.getPath('userData'), file))
-  openedAccountId = accountId
-  openedCacheFile = file
-  db.exec('PRAGMA journal_mode = WAL')
-  db.exec('PRAGMA synchronous = NORMAL')
-  db.exec('PRAGMA busy_timeout = 5000')
-  db.exec(`
+  const database = new DatabaseSync(join(app.getPath('userData'), file))
+  handles.set(accountId, database)
+  database.exec('PRAGMA journal_mode = WAL')
+  database.exec('PRAGMA synchronous = NORMAL')
+  database.exec('PRAGMA busy_timeout = 5000')
+  database.exec(`
     CREATE TABLE IF NOT EXISTS mailboxes (
       path TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -175,44 +170,58 @@ export function openAccountCache(accountId: string): void {
     );
   `)
 
-  db.exec('CREATE TABLE IF NOT EXISTS recipient_cache (email TEXT PRIMARY KEY, uses INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)')
-  db.exec('CREATE TABLE IF NOT EXISTS picked_attachments (id TEXT PRIMARY KEY, name TEXT NOT NULL, data BLOB NOT NULL)')
-  const draftColumns = db.prepare('PRAGMA table_info(drafts)').all() as unknown as { name: string }[]
-  if (!draftColumns.some(column => column.name === 'metadata_json')) db.exec('ALTER TABLE drafts ADD COLUMN metadata_json TEXT')
+  database.exec('CREATE TABLE IF NOT EXISTS recipient_cache (email TEXT PRIMARY KEY, uses INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)')
+  database.exec('CREATE TABLE IF NOT EXISTS picked_attachments (id TEXT PRIMARY KEY, name TEXT NOT NULL, data BLOB NOT NULL)')
+  const draftColumns = database.prepare('PRAGMA table_info(drafts)').all() as unknown as { name: string }[]
+  if (!draftColumns.some(column => column.name === 'metadata_json')) database.exec('ALTER TABLE drafts ADD COLUMN metadata_json TEXT')
 
-  const columns = db.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
+  const columns = database.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
   for (const column of ['message_id', 'in_reply_to', 'has_attachments', 'priority', 'references_json']) {
-    if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE messages ADD COLUMN ${column} ${column === 'has_attachments' ? 'INTEGER' : 'TEXT'}`)
+    if (!columns.some(item => item.name === column)) database.exec(`ALTER TABLE messages ADD COLUMN ${column} ${column === 'has_attachments' ? 'INTEGER' : 'TEXT'}`)
   }
 
   // Migración aditiva: la tabla ya existe en instalaciones previas.
   try {
-    db.exec('ALTER TABLE messages ADD COLUMN attachments_json TEXT')
+    database.exec('ALTER TABLE messages ADD COLUMN attachments_json TEXT')
   } catch {
     // la columna ya estaba
   }
 
   // El índice de búsqueda usa identificadores estables.
-  migrateSearchIndex(db)
+  migrateSearchIndex(database)
 
   // La cola guarda a qué cuenta y a qué identidad de carpeta pertenece cada
   // operación. Las filas antiguas se asignan a la cuenta de esta caché; su
   // UIDVALIDITY se resuelve al procesarlas.
-  const outboxColumns = db.prepare('PRAGMA table_info(outbox)').all() as unknown as { name: string }[]
+  const outboxColumns = database.prepare('PRAGMA table_info(outbox)').all() as unknown as { name: string }[]
   for (const [column, type] of [['account_id', 'TEXT'], ['uid_validity', 'TEXT'], ['attempted_at', 'INTEGER'], ['next_attempt_at', 'INTEGER'], ['failures', 'INTEGER NOT NULL DEFAULT 0']] as const) {
-    if (!outboxColumns.some((item) => item.name === column)) db.exec(`ALTER TABLE outbox ADD COLUMN ${column} ${type}`)
+    if (!outboxColumns.some((item) => item.name === column)) database.exec(`ALTER TABLE outbox ADD COLUMN ${column} ${type}`)
   }
-  db.prepare('UPDATE outbox SET account_id = ? WHERE account_id IS NULL').run(accountId)
+  database.prepare('UPDATE outbox SET account_id = ? WHERE account_id IS NULL').run(accountId)
+  return database
 }
 
-function handle(): DatabaseSync {
+/**
+ * Abre la caché de una cuenta. Cada cuenta tiene su propio archivo
+ * (`cache-<id>.db`): carpetas, búsqueda, cola y reglas quedan separadas sin
+ * cambiar el esquema. La cuenta `default` conserva `cache.db` (compatibilidad).
+ */
+export function openAccountCache(accountId: string): void {
+  const database = openDatabase(accountId)
+  db = database
+  openedAccountId = accountId
+  openedCacheFile = accountCacheFile(accountId)
+}
+
+function handle(accountId?: string): DatabaseSync {
+  if (accountId !== undefined) return openDatabase(accountId)
   if (!db) throw new Error('La caché no está inicializada')
   return db
 }
 
 /** Ejecuta varias escrituras como una sola unidad atómica. */
-export function inTransaction<T>(fn: () => T): T {
-  const database = handle()
+export function inTransaction<T>(fn: () => T, accountId?: string): T {
+  const database = handle(accountId)
   database.exec('BEGIN')
   try {
     const result = fn()
@@ -224,9 +233,24 @@ export function inTransaction<T>(fn: () => T): T {
   }
 }
 
+export function closeAccountCache(accountId: string): void {
+  const target = handles.get(accountId)
+  if (target) {
+    target.close()
+    handles.delete(accountId)
+  }
+  if (openedAccountId === accountId || db === target) {
+    db = null
+    openedAccountId = ''
+    openedCacheFile = ''
+  }
+}
+
 export function closeCache(): void {
-  db?.close()
+  for (const database of handles.values()) database.close()
+  handles.clear()
   db = null
+  openedAccountId = ''
   openedCacheFile = ''
 }
 
@@ -269,8 +293,8 @@ export function replaceMailboxes(mailboxes: readonly MailboxInfo[]): void {
   }
 }
 
-export function readMailboxes(): MailboxInfo[] {
-  const rows = handle()
+export function readMailboxes(accountId?: string): MailboxInfo[] {
+  const rows = handle(accountId)
     .prepare('SELECT path, name, special_use, messages, unseen FROM mailboxes ORDER BY path')
     .all() as unknown as MailboxRow[]
 
@@ -405,10 +429,10 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[])
   return envelopes.map((envelope) => envelope.uid).filter((uid) => !previos.has(uid))
 }
 
-export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeListOptions = {}): Envelope[] {
+export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeListOptions = {}, accountId?: string): Envelope[] {
   const condition = options.filter === 'unread' ? ' AND (unread = 1 OR uid = ?)' : options.filter === 'read' ? ' AND (unread = 0 OR uid = ?)' : ''
   const direction = options.oldestFirst ? 'ASC' : 'DESC'
-  const rows = handle()
+  const rows = handle(accountId)
     .prepare(
       `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority
        FROM messages WHERE mailbox = ?${condition} ORDER BY date ${direction}, uid ${direction} LIMIT ?`
@@ -431,10 +455,32 @@ export function readEnvelopes(mailbox: string, limit: number, options: EnvelopeL
   }))
   // La selección abierta puede quedar fuera del LIMIT durante una sincronización.
   if (options.includeUid !== undefined && !envelopes.some(envelope => envelope.uid === options.includeUid)) {
-    const selected = readEnvelope(mailbox, options.includeUid)
+    const selected = readEnvelope(mailbox, options.includeUid, accountId)
     if (selected) envelopes.push(selected)
   }
   return envelopes
+}
+
+export function readUnifiedInbox(
+  accountIds: readonly string[],
+  limit: number,
+  options: EnvelopeListOptions = {}
+): { accountId: string; mailbox: string; envelope: Envelope }[] {
+  const merged: { accountId: string; mailbox: string; envelope: Envelope }[] = []
+  for (const accountId of accountIds) {
+    const boxes = readMailboxes(accountId)
+    const inbox = boxes.find(box => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path ?? 'INBOX'
+    for (const envelope of readEnvelopes(inbox, limit, options, accountId)) {
+      merged.push({ accountId, mailbox: inbox, envelope })
+    }
+  }
+  const direction = options.oldestFirst ? 1 : -1
+  merged.sort((left, right) => {
+    const diff = Date.parse(left.envelope.date) - Date.parse(right.envelope.date)
+    if (diff !== 0) return diff * direction
+    return (left.envelope.uid - right.envelope.uid) * direction
+  })
+  return merged.slice(0, limit)
 }
 
 /** Busca relaciones exactas, nunca coincidencias por asunto ni por subcadenas. */
@@ -448,8 +494,8 @@ export function relatedMessageUids(mailbox: string, ids: readonly string[]): num
   return rows.map(row => row.uid)
 }
 
-export function readEnvelope(mailbox: string, uid: number): Envelope | null {
-  const row = handle()
+export function readEnvelope(mailbox: string, uid: number, accountId?: string): Envelope | null {
+  const row = handle(accountId)
     .prepare(
       `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority
        FROM messages WHERE mailbox = ? AND uid = ?`
@@ -930,7 +976,7 @@ function toFtsQuery(query: string): string {
   return tokens.map((token) => `"${token}"*`).join(' ')
 }
 
-export function searchMessages(query: string, limit: number, offset = 0): {
+export function searchMessages(query: string, limit: number, offset = 0, accountId?: string): {
   mailbox: string
   uid: number
   subject: string
@@ -945,7 +991,7 @@ export function searchMessages(query: string, limit: number, offset = 0): {
   const expression = toFtsQuery(query)
   if (expression === '') return []
 
-  const rows = handle()
+  const rows = handle(accountId)
     .prepare(
       `SELECT search.mailbox AS mailbox,
               search.uid AS uid,
@@ -1239,7 +1285,7 @@ export async function cacheUsage(accounts: readonly { id: string }[]): Promise<C
 /** Retira todos los datos locales de una cuenta desvinculada. */
 export async function deleteAccountCache(accountId: string): Promise<void> {
   if (!/^[a-z0-9_-]+$/i.test(accountId)) throw new Error('Cuenta inválida')
-  if (openedAccountId === accountId) closeCache()
+  closeAccountCache(accountId)
   const file = join(app.getPath('userData'), accountCacheFile(accountId))
   for (const suffix of ['-wal', '-shm', '-journal', '']) await rm(file + suffix, { force: true })
 }
@@ -1261,12 +1307,17 @@ export async function clearAccountCache(accountId: string): Promise<void> {
     openedAccountId === accountId ||
     openedCacheFile.toLowerCase() === targetFile.toLowerCase()
   )
-  if (wasActive) closeCache()
+  const wasPooled = handles.has(accountId)
+  for (const [id] of handles) {
+    if (id === accountId || accountCacheFile(id).toLowerCase() === targetFile.toLowerCase()) closeAccountCache(id)
+  }
+  if (wasActive) closeAccountCache(openedAccountId)
   let database: DatabaseSync
   try {
     database = new DatabaseSync(file)
   } catch (cause) {
     if (wasActive) openAccountCache(accountId)
+    else if (wasPooled) openDatabase(accountId)
     throw cause
   }
   try {

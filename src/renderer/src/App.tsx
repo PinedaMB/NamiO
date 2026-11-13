@@ -21,7 +21,7 @@ import type {
 } from '@shared/ipc'
 import { canDeleteMailbox, isAdditionalSpamMailbox, isDraftMailbox, isSpamMailbox, organizedSidebarMailboxes, sidebarMailboxes } from '@shared/mailboxes'
 import { ACTION_ITEMS, BRIEF, COPILOT_DRAFT, FOLDERS, SLOTS, THREADS, type Thread, type Message } from './data/demo'
-import { detailToMessage, pendingDraftThreads, pendingSendThreads, envelopesToThreads, mailboxToFolder, type FolderView } from './data/live'
+import { detailToMessage, pendingDraftThreads, pendingSendThreads, envelopesToThreads, mailboxToFolder, unifiedToThreads, type FolderView } from './data/live'
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ContextMenu, type ContextAnchor, type ContextAction } from './components/ContextMenu'
@@ -109,9 +109,15 @@ function mergeLoaded(previous: readonly Thread[], next: readonly Thread[]): Thre
 }
 
 function uidOf(threadId: string): number | null {
-  if (!threadId.startsWith('live:')) return null
-  const uid = Number(threadId.slice(5))
-  return Number.isInteger(uid) ? uid : null
+  if (threadId.startsWith('live:')) {
+    const uid = Number(threadId.slice(5))
+    return Number.isInteger(uid) ? uid : null
+  }
+  if (threadId.startsWith('unified:')) {
+    const uid = Number(threadId.split(':').pop())
+    return Number.isInteger(uid) ? uid : null
+  }
+  return null
 }
 
 /** Clave de conversación: todos los mensajes del grupo comparten `messageIds`. */
@@ -505,6 +511,17 @@ export function App(): React.JSX.Element {
       setListCounts(null)
       if (focusUid === undefined) setSelectedId(null)
       try {
+        if (path === '__unified_inbox__') {
+          const unified = await window.api.listUnifiedInbox(PAGE_SIZE, listOptions.current).catch(() => [])
+          if (generation !== accountGeneration.current || request !== folderRequest.current) return
+          setLocalDrafts([])
+          setListCounts(null)
+          setThreads(unifiedToThreads(unified, locale))
+          userNavigated.current = false
+          setSelectedId(null)
+          setLiveError(null)
+          return
+        }
         const envelopesRequest = window.api.listEnvelopes(path, PAGE_SIZE, sync, { ...listOptions.current, includeUid: focusUid }).catch(() => null)
         const drafts = await window.api.listDrafts().catch(() => [])
         if (generation !== accountGeneration.current || request !== folderRequest.current) return
@@ -633,6 +650,13 @@ export function App(): React.JSX.Element {
     if (generation !== accountGeneration.current || request !== folderRequest.current) return
     if (boxes?.ok) setMailboxes(boxes.data)
 
+    if (folder === '__unified_inbox__') {
+      const unified = await window.api.listUnifiedInbox(listLimit, listOptions.current).catch(() => null)
+      if (generation !== accountGeneration.current || request !== folderRequest.current || !unified) return
+      setThreads(unifiedToThreads(unified, locale))
+      return
+    }
+
     const list = await window.api.listEnvelopes(folder, listLimit, false, listOptions.current).catch(() => null)
     if (generation !== accountGeneration.current || request !== folderRequest.current || !list?.ok) return
 
@@ -692,6 +716,13 @@ export function App(): React.JSX.Element {
     const generation = accountGeneration.current
     loadingMoreRef.current = true
     try {
+      if (folder === '__unified_inbox__') {
+        const unified = await window.api.listUnifiedInbox(next, listOptions.current).catch(() => null)
+        if (generation !== accountGeneration.current || request !== folderRequest.current || !unified) return
+        setListLimit(next)
+        setThreads(unifiedToThreads(unified, locale))
+        return
+      }
       const result = await window.api.listEnvelopes(folder, next, false, listOptions.current).catch(() => null)
       if (generation !== accountGeneration.current || request !== folderRequest.current || !result?.ok) return
 
@@ -1016,6 +1047,22 @@ export function App(): React.JSX.Element {
   }, [live, sentRepliesKey, sentMessages.map(message => message.id).join(','), sentRepliesVersion, folder, locale, view, sync.syncedAt, messageRetry, t])
 
   const select = (id: string, messageId?: string): void => {
+    if (live && folder === '__unified_inbox__') {
+      const target = threads.find((item) => item.id === id)
+      const uid = uidOf(id)
+      if (target?.accountId && target.mailbox && uid !== null) {
+        const activeAccountId = accounts.find((account) => account.active)?.id
+        const openInMailbox = (): void => {
+          void loadFolder(target.mailbox!, uid, false).then(() => setMessageOpen(true))
+        }
+        if (activeAccountId && activeAccountId !== target.accountId) {
+          void handleSelectAccount(target.accountId).then(openInMailbox)
+        } else {
+          openInMailbox()
+        }
+        return
+      }
+    }
     if (!draftsFolder) setMessageOpen(true)
     setIndividualMessageId(messageId ?? null)
     userNavigated.current = true
@@ -1697,7 +1744,7 @@ export function App(): React.JSX.Element {
                 />
               ) : (
                 <ThreadList
-                folderLabel={folderViews.find(item => item.id === folder)?.label ?? folder}
+                folderLabel={folder === '__unified_inbox__' ? t('sidebar.allInboxes') : (folderViews.find(item => item.id === folder)?.label ?? folder)}
                 threads={visible}
                 allThreads={listedThreads}
                 sentReplies={listSentReplies}

@@ -165,7 +165,7 @@ export function Sidebar({
           >
             <span className="account__id">
               <span className={cx('dot', !accountConnected && 'dot--idle')} />
-              <span className="account__mail">{accountLabel}</span>
+              <span className="account__mail">{activeFolder === '__unified_inbox__' ? t('sidebar.allInboxes') : accountLabel}</span>
               {inactiveUnseen > 0 && (
                 <span className="account__alert" aria-hidden="true">
                   <Icon name="mark_email_unread" size={14} />
@@ -183,34 +183,76 @@ export function Sidebar({
             >
               {accounts.length > 0 && (
                 <div className="account-menu__list">
-                  {accounts.map((item) => (
-                    <button
-                      key={item.id}
-                      className={cx('account-menu__item', item.active && 'account-menu__item--active')}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={item.active}
-                      onClick={() => {
-                        setMenuOpen(false)
-                        onSelectAccount(item.id)
-                      }}
-                    >
-                      <span className="account-menu__avatar" aria-hidden="true">{Array.from(item.label.trim())[0]?.toLocaleUpperCase() || '@'}</span>
-                      <span className="account-menu__text">
-                        <span className="account-menu__label">{item.label}</span>
-                        <span className="account-menu__host" title={item.user}>
-                          {item.user}
+                  {accounts.length > 1 && (() => {
+                    const isUnified = activeFolder === '__unified_inbox__'
+                    const totalUnseen = accounts.reduce((sum, account) => sum + unseenOf(account.id), 0)
+                    return (
+                      <button
+                        className={cx('account-menu__item', isUnified && 'account-menu__item--active')}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={isUnified}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          onSelectFolder('__unified_inbox__')
+                        }}
+                      >
+                        <span className="account-menu__avatar" aria-hidden="true">
+                          <Icon name="all_inbox" size={16} />
                         </span>
-                      </span>
-                      {unseenOf(item.id) > 0 && (
-                        <span className={cx('account-menu__count', item.active && 'account-menu__count--active')} aria-label={`${unseenOf(item.id)} ${t('list.unread')}`}>
-                          {unseenOf(item.id)}
-                          <span className="account-menu__count-label">{t('list.unread')}</span>
+                        <span className="account-menu__text">
+                          <span className="account-menu__label">{t('sidebar.allInboxes')}</span>
+                          <span className="account-menu__host">
+                            {accounts.map((item) => item.label).join(' · ')}
+                          </span>
                         </span>
-                      )}
-                      {item.active && <Icon name="check" size={15} />}
-                    </button>
-                  ))}
+                        {totalUnseen > 0 && (
+                          <span className={cx('account-menu__count', isUnified && 'account-menu__count--active')} aria-label={`${totalUnseen} ${t('list.unread')}`}>
+                            {totalUnseen}
+                            <span className="account-menu__count-label">{t('list.unread')}</span>
+                          </span>
+                        )}
+                        {isUnified && <Icon name="check" size={15} />}
+                      </button>
+                    )
+                  })()}
+                  {accounts.map((item) => {
+                    const isUnified = activeFolder === '__unified_inbox__'
+                    const itemActive = !isUnified && item.active
+                    return (
+                      <button
+                        key={item.id}
+                        className={cx('account-menu__item', itemActive && 'account-menu__item--active')}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={itemActive}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          if (item.active && isUnified) {
+                            const inbox = folders.find((folder) => folder.icon === 'inbox' || /^inbox$/i.test(folder.id))?.id ?? 'INBOX'
+                            onSelectFolder(inbox)
+                          } else {
+                            onSelectAccount(item.id)
+                          }
+                        }}
+                      >
+                        <span className="account-menu__avatar" aria-hidden="true">{Array.from(item.label.trim())[0]?.toLocaleUpperCase() || '@'}</span>
+                        <span className="account-menu__text">
+                          <span className="account-menu__label">{item.label}</span>
+                          <span className="account-menu__host" title={item.user}>
+                            {item.user}
+                          </span>
+                        </span>
+                        {unseenOf(item.id) > 0 && (
+                          <span className={cx('account-menu__count', itemActive && 'account-menu__count--active')} aria-label={`${unseenOf(item.id)} ${t('list.unread')}`}>
+                            {unseenOf(item.id)}
+                            <span className="account-menu__count-label">{t('list.unread')}</span>
+                          </span>
+                        )}
+                        {itemActive && <Icon name="check" size={15} />}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
