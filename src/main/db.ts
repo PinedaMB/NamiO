@@ -19,6 +19,7 @@ interface MailboxRow {
   messages: number
   unseen: number
   synced_at: number | null
+  highest_modseq?: string | null
 }
 
 interface MessageRow {
@@ -49,6 +50,7 @@ export interface MailboxMeta {
   messages: number
   unseen: number
   syncedAt: number | null
+  highestModseq?: string | null
 }
 
 const handles = new Map<string, DatabaseSync>()
@@ -81,7 +83,8 @@ function openDatabase(accountId: string): DatabaseSync {
       uid_next INTEGER,
       messages INTEGER NOT NULL DEFAULT 0,
       unseen INTEGER NOT NULL DEFAULT 1,
-      synced_at INTEGER
+      synced_at INTEGER,
+      highest_modseq TEXT
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -172,6 +175,8 @@ function openDatabase(accountId: string): DatabaseSync {
 
   database.exec('CREATE TABLE IF NOT EXISTS recipient_cache (email TEXT PRIMARY KEY, uses INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)')
   database.exec('CREATE TABLE IF NOT EXISTS picked_attachments (id TEXT PRIMARY KEY, name TEXT NOT NULL, data BLOB NOT NULL)')
+  const mailboxColumns = database.prepare('PRAGMA table_info(mailboxes)').all() as unknown as { name: string }[]
+  if (!mailboxColumns.some(column => column.name === 'highest_modseq')) database.exec('ALTER TABLE mailboxes ADD COLUMN highest_modseq TEXT')
   const draftColumns = database.prepare('PRAGMA table_info(drafts)').all() as unknown as { name: string }[]
   if (!draftColumns.some(column => column.name === 'metadata_json')) database.exec('ALTER TABLE drafts ADD COLUMN metadata_json TEXT')
 
@@ -319,7 +324,8 @@ export function getMailboxMeta(path: string): MailboxMeta | null {
     uidNext: row.uid_next,
     messages: row.messages,
     unseen: row.unseen,
-    syncedAt: row.synced_at
+    syncedAt: row.synced_at,
+    highestModseq: row.highest_modseq ?? null
   }
 }
 
@@ -333,7 +339,7 @@ export function clearMailbox(path: string): void {
     database.prepare('DELETE FROM search_ids WHERE mailbox = ?').run(path)
     database.prepare('DELETE FROM messages WHERE mailbox = ?').run(path)
     database
-      .prepare('UPDATE mailboxes SET uid_validity = NULL, uid_next = NULL, synced_at = NULL WHERE path = ?')
+      .prepare('UPDATE mailboxes SET uid_validity = NULL, uid_next = NULL, synced_at = NULL, highest_modseq = NULL WHERE path = ?')
       .run(path)
     database.exec('COMMIT')
   } catch (error) {
@@ -344,21 +350,22 @@ export function clearMailbox(path: string): void {
 
 export function saveMailboxSync(
   path: string,
-  sync: { uidValidity: number | null; uidNext: number | null; messages: number; unseen: number },
+  sync: { uidValidity: number | null; uidNext: number | null; messages: number; unseen: number; highestModseq?: string | null },
   accountId?: string
 ): void {
   handle(accountId)
     .prepare(
-      `INSERT INTO mailboxes (path, name, uid_validity, uid_next, messages, unseen, synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO mailboxes (path, name, uid_validity, uid_next, messages, unseen, synced_at, highest_modseq)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(path) DO UPDATE SET
          uid_validity = excluded.uid_validity,
          uid_next = excluded.uid_next,
          messages = excluded.messages,
          unseen = excluded.unseen,
-         synced_at = excluded.synced_at`
+         synced_at = excluded.synced_at,
+         highest_modseq = COALESCE(excluded.highest_modseq, mailboxes.highest_modseq)`
     )
-    .run(path, path, sync.uidValidity, sync.uidNext, sync.messages, sync.unseen, Date.now())
+    .run(path, path, sync.uidValidity, sync.uidNext, sync.messages, sync.unseen, Date.now(), sync.highestModseq ?? null)
 }
 
 /** Inserta/actualiza sobres y devuelve los UID que **no** estaban en la caché. */

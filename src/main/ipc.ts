@@ -484,9 +484,9 @@ export function registerIpcHandlers(): void {
     return { matched }
   })
 
-  ipcMain.handle(IPC.searchQuery, (_event, query: string, limit = 60, offset = 0) => {
+  ipcMain.handle(IPC.searchQuery, (_event, query: string, limit = 60, offset = 0, allAccounts = false) => {
     if (typeof query !== 'string' || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid search query')
-    return searchMail(query.slice(0, 200), limit, offset)
+    return allAccounts === true ? searchMail(query.slice(0, 200), limit, offset, true) : searchMail(query.slice(0, 200), limit, offset)
   })
 
   ipcMain.handle(IPC.shellOpen, async (_event, url: string): Promise<boolean> => {

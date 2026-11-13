@@ -90,6 +90,7 @@ export function SearchResults({
               >
                 <div className="search-hit__location">
                   <Icon name="folder" size={14} />
+                  {hit.accountLabel && <span className="search-hit__folder">{hit.accountLabel}</span>}
                   <span className="search-hit__folder">{hit.mailboxName}</span>
                   <span className="thread__time" title={formatMessageDateTime(hit.date, locale, false, timeFormat)}>{formatMessageDate(hit.date, locale, Date.now(), timeFormat)}</span>
                 </div>

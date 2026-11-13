@@ -324,8 +324,8 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth, ipv4Only = fals
     secure: config.secure,
     // XOAUTH2 cuando la cuenta es OAuth2; si no, SASL PLAIN con la contraseña.
     auth: 'accessToken' in auth ? { user: config.user, accessToken: auth.accessToken } : { user: config.user, pass: auth.password },
-    connectionTimeout: 30_000,
-    greetingTimeout: 25_000,
+    connectionTimeout: 12_000,
+    greetingTimeout: 12_000,
     socketTimeout: 30_000,
     logger: false,
     tls: {
@@ -789,7 +789,7 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       } else if (typeof updateFlags === 'function' && typeof client.fetch === 'function') {
         const modseq = box && 'highestModseq' in box && box.highestModseq ? BigInt(box.highestModseq) : null
         const modseqKey = typeof cacheAccountId === 'function' ? `${cacheAccountId()}:${path}` : path
-        const prevModseq = typeof lastModseq !== 'undefined' ? lastModseq.get(modseqKey) : undefined
+        const prevModseq = cached?.highestModseq ? BigInt(cached.highestModseq) : (typeof lastModseq !== 'undefined' ? lastModseq.get(modseqKey) : undefined)
         const unchanged = modseq !== null && prevModseq !== undefined && modseq === prevModseq && cached?.uidNext === uidNext && cached?.messages === exists
         if (!unchanged) {
           const flags: { uid: number; unread: boolean; flagged: boolean }[] = []
@@ -825,9 +825,18 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       })
     }
     const finalModseq = box && 'highestModseq' in box && box.highestModseq ? BigInt(box.highestModseq) : null
-    if (finalModseq !== null && typeof lastModseq !== 'undefined') {
-      const modseqKey = typeof cacheAccountId === 'function' ? `${cacheAccountId()}:${path}` : path
-      lastModseq.set(modseqKey, finalModseq)
+    if (finalModseq !== null) {
+      if (typeof lastModseq !== 'undefined') {
+        const modseqKey = typeof cacheAccountId === 'function' ? `${cacheAccountId()}:${path}` : path
+        lastModseq.set(modseqKey, finalModseq)
+      }
+      saveMailboxSync(path, {
+        uidValidity,
+        uidNext,
+        messages: exists,
+        unseen: unseen ?? (exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path))),
+        highestModseq: String(finalModseq)
+      })
     }
   } finally {
     if (typeof activeSyncExists !== 'undefined') activeSyncExists.delete(path)
@@ -1358,21 +1367,29 @@ export function setFlagged(path: string, uid: number, flagged: boolean): Promise
 }
 
 /** Búsqueda local sobre lo ya sincronizado (asunto, remitentes y cuerpos). */
-export function searchMail(query: string, limit = 60, offset = 0): SearchHit[] {
-  const names = new Map(readMailboxes().map((box) => [box.path, box.name]))
+export async function searchMail(query: string, limit = 60, offset = 0, allAccounts = false): Promise<SearchHit[]> {
+  const mapRows = (accountId?: string, accountLabel?: string): SearchHit[] => {
+    const names = new Map(readMailboxes(accountId).map((box) => [box.path, box.name]))
+    return searchMessages(query, limit, offset, accountId).map((row) => ({
+      ...(accountId ? { accountId, accountLabel } : {}),
+      mailbox: row.mailbox,
+      mailboxName: names.get(row.mailbox) ?? row.mailbox,
+      uid: row.uid,
+      subject: row.subject,
+      subjectMatch: row.subjectMatch,
+      from: row.fromAddr ? { name: row.fromName, address: row.fromAddr } : null,
+      date: new Date(row.date).toISOString(),
+      unread: row.unread,
+      flagged: row.flagged,
+      snippet: row.snippet
+    }))
+  }
 
-  return searchMessages(query, limit, offset).map((row) => ({
-    mailbox: row.mailbox,
-    mailboxName: names.get(row.mailbox) ?? row.mailbox,
-    uid: row.uid,
-    subject: row.subject,
-    subjectMatch: row.subjectMatch,
-    from: row.fromAddr ? { name: row.fromName, address: row.fromAddr } : null,
-    date: new Date(row.date).toISOString(),
-    unread: row.unread,
-    flagged: row.flagged,
-    snippet: row.snippet
-  }))
+  if (!allAccounts) return mapRows()
+  const { accounts } = await readAccounts()
+  const merged = accounts.flatMap((account) => mapRows(account.id, account.label || account.user))
+  merged.sort((left, right) => Date.parse(right.date) - Date.parse(left.date))
+  return merged.slice(0, limit)
 }
 
 /** Actualización manual: espera a la red y devuelve el error al usuario. */
@@ -1753,7 +1770,13 @@ async function pollAccountsActivity(): Promise<AccountActivity[]> {
               rt.offline = false
             }
             try {
-              return await pollClient(client)
+              const count = await pollClient(client)
+              // Estacionar en INBOX para recibir eventos IDLE (`exists`) en tiempo real.
+              if (client.usable && (!client.mailbox || !/^inbox$/i.test(client.mailbox.path))) {
+                const lock = await client.getMailboxLock('INBOX')
+                lock.release()
+              }
+              return count
             } catch (error) {
               rt.session = null
               await client.logout().catch(() => { try { client.close() } catch { /* ya estaba cerrada */ } })

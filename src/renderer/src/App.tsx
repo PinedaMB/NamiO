@@ -589,18 +589,26 @@ export function App(): React.JSX.Element {
   /** Carga el resultado explícito aunque esté fuera de la tanda visible. */
   const openHit = useCallback(
     (hit: SearchHit): void => {
-      setMessageOpen(true)
-      const generation = accountGeneration.current
-      const pending = loadFolder(hit.mailbox, hit.uid, false)
-      const request = folderRequest.current
-      void pending.then(() => {
-        if (generation !== accountGeneration.current || request !== folderRequest.current) return
-        userNavigated.current = true
-        setIndividualMessageId(`live:${hit.uid}`)
-        if (hit.unread) markRead(hit.mailbox, hit.uid, `live:${hit.uid}`)
-      })
+      const openInMailbox = (): void => {
+        setMessageOpen(true)
+        const generation = accountGeneration.current
+        const pending = loadFolder(hit.mailbox, hit.uid, false)
+        const request = folderRequest.current
+        void pending.then(() => {
+          if (generation !== accountGeneration.current || request !== folderRequest.current) return
+          userNavigated.current = true
+          setIndividualMessageId(`live:${hit.uid}`)
+          if (hit.unread) markRead(hit.mailbox, hit.uid, `live:${hit.uid}`)
+        })
+      }
+      const activeAccountId = typeof accounts !== 'undefined' ? accounts.find((account) => account.active)?.id : undefined
+      if (hit.accountId && activeAccountId && hit.accountId !== activeAccountId) {
+        void handleSelectAccount(hit.accountId).then(openInMailbox)
+        return
+      }
+      openInMailbox()
     },
-    [loadFolder, markRead]
+    [accounts, loadFolder, markRead]
   )
 
   // Cada página pide un resultado extra para saber si quedan más coincidencias.
@@ -621,7 +629,7 @@ export function App(): React.JSX.Element {
     if (searchOffset === 0) setHits([])
     const timer = window.setTimeout(() => {
       void window.api
-        .search(trimmed, 61, searchOffset)
+        .search(trimmed, 61, searchOffset, ...(typeof activeFolderRef !== 'undefined' && activeFolderRef.current === '__unified_inbox__' ? [true] : []))
         .then((result) => {
           if (cancelled || generation !== accountGeneration.current) return
           setHits(previous => searchOffset === 0 ? result.slice(0, 60) : [...previous, ...result.slice(0, 60)])

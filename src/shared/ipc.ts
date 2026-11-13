@@ -453,7 +453,10 @@ export interface RuleDraft {
   target: string | null
 }
 
-export interface SearchHit {  mailbox: string
+export interface SearchHit {
+  accountId?: string
+  accountLabel?: string
+  mailbox: string
   mailboxName: string
   uid: number
   subject: string
@@ -566,7 +569,7 @@ export interface MailApi {
   cancelOutbox(id: string): Promise<void>
   onOutboxChanged(listener: () => void): () => void
   /** Búsqueda de texto completo sobre la caché local. */
-  search(query: string, limit?: number, offset?: number): Promise<SearchHit[]>
+  search(query: string, limit?: number, offset?: number, allAccounts?: boolean): Promise<SearchHit[]>
   /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
   senderLogo(email: string, mailbox: string): Promise<string | null>
   syncMailbox(path: string): Promise<ImapResult<boolean>>

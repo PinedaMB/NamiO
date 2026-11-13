@@ -156,7 +156,8 @@ const api: MailApi = {
   listOutbox: (): Promise<OutboxItem[]> => ipcRenderer.invoke(IPC.outboxList),
   retryOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxRetry, id),
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
-  search: (query: string, limit = 60, offset = 0): Promise<SearchHit[]> => ipcRenderer.invoke(IPC.searchQuery, query, limit, offset),
+  search: (query: string, limit = 60, offset = 0, allAccounts = false): Promise<SearchHit[]> =>
+    ipcRenderer.invoke(IPC.searchQuery, query, limit, offset, allAccounts),
   senderLogo: (email: string, mailbox: string): Promise<string | null> => ipcRenderer.invoke(IPC.senderLogo, email, mailbox),
   syncMailbox: (path: string): Promise<ImapResult<boolean>> => ipcRenderer.invoke(IPC.syncMailbox, path),
   syncProgress: (): Promise<SyncProgress | null> => ipcRenderer.invoke(IPC.syncProgress),

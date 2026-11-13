@@ -5,7 +5,7 @@ import type { BodyTheme } from '@shared/ipc'
 import { useI18n } from '../i18n'
 import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
-import { applyEmailTheme, emailBackground, fitEmailTextToSurface } from '../lib/emailTheme'
+import { applyEmailTheme, fitEmailTextToSurface } from '../lib/emailTheme'
 
 interface EmailBodyProps {
   html: string
@@ -96,7 +96,7 @@ function buildDocument(document_: Document, allowImages: boolean): string {
     html[data-email-theme="dark"], html[data-email-theme="dark"] body { background: #14161b; color: #dfe2ee; }
     html, body { margin: 0; padding: 0; overflow: hidden; }
     /* El mensaje determina su altura; 100% dependería del propio iframe. */
-    html, body { height: auto !important; }
+    html, body { height: auto !important; min-height: 0 !important; }
     body {
       padding: 18px 20px;
       font: 14px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -172,9 +172,9 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
       themedDocument.current = { document: inner, theme: contentTheme }
     }
     const surface = getComputedStyle(frame.closest('.reading, .composer') ?? document.body)
-    const background = emailBackground(inner, surface.backgroundColor)
+    const background = surface.backgroundColor
     if (!background) return
-    const foreground = background === surface.backgroundColor ? surface.color : inner.defaultView!.getComputedStyle(inner.body).color
+    const foreground = surface.color
     for (const element of [inner.documentElement, inner.body, ...inner.querySelectorAll<HTMLElement>('details.namio-quote, details.namio-quote > summary')]) {
       element.style.setProperty('background-color', background, 'important')
       element.style.setProperty('color', foreground, 'important')
@@ -208,15 +208,11 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
     // así el correo crece a su altura real y hay un solo scroll (el del lector).
     const measure = (): void => {
       // Al expandir un mensaje, sus superficies ya tienen dimensiones reales.
-      const background = integrated ? integrateSurface() : emailBackground(inner)
-      if (background) {
-        inner.body.style.setProperty('background-color', background, 'important')
-        setBackground(background)
-      }
+      if (integrated) integrateSurface()
       // Medir sin el alto anterior permite encoger y conserva el contenido desbordado.
       const previousHeight = frame.style.height
       frame.style.height = '0px'
-      const next = Math.max(inner.documentElement.scrollHeight, inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 140)
+      const next = Math.max(inner.body.scrollHeight, Math.ceil(inner.body.getBoundingClientRect().bottom), 60)
       frame.style.height = previousHeight
       setHeight(next)
     }
