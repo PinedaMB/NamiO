@@ -278,7 +278,7 @@ app.whenReady().then(async()=>{
  if(!document.querySelector('.account-preset'))throw new Error('Account dialog did not open');
 })()`)});
  const fieldsScript = ${JSON.stringify(`(selector)=>[...document.querySelector(selector).querySelectorAll('label')].filter(label=>{const input=label.querySelector('input');return input&&!input.closest('details:not([open])')&&input.getBoundingClientRect().width>0}).map(label=>label.querySelector('span').textContent.trim()).sort()`)};
- for(const [provider,card] of [['Gmail','Gmail'],['Outlook','Outlook'],['Yahoo','Yahoo'],['Otro','Otro correo'],['Local','Servidor local']]){
+ for(const [provider,card] of [['Gmail','Gmail'],['Outlook','Outlook'],['Otro','Otro correo'],['Local','Servidor local']]){
    const initialFields=await onboarding.webContents.executeJavaScript('('+${JSON.stringify(`async (card,fields)=>{
  const wait=()=>new Promise(resolve=>setTimeout(resolve,50));
  document.querySelector('.onboarding__back').click();await wait();

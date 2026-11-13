@@ -622,6 +622,8 @@ export const en: Dictionary = {
   'account.subtitle': 'Credentials stay on this machine; the password is stored encrypted by the system.',
   'account.provider': 'Provider',
   'account.custom': 'Other',
+  'account.autodiscoverBusy': 'Looking up IMAP and SMTP settings…',
+  'account.autodiscoverFound': 'Detected settings: {imap} / {smtp}',
   'account.local': 'Local (testing)',
   'account.host': 'Server',
   'account.port': 'Port',

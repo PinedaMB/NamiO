@@ -625,6 +625,8 @@ export const es = {
   'account.subtitle': 'Las credenciales quedan en este equipo; la contraseña se guarda cifrada por el sistema.',
   'account.provider': 'Proveedor',
   'account.custom': 'Otro',
+  'account.autodiscoverBusy': 'Buscando configuración de IMAP y SMTP…',
+  'account.autodiscoverFound': 'Configuración detectada: {imap} / {smtp}',
   'account.local': 'Local (pruebas)',
   'account.host': 'Servidor',
   'account.port': 'Puerto',

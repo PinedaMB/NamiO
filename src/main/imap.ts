@@ -108,6 +108,7 @@ let idleParkTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let closingSession = false
 const activeSyncExists = new Map<string, number>()
+const lastModseq = new Map<string, bigint>()
 
 interface AccountRuntime {
   accountId: string
@@ -342,15 +343,23 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
     }
   })
   client.on('exists', (data: { path?: string; count?: number; prevCount?: number }) => {
-    if (session?.client !== client || session.accountId !== cacheAccountId()) return
     const path = data?.path
     if (!path) return
     if (typeof data.count === 'number' && typeof data.prevCount === 'number' && data.count <= data.prevCount) return
-    const inbox = inboxPath()
-    if (inbox && path === inbox) {
-      const synced = activeSyncExists.get(path)
-      if (synced !== undefined && typeof data.count === 'number' && data.count <= synced) return
-      scheduleSync(inbox, 50, true, true)
+    if (session?.client === client && session.accountId === cacheAccountId()) {
+      const inbox = inboxPath()
+      if (inbox && path === inbox) {
+        const synced = activeSyncExists.get(path)
+        if (synced !== undefined && typeof data.count === 'number' && data.count <= synced) return
+        scheduleSync(inbox, 50, true, true)
+      }
+      return
+    }
+    for (const rt of runtimes.values()) {
+      if (rt.session?.client === client && /^inbox$/i.test(path)) {
+        void checkAccountsActivity().catch(() => undefined)
+        return
+      }
     }
   })
   client.on('flags', (data: { path?: string; uid?: number; flags?: Set<string> }) => {
@@ -762,15 +771,23 @@ async function syncMessages(path: string, limit: number): Promise<void> {
       } else if (countMessages(path) < Math.min(exists, limit)) {
         upsertEnvelopes(path, await fetchRange(client, `${recentStart}:*`, false))
       } else if (typeof updateFlags === 'function' && typeof client.fetch === 'function') {
-        const flags: { uid: number; unread: boolean; flagged: boolean }[] = []
-        for await (const message of client.fetch(`${recentStart}:*`, { uid: true, flags: true })) {
-          flags.push({
-            uid: message.uid,
-            unread: !message.flags?.has('\\Seen'),
-            flagged: message.flags?.has('\\Flagged') ?? false
-          })
+        const modseq = box && 'highestModseq' in box && box.highestModseq ? BigInt(box.highestModseq) : null
+        const modseqKey = typeof cacheAccountId === 'function' ? `${cacheAccountId()}:${path}` : path
+        const prevModseq = typeof lastModseq !== 'undefined' ? lastModseq.get(modseqKey) : undefined
+        const unchanged = modseq !== null && prevModseq !== undefined && modseq === prevModseq && cached?.uidNext === uidNext && cached?.messages === exists
+        if (!unchanged) {
+          const flags: { uid: number; unread: boolean; flagged: boolean }[] = []
+          const fetchOpts = prevModseq !== undefined && modseq !== null ? { changedSince: prevModseq } : undefined
+          for await (const message of client.fetch(`${recentStart}:*`, { uid: true, flags: true }, fetchOpts)) {
+            flags.push({
+              uid: message.uid,
+              unread: !message.flags?.has('\\Seen'),
+              flagged: message.flags?.has('\\Flagged') ?? false
+            })
+          }
+          updateFlags(path, flags)
+          if (modseq !== null && typeof lastModseq !== 'undefined') lastModseq.set(modseqKey, modseq)
         }
-        updateFlags(path, flags)
       }
     }
 
@@ -790,6 +807,11 @@ async function syncMessages(path: string, limit: number): Promise<void> {
         messages: exists,
         unseen: unseen ?? (exists <= limit ? countUnread(path) : (cached?.unseen ?? countUnread(path)))
       })
+    }
+    const finalModseq = box && 'highestModseq' in box && box.highestModseq ? BigInt(box.highestModseq) : null
+    if (finalModseq !== null && typeof lastModseq !== 'undefined') {
+      const modseqKey = typeof cacheAccountId === 'function' ? `${cacheAccountId()}:${path}` : path
+      lastModseq.set(modseqKey, finalModseq)
     }
   } finally {
     if (typeof activeSyncExists !== 'undefined') activeSyncExists.delete(path)
@@ -1669,8 +1691,7 @@ export function checkAccountsActivity(): Promise<AccountActivity[]> {
 async function pollAccountsActivity(): Promise<AccountActivity[]> {
   const { accounts, active } = await readAccounts()
 
-  const activity: AccountActivity[] = []
-  for (const account of accounts) {
+  const activity = await Promise.all(accounts.map(async (account): Promise<AccountActivity> => {
     const isActive = account.id === active
     let unseen = 0
 
@@ -1690,6 +1711,10 @@ async function pollAccountsActivity(): Promise<AccountActivity[]> {
               const lock = await client.getMailboxLock('INBOX')
               try { messages = await fetchRange(client, `${previous.uidNext}:*`, true) }
               finally { lock.release() }
+              if (messages.length && typeof upsertEnvelopes === 'function') {
+                upsertEnvelopes('INBOX', messages, account.id)
+                if (typeof notify === 'function') notify('*')
+              }
             }
             const fresh = await trackNewMail(account.id, cursor, messages)
             if (fresh.length) newMailListener?.(account, 'INBOX', fresh)
@@ -1738,7 +1763,7 @@ async function pollAccountsActivity(): Promise<AccountActivity[]> {
     const previous = lastUnseen.get(account.id)
     lastUnseen.set(account.id, unseen)
 
-    activity.push({
+    return {
       id: account.id,
       label: account.label || account.user,
       host: account.host,
@@ -1747,8 +1772,8 @@ async function pollAccountsActivity(): Promise<AccountActivity[]> {
       // Avisa solo cuando sube, nunca al bajar ni la primera vez que se ve.
       fresh: previous !== undefined && unseen > previous && !isActive,
       active: isActive
-    })
-  }
+    }
+  }))
 
   return activity
 }

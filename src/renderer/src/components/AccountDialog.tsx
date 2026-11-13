@@ -42,11 +42,6 @@ const PRESETS: ReadonlyArray<{ id: string; imap: ImapAccountConfig; smtp: SmtpCo
     smtp: { host: 'smtp.office365.com', port: 587, secure: false }
   },
   {
-    id: 'yahoo',
-    imap: { host: 'imap.mail.yahoo.com', port: 993, secure: true, user: '' },
-    smtp: { host: 'smtp.mail.yahoo.com', port: 465, secure: true }
-  },
-  {
     id: 'local',
     imap: { host: '127.0.0.1', port: 1143, secure: false, user: '' },
     smtp: { host: '127.0.0.1', port: 1025, secure: false }
@@ -84,6 +79,8 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
   const [oauthUrl, setOauthUrl] = useState('')
+  const [autodiscoverState, setAutodiscoverState] = useState<'idle' | 'searching' | 'found'>('idle')
+  const manualHostsRef = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -120,7 +117,43 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
     setPassword('')
     setBusy(false)
     setError(null)
+    setAutodiscoverState('idle')
+    manualHostsRef.current = current.host.trim() !== ''
   }, [open])
+
+  useEffect(() => {
+    if (!open || presetId !== 'custom' || manualHostsRef.current) return
+    const trimmed = user.trim()
+    const at = trimmed.lastIndexOf('@')
+    if (at <= 0 || !trimmed.slice(at + 1).includes('.')) {
+      setAutodiscoverState('idle')
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setAutodiscoverState('searching')
+      void window.api?.autodiscoverAccount?.(trimmed).then((found) => {
+        if (cancelled || manualHostsRef.current) return
+        if (!found) {
+          setAutodiscoverState('idle')
+          return
+        }
+        setHost(found.imap.host)
+        setPort(String(found.imap.port))
+        setSecure(found.imap.secure)
+        setSmtpHost(found.smtp.host)
+        setSmtpPort(String(found.smtp.port))
+        setSmtpSecure(found.smtp.secure)
+        setAutodiscoverState('found')
+      }).catch(() => {
+        if (!cancelled) setAutodiscoverState('idle')
+      })
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [open, presetId, user])
 
   if (!mounted) return null
 
@@ -128,8 +161,7 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
   const smtpPortNumber = Number(smtpPort)
   const needsOAuth = /^outlook\.office365\.com$/i.test(host.trim())
   const gmail = /^imap\.gmail\.com$/i.test(host.trim())
-  const yahoo = /^imap\.mail\.yahoo\.com$/i.test(host.trim())
-  const appPassword = auth === 'password' && (gmail || yahoo)
+  const appPassword = auth === 'password' && gmail
   const microsoft = auth === 'oauth2' && provider === 'microsoft'
   const managedGoogle = provider === 'google' && clientId === GOOGLE_CLIENT_ID
   const endpointsOk =
@@ -154,6 +186,8 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
     setPresetId(preset.id)
     setPassword('')
     setError(null)
+    if (typeof setAutodiscoverState === 'function') setAutodiscoverState('idle')
+    if (typeof manualHostsRef !== 'undefined') manualHostsRef.current = preset.id !== 'custom'
     setHost(preset.imap.host)
     setPort(String(preset.imap.port))
     setSecure(preset.imap.secure)
@@ -269,7 +303,7 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
               aria-pressed={presetId === preset.id}
               onClick={() => applyPreset(preset)}
             >
-              {preset.id === 'custom' ? t('account.custom') : preset.id === 'local' ? t('account.local') : preset.id === 'gmail' ? 'Gmail' : preset.id === 'outlook' ? 'Outlook' : 'Yahoo'}
+              {preset.id === 'custom' ? t('account.custom') : preset.id === 'local' ? t('account.local') : preset.id === 'gmail' ? 'Gmail' : 'Outlook'}
             </button>
           ))}
         </div>
@@ -316,6 +350,12 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
             {userHasSpaces && <em className="account-field__hint">{t('account.emailInvalid')}</em>}
             {!userHasSpaces && userMissingAt && (
               <em className="account-field__hint">{t('account.emailWarning')}</em>
+            )}
+            {presetId === 'custom' && autodiscoverState === 'searching' && (
+              <em className="account-field__hint">{t('account.autodiscoverBusy')}</em>
+            )}
+            {presetId === 'custom' && autodiscoverState === 'found' && host.trim() !== '' && (
+              <em className="account-field__hint">{t('account.autodiscoverFound', { imap: host, smtp: smtpHost })}</em>
             )}
           </label>
 
@@ -366,7 +406,7 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
                 <span>{t('account.host')}</span>
                 <input
                   value={host}
-                  onChange={(event) => { setHost(event.target.value); setPresetId('custom') }}
+                  onChange={(event) => { manualHostsRef.current = true; setAutodiscoverState('idle'); setHost(event.target.value); setPresetId('custom') }}
                   placeholder="imap.example.com"
                   autoComplete="off"
                   spellCheck={false}
@@ -542,7 +582,7 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
                     <span>{t('account.host')}</span>
                     <input
                       value={smtpHost}
-                      onChange={(event) => setSmtpHost(event.target.value)}
+                      onChange={(event) => { manualHostsRef.current = true; setAutodiscoverState('idle'); setSmtpHost(event.target.value) }}
                       placeholder="smtp.example.com"
                       autoComplete="off"
                       spellCheck={false}

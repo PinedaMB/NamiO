@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AccountConfig, AccountState, SmtpConfig } from '@shared/ipc'
 import { GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import logo from '../assets/logo.png'
@@ -9,7 +9,7 @@ import { Icon } from './Icon'
 import { ERROR_KEYS } from './errorKeys'
 import { PasswordField } from './PasswordField'
 
-export type OnboardingChoice = 'gmail' | 'outlook' | 'yahoo' | 'custom' | 'local'
+export type OnboardingChoice = 'gmail' | 'outlook' | 'custom' | 'local'
 
 interface OnboardingProps {
   onConnected: (state: AccountState) => void
@@ -35,12 +35,6 @@ const PRESETS: Record<OnboardingChoice, ProviderPreset> = {
     smtp: { host: 'smtp.office365.com', port: 587, secure: false },
     oauth: true,
     provider: 'microsoft'
-  },
-  yahoo: {
-    imap: { host: 'imap.mail.yahoo.com', port: 993, secure: true },
-    smtp: { host: 'smtp.mail.yahoo.com', port: 465, secure: true },
-    oauth: false,
-    provider: null
   },
   local: {
     imap: { host: '127.0.0.1', port: 1143, secure: false },
@@ -77,7 +71,6 @@ const CHOICES: ReadonlyArray<{
     hintKey: 'onboarding.outlookHint',
     badgeKey: 'onboarding.oauthBadge'
   },
-  { id: 'yahoo', icon: 'mail', titleKey: 'onboarding.yahoo', hintKey: 'onboarding.yahooHint' },
   { id: 'custom', icon: 'dns', titleKey: 'onboarding.custom', hintKey: 'onboarding.customHint' },
   { id: 'local', icon: 'terminal', titleKey: 'onboarding.local', hintKey: 'onboarding.localHint' }
 ]
@@ -105,6 +98,41 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
   const [smtpHost, setSmtpHost] = useState('')
   const [smtpPort, setSmtpPort] = useState('465')
   const [smtpSecure, setSmtpSecure] = useState(true)
+  const [autodiscoverState, setAutodiscoverState] = useState<'idle' | 'searching' | 'found'>('idle')
+  const manualHostsRef = useRef(false)
+
+  useEffect(() => {
+    if (choice !== 'custom' || manualHostsRef.current) return
+    const trimmed = user.trim()
+    const at = trimmed.lastIndexOf('@')
+    if (at <= 0 || !trimmed.slice(at + 1).includes('.')) {
+      setAutodiscoverState('idle')
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setAutodiscoverState('searching')
+      void window.api?.autodiscoverAccount?.(trimmed).then((found) => {
+        if (cancelled || manualHostsRef.current || !found) {
+          if (!cancelled && !found) setAutodiscoverState('idle')
+          return
+        }
+        setHost(found.imap.host)
+        setPort(String(found.imap.port))
+        setSecure(found.imap.secure)
+        setSmtpHost(found.smtp.host)
+        setSmtpPort(String(found.smtp.port))
+        setSmtpSecure(found.smtp.secure)
+        setAutodiscoverState('found')
+      }).catch(() => {
+        if (!cancelled) setAutodiscoverState('idle')
+      })
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [choice, user])
 
   const openForm = (next: OnboardingChoice): void => {
     const config = PRESETS[next]
@@ -113,6 +141,8 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
     setError(null)
     setPassword('')
     setUser('')
+    setAutodiscoverState('idle')
+    manualHostsRef.current = next !== 'custom'
     setHost(config.imap.host)
     setPort(String(config.imap.port))
     setSecure(config.imap.secure)
@@ -257,8 +287,6 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
                     ? 'onboarding.gmail'
                     : choice === 'outlook'
                       ? 'onboarding.outlook'
-                      : choice === 'yahoo'
-                        ? 'onboarding.yahoo'
                       : choice === 'local'
                         ? 'onboarding.local'
                         : 'onboarding.custom'
@@ -297,6 +325,12 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
               {!userHasSpaces && userMissingAt && (
                 <p className="onboarding__field-hint">{t('account.emailWarning')}</p>
               )}
+              {choice === 'custom' && autodiscoverState === 'searching' && (
+                <p className="onboarding__field-hint">{t('account.autodiscoverBusy')}</p>
+              )}
+              {choice === 'custom' && autodiscoverState === 'found' && host.trim() !== '' && (
+                <p className="onboarding__field-hint">{t('account.autodiscoverFound', { imap: host, smtp: smtpHost })}</p>
+              )}
 
               {choice === 'gmail' && (
                 <div className="account-field">
@@ -321,14 +355,14 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
               )) : (
                 <>
                   <label className="account-field">
-                    <span>{t(choice === 'gmail' || choice === 'yahoo' ? 'account.appPassword' : 'account.password')}</span>
+                    <span>{t(choice === 'gmail' ? 'account.appPassword' : 'account.password')}</span>
                     <PasswordField
                       value={password}
                       onChange={setPassword}
-                      ariaLabel={t(choice === 'gmail' || choice === 'yahoo' ? 'account.appPassword' : 'account.password')}
+                      ariaLabel={t(choice === 'gmail' ? 'account.appPassword' : 'account.password')}
                       autoComplete="current-password"
                     />
-                    {(choice === 'gmail' || choice === 'yahoo') && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
+                    {choice === 'gmail' && <em className="account-field__hint">{t('account.appPasswordHint')}</em>}
                   </label>
 
                   <details className="account-advanced">

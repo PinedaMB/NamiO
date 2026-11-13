@@ -46,9 +46,10 @@ assert.equal(state.SmtpHost, '')
 assert.equal(state.Provider, 'custom')
 assert.equal(state.Auth, 'password')
 assert.equal(state.Password, '')
-applyPreset(context.PRESETS.find(preset => preset.id === 'yahoo'))
-assert.equal(state.Host, 'imap.mail.yahoo.com')
-assert.equal(state.SmtpHost, 'smtp.mail.yahoo.com')
+assert.equal(context.PRESETS.some(preset => preset.id === 'yahoo'), false)
+applyPreset(context.PRESETS.find(preset => preset.id === 'local'))
+assert.equal(state.Host, '127.0.0.1')
+assert.equal(state.SmtpHost, '127.0.0.1')
 assert.equal(state.Auth, 'password')
 for (const [host, expected] of [['imap.gmail.com', false], ['outlook.office365.com', true], ['imap.mail.yahoo.com', false]]) {
   context.host = host

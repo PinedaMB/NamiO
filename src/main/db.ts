@@ -344,9 +344,10 @@ export function clearMailbox(path: string): void {
 
 export function saveMailboxSync(
   path: string,
-  sync: { uidValidity: number | null; uidNext: number | null; messages: number; unseen: number }
+  sync: { uidValidity: number | null; uidNext: number | null; messages: number; unseen: number },
+  accountId?: string
 ): void {
-  handle()
+  handle(accountId)
     .prepare(
       `INSERT INTO mailboxes (path, name, uid_validity, uid_next, messages, unseen, synced_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -361,8 +362,8 @@ export function saveMailboxSync(
 }
 
 /** Inserta/actualiza sobres y devuelve los UID que **no** estaban en la caché. */
-export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[]): number[] {
-  const database = handle()
+export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[], accountId?: string): number[] {
+  const database = handle(accountId)
 
   const previos = new Map<number, { subject: string; fromName: string; fromAddr: string }>()
   if (envelopes.length > 0) {

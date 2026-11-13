@@ -1,4 +1,5 @@
 import { setSpellcheckLanguage } from './spellcheck'
+import { autodiscoverAccount } from './autodiscover'
 import { copilotStatus, configureCopilot, listOllamaModels, setCopilotKey, generateCopilot, cancelCopilot } from './copilot'
 import { attachmentPreview } from './attachmentPreview'
 import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
@@ -159,6 +160,10 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IPC.accountsCheck, () => checkAccountsActivity())
+
+  ipcMain.handle(IPC.accountAutodiscover, (_event, email: string) =>
+    autodiscoverAccount(typeof email === 'string' ? email : '')
+  )
 
   ipcMain.handle(
     IPC.accountConnect,

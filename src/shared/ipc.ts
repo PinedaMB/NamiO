@@ -33,6 +33,7 @@ export const IPC = {
   accountsActivity: 'accounts:activity',
   accountConnect: 'account:connect',
   accountConnectOAuth: 'account:connect-oauth',
+  accountAutodiscover: 'account:autodiscover',
   oauthUrl: 'account:oauth-url',
   accountDisconnect: 'account:disconnect',
   accountRename: 'account:rename',
@@ -249,6 +250,12 @@ export interface UnifiedEnvelope {
   accountLabel: string
   mailbox: string
   envelope: Envelope
+}
+
+export interface DiscoveredMailConfig {
+  imap: { host: string; port: number; secure: boolean }
+  smtp: SmtpConfig
+  source: 'known' | 'autoconfig' | 'srv' | 'mx' | 'probe'
 }
 
 export interface EnvelopeAddress {
@@ -519,6 +526,7 @@ export interface MailApi {
   accountConnect(config: AccountConfig, password: string): Promise<ImapResult<AccountState>>
   /** OAuth2: abre el navegador, espera el redirect y guarda el refresh token. */
   accountConnectOAuth(config: AccountConfig): Promise<ImapResult<AccountState>>
+  autodiscoverAccount(email: string): Promise<DiscoveredMailConfig | null>
   accountRename(label: string): Promise<ImapResult<AccountState>>
   accountDisconnect(): Promise<boolean>
 

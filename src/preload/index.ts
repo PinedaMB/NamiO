@@ -26,6 +26,7 @@ import {
   type PickedAttachment,
   type AttachmentPreview,
   type AttachmentProgress,
+  type DiscoveredMailConfig,
   type UnifiedEnvelope,
   type Draft,
   type Rule,
@@ -112,6 +113,8 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.accountConnect, config, password),
   accountConnectOAuth: (config: AccountConfig): Promise<ImapResult<AccountState>> =>
     ipcRenderer.invoke(IPC.accountConnectOAuth, config),
+  autodiscoverAccount: (email: string): Promise<DiscoveredMailConfig | null> =>
+    ipcRenderer.invoke(IPC.accountAutodiscover, email),
   accountRename: (label: string): Promise<ImapResult<AccountState>> => ipcRenderer.invoke(IPC.accountRename, label),
   accountDisconnect: (): Promise<boolean> => ipcRenderer.invoke(IPC.accountDisconnect),
 
