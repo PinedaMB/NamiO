@@ -317,18 +317,21 @@ function isOfflineError(code: ImapErrorCode): boolean {
 
 type ImapAuth = { password: string } | { accessToken: string }
 
-function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
+function createClient(config: ImapAccountConfig, auth: ImapAuth, ipv4Only = false): ImapFlow {
   const client = new ImapFlow({
     host: config.host,
     port: config.port,
     secure: config.secure,
     // XOAUTH2 cuando la cuenta es OAuth2; si no, SASL PLAIN con la contraseña.
     auth: 'accessToken' in auth ? { user: config.user, accessToken: auth.accessToken } : { user: config.user, pass: auth.password },
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
+    connectionTimeout: 30_000,
+    greetingTimeout: 25_000,
     socketTimeout: 30_000,
     logger: false,
-    tls: { rejectUnauthorized: true }
+    tls: {
+      rejectUnauthorized: true,
+      ...(ipv4Only ? { family: 4 } : { autoSelectFamily: true, autoSelectFamilyAttemptTimeout: 500 })
+    } as Record<string, unknown>
   })
 
   // Sin listener, un error de socket tira abajo el proceso principal.
@@ -385,9 +388,20 @@ function createClient(config: ImapAccountConfig, auth: ImapAuth): ImapFlow {
 }
 
 async function openSession(config: ImapAccountConfig, auth: ImapAuth, accountId: string): Promise<void> {
-  await closeSession()
-  const client = createClient(config, auth)
-  await client.connect()
+  if (session && session.accountId !== accountId && typeof stashActiveSession === 'function') {
+    stashActiveSession()
+  } else {
+    await closeSession()
+  }
+  let client = createClient(config, auth)
+  try {
+    await client.connect()
+  } catch (error) {
+    if (classify(error) !== 'timeout') throw error
+    try { client.close() } catch { /* ya estaba cerrada */ }
+    client = createClient(config, auth, true)
+    await client.connect()
+  }
   session = { client, config, accountId }
   offline = false
 }
@@ -523,19 +537,21 @@ function classify(error: unknown): ImapErrorCode {
   if (code.includes('AUTH') || message.includes('authentication') || message.includes('invalid credentials')) return 'auth'
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'dns'
   if (code === 'ECONNREFUSED') return 'refused'
-  if (code === 'ETIMEDOUT' || code === 'ECONNRESET' || code === 'ESOCKETTIMEDOUT' || code === 'ECONNABORTED' || code === 'UND_ERR_CONNECT_TIMEOUT') return 'timeout'
+  if (code === 'CONNECT_TIMEOUT' || code === 'GREETING_TIMEOUT' || code === 'ETIMEDOUT' || code === 'ECONNRESET' || code === 'ESOCKETTIMEDOUT' || code === 'ECONNABORTED' || code === 'UND_ERR_CONNECT_TIMEOUT') return 'timeout'
   if (code.includes('CERT') || code.includes('TLS') || message.includes('certificate')) return 'tls'
   if (['ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN', 'EHOSTDOWN', 'UND_ERR_SOCKET'].includes(code) || (code.startsWith('E') && code.includes('NETWORK')) || (!code && message === 'fetch failed')) return 'network'
   return 'unknown'
 }
 
 function describe(error: unknown): string {
-  const value = error as { message?: string; responseText?: string } | null
+  const value = error as { message?: string; responseText?: string; _err?: { message?: string; code?: string }; cause?: { message?: string; code?: string } } | null
   const base = error instanceof Error ? error.message : String(error)
   // El servidor explica el rechazo (p. ej. "[AUTHENTICATIONFAILED] Invalid credentials");
   // sin esto el usuario solo ve "Command failed".
   const detail = typeof value?.responseText === 'string' ? value.responseText.trim() : ''
   if (detail !== '' && !base.includes(detail)) return `${base} — ${detail}`
+  const inner = value?._err?.message || value?.cause?.message || ''
+  if (inner && !base.includes(inner)) return `${base} (${inner})`
   return base
 }
 
