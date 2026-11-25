@@ -19,6 +19,7 @@ import type { ContextAnchor } from './ContextMenu'
 interface ThreadPaneProps {
   loadingMessage?: boolean
   onRetryMessage?: () => void
+  onLoadMessage?: (messageId: string) => void
   thread: Thread
   focusedMessageId?: string | null
   position: number
@@ -67,10 +68,20 @@ function Body({ message, theme, onRetry, loading = false }: { message: Message; 
   const { t } = useI18n()
 
   if (message.partial) {
+    if (loading) {
+      return (
+        <div className={cx('body', theme && `body--${theme}`)}>
+          <div className="letter-loading" role="status">
+            <Icon name="progress_activity" size={16} className="spin" />
+            {t('offline.downloading')}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className={cx('body', theme && `body--${theme}`)}>
         <p style={{ color: theme === 'light' ? '#555555' : 'var(--outline)' }}>{t('offline.bodyUnavailable')}</p>
-        {onRetry && <button className="tool-btn" type="button" disabled={loading} onClick={onRetry}><Icon name={loading ? "progress_activity" : "refresh"} size={16} className={loading ? "spin" : undefined} /><span role="status">{t(loading ? 'offline.downloading' : 'offline.retry')}</span></button>}
+        {onRetry && <button className="tool-btn" type="button" onClick={onRetry}><Icon name="refresh" size={16} /><span>{t('offline.retry')}</span></button>}
       </div>
     )
   }
@@ -120,6 +131,7 @@ function Body({ message, theme, onRetry, loading = false }: { message: Message; 
 
 export function ThreadPane({
   onRetryMessage,
+  onLoadMessage,
   loadingMessage = false,
   thread,
   focusedMessageId = null,
@@ -171,6 +183,7 @@ export function ThreadPane({
   const bodyTheme = themeOverride?.key === themeKey ? themeOverride.theme : preferredTheme
   useEffect(() => { setThemeOverride(null) }, [themeKey])
   const [messageExpansion, setMessageExpansion] = useState<Record<string, boolean>>({})
+  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({})
   const focusedMessage = useRef<HTMLDetailsElement | null>(null)
   const focusedMessagePresent = thread.messages.some(message => message.id === focusedMessageId)
   useEffect(() => {
@@ -293,16 +306,24 @@ export function ThreadPane({
               <Icon name="progress_activity" size={18} className="spin" />
               {t('thread.loading')}
             </div>
-          ) : (
-            [...thread.messages].reverse().map(message => {
-              const expansionKey = `${mailbox}:${message.id}`
-              const expanded = messageExpansion?.[expansionKey] ?? true
-              const from = message.from
-              return (
-              <details className="thread-message" aria-current={message.id === focusedMessageId ? 'true' : undefined} key={message.id} ref={message.id === focusedMessageId ? focusedMessage : undefined} open={expanded} onToggle={event => {
-                const open = event.currentTarget.open
-                if (open !== expanded) setMessageExpansion(current => ({ ...current, [expansionKey]: open }))
-              }}>
+          ) : (() => {
+            const orderedMessages = [...thread.messages].reverse()
+            const focusedIndex = focusedMessageId ? orderedMessages.findIndex(item => item.id === focusedMessageId) : -1
+            const collapseOlder = orderedMessages.length > 6 && !expandedThreads[thread.id] && focusedIndex < 4
+            const visibleMessages = collapseOlder ? orderedMessages.slice(0, 4) : orderedMessages
+            const hiddenCount = orderedMessages.length - visibleMessages.length
+            return (
+              <>
+                {visibleMessages.map((message, index) => {
+                  const expansionKey = `${mailbox}:${message.id}`
+                  const expanded = messageExpansion?.[expansionKey] ?? (index === 0 || thread.messages.length <= 4)
+                  const from = message.from
+                  return (
+                  <details className="thread-message" aria-current={message.id === focusedMessageId ? 'true' : undefined} key={message.id} ref={message.id === focusedMessageId ? focusedMessage : undefined} open={expanded} onToggle={event => {
+                    const open = event.currentTarget.open
+                    if (open !== expanded) setMessageExpansion(current => ({ ...current, [expansionKey]: open }))
+                    if (open && !message.mailbox && (message.partial || message.inlineImagesPending)) onLoadMessage?.(message.id)
+                  }}>
               <summary className="participants" onClick={event => {
                 // Los botones del encabezado no deben plegar el mensaje.
                 if ((event.target as HTMLElement | null)?.closest('button')) event.preventDefault()
@@ -411,11 +432,23 @@ export function ThreadPane({
                   </details>
                 )}
 
-              {message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} loading={loadingMessage} />}
+              {expanded && (message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} loading={loadingMessage} />)}
               </details>
               )
-            })
-          )}
+            })}
+                {hiddenCount > 0 && (
+                  <button
+                    type="button"
+                    className="thread-older-btn"
+                    onClick={() => setExpandedThreads(current => ({ ...current, [thread.id]: true }))}
+                  >
+                    <Icon name="expand_more" size={16} />
+                    {t('thread.showOlderMessages', { count: hiddenCount })}
+                  </button>
+                )}
+              </>
+            )
+          })()}
         </article>
       </div>
       <div className="quick-reply">

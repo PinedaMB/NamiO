@@ -3,7 +3,6 @@ import { isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 export { isSpamMailbox } from '@shared/mailboxes'
 import type { AccountConfig, Draft, Envelope, EnvelopeAddress, MailboxInfo, MessageDetail, OutboxItem, UnifiedEnvelope } from '@shared/ipc'
 
-export const UNIFIED_INBOX_ID = '__unified_inbox__'
 import type { Attachment, Message, Person, Thread } from './demo'
 import { formatMessageDate, formatMessageDateTime } from '../lib/dates'
 

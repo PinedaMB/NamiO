@@ -184,6 +184,8 @@ function openDatabase(accountId: string): DatabaseSync {
   for (const column of ['message_id', 'in_reply_to', 'has_attachments', 'priority', 'references_json']) {
     if (!columns.some(item => item.name === column)) database.exec(`ALTER TABLE messages ADD COLUMN ${column} ${column === 'has_attachments' ? 'INTEGER' : 'TEXT'}`)
   }
+  database.exec('CREATE INDEX IF NOT EXISTS idx_messages_message_id ON messages (mailbox, message_id)')
+  database.exec('CREATE INDEX IF NOT EXISTS idx_messages_in_reply_to ON messages (mailbox, in_reply_to)')
 
   // Migración aditiva: la tabla ya existe en instalaciones previas.
   try {
@@ -474,21 +476,21 @@ export function readUnifiedInbox(
   limit: number,
   options: EnvelopeListOptions = {}
 ): { accountId: string; mailbox: string; envelope: Envelope }[] {
-  const merged: { accountId: string; mailbox: string; envelope: Envelope }[] = []
+  const merged: { accountId: string; mailbox: string; envelope: Envelope; ts: number }[] = []
   for (const accountId of accountIds) {
     const boxes = readMailboxes(accountId)
     const inbox = boxes.find(box => box.specialUse === '\\Inbox' || /^inbox$/i.test(box.path))?.path ?? 'INBOX'
     for (const envelope of readEnvelopes(inbox, limit, options, accountId)) {
-      merged.push({ accountId, mailbox: inbox, envelope })
+      merged.push({ accountId, mailbox: inbox, envelope, ts: Date.parse(envelope.date) })
     }
   }
   const direction = options.oldestFirst ? 1 : -1
   merged.sort((left, right) => {
-    const diff = Date.parse(left.envelope.date) - Date.parse(right.envelope.date)
+    const diff = left.ts - right.ts
     if (diff !== 0) return diff * direction
     return (left.envelope.uid - right.envelope.uid) * direction
   })
-  return merged.slice(0, limit)
+  return merged.slice(0, limit).map(({ accountId, mailbox, envelope }) => ({ accountId, mailbox, envelope }))
 }
 
 /** Busca relaciones exactas, nunca coincidencias por asunto ni por subcadenas. */
@@ -798,14 +800,6 @@ export function cachedUids(mailbox: string): number[] {
     .prepare('SELECT uid FROM messages WHERE mailbox = ? ORDER BY uid')
     .all(mailbox) as unknown as { uid: number }[]
   return rows.map((row) => row.uid)
-}
-
-/** UID más bajo cacheado: desde ahí se sigue bajando en la sync completa. */
-export function lowestUid(mailbox: string): number | null {
-  const row = handle()
-    .prepare('SELECT MIN(uid) AS uid FROM messages WHERE mailbox = ?')
-    .get(mailbox) as unknown as { uid: number | null }
-  return row.uid ?? null
 }
 
 export interface CachedBody {

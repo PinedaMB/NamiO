@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { AccountConfig, AccountState, SmtpConfig } from '@shared/ipc'
 import { GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID } from '@shared/oauth'
 import logo from '../assets/logo.png'
@@ -8,6 +8,7 @@ import { serverFromEmail } from '../lib/serverFromEmail'
 import { Icon } from './Icon'
 import { ERROR_KEYS } from './errorKeys'
 import { PasswordField } from './PasswordField'
+import { useAutodiscover } from '../lib/useAutodiscover'
 
 export type OnboardingChoice = 'gmail' | 'outlook' | 'custom' | 'local'
 
@@ -98,41 +99,20 @@ export function Onboarding({ onConnected, onDemo }: OnboardingProps): React.JSX.
   const [smtpHost, setSmtpHost] = useState('')
   const [smtpPort, setSmtpPort] = useState('465')
   const [smtpSecure, setSmtpSecure] = useState(true)
-  const [autodiscoverState, setAutodiscoverState] = useState<'idle' | 'searching' | 'found'>('idle')
   const manualHostsRef = useRef(false)
-
-  useEffect(() => {
-    if (choice !== 'custom' || manualHostsRef.current) return
-    const trimmed = user.trim()
-    const at = trimmed.lastIndexOf('@')
-    if (at <= 0 || !trimmed.slice(at + 1).includes('.')) {
-      setAutodiscoverState('idle')
-      return
+  const { autodiscoverState, setAutodiscoverState } = useAutodiscover({
+    enabled: choice === 'custom',
+    email: user,
+    manualHostsRef,
+    onFound: (found) => {
+      setHost(found.imap.host)
+      setPort(String(found.imap.port))
+      setSecure(found.imap.secure)
+      setSmtpHost(found.smtp.host)
+      setSmtpPort(String(found.smtp.port))
+      setSmtpSecure(found.smtp.secure)
     }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      setAutodiscoverState('searching')
-      void window.api?.autodiscoverAccount?.(trimmed).then((found) => {
-        if (cancelled || manualHostsRef.current || !found) {
-          if (!cancelled && !found) setAutodiscoverState('idle')
-          return
-        }
-        setHost(found.imap.host)
-        setPort(String(found.imap.port))
-        setSecure(found.imap.secure)
-        setSmtpHost(found.smtp.host)
-        setSmtpPort(String(found.smtp.port))
-        setSmtpSecure(found.smtp.secure)
-        setAutodiscoverState('found')
-      }).catch(() => {
-        if (!cancelled) setAutodiscoverState('idle')
-      })
-    }, 400)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [choice, user])
+  })
 
   const openForm = (next: OnboardingChoice): void => {
     const config = PRESETS[next]

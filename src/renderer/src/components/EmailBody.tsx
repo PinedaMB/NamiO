@@ -29,21 +29,112 @@ function sanitize(html: string): string {
   })
 }
 
+const QUOTE_BANNER_RE = /^-{2,}\s*(?:original\s+message|mensaje\s+original|mensagem\s+original|message\s+d'origine|ursprüngliche\s+nachricht|messaggio\s+originale|oorspronkelijk\s+bericht|forwarded\s+message|mensaje\s+reenviado|mensagem\s+encaminhada)[\s-]*$/i
+const QUOTE_FROM_RE = /^(?:de|from|von|da|van|od|från)\s*:/i
+const QUOTE_HEADER_RE = /^(?:de|from|von|da|van|od|från)\s*:[\s\S]{0,800}?(?:enviado(?:\s+el|\s+em)?|envoy[ée](?:\s+le)?|sent|date|fecha|data|datum|gesendet|inviato|verzonden|wysłano|skickat)\s*:[\s\S]{0,800}?(?:para|to|an|à|a|aan|do|till)\s*:[\s\S]{0,1500}?(?:asunto|assunto|subject|objet|sujet|betreff|oggetto|onderwerp|temat|ämne)\s*:/i
+
+function stripLeadingQuoteBanner(text: string): string {
+  const newline = text.indexOf('\n')
+  if (newline === -1) return text
+  const firstLine = text.slice(0, newline).trim()
+  return QUOTE_BANNER_RE.test(firstLine) ? text.slice(newline + 1).trimStart() : text
+}
+
+function nextDomNode(root: Node, current: Node): Node | null {
+  const firstChild = current.childNodes?.[0]
+  if (firstChild) return firstChild
+  let cursor: Node | null = current
+  while (cursor && cursor !== root) {
+    if (cursor.nextSibling) return cursor.nextSibling
+    cursor = cursor.parentElement
+  }
+  return null
+}
+
+function collectFollowingText(root: Node, startNode: Node, maxChars = 3500): string {
+  let out = startNode.nodeType === 3 ? (startNode.textContent ?? '') : ''
+  let node: Node | null = startNode
+  while (out.length < maxChars && (node = nextDomNode(root, node))) {
+    if (node.nodeType === 1) {
+      const tag = (node as Element).tagName
+      if (tag === 'BR' || tag === 'P' || tag === 'DIV' || tag === 'TR' || tag === 'LI' || tag === 'HR') out += '\n'
+      continue
+    }
+    if (node.nodeType === 3) {
+      const parent = node.parentElement
+      if (parent && (parent.tagName === 'STYLE' || parent.tagName === 'SCRIPT')) continue
+      out += node.textContent ?? ''
+    }
+  }
+  return out.slice(0, maxChars)
+}
+
+function previousSignificantNode(node: Node): Node | null {
+  let current: Node | null = node
+  while (current) {
+    if (current.previousSibling) {
+      current = current.previousSibling
+      if (current.nodeType === 3 && !(current.textContent ?? '').trim()) continue
+      if (current.nodeType === 1 && (current as Element).tagName === 'BR') continue
+      return current
+    }
+    const parent: HTMLElement | null = current.parentElement
+    if (!parent || parent === parent.ownerDocument.body) return null
+    current = parent
+  }
+  return null
+}
+
+function findInlineQuoteStart(document_: Document): Node | null {
+  const root = document_.body
+  if (!root || !root.childNodes?.length) return null
+  let node: Node | null = root
+  while ((node = nextDomNode(root, node))) {
+    if (node.nodeType !== 3) continue
+    const parent = node.parentElement
+    if (!parent || parent.closest?.('style, script, details')) continue
+    const trimmed = (node.textContent ?? '').trim()
+    if (!QUOTE_FROM_RE.test(trimmed)) continue
+    const following = collectFollowingText(root, node).trim()
+    if (!QUOTE_HEADER_RE.test(following)) continue
+
+    let anchor: Node = node
+    while (anchor.parentElement && anchor.parentElement !== root) {
+      const p = anchor.parentElement
+      if (!/^(B|STRONG|SPAN|FONT|EM|I)$/i.test(p.tagName)) break
+      if ((p.textContent ?? '').trim() !== trimmed) break
+      anchor = p
+    }
+    const prev = previousSignificantNode(anchor)
+    if (prev && QUOTE_BANNER_RE.test((prev.textContent ?? '').trim())) return prev
+    return anchor
+  }
+  return null
+}
+
 /** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas se bloquearon. */
 function prepare(html: string, allowImages: boolean, showQuote: string, hideQuote: string): { document: Document; blocked: number } {
   const document_ = new DOMParser().parseFromString(html, 'text/html')
   let blocked = 0
   // Los clientes también envían cabeceras citadas sin un marcador propio.
-  let quote = document_.body.querySelector('blockquote[data-namio-reply-quote], .gmail_quote, .gmail_attr, .yahoo_quoted, #divRplyFwdMsg, .moz-cite-prefix, blockquote[type="cite"]')
+  let quote: Node | null = document_.body.querySelector('blockquote[data-namio-reply-quote], .gmail_quote, .gmail_attr, .yahoo_quoted, #divRplyFwdMsg, .moz-cite-prefix, blockquote[type="cite"]')
   for (const candidate of document_.body.querySelectorAll('p, div, td')) {
-    if (!/^(?:de|from)\s*:/i.test(candidate.textContent?.trim() ?? '')) continue
-    const parts: string[] = []
-    let sibling: Element | null = candidate
-    for (let index = 0; sibling && index < 8; index++, sibling = sibling.nextElementSibling) parts.push(sibling.textContent ?? '')
+    const rawText = candidate.textContent?.trim() ?? ''
+    const firstText = stripLeadingQuoteBanner(rawText)
+    if (!QUOTE_FROM_RE.test(firstText)) continue
+    const parts: string[] = [firstText]
+    let sibling: Element | null = candidate.nextElementSibling
+    for (let index = 1; sibling && index < 8; index++, sibling = sibling.nextElementSibling) parts.push(sibling.textContent ?? '')
     const header = parts.join('\n').slice(0, 5000)
-    if (!/^(?:de|from)\s*:[\s\S]{0,800}?(?:enviado(?: el)?|sent|date|fecha)\s*:[\s\S]{0,800}?(?:para|to)\s*:[\s\S]{0,1500}?(?:asunto|subject)\s*:/i.test(header.trim())) continue
-    if (!quote || candidate.compareDocumentPosition(quote) & Node.DOCUMENT_POSITION_FOLLOWING) quote = candidate
+    if (!QUOTE_HEADER_RE.test(header.trim())) continue
+    const prev = candidate.previousElementSibling
+    const startNode = prev && QUOTE_BANNER_RE.test(prev.textContent?.trim() ?? '') ? prev : candidate
+    if (!quote || startNode.compareDocumentPosition(quote) & Node.DOCUMENT_POSITION_FOLLOWING) quote = startNode
     break
+  }
+  const inlineQuote = findInlineQuoteStart(document_)
+  if (inlineQuote && (!quote || inlineQuote.compareDocumentPosition(quote) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+    quote = inlineQuote
   }
   if (quote) {
     const history = document_.createElement('details')

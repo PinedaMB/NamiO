@@ -109,6 +109,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let closingSession = false
 const activeSyncExists = new Map<string, number>()
 const lastModseq = new Map<string, bigint>()
+const resolvedInlineImages = new Set<string>()
 
 interface AccountRuntime {
   accountId: string
@@ -1196,7 +1197,9 @@ async function cacheMessageBody(path: string, uid: number, includeInlineImages =
 }
 
 async function fetchMessage(path: string, uid: number): Promise<MessageDetail> {
+  const generation = syncGeneration
   await cacheMessageBody(path, uid, true)
+  if (typeof resolvedInlineImages !== 'undefined') resolvedInlineImages.add(`${generation}:${path}:${uid}`)
   const detail = cachedDetail(path, uid)
   if (!detail || !readBody(path, uid).fetched) throw new Error('El cuerpo del mensaje no está disponible')
   return detail
@@ -1308,7 +1311,9 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
 export async function getMessage(path: string, uid: number, cachedOnly = false): Promise<CachedResult<MessageDetail>> {
   const generation = syncGeneration
   const body = readBody(path, uid)
-  const inlineImagesPending = /\bcid:/i.test(body.html ?? '')
+  const inlineKey = `${generation}:${path}:${uid}`
+  const inlineResolved = typeof resolvedInlineImages !== 'undefined' && resolvedInlineImages.has(inlineKey)
+  const inlineImagesPending = /\bcid:/i.test(body.html ?? '') && !inlineResolved
   if (body.fetched && (cachedOnly || !inlineImagesPending)) {
     const detail = cachedDetail(path, uid)
     if (detail) return { ok: true, data: detail, meta: { ...syncMeta(), inlineImagesPending } }
@@ -1323,7 +1328,7 @@ export async function getMessage(path: string, uid: number, cachedOnly = false):
     const detail = await serial(async () => {
       if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
       const current = readBody(path, uid)
-      if (current.fetched && !/\bcid:/i.test(current.html ?? '')) {
+      if (current.fetched && (!/\bcid:/i.test(current.html ?? '') || inlineResolved)) {
         const cached = cachedDetail(path, uid)
         if (cached) return cached
       }

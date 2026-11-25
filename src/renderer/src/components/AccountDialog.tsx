@@ -19,6 +19,7 @@ import { cx } from '../lib/cx'
 import { serverFromEmail } from '../lib/serverFromEmail'
 import { ERROR_KEYS } from './errorKeys'
 import { PasswordField } from './PasswordField'
+import { useAutodiscover } from '../lib/useAutodiscover'
 
 export { ERROR_KEYS }
 
@@ -79,8 +80,20 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ code: ImapErrorCode; detail: string } | null>(null)
   const [oauthUrl, setOauthUrl] = useState('')
-  const [autodiscoverState, setAutodiscoverState] = useState<'idle' | 'searching' | 'found'>('idle')
   const manualHostsRef = useRef(false)
+  const { autodiscoverState, setAutodiscoverState } = useAutodiscover({
+    enabled: open && presetId === 'custom',
+    email: user,
+    manualHostsRef,
+    onFound: (found) => {
+      setHost(found.imap.host)
+      setPort(String(found.imap.port))
+      setSecure(found.imap.secure)
+      setSmtpHost(found.smtp.host)
+      setSmtpPort(String(found.smtp.port))
+      setSmtpSecure(found.smtp.secure)
+    }
+  })
 
   useEffect(() => {
     if (!open) return
@@ -120,40 +133,6 @@ export function AccountDialog({ open, account, onClose, onDisconnected, onConnec
     setAutodiscoverState('idle')
     manualHostsRef.current = current.host.trim() !== ''
   }, [open])
-
-  useEffect(() => {
-    if (!open || presetId !== 'custom' || manualHostsRef.current) return
-    const trimmed = user.trim()
-    const at = trimmed.lastIndexOf('@')
-    if (at <= 0 || !trimmed.slice(at + 1).includes('.')) {
-      setAutodiscoverState('idle')
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      setAutodiscoverState('searching')
-      void window.api?.autodiscoverAccount?.(trimmed).then((found) => {
-        if (cancelled || manualHostsRef.current) return
-        if (!found) {
-          setAutodiscoverState('idle')
-          return
-        }
-        setHost(found.imap.host)
-        setPort(String(found.imap.port))
-        setSecure(found.imap.secure)
-        setSmtpHost(found.smtp.host)
-        setSmtpPort(String(found.smtp.port))
-        setSmtpSecure(found.smtp.secure)
-        setAutodiscoverState('found')
-      }).catch(() => {
-        if (!cancelled) setAutodiscoverState('idle')
-      })
-    }, 400)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [open, presetId, user])
 
   if (!mounted) return null
 

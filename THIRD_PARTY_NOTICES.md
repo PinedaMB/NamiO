@@ -17,100 +17,100 @@ Electron y sus componentes conservan los archivos LICENSE.electron.txt y LICENSE
 | @fontsource-variable/jetbrains-mono | 5.3.0 | OFL-1.1 |
 | @pinojs/redact | 0.4.0 | MIT |
 | @selderee/plugin-htmlparser2 | 0.12.0 | MIT |
-| @tiptap/core | 3.32.0 | MIT |
-| @tiptap/extension-blockquote | 3.32.0 | MIT |
-| @tiptap/extension-bold | 3.32.0 | MIT |
-| @tiptap/extension-bubble-menu | 3.32.0 | MIT |
-| @tiptap/extension-bullet-list | 3.32.0 | MIT |
-| @tiptap/extension-code-block | 3.32.0 | MIT |
-| @tiptap/extension-code | 3.32.0 | MIT |
-| @tiptap/extension-document | 3.32.0 | MIT |
-| @tiptap/extension-dropcursor | 3.32.0 | MIT |
-| @tiptap/extension-floating-menu | 3.32.0 | MIT |
-| @tiptap/extension-gapcursor | 3.32.0 | MIT |
-| @tiptap/extension-hard-break | 3.32.0 | MIT |
-| @tiptap/extension-heading | 3.32.0 | MIT |
-| @tiptap/extension-horizontal-rule | 3.32.0 | MIT |
-| @tiptap/extension-italic | 3.32.0 | MIT |
-| @tiptap/extension-link | 3.32.0 | MIT |
-| @tiptap/extension-list-item | 3.32.0 | MIT |
-| @tiptap/extension-list-keymap | 3.32.0 | MIT |
-| @tiptap/extension-list | 3.32.0 | MIT |
-| @tiptap/extension-ordered-list | 3.32.0 | MIT |
-| @tiptap/extension-paragraph | 3.32.0 | MIT |
-| @tiptap/extension-strike | 3.32.0 | MIT |
-| @tiptap/extension-text | 3.32.0 | MIT |
-| @tiptap/extension-underline | 3.32.0 | MIT |
-| @tiptap/extensions | 3.32.0 | MIT |
-| @tiptap/pm | 3.32.0 | MIT |
-| @tiptap/react | 3.32.0 | MIT |
-| @tiptap/starter-kit | 3.32.0 | MIT |
+| @tiptap/core | 3.35.0 | MIT |
+| @tiptap/extension-blockquote | 3.35.0 | MIT |
+| @tiptap/extension-bold | 3.35.0 | MIT |
+| @tiptap/extension-bubble-menu | 3.35.0 | MIT |
+| @tiptap/extension-bullet-list | 3.35.0 | MIT |
+| @tiptap/extension-code-block | 3.35.0 | MIT |
+| @tiptap/extension-code | 3.35.0 | MIT |
+| @tiptap/extension-document | 3.35.0 | MIT |
+| @tiptap/extension-dropcursor | 3.35.0 | MIT |
+| @tiptap/extension-floating-menu | 3.35.0 | MIT |
+| @tiptap/extension-gapcursor | 3.35.0 | MIT |
+| @tiptap/extension-hard-break | 3.35.0 | MIT |
+| @tiptap/extension-heading | 3.35.0 | MIT |
+| @tiptap/extension-horizontal-rule | 3.35.0 | MIT |
+| @tiptap/extension-italic | 3.35.0 | MIT |
+| @tiptap/extension-link | 3.35.0 | MIT |
+| @tiptap/extension-list-item | 3.35.0 | MIT |
+| @tiptap/extension-list-keymap | 3.35.0 | MIT |
+| @tiptap/extension-list | 3.35.0 | MIT |
+| @tiptap/extension-ordered-list | 3.35.0 | MIT |
+| @tiptap/extension-paragraph | 3.35.0 | MIT |
+| @tiptap/extension-strike | 3.35.0 | MIT |
+| @tiptap/extension-text | 3.35.0 | MIT |
+| @tiptap/extension-underline | 3.35.0 | MIT |
+| @tiptap/extensions | 3.35.0 | MIT |
+| @tiptap/pm | 3.35.0 | MIT |
+| @tiptap/react | 3.35.0 | MIT |
+| @tiptap/starter-kit | 3.35.0 | MIT |
 | @types/react-dom | 19.3.0 | MIT |
 | @types/react | 19.3.0 | MIT |
 | @types/trusted-types | 2.0.7 | MIT |
 | @types/use-sync-external-store | 0.0.6 | MIT |
-| @zone-eu/mailsplit | 5.4.29 | (MIT OR EUPL-1.1+) |
+| @zone-eu/mailsplit | 5.4.31 | (MIT OR EUPL-1.1+) |
 | argparse | 2.0.1 | Python-2.0 |
 | atomic-sleep | 1.0.0 | MIT |
 | builder-util-runtime | 9.7.0 | MIT |
-| csstype | 3.2.3 | MIT |
+| csstype | 3.2.4 | MIT |
 | debug | 4.4.3 | MIT |
 | deepmerge-ts | 8.0.2 | BSD-3-Clause |
 | dom-serializer | 2.0.0 | MIT |
 | domelementtype | 2.3.0 | BSD-2-Clause |
 | domhandler | 5.0.3 | BSD-2-Clause |
-| dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
+| dompurify | 3.5.0 | (MPL-2.0 OR Apache-2.0) |
 | domutils | 3.2.2 | BSD-2-Clause |
 | electron-updater | 6.8.11 | MIT |
-| encoding-japanese | 2.4.0 | MIT |
+| encoding-japanese | 2.5.0 | MIT |
 | entities | 4.5.0 | BSD-2-Clause |
 | entities | 7.0.1 | BSD-2-Clause |
 | fast-equals | 5.4.5 | MIT |
 | fs-extra | 10.1.0 | MIT |
-| graceful-fs | 4.2.11 | ISC |
+| graceful-fs | 4.2.12 | BlueOak-1.0.0 |
 | he | 1.2.0 | MIT |
 | html-to-text | 10.0.1 | MIT |
 | htmlparser2 | 10.1.0 | MIT |
 | iconv-lite | 0.7.3 | MIT |
-| imapflow | 2.9.1 | MIT |
-| ip-address | 10.7.5 | MIT |
+| imapflow | 2.12.2 | MIT |
+| ip-address | 10.7.6 | MIT |
 | js-yaml | 4.3.2 | MIT |
 | jsonfile | 6.2.1 | MIT |
 | lazy-val | 1.0.5 | MIT |
 | leac | 0.7.0 | MIT |
 | libbase64 | 1.4.1 | MIT |
-| libmime | 5.6.3 | MIT |
-| libqp | 3.0.1 | MIT |
-| linkify-it | 5.0.2 | MIT |
+| libmime | 5.6.5 | MIT |
+| libqp | 3.0.2 | MIT |
+| linkify-it | 6.1.0 | MIT |
 | linkifyjs | 4.4.0 | MIT |
 | lodash.escaperegexp | 4.1.2 | MIT |
 | lodash.isequal | 4.5.0 | MIT |
-| mailparser | 3.12.4 | MIT |
-| material-symbols | 0.48.1 | Apache-2.0 |
+| mailparser | 3.15.0 | MIT |
+| material-symbols | 0.48.3 | Apache-2.0 |
 | ms | 2.1.3 | MIT |
-| nodemailer | 10.2.1 | MIT-0 |
+| nodemailer | 10.6.1 | MIT-0 |
 | on-exit-leak-free | 2.1.2 | MIT |
 | orderedmap | 2.1.1 | MIT |
 | parseley | 0.13.1 | MIT |
-| pdfjs-dist | 6.4.299 | Apache-2.0 |
+| pdfjs-dist | 6.5.438 | Apache-2.0 |
 | peberminta | 0.10.0 | MIT |
 | pino-abstract-transport | 3.0.0 | MIT |
 | pino-std-serializers | 7.1.0 | MIT |
 | pino | 10.3.1 | MIT |
 | process-warning | 5.1.1 | MIT |
-| prosemirror-changeset | 2.4.4 | MIT |
+| prosemirror-changeset | 2.4.6 | MIT |
 | prosemirror-commands | 1.7.2 | MIT |
 | prosemirror-dropcursor | 1.8.4 | MIT |
 | prosemirror-gapcursor | 1.4.1 | MIT |
-| prosemirror-history | 1.5.1 | MIT |
-| prosemirror-inputrules | 1.5.1 | MIT |
+| prosemirror-history | 1.5.2 | MIT |
+| prosemirror-inputrules | 1.7.0 | MIT |
 | prosemirror-keymap | 1.2.3 | MIT |
-| prosemirror-model | 1.25.12 | MIT |
-| prosemirror-schema-list | 1.5.1 | MIT |
+| prosemirror-model | 1.25.13 | MIT |
+| prosemirror-schema-list | 1.6.1 | MIT |
 | prosemirror-state | 1.4.4 | MIT |
 | prosemirror-tables | 1.8.5 | MIT |
-| prosemirror-transform | 1.12.4 | MIT |
-| prosemirror-view | 1.42.8 | MIT |
+| prosemirror-transform | 1.12.7 | MIT |
+| prosemirror-view | 1.44.0 | MIT |
 | punycode.js | 2.3.1 | MIT |
 | quick-format-unescaped | 4.0.4 | MIT |
 | react-dom | 19.3.1 | MIT |
@@ -125,13 +125,13 @@ Electron y sus componentes conservan los archivos LICENSE.electron.txt y LICENSE
 | selderee | 0.12.0 | MIT |
 | semver | 7.7.4 | ISC |
 | smart-buffer | 4.2.0 | MIT |
-| socks | 2.8.10 | MIT |
+| socks | 2.8.11 | MIT |
 | sonic-boom | 4.2.1 | MIT |
 | split2 | 4.2.0 | ISC |
-| thread-stream | 4.2.0 | MIT |
+| thread-stream | 4.2.1 | MIT |
 | tiny-typed-emitter | 2.1.0 | MIT |
 | tlds | 1.261.0 | MIT |
-| uc.micro | 2.1.0 | MIT |
+| uc.micro | 3.0.0 | MIT |
 | universalify | 2.0.1 | MIT |
 | use-sync-external-store | 1.7.0 | MIT |
 | w3c-keyname | 2.2.8 | MIT |
@@ -473,7 +473,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/core 3.32.0
+## @tiptap/core 3.35.0
 
 ### LICENSE.md
 
@@ -501,7 +501,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-blockquote 3.32.0
+## @tiptap/extension-blockquote 3.35.0
 
 ### LICENSE.md
 
@@ -529,7 +529,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-bold 3.32.0
+## @tiptap/extension-bold 3.35.0
 
 ### LICENSE.md
 
@@ -557,7 +557,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-bubble-menu 3.32.0
+## @tiptap/extension-bubble-menu 3.35.0
 
 ### LICENSE.md
 
@@ -585,7 +585,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-bullet-list 3.32.0
+## @tiptap/extension-bullet-list 3.35.0
 
 ### LICENSE.md
 
@@ -613,7 +613,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-code-block 3.32.0
+## @tiptap/extension-code-block 3.35.0
 
 ### LICENSE.md
 
@@ -641,7 +641,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-code 3.32.0
+## @tiptap/extension-code 3.35.0
 
 ### LICENSE.md
 
@@ -669,7 +669,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-document 3.32.0
+## @tiptap/extension-document 3.35.0
 
 ### LICENSE.md
 
@@ -697,7 +697,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-dropcursor 3.32.0
+## @tiptap/extension-dropcursor 3.35.0
 
 ### LICENSE.md
 
@@ -725,7 +725,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-floating-menu 3.32.0
+## @tiptap/extension-floating-menu 3.35.0
 
 ### LICENSE.md
 
@@ -753,7 +753,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-gapcursor 3.32.0
+## @tiptap/extension-gapcursor 3.35.0
 
 ### LICENSE.md
 
@@ -781,7 +781,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-hard-break 3.32.0
+## @tiptap/extension-hard-break 3.35.0
 
 ### LICENSE.md
 
@@ -809,7 +809,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-heading 3.32.0
+## @tiptap/extension-heading 3.35.0
 
 ### LICENSE.md
 
@@ -837,7 +837,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-horizontal-rule 3.32.0
+## @tiptap/extension-horizontal-rule 3.35.0
 
 ### LICENSE.md
 
@@ -865,7 +865,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-italic 3.32.0
+## @tiptap/extension-italic 3.35.0
 
 ### LICENSE.md
 
@@ -893,7 +893,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-link 3.32.0
+## @tiptap/extension-link 3.35.0
 
 ### LICENSE.md
 
@@ -921,7 +921,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-list-item 3.32.0
+## @tiptap/extension-list-item 3.35.0
 
 ### LICENSE.md
 
@@ -949,7 +949,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-list-keymap 3.32.0
+## @tiptap/extension-list-keymap 3.35.0
 
 ### LICENSE.md
 
@@ -977,7 +977,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-list 3.32.0
+## @tiptap/extension-list 3.35.0
 
 ### LICENSE.md
 
@@ -1005,7 +1005,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-ordered-list 3.32.0
+## @tiptap/extension-ordered-list 3.35.0
 
 ### LICENSE.md
 
@@ -1033,7 +1033,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-paragraph 3.32.0
+## @tiptap/extension-paragraph 3.35.0
 
 ### LICENSE.md
 
@@ -1061,7 +1061,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-strike 3.32.0
+## @tiptap/extension-strike 3.35.0
 
 ### LICENSE.md
 
@@ -1089,7 +1089,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-text 3.32.0
+## @tiptap/extension-text 3.35.0
 
 ### LICENSE.md
 
@@ -1117,7 +1117,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extension-underline 3.32.0
+## @tiptap/extension-underline 3.35.0
 
 ### LICENSE.md
 
@@ -1145,7 +1145,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/extensions 3.32.0
+## @tiptap/extensions 3.35.0
 
 ### LICENSE.md
 
@@ -1173,7 +1173,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/pm 3.32.0
+## @tiptap/pm 3.35.0
 
 ### LICENSE
 
@@ -1253,7 +1253,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## @tiptap/react 3.32.0
+## @tiptap/react 3.35.0
 
 ### LICENSE.md
 
@@ -1281,7 +1281,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## @tiptap/starter-kit 3.32.0
+## @tiptap/starter-kit 3.35.0
 
 ### LICENSE.md
 
@@ -1421,7 +1421,7 @@ MIT License
     SOFTWARE
 ````
 
-## @zone-eu/mailsplit 5.4.29
+## @zone-eu/mailsplit 5.4.31
 
 ### LICENSE.EUPL-1.2
 
@@ -1924,7 +1924,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## csstype 3.2.3
+## csstype 3.2.4
 
 ### LICENSE
 
@@ -2066,7 +2066,7 @@ THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRE
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-## dompurify 3.4.17
+## dompurify 3.5.0
 
 ### LICENSE
 
@@ -2698,7 +2698,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## encoding-japanese 2.4.0
+## encoding-japanese 2.5.0
 
 ### LICENSE
 
@@ -2836,26 +2836,66 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-## graceful-fs 4.2.11
+## graceful-fs 4.2.12
 
-### LICENSE
+### LICENSE.md
 
 ````text
-The ISC License
+# Blue Oak Model License
 
-Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors
+Version 1.0.0
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+## Purpose
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
-IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+This license gives everyone as much permission to work with
+this software as possible, while protecting contributors
+from liability.
+
+## Acceptance
+
+In order to receive this license, you must agree to its
+rules.  The rules of this license are both obligations
+under that agreement and conditions to your license.
+You must not do anything with this software that triggers
+a rule that you cannot or will not follow.
+
+## Copyright
+
+Each contributor licenses you to do everything with this
+software that would otherwise infringe that contributor's
+copyright in it.
+
+## Notices
+
+You must ensure that everyone who gets a copy of
+any part of this software from you, with or without
+changes, also gets the text of this license or a link to
+<https://blueoakcouncil.org/license/1.0.0>.
+
+## Excuse
+
+If anyone notifies you in writing that you have not
+complied with [Notices](#notices), you can keep your
+license by taking all practical steps to comply within 30
+days after the notice.  If you do not do so, your license
+ends immediately.
+
+## Patent
+
+Each contributor licenses you to do everything with this
+software that would otherwise infringe any patent claims
+they can license or become able to license.
+
+## Reliability
+
+No contributor can revoke this license.
+
+## No Liability
+
+***As far as the law allows, this software comes as is,
+without any warranty or condition, and no contributor
+will be liable to anyone for any damages related to this
+software or this license, under any kind of legal claim.***
 ````
 
 ## he 1.2.0
@@ -2969,7 +3009,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-## imapflow 2.9.1
+## imapflow 2.12.2
 
 ### LICENSE.txt
 
@@ -2992,7 +3032,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## ip-address 10.7.5
+## ip-address 10.7.6
 
 ### LICENSE
 
@@ -3132,7 +3172,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## libmime 5.6.3
+## libmime 5.6.5
 
 ### LICENSE
 
@@ -3158,7 +3198,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## libqp 3.0.1
+## libqp 3.0.2
 
 ### LICENSE
 
@@ -3184,7 +3224,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## linkify-it 5.0.2
+## linkify-it 6.1.0
 
 ### LICENSE
 
@@ -3347,7 +3387,7 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ````
 
-## mailparser 3.12.4
+## mailparser 3.15.0
 
 ### LICENSE
 
@@ -3370,7 +3410,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## material-symbols 0.48.1
+## material-symbols 0.48.3
 
 ### LICENSE
 
@@ -3606,7 +3646,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## nodemailer 10.2.1
+## nodemailer 10.6.1
 
 ### LICENSE
 
@@ -3711,7 +3751,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## pdfjs-dist 6.4.299
+## pdfjs-dist 6.5.438
 
 ### LICENSE
 
@@ -4020,7 +4060,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## prosemirror-changeset 2.4.4
+## prosemirror-changeset 2.4.6
 
 ### LICENSE
 
@@ -4124,7 +4164,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## prosemirror-history 1.5.1
+## prosemirror-history 1.5.2
 
 ### LICENSE
 
@@ -4150,7 +4190,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## prosemirror-inputrules 1.5.1
+## prosemirror-inputrules 1.7.0
 
 ### LICENSE
 
@@ -4202,7 +4242,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## prosemirror-model 1.25.12
+## prosemirror-model 1.25.13
 
 ### LICENSE
 
@@ -4228,7 +4268,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## prosemirror-schema-list 1.5.1
+## prosemirror-schema-list 1.6.1
 
 ### LICENSE
 
@@ -4306,7 +4346,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## prosemirror-transform 1.12.4
+## prosemirror-transform 1.12.7
 
 ### LICENSE
 
@@ -4332,7 +4372,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-## prosemirror-view 1.42.8
+## prosemirror-view 1.44.0
 
 ### LICENSE
 
@@ -4774,7 +4814,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-## socks 2.8.10
+## socks 2.8.11
 
 ### LICENSE
 
@@ -4849,7 +4889,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ````
 
-## thread-stream 4.2.0
+## thread-stream 4.2.1
 
 ### LICENSE
 
@@ -4933,7 +4973,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-## uc.micro 2.1.0
+## uc.micro 3.0.0
 
 ### LICENSE.txt
 

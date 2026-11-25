@@ -291,7 +291,7 @@ async function runOne(row: OutboxRow): Promise<void> {
     await syncDraft(id, expectedAccount)
     const current = owner === cacheAccountId() ? readDraft(id) : null
     if (current && current.syncedAt !== current.updatedAt && !listOutbox().some(item => item.id !== row.id && item.kind === 'draft-save' && payloadOf(item).draftId === id)) {
-      enqueueOutbox({ kind: 'draft-save', payload: { draftId: id } })
+      enqueueOutbox({ kind: 'draft-save', payload: { draftId: id }, accountId: owner })
     }
   } else if (row.kind === 'draft-delete') {
     const reference = payloadOf(row).server as import('@shared/ipc').DraftServerRef
@@ -388,11 +388,12 @@ export async function processOutbox(): Promise<void> {
     const attempted = new Set<string>()
     while (!outboxPaused) {
       const now = Date.now()
-      const row = listOutbox().find(item =>
+      const ready = listOutbox().filter(item =>
         item.status !== 'failed' &&
         !attempted.has(item.id) &&
         (item.nextAttemptAt == null || item.nextAttemptAt <= now)
       )
+      const row = ready.find(item => item.kind === 'send') ?? ready[0]
       if (!row) break
       attempted.add(row.id)
       if (owner !== cacheAccountId()) return

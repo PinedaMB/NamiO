@@ -1,7 +1,7 @@
 import { CopilotSettings } from './CopilotSettings'
 import { useFormatCombo } from '../settings/ShortcutsProvider'
 import logo from '../assets/logo.png'
-import naomi from '../assets/naomi.png'
+import naomi from '../assets/naomi.webp'
 import { TooltipButton } from './Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusTrap } from '../lib/useFocusTrap'

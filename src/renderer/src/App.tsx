@@ -1,9 +1,8 @@
 import type { MailtoDraft } from '@shared/mailto'
-import { FolderDialog } from './components/FolderDialog'
 import { usePreferences } from './settings/PreferencesProvider'
 import { isSelectAll, selectTextContents } from './lib/selection'
 import { flushSync } from 'react-dom'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   NotificationTarget,
   AttachmentPreview,
@@ -25,20 +24,24 @@ import { detailToMessage, pendingDraftThreads, pendingSendThreads, envelopesToTh
 import { Sidebar } from './components/Sidebar'
 import { Topbar, type FilterId } from './components/Topbar'
 import { ContextMenu, type ContextAnchor, type ContextAction } from './components/ContextMenu'
-import { DocumentViewer } from './components/DocumentViewer'
-import { ImageViewer } from './components/ImageViewer'
 import { ThreadList } from './components/ThreadList'
 import { SearchResults } from './components/SearchResults'
-import { MoveDialog } from './components/MoveDialog'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
-import { ContextRail } from './components/ContextRail'
 import { StatusBar } from './components/StatusBar'
-import { CommandPalette } from './components/CommandPalette'
-import { ComposeOverlay, type ReplyContext } from './components/ComposeOverlay'
-import { Settings } from './components/Settings'
-import { AccountDialog, ERROR_KEYS } from './components/AccountDialog'
+import type { ReplyContext } from './components/ComposeOverlay'
+import { ERROR_KEYS } from './components/errorKeys'
 import { BootSplash } from './components/BootSplash'
-import { Onboarding } from './components/Onboarding'
+
+const FolderDialog = lazy(() => import('./components/FolderDialog').then(m => ({ default: m.FolderDialog })))
+const DocumentViewer = lazy(() => import('./components/DocumentViewer').then(m => ({ default: m.DocumentViewer })))
+const ImageViewer = lazy(() => import('./components/ImageViewer').then(m => ({ default: m.ImageViewer })))
+const MoveDialog = lazy(() => import('./components/MoveDialog').then(m => ({ default: m.MoveDialog })))
+const ContextRail = lazy(() => import('./components/ContextRail').then(m => ({ default: m.ContextRail })))
+const CommandPalette = lazy(() => import('./components/CommandPalette').then(m => ({ default: m.CommandPalette })))
+const ComposeOverlay = lazy(() => import('./components/ComposeOverlay').then(m => ({ default: m.ComposeOverlay })))
+const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })))
+const AccountDialog = lazy(() => import('./components/AccountDialog').then(m => ({ default: m.AccountDialog })))
+const Onboarding = lazy(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })))
 import { Icon } from './components/Icon'
 import { TooltipButton } from './components/Tooltip'
 import { useI18n } from './i18n'
@@ -922,30 +925,43 @@ export function App(): React.JSX.Element {
       ordered.splice(ordered.indexOf(firstUid), 1)
       ordered.unshift(firstUid)
     }
-    const applyMessage = (result: Awaited<ReturnType<typeof window.api.getMessage>>): void => {
-      if (!result.ok) return
-      if (result.meta.offline) setSync(current => current.offline ? current : { ...current, offline: true })
-      const message = { ...detailToMessage(result.data, locale, result.meta.partial === true), inlineImagesPending: result.meta.inlineImagesPending === true }
-      if (result.meta.partial) setToast(t('offline.bodyUnavailable'))
+    const applyMessages = (results: ReadonlyArray<Awaited<ReturnType<typeof window.api.getMessage>>>): void => {
+      const incoming: Message[] = []
+      let wentOffline = false
+      let anyPartial = false
+      for (const result of results) {
+        if (!result.ok) continue
+        if (result.meta.offline) wentOffline = true
+        if (result.meta.partial) anyPartial = true
+        incoming.push({ ...detailToMessage(result.data, locale, result.meta.partial === true), inlineImagesPending: result.meta.inlineImagesPending === true })
+      }
+      if (wentOffline) setSync(current => current.offline ? current : { ...current, offline: true })
+      if (anyPartial) setToast(t('offline.bodyUnavailable'))
+      if (incoming.length === 0) return
       setThreads(current => current.map(thread => {
         if (thread.id !== selected.id) return thread
-        const loaded = new Map([...thread.messages, message].map(item => [item.id, item]))
+        const loaded = new Map([...thread.messages, ...incoming].map(item => [item.id, item]))
         return { ...thread, messages: (thread.messageIds ?? [uid]).flatMap(messageUid => loaded.get(`live:${messageUid}`) ?? []) }
       }))
     }
+    const applyMessage = (result: Awaited<ReturnType<typeof window.api.getMessage>>): void => applyMessages([result])
     setLoadingBody(true)
     void (async () => {
       const cached = await Promise.all(ordered.map(messageUid => window.api.getMessage(folder, messageUid, true).catch(() => null)))
       if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
       const disconnected = typeof navigator !== 'undefined' && navigator.onLine === false
       const pending: number[] = []
+      const readyCached: Awaited<ReturnType<typeof window.api.getMessage>>[] = []
       cached.forEach((result, index) => {
         const messageUid = ordered[index]!
-        if (result?.ok && (!result.meta.partial || disconnected)) applyMessage(result)
+        if (result?.ok && (!result.meta.partial || disconnected || ordered.length > 4)) readyCached.push(result)
         if (!result?.ok || result.meta.partial || result.meta.inlineImagesPending) pending.push(messageUid)
       })
+      applyMessages(readyCached)
       if (disconnected) return
-      for (const messageUid of pending) {
+      // En hilos extensos solo se descarga inicialmente el mensaje abierto; los colapsados se piden al expandir.
+      const toFetch = ordered.length > 4 ? pending.slice(0, 1) : pending
+      for (const messageUid of toFetch) {
         if (cancelled) return
         const result = await window.api.getMessage(folder, messageUid).catch(() => null)
         if (cancelled || generation !== accountGeneration.current || request !== folderRequest.current) return
@@ -962,7 +978,7 @@ export function App(): React.JSX.Element {
       cancelled = true
       setLoadingBody(false)
     }
-  }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view, sync.offline, sync.syncedAt, messageRetry])
+  }, [live, selected?.id, selected?.messageIds?.join(','), individualMessageId, folder, locale, view, sync.offline, messageRetry])
 
   const sentListKey = listedThreads.map(thread => uidOf(thread.id)).filter(uid => uid !== null).join(',')
   useEffect(() => {
@@ -1013,7 +1029,8 @@ export function App(): React.JSX.Element {
     const key = sentRepliesKey
     const generation = accountGeneration.current
     const request = folderRequest.current
-    const uids = selected.messageIds ?? [uid]
+    const allUids = selected.messageIds ?? [uid]
+    const uids = allUids.length > 6 ? allUids.slice(-6) : allUids
     let cancelled = false
     const current = (): boolean => !cancelled && generation === accountGeneration.current && request === folderRequest.current
     const load = async (cachedOnly: boolean): Promise<void> => {
@@ -1053,6 +1070,28 @@ export function App(): React.JSX.Element {
     })().catch(error => { if (current()) setToast(t('toast.actionFailed', { error: error instanceof Error ? error.message : 'IPC' })) }).finally(() => { if (current()) setLoadingSentBodies(false) })
     return () => { cancelled = true; setLoadingSentBodies(false) }
   }, [live, sentRepliesKey, sentMessages.map(message => message.id).join(','), sentRepliesVersion, folder, locale, view, sync.syncedAt, messageRetry, t])
+
+  const loadMessageOnDemand = useCallback((messageId: string): void => {
+    if (!live || !selected || !window.api?.getMessage) return
+    const messageUid = uidOf(messageId)
+    const threadUid = uidOf(selected.id)
+    if (messageUid === null || threadUid === null) return
+    const threadId = selected.id
+    const threadMessageIds = selected.messageIds ?? [threadUid]
+    const targetFolder = folder
+    const generation = accountGeneration.current
+    const request = folderRequest.current
+    void window.api.getMessage(targetFolder, messageUid, false).then((result) => {
+      if (generation !== accountGeneration.current || request !== folderRequest.current) return
+      if (!result?.ok) return
+      const loadedMessage = { ...detailToMessage(result.data, locale, result.meta.partial === true), inlineImagesPending: result.meta.inlineImagesPending === true }
+      setThreads(current => current.map(thread => {
+        if (thread.id !== threadId) return thread
+        const loaded = new Map([...thread.messages, loadedMessage].map(item => [item.id, item]))
+        return { ...thread, messages: threadMessageIds.flatMap(id => loaded.get(`live:${id}`) ?? []) }
+      }))
+    }).catch(() => undefined)
+  }, [live, selected, folder, locale])
 
   const select = (id: string, messageId?: string): void => {
     if (live && folder === '__unified_inbox__') {
@@ -1722,20 +1761,22 @@ export function App(): React.JSX.Element {
 
         <div className={messageOpen && selected ? 'panes panes--message-open' : 'panes'}>
           {view === 'settings' ? (
-            <Settings
-              onCacheCleared={(id) => {
-                const cleared = accounts.find(item => item.id === id)
-                if (cleared && JSON.stringify([cleared.host, cleared.port, cleared.user]) === accountIdentity.current) {
-                  setThreads(current => current.map(thread => ({ ...thread, messages: [] })))
-                }
-              }}
-              accountKey={accountIdentity.current ?? 'demo'}
-              onBack={() => setView('mailbox')}
-              accounts={accounts}
-              onAddAccount={() => { setAddingAccount(true); setAccountOpen(true) }}
-              onManageAccount={() => { setAddingAccount(false); setAccountOpen(true) }}
-              onSelectAccount={(id) => void handleSelectAccount(id)}
-            />
+            <Suspense fallback={null}>
+              <Settings
+                onCacheCleared={(id) => {
+                  const cleared = accounts.find(item => item.id === id)
+                  if (cleared && JSON.stringify([cleared.host, cleared.port, cleared.user]) === accountIdentity.current) {
+                    setThreads(current => current.map(thread => ({ ...thread, messages: [] })))
+                  }
+                }}
+                accountKey={accountIdentity.current ?? 'demo'}
+                onBack={() => setView('mailbox')}
+                accounts={accounts}
+                onAddAccount={() => { setAddingAccount(true); setAccountOpen(true) }}
+                onManageAccount={() => { setAddingAccount(false); setAccountOpen(true) }}
+                onSelectAccount={(id) => void handleSelectAccount(id)}
+              />
+            </Suspense>
           ) : (
             <>
               {query.trim().length >= 2 ? (
@@ -1805,6 +1846,7 @@ export function App(): React.JSX.Element {
                 <ThreadPane
                   loadingMessage={loadingBody || loadingSentBodies}
                   onRetryMessage={live ? () => setMessageRetry(value => value + 1) : undefined}
+                  onLoadMessage={live ? loadMessageOnDemand : undefined}
                   onBack={() => {
                     setReadingFocused(false)
                     setMessageOpen(false)
@@ -1852,12 +1894,16 @@ export function App(): React.JSX.Element {
                   aria-hidden={!contextOpen}
                   inert={!contextOpen}
                 >
-                  <ContextRail
-                    brief={BRIEF}
-                    actions={ACTION_ITEMS}
-                    slots={SLOTS}
-                    onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
-                  />
+                  {contextOpen && (
+                    <Suspense fallback={null}>
+                      <ContextRail
+                        brief={BRIEF}
+                        actions={ACTION_ITEMS}
+                        slots={SLOTS}
+                        onInsertSlot={(slot) => openReply(`Tomorrow at ${slot} works perfectly for the founder call.`)}
+                      />
+                    </Suspense>
+                  )}
                 </div>
               )}
             </>
@@ -1866,32 +1912,41 @@ export function App(): React.JSX.Element {
 
         <StatusBar
           pending={outbox.length}
+          outbox={outbox}
+          onRetryOutbox={id => void window.api.retryOutbox(id)}
+          onCancelOutbox={id => void window.api.cancelOutbox(id)}
           deletion={outbox.find(item => item.deletionProgress?.running) ?? outbox.find(item => item.kind === 'delete-many' && item.status !== 'failed')}
           progress={syncProgress}
         />
       </div>
 
-      <CommandPalette
-        key={accountIdentity.current ?? 'demo'}
-        searchCache={live ? window.api.search : undefined}
-        onOpenSearchHit={hit => { setView('mailbox'); setQuery(''); openHit(hit) }}
-        open={paletteOpen}
-        threads={visible}
-        folders={folderViews}
-        canArchive={!!selected && !selected.id.startsWith('draft:')}
-        onClose={() => setPaletteOpen(false)}
-        onOpenThread={select}
-        onCompose={openCompose}
-        onArchive={archive}
-        onSelectFolder={selectFolder}
-        onOpenSettings={openSettings}
-      />
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            key={accountIdentity.current ?? 'demo'}
+            searchCache={live ? window.api.search : undefined}
+            onOpenSearchHit={hit => { setView('mailbox'); setQuery(''); openHit(hit) }}
+            open={paletteOpen}
+            threads={visible}
+            folders={folderViews}
+            canArchive={!!selected && !selected.id.startsWith('draft:')}
+            onClose={() => setPaletteOpen(false)}
+            onOpenThread={select}
+            onCompose={openCompose}
+            onArchive={archive}
+            onSelectFolder={selectFolder}
+            onOpenSettings={openSettings}
+          />
+        </Suspense>
+      )}
 
-      {moveOpen && selected && <MoveDialog subject={selected.subject} folders={moveFolders} onClose={() => setMoveOpen(false)} onMove={moveSelected} />}
-      {folderDialog && <FolderDialog onClose={() => setFolderDialog(false)} onCreate={name => changeFolder(name, false)} />}
+      {moveOpen && selected && <Suspense fallback={null}><MoveDialog subject={selected.subject} folders={moveFolders} onClose={() => setMoveOpen(false)} onMove={moveSelected} /></Suspense>}
+      {folderDialog && <Suspense fallback={null}><FolderDialog onClose={() => setFolderDialog(false)} onCreate={name => changeFolder(name, false)} /></Suspense>}
       {contextMenu && contextActions.length > 0 && <ContextMenu anchor={contextMenu} label={contextMenu.kind === 'folder' ? folderViews.find(item => item.id === contextMenu.id)?.label ?? contextMenu.id : selected?.subject ?? ''} actions={contextActions} onClose={closeContextMenu} />}
 
-      <ComposeOverlay
+      {compose !== null && (
+        <Suspense fallback={null}>
+          <ComposeOverlay
         key={`${accountIdentity.current ?? 'demo'}:${composeSession}`}
         open={compose !== null}
         signatureKey={accountIdentity.current ?? 'demo'}
@@ -1951,31 +2006,39 @@ export function App(): React.JSX.Element {
           if (!result.ok) throw new Error(result.error ?? 'SMTP')
           if (generation !== accountGeneration.current) return
           setCompose(null)
-          setToast(result.queued ? t('toast.queued') : t('toast.sent'))
-          setSentRepliesVersion(current => current + 1)
-          void refreshOutbox()
-        }}
-      />
+            setToast(result.queued ? t('toast.queued') : t('toast.sent'))
+            setSentRepliesVersion(current => current + 1)
+            void refreshOutbox()
+          }}
+          />
+        </Suspense>
+      )}
 
-      <AccountDialog
-        open={accountOpen}
-        account={addingAccount ? null : account}
-        onClose={() => setAccountOpen(false)}
-        onDisconnected={() => {
-          setAccountOpen(false)
-          void refreshAccount()
-        }}
-        onConnected={onConnected}
-      />
+      {accountOpen && (
+        <Suspense fallback={null}>
+          <AccountDialog
+            open={accountOpen}
+            account={addingAccount ? null : account}
+            onClose={() => setAccountOpen(false)}
+            onDisconnected={() => {
+              setAccountOpen(false)
+              void refreshAccount()
+            }}
+            onConnected={onConnected}
+          />
+        </Suspense>
+      )}
 
       {onboarding && (
-        <Onboarding
-          onConnected={onConnected}
-          onDemo={() => {
-            markOnboarded()
-            setToast(t('onboarding.demoStarted'))
-          }}
-        />
+        <Suspense fallback={null}>
+          <Onboarding
+            onConnected={onConnected}
+            onDemo={() => {
+              markOnboarded()
+              setToast(t('onboarding.demoStarted'))
+            }}
+          />
+        </Suspense>
       )}
 
       {liveError && !connectionError && (
@@ -2012,11 +2075,15 @@ export function App(): React.JSX.Element {
         </div>
       )}
 
-      {attachmentPreview && (attachmentPreview.kind === 'image'
-        ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} revision={attachmentPreview.request} loadingLabel={t(`attachment.${attachmentPreview.phase}`)} onRetry={attachmentPreview.retry} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
-          onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />
-        : <DocumentViewer title={attachmentPreview.title} revision={attachmentPreview.request} loadingLabel={t(`attachment.${attachmentPreview.phase}`)} onRetry={attachmentPreview.retry} attachment={attachmentPreview.attachment} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
-          onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />)}
+      {attachmentPreview && (
+        <Suspense fallback={null}>
+          {attachmentPreview.kind === 'image'
+            ? <ImageViewer src={attachmentPreview.attachment?.kind === 'image' ? attachmentPreview.attachment.src : undefined} title={attachmentPreview.title} revision={attachmentPreview.request} loadingLabel={t(`attachment.${attachmentPreview.phase}`)} onRetry={attachmentPreview.retry} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
+              onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />
+            : <DocumentViewer title={attachmentPreview.title} revision={attachmentPreview.request} loadingLabel={t(`attachment.${attachmentPreview.phase}`)} onRetry={attachmentPreview.retry} attachment={attachmentPreview.attachment} error={attachmentPreview.error} saving={savingAttachment !== null} onSave={attachmentPreview.save}
+              onClose={() => { attachmentRequest.current += 1; setAttachmentPreview(null) }} />}
+        </Suspense>
+      )}
       {savingAttachment && <div className="toast" role="status">
         <Icon name="progress_activity" size={16} className="spin" />
         {t('attachment.preparing')}
