@@ -2233,8 +2233,8 @@
 .composer__fields {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px var(--sp-lg);
+  gap: 8px;
+  padding: 12px var(--sp-lg) 10px;
   background: var(--surface);
   flex-shrink: 0;
 }
@@ -2243,7 +2243,33 @@
   display: flex;
   align-items: center;
   gap: var(--sp-md);
-  min-height: 24px;
+  min-height: 30px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 30%, transparent);
+  transition: border-color var(--fast) var(--ease);
+}
+
+.field-row:focus-within {
+  border-bottom-color: var(--primary);
+}
+
+.field-row:has(.recipient-input) {
+  align-items: flex-start;
+}
+
+.field-row:has(.recipient-input) > .field-label {
+  padding-top: 9px;
+}
+
+.field-row:has(.recipient-input) > .composer__cc-actions {
+  display: flex;
+  gap: var(--sp-sm);
+  padding-top: 5px;
+  flex-shrink: 0;
+}
+
+.field-row:has([aria-invalid="true"]) {
+  border-bottom-color: var(--error);
 }
 
 .field-label {
@@ -2305,20 +2331,19 @@
 
 .subject-input {
   flex: 1;
-  padding: 0 0 4px;
+  padding: 2px 0;
   border: 0;
-  border-bottom: 1px solid transparent;
   outline: 0;
   background: transparent;
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--on-surface);
-  transition: border-color var(--fast) var(--ease);
 }
 
-.subject-input:focus {
-  border-bottom-color: var(--primary);
+.subject-input::placeholder {
+  font-weight: 400;
+  color: var(--outline);
 }
 
 .composer__split {
@@ -5250,16 +5275,7 @@
 .recipient-input__entry > input {
   width: 100%;
   min-width: 0;
-  min-height: 32px;
-  border-bottom: 1px solid transparent;
-}
-
-.recipient-input__entry > input:focus {
-  border-bottom-color: var(--primary);
-}
-
-.recipient-input__entry > input[aria-invalid="true"] {
-  border-bottom-color: var(--error);
+  min-height: 30px;
 }
 
 .recipient--contact button:focus-visible {

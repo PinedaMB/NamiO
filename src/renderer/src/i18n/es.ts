@@ -277,6 +277,7 @@ export const es = {
   'compose.cc': 'Cc',
   'compose.bcc': 'Cco',
   'compose.subject': 'Asunto',
+  'compose.subjectPlaceholder': 'Añade un asunto…',
   'compose.placeholder': 'Escribe tu mensaje…',
   'compose.originalMessage': 'Mensaje original',
   'compose.attachmentAdded': 'Se adjuntó correctamente: {name}',

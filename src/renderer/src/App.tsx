@@ -31,10 +31,10 @@ import { StatusBar } from './components/StatusBar'
 import type { ReplyContext } from './components/ComposeOverlay'
 import { ERROR_KEYS } from './components/errorKeys'
 import { BootSplash } from './components/BootSplash'
+import { ImageViewer } from './components/ImageViewer'
 
 const FolderDialog = lazy(() => import('./components/FolderDialog').then(m => ({ default: m.FolderDialog })))
 const DocumentViewer = lazy(() => import('./components/DocumentViewer').then(m => ({ default: m.DocumentViewer })))
-const ImageViewer = lazy(() => import('./components/ImageViewer').then(m => ({ default: m.ImageViewer })))
 const MoveDialog = lazy(() => import('./components/MoveDialog').then(m => ({ default: m.MoveDialog })))
 const ContextRail = lazy(() => import('./components/ContextRail').then(m => ({ default: m.ContextRail })))
 const CommandPalette = lazy(() => import('./components/CommandPalette').then(m => ({ default: m.CommandPalette })))

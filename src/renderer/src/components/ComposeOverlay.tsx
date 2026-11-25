@@ -396,7 +396,7 @@ export function ComposeOverlay({
           <div className="field-row">
             <span className="field-label">{t('compose.to')}</span>
             <RecipientInput key={`${open}:${replyMode}:${to}`} field="to" initialValue={toValue} onChange={setToValue} suggest={!copilot} />
-            <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
+            <div className="composer__cc-actions">
               <button className="tool-btn" type="button" onClick={() => setCcOpen((value) => !value)}>
                 {t('compose.cc')}
               </button>
@@ -420,6 +420,7 @@ export function ComposeOverlay({
             <input
               className="subject-input"
               value={subjectValue}
+              placeholder={t('compose.subjectPlaceholder')}
               onChange={(event) => setSubjectValue(event.target.value)}
               aria-label={t('compose.subject')}
             />

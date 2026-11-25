@@ -1,7 +1,7 @@
 import { EditorContent, Mark, Node, ResizableNodeView, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n, type TranslationKey } from '../i18n'
 import { COMPOSE_FONTS, cleanComposeHtml, composeImageWidth, isComposeImage, isComposeLink, MAX_COMPOSE_IMAGE_BYTES, textToEditorContent } from '../lib/composeHtml'
 import { Icon } from './Icon'
@@ -74,6 +74,17 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState(false)
   const [pasteError, setPasteError] = useState<string | null>(null)
+  const lastEmittedRef = useRef<{ text: string; html: string } | null>(null)
+  const linkRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    if (!linkOpen) return
+    const onPointerDown = (event: MouseEvent): void => {
+      if (event.target instanceof globalThis.Node && !linkRef.current?.contains(event.target)) setLinkOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [linkOpen])
   const insertImages = (view: Parameters<NonNullable<Parameters<typeof useEditor>[0]['editorProps']>['handlePaste'] & {}>[0], files: File[]): boolean => {
     const imagesOnly = files.filter(file => file.type.startsWith('image/'))
     setPasteError(null)
@@ -90,7 +101,10 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
       reader.readAsDataURL(file)
     }))).then(images => {
       if (view.isDestroyed || !view.editable) return
-      for (const image of images) view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.image!.create(image)))
+      let tr = view.state.tr
+      const imageNodeType = view.state.schema.nodes.image!
+      for (const image of images) tr = tr.replaceSelectionWith(imageNodeType.create(image))
+      view.dispatch(tr)
       view.focus()
     }).catch(() => { if (!view.isDestroyed) setPasteError(t('compose.imageFailed')) })
     return true
@@ -127,7 +141,10 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
       },
       handlePaste(view, event) {
         const files = [...(event.clipboardData?.files ?? [])]
-        if (!files.some(file => file.type.startsWith('image/'))) return false
+        if (!files.some(file => file.type.startsWith('image/'))) {
+          setPasteError(null)
+          return false
+        }
         event.preventDefault()
         return insertImages(view, files)
       },
@@ -138,15 +155,25 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
         return insertImages(view, files)
       }
     },
-    onUpdate: ({ editor }) => onChange(editor.getText({ blockSeparator: '\n' }), cleanComposeHtml(editor.getHTML()))
+    onUpdate: ({ editor }) => {
+      const nextText = editor.getText({ blockSeparator: '\n' })
+      const nextHtml = cleanComposeHtml(editor.getHTML())
+      lastEmittedRef.current = { text: nextText, html: nextHtml }
+      onChange(nextText, nextHtml)
+    }
   })
   const editor = instance && !instance.isDestroyed ? instance : null
   useEditorState({ editor, selector: ({ editor }) => editor ? { textStyle: editor.getAttributes('textStyle'), image: editor.isActive('image') ? editor.getAttributes('image') : null, active: ['bold', 'italic', 'underline', 'strike', 'link', 'bulletList', 'orderedList', 'blockquote'].map(mark => editor.isActive(mark)), undo: editor.can().undo(), redo: editor.can().redo() } : null })
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
-    const matches = html ? cleanComposeHtml(editor.getHTML()) === html : editor.getText({ blockSeparator: '\n' }) === text
-    if (!matches) editor.commands.setContent(html ? cleanComposeHtml(html) : textToEditorContent(text), { emitUpdate: false })
+    if (lastEmittedRef.current && (html ? lastEmittedRef.current.html === html : lastEmittedRef.current.text === text)) return
+    const targetHtml = html ? cleanComposeHtml(html) : undefined
+    const matches = targetHtml !== undefined ? cleanComposeHtml(editor.getHTML()) === targetHtml : editor.getText({ blockSeparator: '\n' }) === text
+    if (!matches) {
+      lastEmittedRef.current = targetHtml !== undefined ? { text, html: targetHtml } : { text, html: '' }
+      editor.commands.setContent(targetHtml ?? textToEditorContent(text), { emitUpdate: false })
+    }
   }, [editor, text, html])
 
   useEffect(() => { if (editor && !editor.isDestroyed) editor.setEditable(!disabled) }, [editor, disabled])
@@ -204,7 +231,7 @@ export function RichTextEditor({ text, html, disabled, onChange, onAttach, signa
         <TooltipButton className="icon-btn" type="button" title={t('compose.attach')} disabled={disabled || !onAttach} onClick={onAttach}><Icon name="attach_file" size={17} /></TooltipButton>
       </div>
     </div>
-    {linkOpen && <form className="rich-editor__link" data-editor-popup onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setLinkOpen(false) } }} onSubmit={event => {
+    {linkOpen && <form ref={linkRef} className="rich-editor__link" data-editor-popup onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setLinkOpen(false) } }} onSubmit={event => {
       event.preventDefault()
       const href = link.trim()
       if (href && !isComposeLink(href)) { setLinkError(true); return }

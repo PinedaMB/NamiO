@@ -274,6 +274,7 @@ export const en: Dictionary = {
   'compose.cc': 'Cc',
   'compose.bcc': 'Bcc',
   'compose.subject': 'Subject',
+  'compose.subjectPlaceholder': 'Add a subject…',
   'compose.placeholder': 'Write your message…',
   'compose.originalMessage': 'Original message',
   'compose.attachmentAdded': 'File attached: {name}',
