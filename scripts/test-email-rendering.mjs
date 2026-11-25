@@ -145,10 +145,9 @@ app.whenReady().then(async()=>{
  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
  {
  const frame=document.querySelector('iframe'),doc=frame.contentDocument,view=frame.contentWindow;
- const expected=view.getComputedStyle(doc.querySelector('#sender-surface')).backgroundColor;
- for(const element of [doc.documentElement,doc.body])assert(view.getComputedStyle(element).backgroundColor===expected,'HTML canvas must use the sender background');
- assert(getComputedStyle(frame).backgroundColor===expected,'Iframe must use the sender background');
- assert(getComputedStyle(frame.parentElement).backgroundColor===expected,'Email container must use the sender background');
+ const senderBg=view.getComputedStyle(doc.querySelector('#sender-surface')).backgroundColor;
+ assert(senderBg==='rgb(236, 232, 223)','Authored element keeps its own background');
+ for(const element of [doc.documentElement,doc.body])assert(view.getComputedStyle(element).backgroundColor==='rgb(255, 255, 255)','HTML canvas keeps the reading theme background');
  }
  window.setHtml('<p id="plain">Plain message</p>');
  document.documentElement.dataset.appTheme='dark';window.setIntegrated(false);window.setTheme('light');

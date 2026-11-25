@@ -28,7 +28,7 @@ import { ThreadList } from './components/ThreadList'
 import { SearchResults } from './components/SearchResults'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
 import { StatusBar } from './components/StatusBar'
-import type { ReplyContext } from './components/ComposeOverlay'
+import { ComposeOverlay, type ReplyContext } from './components/ComposeOverlay'
 import { ERROR_KEYS } from './components/errorKeys'
 import { BootSplash } from './components/BootSplash'
 import { ImageViewer } from './components/ImageViewer'
@@ -38,7 +38,6 @@ const DocumentViewer = lazy(() => import('./components/DocumentViewer').then(m =
 const MoveDialog = lazy(() => import('./components/MoveDialog').then(m => ({ default: m.MoveDialog })))
 const ContextRail = lazy(() => import('./components/ContextRail').then(m => ({ default: m.ContextRail })))
 const CommandPalette = lazy(() => import('./components/CommandPalette').then(m => ({ default: m.CommandPalette })))
-const ComposeOverlay = lazy(() => import('./components/ComposeOverlay').then(m => ({ default: m.ComposeOverlay })))
 const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })))
 const AccountDialog = lazy(() => import('./components/AccountDialog').then(m => ({ default: m.AccountDialog })))
 const Onboarding = lazy(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })))
@@ -1945,7 +1944,6 @@ export function App(): React.JSX.Element {
       {contextMenu && contextActions.length > 0 && <ContextMenu anchor={contextMenu} label={contextMenu.kind === 'folder' ? folderViews.find(item => item.id === contextMenu.id)?.label ?? contextMenu.id : selected?.subject ?? ''} actions={contextActions} onClose={closeContextMenu} />}
 
       {compose !== null && (
-        <Suspense fallback={null}>
           <ComposeOverlay
         key={`${accountIdentity.current ?? 'demo'}:${composeSession}`}
         open={compose !== null}
@@ -2011,7 +2009,6 @@ export function App(): React.JSX.Element {
             void refreshOutbox()
           }}
           />
-        </Suspense>
       )}
 
       {accountOpen && (
