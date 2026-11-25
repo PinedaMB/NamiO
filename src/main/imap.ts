@@ -5,6 +5,7 @@ import { canDeleteMailbox, isDraftMailbox, isSpamMailbox } from '@shared/mailbox
 import { createHash } from 'node:crypto'
 import { ImapFlow, type MessageStructureObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
+import { parseMimeBuffer } from './mimeParser'
 import type {
   Draft,
   DraftServerRef,
@@ -90,6 +91,9 @@ interface Session {
 }
 
 let session: Session | null = null
+let bgSession: Session | null = null
+const bgOperations: { run: () => Promise<void> }[] = []
+let bgOperationRunning = false
 let newMailListener: ((account: StoredAccount, path: string, messages: Envelope[]) => void) | null = null
 export function setNewMailListener(listener: NonNullable<typeof newMailListener>): void {
   newMailListener = listener
@@ -143,6 +147,7 @@ function runtimeFor(accountId: string): AccountRuntime {
 }
 
 function stashActiveSession(): void {
+  void closeBackgroundSession()
   if (!session) return
   const rt = runtimeFor(session.accountId)
   if (idleParkTimer !== null) {
@@ -297,6 +302,27 @@ function serial<T>(fn: () => Promise<T>, priority: 'normal' | 'background' | 'in
   })
 }
 
+function serialBackground<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    bgOperations.push({
+      run: async () => {
+        try { resolve(await fn()) } catch (error) { reject(error) }
+      }
+    })
+    const drain = async (): Promise<void> => {
+      if (bgOperationRunning) return
+      bgOperationRunning = true
+      try {
+        let next: (typeof bgOperations)[number] | undefined
+        while ((next = bgOperations.shift())) await next.run()
+      } finally {
+        bgOperationRunning = false
+      }
+    }
+    void Promise.resolve().then(drain)
+  })
+}
+
 export function setCacheListener(listener: (mailbox: string) => void): void {
   cacheListener = listener
 }
@@ -407,7 +433,23 @@ async function openSession(config: ImapAccountConfig, auth: ImapAuth, accountId:
   offline = false
 }
 
+async function closeBackgroundSession(): Promise<void> {
+  const current = bgSession
+  bgSession = null
+  if (!current) return
+  try {
+    await current.client.logout()
+  } catch {
+    try {
+      current.client.close()
+    } catch {
+      // ya estaba cerrada
+    }
+  }
+}
+
 async function closeSession(): Promise<void> {
+  await closeBackgroundSession()
   if (idleParkTimer !== null) {
     clearTimeout(idleParkTimer)
     idleParkTimer = null
@@ -490,6 +532,76 @@ async function ensureClient(): Promise<ImapFlow> {
 
   if (!session) throw new Error('Connection failed')
   return session.client
+}
+
+/**
+ * Segunda conexión IMAP dedicada a tareas en segundo plano (sync histórica,
+ * descarga offline de cuerpos y búsqueda en Enviados) para no bloquear la
+ * conexión interactiva ni el IDLE de INBOX. Si el servidor rechaza la segunda
+ * conexión, degrada limpiamente a la conexión principal.
+ */
+async function ensureBackgroundClient(): Promise<ImapFlow> {
+  const activeId = cacheAccountId()
+  if (bgSession?.client.usable && bgSession.accountId === activeId) return bgSession.client
+  if (bgSession) await closeBackgroundSession()
+
+  const stored = await readActiveAccount()
+  if (!stored || stored.id !== activeId) throw new Error('No account configured')
+
+  const auth = await authFor(stored)
+  const config: ImapAccountConfig = {
+    host: stored.host,
+    port: stored.port,
+    secure: stored.secure,
+    user: stored.user
+  }
+  const makeClient = (ipv4Only = false): ImapFlow => {
+    const client = new ImapFlow({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: 'accessToken' in auth
+        ? { user: config.user, accessToken: auth.accessToken }
+        : { user: config.user, pass: auth.password },
+      logger: false,
+      disableAutoIdle: true,
+      connectionTimeout: 12_000,
+      greetingTimeout: 12_000,
+      ...(ipv4Only ? { tls: { rejectUnauthorized: true }, family: 4 } : {})
+    })
+    client.on('error', () => {
+      if (bgSession?.client === client) bgSession = null
+    })
+    client.on('close', () => {
+      if (bgSession?.client === client) bgSession = null
+    })
+    return client
+  }
+
+  let client = makeClient(false)
+  try {
+    await client.connect()
+  } catch (error) {
+    if (classify(error) === 'timeout') {
+      try { client.close() } catch { /* ya estaba cerrada */ }
+      client = makeClient(true)
+      try {
+        await client.connect()
+      } catch {
+        try { client.close() } catch { /* ya estaba cerrada */ }
+        return ensureClient()
+      }
+    } else {
+      try { client.close() } catch { /* ya estaba cerrada */ }
+      return ensureClient()
+    }
+  }
+  if (cacheAccountId() !== activeId) {
+    try { client.close() } catch { /* ya estaba cerrada */ }
+    throw accountChangedError()
+  }
+  bgSession = { client, config, accountId: activeId }
+  return client
 }
 
 /* ---------------------------------------------------------------------------
@@ -951,10 +1063,12 @@ function scheduleSync(path: string, limit: number, broadcast = false, forceResyn
 async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
   fullSyncRunning = true
   const generation = syncGeneration
+  const runBg = typeof serialBackground === 'function' ? serialBackground : <T,>(fn: () => Promise<T>): Promise<T> => serial(fn, 'background')
+  const getBgClient = typeof ensureBackgroundClient === 'function' ? ensureBackgroundClient : ensureClient
   try {
-    const uids = await serial(async () => {
+    const uids = await runBg(async () => {
       if (generation !== syncGeneration) return []
-      const client = await ensureClient()
+      const client = await getBgClient()
       const lock = await client.getMailboxLock(path)
       try {
         const found = await client.search({ all: true }, { uid: true })
@@ -963,30 +1077,49 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
       } finally {
         lock.release()
       }
-    }, 'background')
+    })
+
+    const toUidRange = (list: readonly number[]): string => {
+      if (list.length === 0) return ''
+      const sorted = [...list].sort((a, b) => a - b)
+      const parts: string[] = []
+      let start = sorted[0]!
+      let end = start
+      for (let i = 1; i < sorted.length; i++) {
+        const next = sorted[i]!
+        if (next === end + 1) {
+          end = next
+        } else {
+          parts.push(start === end ? String(start) : `${start}:${end}`)
+          start = end = next
+        }
+      }
+      parts.push(start === end ? String(start) : `${start}:${end}`)
+      return parts.join(',')
+    }
 
     const downloadBodies = async (): Promise<void> => {
       if ((await readSettings()).offlineDownload !== true) return
       const targetUids = uids
       const missingBodies = new Set(missingBodyUids(path))
       const bodyUids = targetUids.filter(uid => missingBodies.has(uid))
-      let available = targetUids.filter(uid => readBody(path, uid).fetched).length
+      let available = Math.min(countBodies(path), targetUids.length)
       publishProgress({ mailbox: path, cached: available, total: targetUids.length, running: true, phase: 'bodies' })
       for (let index = bodyUids.length - 1; index >= 0; index--) {
         if (generation !== syncGeneration) return
         const uid = bodyUids[index]!
-        const downloaded = await serial(async () => {
+        const downloaded = await runBg(async () => {
           const envelope = readEnvelope(path, uid)
           if (generation !== syncGeneration || !envelope || readBody(path, uid).fetched) return false
           if (envelope.size > MAX_OFFLINE_MESSAGE_BYTES) return false
           if (generation !== syncGeneration || (await readSettings()).offlineDownload !== true) return false
-          await cacheMessageBody(path, uid)
+          await cacheMessageBody(path, uid, false, await getBgClient())
           return generation === syncGeneration
-        }, 'background')
+        })
         if (generation !== syncGeneration) return
         if (!downloaded && (await readSettings()).offlineDownload !== true) break
         if (downloaded) available++
-        if (index % chunk === 0) available = targetUids.filter(uid => readBody(path, uid).fetched).length
+        if (index % chunk === 0) available = Math.min(countBodies(path), targetUids.length)
         if (downloaded || index % chunk === 0) {
           publishProgress({ mailbox: path, cached: available, total: targetUids.length, running: true, phase: 'bodies' })
           notify(path)
@@ -996,27 +1129,40 @@ async function fullSyncMailbox(path: string, chunk: number): Promise<void> {
     }
 
     const pendingMetadata = new Set(missingEnvelopeMetadata(path))
+    const cachedSet = typeof cachedUids === 'function' ? new Set(cachedUids(path)) : null
+    let completeCount = cachedSet ? Math.max(0, cachedSet.size - pendingMetadata.size) : 0
     for (let end = uids.length; end > 0; end -= chunk) {
       if (generation !== syncGeneration) return
       const batch = uids.slice(Math.max(0, end - chunk), end)
-      const fetched = await serial(async () => {
+      if (cachedSet && batch.every((uid) => cachedSet.has(uid) && !pendingMetadata.has(uid))) continue
+      const fetched = await runBg(async () => {
         if (generation !== syncGeneration) return false
-        const cached = new Set(messagesByUids(path, batch).map((message) => message.uid))
+        const cached = cachedSet ?? new Set(messagesByUids(path, batch).map((message) => message.uid))
         const missing = batch.filter((uid) => !cached.has(uid) || pendingMetadata.has(uid))
         if (missing.length === 0) return false
-        const client = await ensureClient()
+        const client = await getBgClient()
         const lock = await client.getMailboxLock(path)
         try {
-          const envelopes = await fetchRange(client, missing.join(','), true)
-          if (generation === syncGeneration) upsertEnvelopes(path, envelopes)
+          const envelopes = await fetchRange(client, toUidRange(missing), true)
+          if (generation === syncGeneration) {
+            upsertEnvelopes(path, envelopes)
+            if (cachedSet) {
+              for (const env of envelopes) {
+                const wasComplete = cachedSet.has(env.uid) && !pendingMetadata.has(env.uid)
+                cachedSet.add(env.uid)
+                pendingMetadata.delete(env.uid)
+                if (!wasComplete) completeCount++
+              }
+            }
+          }
           return generation === syncGeneration
         } finally {
           lock.release()
         }
-      }, 'background')
+      })
       if (generation !== syncGeneration) return
       if (fetched) {
-        const complete = countMessages(path) - missingEnvelopeMetadata(path).length
+        const complete = cachedSet ? completeCount : (countMessages(path) - missingEnvelopeMetadata(path).length)
         publishProgress({ mailbox: path, cached: Math.max(0, Math.min(complete, uids.length)), total: uids.length, running: true, phase: 'headers' })
         notify(path)
         await sleep(120)
@@ -1137,12 +1283,12 @@ export async function listEnvelopes(
 }
 
 /** Guarda texto y HTML; al abrir, resuelve solo las imágenes CID referenciadas. */
-async function cacheMessageBody(path: string, uid: number, includeInlineImages = false): Promise<void> {
+async function cacheMessageBody(path: string, uid: number, includeInlineImages = false, clientOverride?: ImapFlow): Promise<void> {
   const generation = syncGeneration
   const envelope = readEnvelope(path, uid)
   // Los mensajes enormes no se guardan para offline: se abren bajo demanda.
   if (!envelope || (!includeInlineImages && envelope.size > MAX_OFFLINE_MESSAGE_BYTES)) return
-  const client = await ensureClient()
+  const client = clientOverride ?? await ensureClient()
   const lock = await client.getMailboxLock(path)
   try {
     const validity = getMailboxMeta(path)?.uidValidity
@@ -1171,7 +1317,7 @@ async function cacheMessageBody(path: string, uid: number, includeInlineImages =
     }
     let markup = html.length ? html.join('\n') : null
     const plain = text.length ? text.join('\n') : markup
-      ? (await simpleParser(Buffer.from(`Content-Type: text/html; charset=utf-8\r\n\r\n${markup}`))).text ?? '' : ''
+      ? (await (typeof parseMimeBuffer === 'function' ? parseMimeBuffer : simpleParser)(Buffer.from(`Content-Type: text/html; charset=utf-8\r\n\r\n${markup}`))).text ?? '' : ''
     if (includeInlineImages && markup) {
       const images = new Map<string, string>()
       const references = new Set([...markup.matchAll(/\bcid:([^"'<>\s)]+)/gi)].map(match => match[1]!))
@@ -1255,9 +1401,11 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
   if (pendingIds.length === 0) return { ok: true, data: locations(relatedMessageUids(sent, ids)), meta: syncMeta() }
   try {
     let validity: string | undefined
-    const inSent = <T,>(run: (client: ImapFlow) => Promise<T>): Promise<T> => serial(async () => {
+    const runBg = typeof serialBackground === 'function' ? serialBackground : <T,>(fn: () => Promise<T>): Promise<T> => serial(fn, 'background')
+    const getBgClient = typeof ensureBackgroundClient === 'function' ? ensureBackgroundClient : ensureClient
+    const inSent = <T,>(run: (client: ImapFlow) => Promise<T>): Promise<T> => runBg(async () => {
       if (generation !== syncGeneration) throw accountChangedError()
-      const client = await ensureClient()
+      const client = await getBgClient()
       const lock = await client.getMailboxLock(sent)
       try {
         if (!client.mailbox) throw new Error('No se pudo abrir Enviados')
@@ -1271,7 +1419,7 @@ export async function getSentReplies(path: string, uids: number[], cachedOnly = 
         }
         return await run(client)
       } finally { lock.release() }
-    }, 'background')
+    })
     const found = new Set<number>()
     const searchIds = async (group: string[]): Promise<void> => {
       const result = await inSent(client => client.search({ or: group.flatMap(id => ['Message-ID', 'In-Reply-To', 'References'].map(header => ({ header: { [header]: id } }))) }, { uid: true }))
@@ -1521,7 +1669,7 @@ export function appendToSent(raw: Buffer, accountId?: string): Promise<void> {
     const appended = await client.append(sent, raw, ['\\Seen'])
     if (!appended) throw new Error('No se pudo guardar la copia en Enviados')
     if (raw.length > MAX_MESSAGE_BYTES) return
-    const parsed = await simpleParser(raw)
+    const parsed = await (typeof parseMimeBuffer === 'function' ? parseMimeBuffer : simpleParser)(raw)
     if (!parsed.messageId) return
     const lock = await client.getMailboxLock(sent)
     try {

@@ -1,7 +1,9 @@
+import { Buffer } from 'node:buffer'
 import { readdir, rm, stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import * as zlib from 'node:zlib'
+import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { app } from 'electron'
 import type { CacheUsage, Draft, Envelope, EnvelopeListOptions, MailboxInfo, RecipientSuggestion } from '@shared/ipc'
 
@@ -54,7 +56,63 @@ export interface MailboxMeta {
 }
 
 const handles = new Map<string, DatabaseSync>()
+const statementCache = new WeakMap<DatabaseSync, Map<string, StatementSync>>()
+let savepointSeq = 0
 let db: DatabaseSync | null = null
+
+function stmt(database: DatabaseSync, sql: string): StatementSync {
+  let cache = statementCache.get(database)
+  if (!cache) {
+    cache = new Map()
+    statementCache.set(database, cache)
+  }
+  let prepared = cache.get(sql)
+  if (!prepared) {
+    prepared = database.prepare(sql)
+    cache.set(sql, prepared)
+  }
+  return prepared
+}
+
+const COMPRESS_MIN_BYTES = 256
+const zstdCompress = (zlib as unknown as { zstdCompressSync?: (buf: Buffer) => Buffer }).zstdCompressSync
+const zstdDecompress = (zlib as unknown as { zstdDecompressSync?: (buf: Uint8Array) => Buffer }).zstdDecompressSync
+
+function encodeBody(value: string | null): string | Buffer | null {
+  if (value === null) return null
+  if (value.length < COMPRESS_MIN_BYTES) return value
+  const raw = Buffer.from(value, 'utf8')
+  if (typeof zstdCompress === 'function') return zstdCompress(raw)
+  return zlib.gzipSync(raw, { level: 6 })
+}
+
+function decodeBody(value: string | Uint8Array | null | undefined): string | null {
+  if (value == null) return null
+  if (typeof value === 'string') return value
+  // Zstandard magic number: 0x28 0xB5 0x2F 0xFD
+  if (value.length >= 4 && value[0] === 0x28 && value[1] === 0xb5 && value[2] === 0x2f && value[3] === 0xfd && typeof zstdDecompress === 'function') {
+    return zstdDecompress(value).toString('utf8')
+  }
+  // Gzip magic number: 0x1F 0x8B
+  if (value.length >= 2 && value[0] === 0x1f && value[1] === 0x8b) {
+    return zlib.gunzipSync(value).toString('utf8')
+  }
+  return Buffer.from(value).toString('utf8')
+}
+
+function inAtomic<T>(database: DatabaseSync, fn: () => T): T {
+  const name = `sp_${++savepointSeq}`
+  database.exec(`SAVEPOINT ${name}`)
+  try {
+    const result = fn()
+    database.exec(`RELEASE SAVEPOINT ${name}`)
+    return result
+  } catch (error) {
+    database.exec(`ROLLBACK TO SAVEPOINT ${name}`)
+    database.exec(`RELEASE SAVEPOINT ${name}`)
+    throw error
+  }
+}
 let openedAccountId = ''
 let openedCacheFile = ''
 export function cacheAccountId(): string { return openedAccountId }
@@ -74,6 +132,9 @@ function openDatabase(accountId: string): DatabaseSync {
   database.exec('PRAGMA journal_mode = WAL')
   database.exec('PRAGMA synchronous = NORMAL')
   database.exec('PRAGMA busy_timeout = 5000')
+  database.exec('PRAGMA temp_store = MEMORY')
+  database.exec('PRAGMA cache_size = -16000')
+  database.exec('PRAGMA mmap_size = 67108864')
   database.exec(`
     CREATE TABLE IF NOT EXISTS mailboxes (
       path TEXT PRIMARY KEY,
@@ -171,6 +232,24 @@ function openDatabase(accountId: string): DatabaseSync {
       uid INTEGER NOT NULL,
       UNIQUE (mailbox, uid)
     );
+
+    CREATE TABLE IF NOT EXISTS message_bodies (
+      mailbox TEXT NOT NULL,
+      uid INTEGER NOT NULL,
+      body_text BLOB,
+      body_html BLOB,
+      to_json TEXT,
+      cc_json TEXT,
+      attachments_json TEXT,
+      PRIMARY KEY (mailbox, uid)
+    );
+
+    CREATE TABLE IF NOT EXISTS message_refs (
+      mailbox TEXT NOT NULL,
+      ref_id TEXT NOT NULL,
+      uid INTEGER NOT NULL,
+      PRIMARY KEY (mailbox, ref_id, uid)
+    ) WITHOUT ROWID;
   `)
 
   database.exec('CREATE TABLE IF NOT EXISTS recipient_cache (email TEXT PRIMARY KEY, uses INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)')
@@ -186,6 +265,10 @@ function openDatabase(accountId: string): DatabaseSync {
   }
   database.exec('CREATE INDEX IF NOT EXISTS idx_messages_message_id ON messages (mailbox, message_id)')
   database.exec('CREATE INDEX IF NOT EXISTS idx_messages_in_reply_to ON messages (mailbox, in_reply_to)')
+  database.exec('CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages (mailbox, date DESC, uid DESC) WHERE unread = 1')
+  database.exec("CREATE INDEX IF NOT EXISTS idx_messages_from ON messages (from_addr, from_name, date DESC) WHERE from_addr != ''")
+  database.exec('CREATE INDEX IF NOT EXISTS idx_messages_all_date ON messages (date DESC)')
+  database.exec('CREATE INDEX IF NOT EXISTS idx_message_refs_uid ON message_refs (mailbox, uid)')
 
   // Migración aditiva: la tabla ya existe en instalaciones previas.
   try {
@@ -194,6 +277,9 @@ function openDatabase(accountId: string): DatabaseSync {
     // la columna ya estaba
   }
 
+  // Migraciones aditivas: cuerpos separados con compresión y tabla de referencias.
+  migrateMessageBodies(database)
+  migrateMessageRefs(database)
   // El índice de búsqueda usa identificadores estables.
   migrateSearchIndex(database)
 
@@ -243,6 +329,8 @@ export function inTransaction<T>(fn: () => T, accountId?: string): T {
 export function closeAccountCache(accountId: string): void {
   const target = handles.get(accountId)
   if (target) {
+    try { target.exec("INSERT INTO search(search) VALUES('merge', 200)") } catch { /* ignore */ }
+    try { target.exec('PRAGMA optimize') } catch { /* ignore */ }
     target.close()
     handles.delete(accountId)
   }
@@ -254,7 +342,11 @@ export function closeAccountCache(accountId: string): void {
 }
 
 export function closeCache(): void {
-  for (const database of handles.values()) database.close()
+  for (const database of handles.values()) {
+    try { database.exec("INSERT INTO search(search) VALUES('merge', 200)") } catch { /* ignore */ }
+    try { database.exec('PRAGMA optimize') } catch { /* ignore */ }
+    database.close()
+  }
   handles.clear()
   db = null
   openedAccountId = ''
@@ -289,6 +381,8 @@ export function replaceMailboxes(mailboxes: readonly MailboxInfo[]): void {
       if (paths.has(box.path)) continue
       database.prepare('DELETE FROM search WHERE rowid IN (SELECT id FROM search_ids WHERE mailbox = ?)').run(box.path)
       database.prepare('DELETE FROM search_ids WHERE mailbox = ?').run(box.path)
+      database.prepare('DELETE FROM message_bodies WHERE mailbox = ?').run(box.path)
+      database.prepare('DELETE FROM message_refs WHERE mailbox = ?').run(box.path)
       database.prepare('DELETE FROM messages WHERE mailbox = ?').run(box.path)
       database.prepare('DELETE FROM mailboxes WHERE path = ?').run(box.path)
     }
@@ -315,8 +409,7 @@ export function readMailboxes(accountId?: string): MailboxInfo[] {
 }
 
 export function getMailboxMeta(path: string): MailboxMeta | null {
-  const row = handle()
-    .prepare('SELECT * FROM mailboxes WHERE path = ?')
+  const row = stmt(handle(), 'SELECT * FROM mailboxes WHERE path = ?')
     .get(path) as unknown as MailboxRow | undefined
 
   if (!row) return null
@@ -339,6 +432,8 @@ export function clearMailbox(path: string): void {
     // índice por su columna `mailbox` (UNINDEXED).
     database.prepare('DELETE FROM search WHERE rowid IN (SELECT id FROM search_ids WHERE mailbox = ?)').run(path)
     database.prepare('DELETE FROM search_ids WHERE mailbox = ?').run(path)
+    database.prepare('DELETE FROM message_bodies WHERE mailbox = ?').run(path)
+    database.prepare('DELETE FROM message_refs WHERE mailbox = ?').run(path)
     database.prepare('DELETE FROM messages WHERE mailbox = ?').run(path)
     database
       .prepare('UPDATE mailboxes SET uid_validity = NULL, uid_next = NULL, synced_at = NULL, highest_modseq = NULL WHERE path = ?')
@@ -374,16 +469,19 @@ export function saveMailboxSync(
 export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[], accountId?: string): number[] {
   const database = handle(accountId)
 
-  const previos = new Map<number, { subject: string; fromName: string; fromAddr: string }>()
+  const previos = new Map<number, { subject: string; fromName: string; fromAddr: string; refs: string | null }>()
   if (envelopes.length > 0) {
-    const placeholders = envelopes.map(() => '?').join(',')
-    const rows = database
-      .prepare(`SELECT uid, subject, from_name, from_addr FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`)
-      .all(mailbox, ...envelopes.map((envelope) => envelope.uid)) as unknown as { uid: number; subject: string; from_name: string; from_addr: string }[]
-    for (const row of rows) previos.set(row.uid, { subject: row.subject, fromName: row.from_name, fromAddr: row.from_addr })
+    for (let offset = 0; offset < envelopes.length; offset += 500) {
+      const batch = envelopes.slice(offset, offset + 500)
+      const placeholders = batch.map(() => '?').join(',')
+      const rows = database
+        .prepare(`SELECT uid, subject, from_name, from_addr, references_json FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`)
+        .all(mailbox, ...batch.map((envelope) => envelope.uid)) as unknown as { uid: number; subject: string; from_name: string; from_addr: string; references_json: string | null }[]
+      for (const row of rows) previos.set(row.uid, { subject: row.subject, fromName: row.from_name, fromAddr: row.from_addr, refs: row.references_json })
+    }
   }
 
-  const statement = database.prepare(`
+  const statement = stmt(database, `
     INSERT INTO messages (mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(mailbox, uid) DO UPDATE SET
@@ -400,12 +498,16 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[],
       has_attachments = excluded.has_attachments,
       priority = excluded.priority
   `)
+  const clearRefs = stmt(database, 'DELETE FROM message_refs WHERE mailbox = ? AND uid = ?')
+  const insertRef = stmt(database, 'INSERT OR IGNORE INTO message_refs (mailbox, ref_id, uid) VALUES (?, ?, ?)')
 
   database.exec('BEGIN')
   try {
     for (const envelope of envelopes) {
       const fromName = envelope.from?.name ?? ''
       const fromAddr = envelope.from?.address ?? ''
+      const refsList = envelope.references ?? []
+      const refsJson = JSON.stringify(refsList)
       statement.run(
         mailbox,
         envelope.uid,
@@ -418,14 +520,20 @@ export function upsertEnvelopes(mailbox: string, envelopes: readonly Envelope[],
         envelope.flagged ? 1 : 0,
         envelope.messageId ?? null,
         envelope.inReplyTo ?? null,
-        JSON.stringify(envelope.references ?? []),
+        refsJson,
         envelope.hasAttachments === undefined ? null : envelope.hasAttachments ? 1 : 0,
         envelope.priority ?? 'normal'
       )
+      const previous = previos.get(envelope.uid)
+      if (!previous || previous.refs !== refsJson) {
+        if (previous) clearRefs.run(mailbox, envelope.uid)
+        for (const refId of refsList) {
+          if (refId) insertRef.run(mailbox, refId, envelope.uid)
+        }
+      }
       // Refrescar flags o fechas no cambia el texto indexado. Reindexar cada
       // sobre obligaba a un DELETE por columnas UNINDEXED (escaneo completo del
       // FTS) en cada sincronización; solo se reindexa si cambió lo que se busca.
-      const previous = previos.get(envelope.uid)
       if (!previous || previous.subject !== envelope.subject || previous.fromName !== fromName || previous.fromAddr !== fromAddr) {
         reindexMessage(mailbox, envelope.uid)
       }
@@ -497,20 +605,23 @@ export function readUnifiedInbox(
 export function relatedMessageUids(mailbox: string, ids: readonly string[]): number[] {
   if (ids.length === 0) return []
   const placeholders = ids.map(() => '?').join(',')
-  const rows = handle().prepare(`SELECT uid FROM messages WHERE mailbox = ? AND (
-    message_id IN (${placeholders}) OR in_reply_to IN (${placeholders}) OR
-    EXISTS (SELECT 1 FROM json_each(COALESCE(messages.references_json, '[]')) WHERE value IN (${placeholders}))
-  ) ORDER BY date ASC, uid ASC`).all(mailbox, ...ids, ...ids, ...ids) as unknown as { uid: number }[]
+  const rows = handle().prepare(`SELECT m.uid FROM messages m
+    WHERE m.mailbox = ? AND m.uid IN (
+      SELECT uid FROM messages WHERE mailbox = ? AND message_id IN (${placeholders})
+      UNION
+      SELECT uid FROM messages WHERE mailbox = ? AND in_reply_to IN (${placeholders})
+      UNION
+      SELECT uid FROM message_refs WHERE mailbox = ? AND ref_id IN (${placeholders})
+    ) ORDER BY m.date ASC, m.uid ASC`).all(mailbox, mailbox, ...ids, mailbox, ...ids, mailbox, ...ids) as unknown as { uid: number }[]
   return rows.map(row => row.uid)
 }
 
 export function readEnvelope(mailbox: string, uid: number, accountId?: string): Envelope | null {
-  const row = handle(accountId)
-    .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority
-       FROM messages WHERE mailbox = ? AND uid = ?`
-    )
-    .get(mailbox, uid) as unknown as MessageRow | undefined
+  const row = stmt(
+    handle(accountId),
+    `SELECT mailbox, uid, subject, from_name, from_addr, date, size, unread, flagged, message_id, in_reply_to, references_json, has_attachments, priority
+     FROM messages WHERE mailbox = ? AND uid = ?`
+  ).get(mailbox, uid) as unknown as MessageRow | undefined
 
   if (!row) return null
   return {
@@ -530,8 +641,7 @@ export function readEnvelope(mailbox: string, uid: number, accountId?: string): 
 }
 
 export function setFlagged(mailbox: string, uid: number, flagged: boolean): void {
-  handle()
-    .prepare('UPDATE messages SET flagged = ? WHERE mailbox = ? AND uid = ?')
+  stmt(handle(), 'UPDATE messages SET flagged = ? WHERE mailbox = ? AND uid = ?')
     .run(flagged ? 1 : 0, mailbox, uid)
 }
 
@@ -572,19 +682,21 @@ export function updateFlags(
 
 export function deleteMessageRow(mailbox: string, uid: number): { unread: boolean } | null {
   const database = handle()
-  const row = database
-    .prepare('SELECT unread FROM messages WHERE mailbox = ? AND uid = ?')
-    .get(mailbox, uid) as unknown as { unread: number } | undefined
-  if (!row) return null
-  const key = database
-    .prepare('SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
-    .get(mailbox, uid) as unknown as { id: number } | undefined
-  if (key) {
-    database.prepare('DELETE FROM search WHERE rowid = ?').run(key.id)
-    database.prepare('DELETE FROM search_ids WHERE id = ?').run(key.id)
-  }
-  database.prepare('DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
-  return { unread: row.unread === 1 }
+  return inAtomic(database, () => {
+    const row = stmt(database, 'SELECT unread FROM messages WHERE mailbox = ? AND uid = ?')
+      .get(mailbox, uid) as unknown as { unread: number } | undefined
+    if (!row) return null
+    const key = stmt(database, 'SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
+      .get(mailbox, uid) as unknown as { id: number } | undefined
+    if (key) {
+      stmt(database, 'DELETE FROM search WHERE rowid = ?').run(key.id)
+      stmt(database, 'DELETE FROM search_ids WHERE id = ?').run(key.id)
+    }
+    stmt(database, 'DELETE FROM message_bodies WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+    stmt(database, 'DELETE FROM message_refs WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+    stmt(database, 'DELETE FROM messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+    return { unread: row.unread === 1 }
+  })
 }
 
 /**
@@ -592,8 +704,7 @@ export function deleteMessageRow(mailbox: string, uid: number): { unread: boolea
  * una acción (o una regla) saca un mensaje sin leer, el badge baja en el acto.
  */
 export function adjustMailboxUnseen(mailbox: string, delta: number): void {
-  handle()
-    .prepare('UPDATE mailboxes SET unseen = MAX(0, unseen + ?) WHERE path = ?')
+  stmt(handle(), 'UPDATE mailboxes SET unseen = MAX(0, unseen + ?) WHERE path = ?')
     .run(delta, mailbox)
 }
 
@@ -601,23 +712,31 @@ export function adjustMailboxUnseen(mailbox: string, delta: number): void {
 export function pruneExcept(mailbox: string, uids: readonly number[]): void {
   const database = handle()
   if (uids.length === 0) {
-    database.prepare('DELETE FROM messages WHERE mailbox = ?').run(mailbox)
-  } else {
-    const keep = new Set(uids)
-    const remove = cachedUids(mailbox).filter((uid) => !keep.has(uid))
+    inAtomic(database, () => {
+      stmt(database, 'DELETE FROM search WHERE rowid IN (SELECT id FROM search_ids WHERE mailbox = ?)').run(mailbox)
+      stmt(database, 'DELETE FROM search_ids WHERE mailbox = ?').run(mailbox)
+      stmt(database, 'DELETE FROM message_bodies WHERE mailbox = ?').run(mailbox)
+      stmt(database, 'DELETE FROM message_refs WHERE mailbox = ?').run(mailbox)
+      stmt(database, 'DELETE FROM messages WHERE mailbox = ?').run(mailbox)
+    })
+    return
+  }
+  const keep = new Set(uids)
+  const remove = cachedUids(mailbox).filter((uid) => !keep.has(uid))
+  if (remove.length === 0) return
+  inAtomic(database, () => {
     // Las listas de UIDs pueden superar el límite de variables de SQLite; se
     // borra por tandas en vez de construir un `NOT IN` gigante.
     for (let offset = 0; offset < remove.length; offset += 500) {
       const batch = remove.slice(offset, offset + 500)
-      database
-        .prepare(`DELETE FROM messages WHERE mailbox = ? AND uid IN (${batch.map(() => '?').join(', ')})`)
-        .run(mailbox, ...batch)
+      const placeholders = batch.map(() => '?').join(', ')
+      database.prepare(`DELETE FROM search WHERE rowid IN (SELECT id FROM search_ids WHERE mailbox = ? AND uid IN (${placeholders}))`).run(mailbox, ...batch)
+      database.prepare(`DELETE FROM search_ids WHERE mailbox = ? AND uid IN (${placeholders})`).run(mailbox, ...batch)
+      database.prepare(`DELETE FROM message_bodies WHERE mailbox = ? AND uid IN (${placeholders})`).run(mailbox, ...batch)
+      database.prepare(`DELETE FROM message_refs WHERE mailbox = ? AND uid IN (${placeholders})`).run(mailbox, ...batch)
+      database.prepare(`DELETE FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`).run(mailbox, ...batch)
     }
-  }
-  // Los ids de `search` siguen a `messages`: lo que ya no tiene mensaje se
-  // retira del índice en la misma pasada (antes quedaba como huérfano).
-  database.prepare('DELETE FROM search_ids WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.mailbox = search_ids.mailbox AND m.uid = search_ids.uid)').run()
-  database.prepare('DELETE FROM search WHERE rowid NOT IN (SELECT id FROM search_ids)').run()
+  })
 }
 
 /* ---------------------------------------------------------------------------
@@ -647,8 +766,22 @@ export function listDrafts(): DraftRow[] {
 }
 
 export function readDraft(id?: string): DraftRow | null {
-  const drafts = listDrafts()
-  return (id ? drafts.find(draft => draft.id === id) : drafts[0]) ?? null
+  const database = handle()
+  const row = (id
+    ? stmt(database, 'SELECT * FROM drafts WHERE id = ?').get(id)
+    : stmt(database, 'SELECT * FROM drafts ORDER BY updated_at DESC LIMIT 1').get()) as unknown as {
+    id: string; to_field: string; cc: string; subject: string; body: string; updated_at: number; metadata_json: string | null
+  } | undefined
+  if (!row) return null
+  return {
+    ...(row.metadata_json ? JSON.parse(row.metadata_json) : {}),
+    id: row.id,
+    to: row.to_field,
+    cc: row.cc,
+    subject: row.subject,
+    body: row.body,
+    updatedAt: row.updated_at
+  }
 }
 
 export function clearDraft(id?: string): void {
@@ -782,15 +915,13 @@ export function deleteOutbox(id: string): void {
 }
 
 export function countUnread(mailbox: string): number {
-  const row = handle()
-    .prepare('SELECT COUNT(*) AS total FROM messages WHERE mailbox = ? AND unread = 1')
+  const row = stmt(handle(), 'SELECT COUNT(*) AS total FROM messages WHERE mailbox = ? AND unread = 1')
     .get(mailbox) as unknown as { total: number }
   return row.total
 }
 
 export function countMessages(mailbox: string): number {
-  const row = handle()
-    .prepare('SELECT COUNT(*) AS total FROM messages WHERE mailbox = ?')
+  const row = stmt(handle(), 'SELECT COUNT(*) AS total FROM messages WHERE mailbox = ?')
     .get(mailbox) as unknown as { total: number }
   return row.total
 }
@@ -812,21 +943,28 @@ export interface CachedBody {
 }
 
 export function missingBodyUids(mailbox: string): number[] {
-  const rows = handle().prepare('SELECT uid FROM messages WHERE mailbox = ? AND body_text IS NULL AND body_html IS NULL')
-    .all(mailbox) as { uid: number }[]
+  const rows = stmt(
+    handle(),
+    'SELECT m.uid FROM messages m LEFT JOIN message_bodies b ON b.mailbox = m.mailbox AND b.uid = m.uid WHERE m.mailbox = ? AND b.uid IS NULL'
+  ).all(mailbox) as { uid: number }[]
   return rows.map(row => row.uid)
 }
 
 export function countBodies(mailbox: string): number {
-  const row = handle().prepare('SELECT COUNT(*) AS count FROM messages WHERE mailbox = ? AND (body_text IS NOT NULL OR body_html IS NOT NULL)')
+  const row = stmt(handle(), 'SELECT COUNT(*) AS count FROM message_bodies WHERE mailbox = ?')
     .get(mailbox) as { count: number }
   return row.count
 }
 
 export function readBody(mailbox: string, uid: number): CachedBody {
-  const row = handle()
-    .prepare('SELECT body_text, body_html, to_json, cc_json, attachments_json FROM messages WHERE mailbox = ? AND uid = ?')
-    .get(mailbox, uid) as unknown as (MessageRow & { attachments_json: string | null }) | undefined
+  const row = stmt(handle(), 'SELECT body_text, body_html, to_json, cc_json, attachments_json FROM message_bodies WHERE mailbox = ? AND uid = ?')
+    .get(mailbox, uid) as unknown as {
+      body_text: string | Uint8Array | null
+      body_html: string | Uint8Array | null
+      to_json: string | null
+      cc_json: string | null
+      attachments_json: string | null
+    } | undefined
 
   const parseAddresses = (value: string | null): { name: string; address: string }[] => {
     if (!value) return []
@@ -848,13 +986,16 @@ export function readBody(mailbox: string, uid: number): CachedBody {
     }
   }
 
+  const text = decodeBody(row?.body_text)
+  const html = decodeBody(row?.body_html)
+
   return {
-    text: row?.body_text ?? null,
-    html: row?.body_html ?? null,
+    text,
+    html,
     to: parseAddresses(row?.to_json ?? null),
     cc: parseAddresses(row?.cc_json ?? null),
     attachments: parseAttachments(row?.attachments_json ?? null),
-    fetched: row != null && (row.body_text !== null || row.body_html !== null)
+    fetched: row != null && (text !== null || html !== null)
   }
 }
 
@@ -869,63 +1010,156 @@ export function saveBody(
     attachments: { name: string; size: number; type: string; part?: string }[]
   }
 ): void {
-  handle()
-    .prepare(
-      `UPDATE messages SET body_text = ?, body_html = ?, to_json = ?, cc_json = ?, attachments_json = ?
-       WHERE mailbox = ? AND uid = ?`
-    )
-    .run(
-      body.text,
-      body.html,
+  const database = handle()
+  inAtomic(database, () => {
+    stmt(
+      database,
+      `INSERT INTO message_bodies (mailbox, uid, body_text, body_html, to_json, cc_json, attachments_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(mailbox, uid) DO UPDATE SET
+         body_text = excluded.body_text,
+         body_html = excluded.body_html,
+         to_json = excluded.to_json,
+         cc_json = excluded.cc_json,
+         attachments_json = excluded.attachments_json`
+    ).run(
+      mailbox,
+      uid,
+      encodeBody(body.text),
+      encodeBody(body.html),
       JSON.stringify(body.to),
       JSON.stringify(body.cc),
-      JSON.stringify(body.attachments),
-      mailbox,
-      uid
+      JSON.stringify(body.attachments)
     )
-
-  // El cuerpo recién descargado entra al índice de búsqueda.
-  reindexMessage(mailbox, uid)
+    // El cuerpo recién descargado entra al índice de búsqueda.
+    reindexMessage(mailbox, uid)
+  })
 }
 
 /** Reindexa un mensaje (asunto, remitentes y cuerpo si ya se descargó). */
 export function reindexMessage(mailbox: string, uid: number): void {
   const database = handle()
-  const row = database
-    .prepare('SELECT subject, from_name, from_addr, body_text FROM messages WHERE mailbox = ? AND uid = ?')
-    .get(mailbox, uid) as unknown as
-    | { subject: string; from_name: string; from_addr: string; body_text: string | null }
+  const row = stmt(
+    database,
+    `SELECT m.subject, m.from_name, m.from_addr, b.body_text
+     FROM messages m
+     LEFT JOIN message_bodies b ON b.mailbox = m.mailbox AND b.uid = m.uid
+     WHERE m.mailbox = ? AND m.uid = ?`
+  ).get(mailbox, uid) as unknown as
+    | { subject: string; from_name: string; from_addr: string; body_text: string | Uint8Array | null }
     | undefined
 
-  const key = database
-    .prepare('SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
+  const key = stmt(database, 'SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
     .get(mailbox, uid) as unknown as { id: number } | undefined
 
   if (!row) {
     // Sin mensaje no hay nada que indexar; se retira también su identidad.
     if (key) {
-      database.prepare('DELETE FROM search WHERE rowid = ?').run(key.id)
-      database.prepare('DELETE FROM search_ids WHERE id = ?').run(key.id)
+      stmt(database, 'DELETE FROM search WHERE rowid = ?').run(key.id)
+      stmt(database, 'DELETE FROM search_ids WHERE id = ?').run(key.id)
     }
     return
   }
 
-  const inserted = database
-    .prepare('INSERT OR IGNORE INTO search_ids (mailbox, uid) VALUES (?, ?)')
-    .run(mailbox, uid)
-  const id = Number(inserted.changes) === 1
-    ? Number(inserted.lastInsertRowid)
-    : (database
-        .prepare('SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
-        .get(mailbox, uid) as unknown as { id: number }).id
+  let id = key?.id
+  if (id === undefined) {
+    const inserted = stmt(database, 'INSERT OR IGNORE INTO search_ids (mailbox, uid) VALUES (?, ?)')
+      .run(mailbox, uid)
+    id = Number(inserted.changes) === 1
+      ? Number(inserted.lastInsertRowid)
+      : (stmt(database, 'SELECT id FROM search_ids WHERE mailbox = ? AND uid = ?')
+          .get(mailbox, uid) as unknown as { id: number }).id
+  }
 
   // Borrar e insertar por id es O(1); `WHERE mailbox = ? AND uid = ?` recorre
   // el índice completo porque ambas columnas son UNINDEXED.
-  database.prepare('DELETE FROM search WHERE rowid = ?').run(id)
+  stmt(database, 'DELETE FROM search WHERE rowid = ?').run(id)
   const peers = [row.from_name, row.from_addr].filter((part) => part !== '').join(' ')
-  database
-    .prepare('INSERT INTO search (rowid, subject, peers, body, mailbox, uid) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, row.subject, peers, row.body_text ?? '', mailbox, uid)
+  stmt(database, 'INSERT INTO search (rowid, subject, peers, body, mailbox, uid) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, row.subject, peers, decodeBody(row.body_text) ?? '', mailbox, uid)
+}
+
+/** Migra cuerpos almacenados en `messages` a `message_bodies` con compresión. */
+function migrateMessageBodies(database: DatabaseSync): void {
+  const applied = database.prepare("SELECT value FROM meta WHERE key = 'bodies_table_v1'").get() as
+    | { value: string }
+    | undefined
+  if (applied?.value === '1') return
+
+  database.exec('BEGIN')
+  try {
+    const rows = database
+      .prepare('SELECT mailbox, uid, body_text, body_html, to_json, cc_json, attachments_json FROM messages WHERE body_text IS NOT NULL OR body_html IS NOT NULL')
+      .all() as unknown as {
+      mailbox: string
+      uid: number
+      body_text: string | null
+      body_html: string | null
+      to_json: string | null
+      cc_json: string | null
+      attachments_json: string | null
+    }[]
+    const insertBody = database.prepare(
+      `INSERT OR REPLACE INTO message_bodies (mailbox, uid, body_text, body_html, to_json, cc_json, attachments_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    for (const row of rows) {
+      insertBody.run(
+        row.mailbox,
+        row.uid,
+        encodeBody(row.body_text),
+        encodeBody(row.body_html),
+        row.to_json,
+        row.cc_json,
+        row.attachments_json
+      )
+    }
+    if (rows.length > 0) {
+      database.exec('UPDATE messages SET body_text = NULL, body_html = NULL, to_json = NULL, cc_json = NULL, attachments_json = NULL WHERE body_text IS NOT NULL OR body_html IS NOT NULL')
+    }
+    database
+      .prepare("INSERT INTO meta (key, value) VALUES ('bodies_table_v1', '1') ON CONFLICT(key) DO UPDATE SET value = '1'")
+      .run()
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
+}
+
+/** Puebla `message_refs` a partir de `messages.references_json` en instalaciones previas. */
+function migrateMessageRefs(database: DatabaseSync): void {
+  const applied = database.prepare("SELECT value FROM meta WHERE key = 'message_refs_v1'").get() as
+    | { value: string }
+    | undefined
+  if (applied?.value === '1') return
+
+  database.exec('BEGIN')
+  try {
+    const rows = database
+      .prepare("SELECT mailbox, uid, references_json FROM messages WHERE references_json IS NOT NULL AND references_json != '[]' AND references_json != ''")
+      .all() as unknown as { mailbox: string; uid: number; references_json: string }[]
+    const insertRef = database.prepare('INSERT OR IGNORE INTO message_refs (mailbox, ref_id, uid) VALUES (?, ?, ?)')
+    for (const row of rows) {
+      try {
+        const refs = JSON.parse(row.references_json)
+        if (Array.isArray(refs)) {
+          for (const refId of refs) {
+            if (typeof refId === 'string' && refId) insertRef.run(row.mailbox, refId, row.uid)
+          }
+        }
+      } catch {
+        // Ignora JSON corrupto en sobres legacy.
+      }
+    }
+    database
+      .prepare("INSERT INTO meta (key, value) VALUES ('message_refs_v1', '1') ON CONFLICT(key) DO UPDATE SET value = '1'")
+      .run()
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 /**
@@ -943,12 +1177,16 @@ function migrateSearchIndex(database: DatabaseSync): void {
     database.exec('DELETE FROM search')
     database.exec('DELETE FROM search_ids')
     const rows = database
-      .prepare('SELECT subject, from_name, from_addr, body_text, mailbox, uid FROM messages')
+      .prepare(
+        `SELECT m.subject, m.from_name, m.from_addr, COALESCE(b.body_text, m.body_text) AS body_text, m.mailbox, m.uid
+         FROM messages m
+         LEFT JOIN message_bodies b ON b.mailbox = m.mailbox AND b.uid = m.uid`
+      )
       .all() as unknown as {
       subject: string
       from_name: string
       from_addr: string
-      body_text: string | null
+      body_text: string | Uint8Array | null
       mailbox: string
       uid: number
     }[]
@@ -957,7 +1195,7 @@ function migrateSearchIndex(database: DatabaseSync): void {
     for (const row of rows) {
       const id = Number(insertId.run(row.mailbox, row.uid).lastInsertRowid)
       const peers = [row.from_name, row.from_addr].filter((part) => part !== '').join(' ')
-      insertSearch.run(id, row.subject, peers, row.body_text ?? '', row.mailbox, row.uid)
+      insertSearch.run(id, row.subject, peers, decodeBody(row.body_text) ?? '', row.mailbox, row.uid)
     }
     database
       .prepare("INSERT INTO meta (key, value) VALUES ('fts_rowid_layout', '1') ON CONFLICT(key) DO UPDATE SET value = '1'")
@@ -978,6 +1216,63 @@ function toFtsQuery(query: string): string {
   return tokens.map((token) => `"${token}"*`).join(' ')
 }
 
+interface ParsedSearch {
+  fts: string
+  clauses: string[]
+  params: (string | number)[]
+}
+
+/** Extrae operadores estructurados (from:, subject:, has:attachment, is:unread/read/starred, in:, after:, before:). */
+function parseSearchQuery(query: string): ParsedSearch {
+  const clauses: string[] = []
+  const params: (string | number)[] = []
+  const freeTokens: string[] = []
+  const tokenRe = /([a-z]+):(?:"([^"]+)"|(\S+))|(\S+)/gi
+  let match: RegExpExecArray | null
+  while ((match = tokenRe.exec(query)) !== null) {
+    const key = match[1]?.toLowerCase()
+    const value = (match[2] ?? match[3] ?? '').trim()
+    if (!key) {
+      freeTokens.push(match[4]!)
+      continue
+    }
+    const lower = value.toLowerCase()
+    if (key === 'from' && lower) {
+      clauses.push("instr(lower(m.from_addr || ' ' || m.from_name), ?) > 0")
+      params.push(lower)
+    } else if (key === 'subject' && lower) {
+      clauses.push('instr(lower(m.subject), ?) > 0')
+      params.push(lower)
+    } else if ((key === 'in' || key === 'folder') && lower) {
+      clauses.push('instr(lower(m.mailbox), ?) > 0')
+      params.push(lower)
+    } else if (key === 'has' && (lower === 'attachment' || lower === 'attachments' || lower === 'adjunto' || lower === 'adjuntos')) {
+      clauses.push('m.has_attachments = 1')
+    } else if (key === 'is' && (lower === 'unread' || lower === 'noleido' || lower === 'sinleer')) {
+      clauses.push('m.unread = 1')
+    } else if (key === 'is' && (lower === 'read' || lower === 'leido')) {
+      clauses.push('m.unread = 0')
+    } else if (key === 'is' && (lower === 'starred' || lower === 'flagged' || lower === 'destacado')) {
+      clauses.push('m.flagged = 1')
+    } else if (key === 'after' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const ts = Date.parse(`${value}T00:00:00Z`)
+      if (Number.isFinite(ts)) {
+        clauses.push('m.date >= ?')
+        params.push(ts)
+      }
+    } else if (key === 'before' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const ts = Date.parse(`${value}T23:59:59.999Z`)
+      if (Number.isFinite(ts)) {
+        clauses.push('m.date <= ?')
+        params.push(ts)
+      }
+    } else {
+      freeTokens.push(match[0])
+    }
+  }
+  return { fts: toFtsQuery(freeTokens.join(' ')), clauses, params }
+}
+
 export function searchMessages(query: string, limit: number, offset = 0, accountId?: string): {
   mailbox: string
   uid: number
@@ -990,25 +1285,43 @@ export function searchMessages(query: string, limit: number, offset = 0, account
   flagged: boolean
   snippet: string
 }[] {
-  const expression = toFtsQuery(query)
-  if (expression === '') return []
+  const { fts, clauses, params } = parseSearchQuery(query)
+  if (fts === '' && clauses.length === 0) return []
 
-  const rows = handle(accountId)
-    .prepare(
-      `SELECT search.mailbox AS mailbox,
-              search.uid AS uid,
-              search.subject AS subject,
-              highlight(search, 0, '⟦', '⟧') AS subject_match,
-              snippet(search, 2, '⟦', '⟧', '…', 14) AS snippet,
-              m.date AS date, m.from_name AS from_name, m.from_addr AS from_addr,
-              m.unread AS unread, m.flagged AS flagged
-       FROM search
-       JOIN messages m ON m.mailbox = search.mailbox AND m.uid = search.uid
-       WHERE search MATCH ?
-       ORDER BY m.date DESC, search.mailbox ASC, search.uid DESC
-       LIMIT ? OFFSET ?`
-    )
-    .all(expression, limit, offset) as unknown as {
+  const database = handle(accountId)
+  const extraWhere = clauses.length > 0 ? ` AND ${clauses.join(' AND ')}` : ''
+  const rows = (fts !== ''
+    ? database
+        .prepare(
+          `SELECT search.mailbox AS mailbox,
+                  search.uid AS uid,
+                  search.subject AS subject,
+                  highlight(search, 0, '⟦', '⟧') AS subject_match,
+                  snippet(search, 2, '⟦', '⟧', '…', 14) AS snippet,
+                  m.date AS date, m.from_name AS from_name, m.from_addr AS from_addr,
+                  m.unread AS unread, m.flagged AS flagged
+           FROM search
+           JOIN messages m ON m.mailbox = search.mailbox AND m.uid = search.uid
+           WHERE search MATCH ?${extraWhere}
+           ORDER BY m.date DESC, search.mailbox ASC, search.uid DESC
+           LIMIT ? OFFSET ?`
+        )
+        .all(fts, ...params, limit, offset)
+    : database
+        .prepare(
+          `SELECT m.mailbox AS mailbox,
+                  m.uid AS uid,
+                  m.subject AS subject,
+                  m.subject AS subject_match,
+                  '' AS snippet,
+                  m.date AS date, m.from_name AS from_name, m.from_addr AS from_addr,
+                  m.unread AS unread, m.flagged AS flagged
+           FROM messages m
+           WHERE ${clauses.join(' AND ')}
+           ORDER BY m.date DESC, m.mailbox ASC, m.uid DESC
+           LIMIT ? OFFSET ?`
+        )
+        .all(...params, limit, offset)) as unknown as {
     mailbox: string
     uid: number
     subject: string
@@ -1206,31 +1519,40 @@ function mapMessage(row: {
 
 export function messagesByUids(mailbox: string, uids: readonly number[]): CachedMessage[] {
   if (uids.length === 0) return []
-  const placeholders = uids.map(() => '?').join(',')
-  const rows = handle()
-    .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, to_json
-       FROM messages WHERE mailbox = ? AND uid IN (${placeholders})`
-    )
-    .all(mailbox, ...uids) as unknown as {
-    mailbox: string
-    uid: number
-    subject: string
-    from_name: string
-    from_addr: string
-    to_json: string | null
-  }[]
-  return rows.map(mapMessage)
+  const database = handle()
+  const results: CachedMessage[] = []
+  for (let offset = 0; offset < uids.length; offset += 500) {
+    const batch = uids.slice(offset, offset + 500)
+    const placeholders = batch.map(() => '?').join(',')
+    const rows = database
+      .prepare(
+        `SELECT m.mailbox, m.uid, m.subject, m.from_name, m.from_addr, COALESCE(b.to_json, m.to_json) AS to_json
+         FROM messages m
+         LEFT JOIN message_bodies b ON b.mailbox = m.mailbox AND b.uid = m.uid
+         WHERE m.mailbox = ? AND m.uid IN (${placeholders})`
+      )
+      .all(mailbox, ...batch) as unknown as {
+      mailbox: string
+      uid: number
+      subject: string
+      from_name: string
+      from_addr: string
+      to_json: string | null
+    }[]
+    for (const row of rows) results.push(mapMessage(row))
+  }
+  return results
 }
 
 export function allCachedMessages(limit: number = 5000, offset = 0): CachedMessage[] {
-  const rows = handle()
-    .prepare(
-      `SELECT mailbox, uid, subject, from_name, from_addr, to_json
-       FROM messages WHERE mailbox NOT IN (SELECT path FROM mailboxes WHERE special_use = '\\Sent')
-       ORDER BY date DESC LIMIT ? OFFSET ?`
-    )
-    .all(limit, offset) as unknown as {
+  const rows = stmt(
+    handle(),
+    `SELECT m.mailbox, m.uid, m.subject, m.from_name, m.from_addr, COALESCE(b.to_json, m.to_json) AS to_json
+     FROM messages m
+     LEFT JOIN message_bodies b ON b.mailbox = m.mailbox AND b.uid = m.uid
+     WHERE m.mailbox NOT IN (SELECT path FROM mailboxes WHERE special_use = '\\Sent')
+     ORDER BY m.date DESC LIMIT ? OFFSET ?`
+  ).all(limit, offset) as unknown as {
     mailbox: string
     uid: number
     subject: string
@@ -1329,7 +1651,10 @@ export async function clearAccountCache(accountId: string): Promise<void> {
     try {
       const columns = database.prepare('PRAGMA table_info(messages)').all() as unknown as { name: string }[]
       const attachments = columns.some(column => column.name === 'attachments_json') ? ', attachments_json = NULL' : ''
-      database.exec(`UPDATE messages SET body_text = NULL, body_html = NULL${attachments}`)
+      if (database.prepare("SELECT name FROM sqlite_master WHERE name = 'message_bodies'").get()) {
+        database.exec('DELETE FROM message_bodies')
+      }
+      database.exec(`UPDATE messages SET body_text = NULL, body_html = NULL${attachments} WHERE body_text IS NOT NULL OR body_html IS NOT NULL`)
       if (database.prepare("SELECT name FROM sqlite_master WHERE name = 'search'").get()) {
         // Vaciar el cuerpo en el propio índice conserva asuntos y remitentes.
         // Se hace fila por fila para que FTS5 no tenga que abrir segmentos
@@ -1337,6 +1662,7 @@ export async function clearAccountCache(accountId: string): Promise<void> {
         const rows = database.prepare("SELECT rowid FROM search WHERE body <> ''").all() as unknown as { rowid: number }[]
         const clearBody = database.prepare("UPDATE search SET body = '' WHERE rowid = ?")
         for (const row of rows) clearBody.run(row.rowid)
+        try { database.exec("INSERT INTO search(search) VALUES('merge', 200)") } catch { /* ignore */ }
       }
       database.exec('COMMIT')
     } catch (cause) {
@@ -1396,13 +1722,16 @@ export function rememberRecipients(addresses: string[]): void {
 }
 
 export function suggestRecipients(query: string): RecipientSuggestion[] {
-  return handle().prepare(`
+  const term = query.trim().toLowerCase()
+  return stmt(handle(), `
     SELECT email, MAX(name) AS name FROM (
-      SELECT email, '' AS name, uses AS score, updated_at AS recent FROM recipient_cache
+      SELECT email, '' AS name, uses AS score, updated_at AS recent
+      FROM recipient_cache WHERE instr(lower(email), ?) > 0
       UNION ALL
       SELECT lower(from_addr) AS email, from_name AS name, 0 AS score, MAX(date) AS recent
-      FROM messages WHERE from_addr != '' GROUP BY lower(from_addr), from_name
-    ) WHERE instr(lower(email || ' ' || name), ?) > 0
+      FROM messages WHERE from_addr != '' AND instr(lower(from_addr || ' ' || from_name), ?) > 0
+      GROUP BY lower(from_addr), from_name
+    )
     GROUP BY email ORDER BY MAX(score) DESC, MAX(recent) DESC, email LIMIT 8
-  `).all(query.trim().toLowerCase()) as unknown as RecipientSuggestion[]
+  `).all(term, term) as unknown as RecipientSuggestion[]
 }

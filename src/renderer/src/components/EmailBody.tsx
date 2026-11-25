@@ -215,6 +215,28 @@ function buildDocument(document_: Document, allowImages: boolean): string {
   return `<!doctype html>${output.documentElement.outerHTML}`
 }
 
+const MAX_PREPARED_CACHE = 24
+const preparedCache = new Map<string, { documentHtml: string; blocked: number }>()
+
+function getPreparedDocument(html: string, allowImages: boolean, showQuote: string, hideQuote: string): { documentHtml: string; blocked: number } {
+  const key = `${allowImages ? '1' : '0'}|${showQuote}|${hideQuote}|${html}`
+  const hit = preparedCache.get(key)
+  if (hit) {
+    // Mueve la entrada al final para mantener orden LRU.
+    preparedCache.delete(key)
+    preparedCache.set(key, hit)
+    return hit
+  }
+  const prepared = prepare(sanitize(html), allowImages, showQuote, hideQuote)
+  const entry = { documentHtml: buildDocument(prepared.document, allowImages), blocked: prepared.blocked }
+  preparedCache.set(key, entry)
+  if (preparedCache.size > MAX_PREPARED_CACHE) {
+    const oldest = preparedCache.keys().next().value
+    if (oldest !== undefined) preparedCache.delete(oldest)
+  }
+  return entry
+}
+
 export function EmailBody({ html, blockRemote = false, theme, integrated = false }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
   const { remoteImages, bodyTheme: preferredTheme } = usePreferences()
@@ -238,11 +260,11 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
   }, [remoteImages, html])
 
   const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
-  const prepared = useMemo(() => prepare(sanitize(html), allowImages, t('mail.showQuote'), t('mail.hideQuote')), [html, allowImages, t])
-  const documentHtml = useMemo(
-    () => buildDocument(prepared.document, allowImages),
-    [prepared, allowImages]
+  const prepared = useMemo(
+    () => getPreparedDocument(html, allowImages, t('mail.showQuote'), t('mail.hideQuote')),
+    [html, allowImages, t]
   )
+  const documentHtml = prepared.documentHtml
 
   useLayoutEffect(() => {
     const inner = frameRef.current?.contentDocument

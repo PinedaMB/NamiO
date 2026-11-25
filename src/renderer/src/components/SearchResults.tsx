@@ -13,8 +13,21 @@ interface SearchResultsProps {
   hasMore: boolean
   onLoadMore: () => void
   onRetry: () => void
+  onUpdateQuery?: (next: string) => void
   selectedKey: string | null
   onOpen: (hit: SearchHit) => void
+}
+
+const QUICK_FILTERS = [
+  { token: 'has:attachment', labelKey: 'search.filterAttachments', icon: 'attach_file' },
+  { token: 'is:unread', labelKey: 'search.filterUnread', icon: 'mark_email_unread' },
+  { token: 'is:starred', labelKey: 'search.filterStarred', icon: 'star' }
+] as const
+
+function toggleSearchToken(query: string, token: string): string {
+  const re = new RegExp(`(?:^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'i')
+  if (re.test(query)) return query.replace(re, ' ').replace(/\s+/g, ' ').trim()
+  return `${query.trim()} ${token}`.trim()
 }
 
 /** El snippet llega con ⟦…⟧ alrededor de las coincidencias: se resalta sin HTML. */
@@ -37,6 +50,7 @@ export function SearchResults({
   hasMore,
   onLoadMore,
   onRetry,
+  onUpdateQuery,
   selectedKey,
   onOpen
 }: SearchResultsProps): React.JSX.Element {
@@ -58,6 +72,25 @@ export function SearchResults({
           <span>{t('search.scope')}</span>
           <strong>{query}</strong>
         </div>
+        {onUpdateQuery && (
+          <div className="search-chips" role="group" aria-label={t('search.filters')}>
+            {QUICK_FILTERS.map((item) => {
+              const active = new RegExp(`(?:^|\\s)${item.token}(?=\\s|$)`, 'i').test(query)
+              return (
+                <button
+                  key={item.token}
+                  type="button"
+                  className={cx('search-chip', active && 'search-chip--active')}
+                  aria-pressed={active}
+                  onClick={() => onUpdateQuery(toggleSearchToken(query, item.token))}
+                >
+                  <Icon name={item.icon} size={13} />
+                  {t(item.labelKey)}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <p className="search-local-hint">{t('search.localHint')}</p>

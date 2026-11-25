@@ -69,7 +69,7 @@ const conversationKey = (thread: Thread): string => thread.messageIds?.join(',')
 
 // A partir de este tamaño solo se montan las filas visibles (más un margen).
 // Las listas pequeñas se pintan enteras: menos complejidad y cero saltos.
-const VIRTUAL_THRESHOLD = 120
+const VIRTUAL_THRESHOLD = 60
 const VIRTUAL_OVERSCAN = 6
 const BASE_ROW_HEIGHT = 82
 

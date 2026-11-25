@@ -1787,6 +1787,7 @@ export function App(): React.JSX.Element {
                   hasMore={searchHasMore}
                   onLoadMore={() => setSearchOffset(hits.length)}
                   onRetry={() => { setSearchOffset(0); setSearchRetry(value => value + 1) }}
+                  onUpdateQuery={(next) => { setSearchOffset(0); setQuery(next) }}
                   selectedKey={selected ? `${folder}:${uidOf(selected.id) ?? ''}` : null}
                   onOpen={openHit}
                 />

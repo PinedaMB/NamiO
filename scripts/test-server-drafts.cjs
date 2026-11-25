@@ -27,6 +27,7 @@ async function main(){
  if(id==='./db')return db
  if(id==='./settings')return{readActiveAccount:async()=>({id:'one',user:'author@example.com'})}
  if(id==='./imap')return{uploadDraft,notifyDraftsChanged(){},downloadDraft:async(_path,uid)=>({raw:remote.get(uid).raw,server:{path:'Drafts',uid,uidValidity:'10'}})}
+ if(id==='./mimeParser')return{parseMimeBuffer:require('mailparser').simpleParser}
  return require(id)
  }})
  db.storePickedAttachment('file-one','report.txt',Buffer.from('Persisted file'))

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createTransport } from 'nodemailer'
-import { simpleParser } from 'mailparser'
+import { parseMimeBuffer } from './mimeParser'
 import type { Draft } from '@shared/ipc'
 import { cacheAccountId, clearDraft, deleteOutbox, enqueueOutbox, listDrafts, listOutbox, readDraft, readPickedAttachment, saveDraft, storePickedAttachment, updateOutbox } from './db'
 import { downloadDraft, notifyDraftsChanged, uploadDraft } from './imap'
@@ -66,7 +66,7 @@ export async function openServerDraft(path: string, uid: number): Promise<Draft>
   if (existing) return existing
   const owner = cacheAccountId()
   const { raw, server } = await downloadDraft(path, uid)
-  const parsed = await simpleParser(raw)
+  const parsed = await parseMimeBuffer(raw)
   const priority = parsed.headers.get('priority')
   if (owner !== cacheAccountId()) throw new Error('La cuenta activa cambió')
   const id = randomUUID()
