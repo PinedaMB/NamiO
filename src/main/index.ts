@@ -11,6 +11,7 @@ import {
   initCache,
   outboxItems,
   processOutbox,
+  setAccountsActivityListener,
   setCacheListener,
   setNewMailListener,
   setOutboxListener,
@@ -295,6 +296,12 @@ void app.whenReady().then(async () => {
   app.on('activate', () => {
     openWindow()
   })
+})
+
+setAccountsActivityListener((activity) => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send(IPC.accountsActivity, activity)
+  }
 })
 
 app.on('will-quit', () => {

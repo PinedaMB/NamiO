@@ -91,8 +91,12 @@ const APP_SETTING_KEYS = [
   'shortcutModifier',
   'contextPanel',
   'remoteImages',
+  'allowedImageSenders',
+  'blockTrackers',
   'timeFormat',
   'bodyTheme',
+  'undoSendSeconds',
+  'templates',
   'onboarded',
   'signatures'
 ] as const satisfies readonly (keyof AppSettings)[]
@@ -104,6 +108,7 @@ const BOOLEAN_SETTINGS = [
   'notificationSound',
   'notificationPrivate',
   'contextPanel',
+  'blockTrackers',
   'onboarded'
 ] as const
 
@@ -165,6 +170,44 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
       throw new Error('Invalid setting value')
     }
     target[key] = source[key]
+  }
+
+  if (source.allowedImageSenders !== undefined) {
+    if (!Array.isArray(source.allowedImageSenders) || source.allowedImageSenders.length > 200) throw new Error('Invalid setting value')
+    const normalized: string[] = []
+    for (const entry of source.allowedImageSenders) {
+      if (typeof entry !== 'string' || entry.length === 0 || entry.length > 320 || /[\r\n]/.test(entry)) {
+        throw new Error('Invalid setting value')
+      }
+      const lower = entry.trim().toLowerCase()
+      if (lower && !normalized.includes(lower)) normalized.push(lower)
+    }
+    result.allowedImageSenders = normalized
+  }
+
+  if (source.undoSendSeconds !== undefined) {
+    if (typeof source.undoSendSeconds !== 'number' || ![0, 5, 7, 10, 20].includes(source.undoSendSeconds)) {
+      throw new Error('Invalid setting value')
+    }
+    result.undoSendSeconds = source.undoSendSeconds as 0 | 5 | 7 | 10 | 20
+  }
+
+  if (source.templates !== undefined) {
+    if (!Array.isArray(source.templates) || source.templates.length > 50) throw new Error('Invalid setting value')
+    const cleaned = []
+    for (const item of source.templates) {
+      if (!item || typeof item !== 'object') throw new Error('Invalid setting value')
+      const candidate = item as Record<string, unknown>
+      if (
+        typeof candidate.id !== 'string' || !candidate.id || candidate.id.length > 80 ||
+        typeof candidate.name !== 'string' || !candidate.name.trim() || candidate.name.length > 100 ||
+        typeof candidate.body !== 'string' || candidate.body.length > 20_000
+      ) {
+        throw new Error('Invalid setting value')
+      }
+      cleaned.push({ id: candidate.id, name: candidate.name.trim(), body: candidate.body })
+    }
+    result.templates = cleaned
   }
 
   if (source.signatures !== undefined) {

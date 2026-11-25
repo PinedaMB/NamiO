@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { app, BrowserWindow, shell, utilityProcess, type UtilityProcess } from 'electron'
 import { decryptSecret, encryptSecret } from './settings'
 
-type EngineEventName = 'cacheChanged' | 'syncProgress' | 'outboxChanged' | 'rulesChanged' | 'newMail'
+type EngineEventName = 'cacheChanged' | 'syncProgress' | 'outboxChanged' | 'rulesChanged' | 'newMail' | 'accountsActivity'
 
 interface PendingCall {
   resolve: (value: unknown) => void

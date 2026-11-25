@@ -4,7 +4,10 @@ import { copilotStatus, configureCopilot, listOllamaModels, setCopilotKey, gener
 import { setBackgroundMode } from './background'
 import { testNotification } from './notifications'
 import { senderLogo } from './senderLogo'
+import { Buffer } from 'node:buffer'
+import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
+import { basename } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, nativeTheme } from 'electron'
 import { app } from 'electron'
 import { isSpamMailbox } from '@shared/mailboxes'
@@ -12,12 +15,16 @@ import {
   IPC,
   type AccountConfig,
   type AppSettings,
+  type CalendarEvent,
   type CoreStatus,
   type Draft,
   type EnvelopeListOptions,
   type ImapResult,
+  type PickedAttachment,
+  type PrintableMessage,
   type RuleDraft,
-  type SendMailPayload
+  type SendMailPayload,
+  type UnsubscribeInfo
 } from '@shared/ipc'
 import {
   accountIdFor,
@@ -45,6 +52,7 @@ import {
   listDrafts,
   listEnvelopes,
   listMailboxes,
+  listSnoozed,
   listUnifiedInbox,
   mailboxDeletionSnapshot,
   moveMessageAction,
@@ -61,18 +69,23 @@ import {
   readRules,
   registerAttachments,
   removeRule,
+  replyCalendarInvite,
   resumeOfflineDownload,
   resumeOutbox,
   retryOutbox,
   saveRule,
   searchMail,
+  searchServer,
   selectAccount,
   sendMail,
   setFlagged,
   setSeen,
+  snoozeMessage,
+  storePickedAttachment,
   suggestRecipients,
   syncMailbox,
-  trashPath
+  trashPath,
+  unsnoozeMessage
 } from './engineProxy'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readAppSettings, readSettings, sanitizeSettingsPatch, writeSettings } from './settings'
 
@@ -444,6 +457,67 @@ export function registerIpcHandlers(): void {
     registerAttachments(BrowserWindow.fromWebContents(event.sender))
   )
 
+  ipcMain.handle(IPC.attachmentAttachBuffers, async (_event, files: { name: string; data: Uint8Array }[]): Promise<PickedAttachment[]> => {
+    const accountId = (await readActiveAccount())?.id
+    if (!accountId) throw new Error('No hay cuenta activa')
+    if (!Array.isArray(files) || files.length === 0 || files.length > 50) return []
+    const MAX_FILE = 25 * 1024 * 1024
+    const MAX_TOTAL = 50 * 1024 * 1024
+    let totalBytes = 0
+    const picked: PickedAttachment[] = []
+    for (const file of files) {
+      if (!file || typeof file.name !== 'string' || !file.data) throw new Error('Adjunto inválido')
+      const buf = Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data)
+      if (buf.length > MAX_FILE) throw new Error('El adjunto supera el límite de 25 MB')
+      totalBytes += buf.length
+      if (totalBytes > MAX_TOTAL) throw new Error('El total de adjuntos supera el límite de 50 MB')
+      if ((await readActiveAccount())?.id !== accountId) throw new Error('La cuenta activa cambió')
+      const id = randomUUID()
+      const name = basename(file.name).slice(0, 240) || 'adjunto'
+      await storePickedAttachment(id, name, buf)
+      picked.push({ id, name, size: buf.length })
+    }
+    return picked
+  })
+
+  ipcMain.handle(IPC.messagePrint, async (_event, message: PrintableMessage): Promise<boolean> => {
+    if (!message || typeof message.subject !== 'string') return false
+    const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const stripDangerous = (html: string): string =>
+      html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<iframe[\s\S]*?<\/iframe>/gi, '').replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    const bodyMarkup = message.html
+      ? `<div class="mail-body">${stripDangerous(message.html)}</div>`
+      : `<pre class="mail-text">${esc(message.text ?? '')}</pre>`
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(message.subject)}</title><style>
+      body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1b1e28;margin:28px 36px;line-height:1.5;font-size:13px}
+      header{border-bottom:1px solid #d5d8e2;padding-bottom:14px;margin-bottom:20px}
+      h1{font-size:18px;margin:0 0 10px;color:#0f131c}
+      .meta{color:#4b5266;font-size:12px;margin:2px 0}
+      .meta strong{color:#1b1e28}
+      .mail-body img{max-width:100%;height:auto}
+      .mail-text{white-space:pre-wrap;font-family:inherit;margin:0}
+    </style></head><body><header><h1>${esc(message.subject)}</h1>
+      <div class="meta"><strong>De:</strong> ${esc(message.from)}</div>
+      <div class="meta"><strong>Para:</strong> ${esc(message.to)}</div>
+      ${message.cc ? `<div class="meta"><strong>CC:</strong> ${esc(message.cc)}</div>` : ''}
+      <div class="meta"><strong>Fecha:</strong> ${esc(message.date)}</div>
+    </header>${bodyMarkup}</body></html>`
+    const printWin = new BrowserWindow({
+      show: false,
+      width: 900,
+      height: 1100,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false }
+    })
+    try {
+      await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(doc)}`)
+      return await new Promise<boolean>((resolve) => {
+        printWin.webContents.print({ silent: false, printBackground: true }, (success) => resolve(success))
+      })
+    } finally {
+      if (!printWin.isDestroyed()) printWin.close()
+    }
+  })
+
   ipcMain.handle(IPC.draftGet, (_event, id?: string) => readDraft(id))
   ipcMain.handle(IPC.draftsList, () => listDrafts())
   ipcMain.handle(IPC.draftOpen, (_event, path: string, uid: number) => openServerDraft(path, uid))
@@ -459,6 +533,51 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IPC.mailSend, (_event, payload: SendMailPayload) => sendMail(payload))
+  ipcMain.handle(IPC.mailUnsubscribe, async (_event, info: UnsubscribeInfo): Promise<{ ok: boolean; error?: string }> => {
+    if (!info || (!info.url && !info.mailto)) return { ok: false, error: 'Sin enlace de suscripción' }
+    if (info.url) {
+      let parsed: URL
+      try { parsed = new URL(info.url) } catch { return { ok: false, error: 'URL inválida' } }
+      if (parsed.protocol !== 'https:') return { ok: false, error: 'Solo se permiten enlaces HTTPS' }
+      if (info.oneClick) {
+        try {
+          const response = await fetch(info.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'List-Unsubscribe=One-Click',
+            signal: AbortSignal.timeout(10_000),
+            credentials: 'omit',
+            referrerPolicy: 'no-referrer'
+          })
+          if (response.ok) return { ok: true }
+        } catch {
+          // Si falla el POST one-click, abrimos el enlace en el navegador.
+        }
+      }
+      await shell.openExternal(info.url)
+      return { ok: true }
+    }
+    if (info.mailto && /^mailto:/i.test(info.mailto)) {
+      await shell.openExternal(info.mailto)
+      return { ok: true }
+    }
+    return { ok: false, error: 'Enlace inválido' }
+  })
+  ipcMain.handle(IPC.mailCalendarReply, (_event, event: CalendarEvent, status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED') => {
+    if (!['ACCEPTED', 'TENTATIVE', 'DECLINED'].includes(status)) return { ok: false, error: 'Respuesta inválida' }
+    return replyCalendarInvite(event, status)
+  })
+  ipcMain.handle(IPC.snoozedList, () => listSnoozed())
+  ipcMain.handle(IPC.messageSnooze, (_event, mailbox: string, uid: number, wakeAt: number) => {
+    if (typeof mailbox !== 'string' || !mailbox || !Number.isSafeInteger(uid) || uid <= 0 || !Number.isFinite(wakeAt) || wakeAt <= Date.now()) {
+      throw new Error('Posposición inválida')
+    }
+    return snoozeMessage(mailbox, uid, wakeAt)
+  })
+  ipcMain.handle(IPC.messageUnsnooze, (_event, mailbox: string, uid: number) => {
+    if (typeof mailbox !== 'string' || !mailbox || !Number.isSafeInteger(uid) || uid <= 0) throw new Error('Mensaje inválido')
+    return unsnoozeMessage(mailbox, uid)
+  })
   ipcMain.handle(IPC.outboxList, () => outboxItems())
   ipcMain.handle(IPC.outboxRetry, (_event, id: string) => retryOutbox(id))
   ipcMain.handle(IPC.outboxCancel, (_event, id: string) => cancelOutbox(id))
@@ -511,6 +630,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.searchQuery, (_event, query: string, limit = 60, offset = 0, allAccounts = false) => {
     if (typeof query !== 'string' || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid search query')
     return allAccounts === true ? searchMail(query.slice(0, 200), limit, offset, true) : searchMail(query.slice(0, 200), limit, offset)
+  })
+
+  ipcMain.handle(IPC.searchServer, (_event, query: string, mailbox = 'INBOX', limit = 30) => {
+    if (typeof query !== 'string' || typeof mailbox !== 'string' || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+      throw new Error('Invalid server search query')
+    }
+    return searchServer(query.slice(0, 200), mailbox, limit)
   })
 
   ipcMain.handle(IPC.shellOpen, async (_event, url: string): Promise<boolean> => {

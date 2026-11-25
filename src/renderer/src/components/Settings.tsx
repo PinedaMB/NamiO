@@ -53,12 +53,14 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
   const formatCombo = useFormatCombo()
   const { t, locale, setLocale, saveError: localeError } = useI18n()
   const { bindings, modifier, setModifier, save, reset, saveError: shortcutsError } = useShortcuts()
-  const { appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, timeFormat, setTimeFormat, bodyTheme, setBodyTheme, saveError: preferencesError } = usePreferences()
+  const { appTheme, setAppTheme, offlineDownload, setOfflineDownload, notificationPreferences, setNotificationPreference, remoteImages, setRemoteImages, allowedImageSenders = [], removeImageSender, blockTrackers = true, setBlockTrackers, timeFormat, setTimeFormat, bodyTheme, setBodyTheme, undoSendSeconds, setUndoSendSeconds, templates = [], setTemplates, saveError: preferencesError } = usePreferences()
   const saveError = localeError || shortcutsError || preferencesError
   const formatSize = (bytes: number): string => bytes < 1024 * 1024
     ? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / 1024)} KiB`
     : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MiB`
   const [section, setSection] = useState<Section>('general')
+  const [templateName, setTemplateName] = useState('')
+  const [templateBody, setTemplateBody] = useState('')
   const dedication = useRef<HTMLDialogElement>(null)
   const remapRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
@@ -399,6 +401,23 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
             </div>
           </section>
 
+          <section className="settings-card" aria-labelledby="settings-undo-send-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-undo-send-title" className="settings-card__title">{t('settings.undoSend.title')}</h2>
+                <p className="settings-card__subtitle">{t('settings.undoSend.hint')}</p>
+              </div>
+            </div>
+            <div className="seg" role="group" aria-label={t('settings.undoSend.title')}>
+              {([0, 5, 7, 10, 20] as const).map(seconds => (
+                <button key={seconds} type="button" className={cx('seg__btn', undoSendSeconds === seconds && 'seg__btn--active')}
+                  onClick={() => setUndoSendSeconds(seconds)} aria-pressed={undoSendSeconds === seconds}>
+                  {seconds === 0 ? t('settings.undoSend.off') : t('settings.undoSend.seconds', { seconds })}
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="settings-card" aria-labelledby="settings-background-title">
             <h2 id="settings-background-title" className="settings-card__title">{t('settings.background.title')}</h2>
             <div className="notification-option">
@@ -481,7 +500,52 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                   {t('settings.images.allow')}
                 </button>
               </div>
+              {allowedImageSenders.length > 0 && removeImageSender && (
+                <div className="allowed-senders">
+                  <span className="settings-card__subtitle">{t('settings.allowedSenders.title')}</span>
+                  <div className="allowed-senders__list">
+                    {allowedImageSenders.map(sender => (
+                      <span className="allowed-senders__chip" key={sender}>
+                        <span>{sender}</span>
+                        <button type="button" className="icon-btn" aria-label={t('common.delete')} onClick={() => void removeImageSender(sender)}>
+                          <Icon name="close" size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {setBlockTrackers && (
+              <div className="settings-reading__option">
+                <div className="settings-card__head">
+                  <div>
+                    <h3 className="settings-reading__title">{t('settings.trackers.title')}</h3>
+                    <p className="settings-card__subtitle">{t('settings.trackers.hint')}</p>
+                  </div>
+                </div>
+                <div className="seg" role="group" aria-label={t('settings.trackers.title')}>
+                  <button
+                    type="button"
+                    className={cx('seg__btn', blockTrackers && 'seg__btn--active')}
+                    onClick={() => void setBlockTrackers(true)}
+                    aria-pressed={blockTrackers}
+                  >
+                    <Icon name="shield" size={14} />
+                    {t('settings.trackers.on')}
+                  </button>
+                  <button
+                    type="button"
+                    className={cx('seg__btn', !blockTrackers && 'seg__btn--active')}
+                    onClick={() => void setBlockTrackers(false)}
+                    aria-pressed={!blockTrackers}
+                  >
+                    {t('settings.trackers.off')}
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="settings-card" aria-labelledby="settings-offline-title">
@@ -496,6 +560,65 @@ export function Settings({ onCacheCleared, accountKey, onBack, accounts, onAddAc
                 onClick={() => void setOfflineDownload(!offlineDownload)}>
                 <span className="rules__knob" />
               </button>
+            </div>
+          </section>
+
+          <section className="settings-card" aria-labelledby="settings-templates-title">
+            <div className="settings-card__head">
+              <div>
+                <h2 id="settings-templates-title" className="settings-card__title">{t('templates.title')}</h2>
+                <p className="settings-card__subtitle">{t('templates.hint')}</p>
+              </div>
+            </div>
+            {templates.length === 0 ? (
+              <p className="settings-card__subtitle">{t('templates.empty')}</p>
+            ) : (
+              <div className="templates-list">
+                {templates.map(item => (
+                  <div className="templates-row" key={item.id}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p className="settings-card__subtitle">{item.body.slice(0, 140)}{item.body.length > 140 ? '…' : ''}</p>
+                    </div>
+                    <TooltipButton className="icon-btn" type="button" title={t('common.delete')} onClick={() => void setTemplates(templates.filter(entry => entry.id !== item.id))}>
+                      <Icon name="delete" size={16} />
+                    </TooltipButton>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="templates-form">
+              <input
+                type="text"
+                className="templates-form__input"
+                placeholder={t('templates.namePlaceholder')}
+                value={templateName}
+                onChange={event => setTemplateName(event.target.value)}
+                maxLength={100}
+              />
+              <textarea
+                className="templates-form__textarea"
+                placeholder={t('templates.bodyPlaceholder')}
+                value={templateBody}
+                onChange={event => setTemplateBody(event.target.value)}
+              />
+              <div>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={!templateName.trim() || !templateBody.trim()}
+                  onClick={() => {
+                    const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+                    void setTemplates([...templates, { id, name: templateName.trim(), body: templateBody.trim() }]).then(() => {
+                      setTemplateName('')
+                      setTemplateBody('')
+                    })
+                  }}
+                >
+                  <Icon name="add" size={16} />
+                  {t('templates.add')}
+                </button>
+              </div>
             </div>
           </section>
         </div>

@@ -1,6 +1,7 @@
 import { cachedAttachment, cacheAttachment, clearAttachmentCache } from './attachmentCache'
 import { messageParts } from './messageParts'
 import { trackNewMail } from './notificationCursor'
+import { parseAuthWarning, parseIcsEvent, parseListUnsubscribe } from '@shared/icsParser'
 import { canDeleteMailbox, isDraftMailbox, isSpamMailbox } from '@shared/mailboxes'
 import { createHash } from 'node:crypto'
 import { ImapFlow, type MessageStructureObject } from 'imapflow'
@@ -236,6 +237,7 @@ function runInAccountRuntime<T>(accountId: string, fn: (rt: AccountRuntime) => P
 }
 
 export async function closeAllSessions(): Promise<void> {
+  await closeInactiveIdleWatchers()
   await closeSession()
   const ids = [...runtimes.keys()]
   await Promise.all(ids.map((id) => dropAccountRuntime(id)))
@@ -1294,9 +1296,24 @@ async function cacheMessageBody(path: string, uid: number, includeInlineImages =
     const validity = getMailboxMeta(path)?.uidValidity
     // Enviados puede descubrirse al abrir una conversación, antes de sincronizar su carpeta.
     if (!client.mailbox || (validity == null ? !includeInlineImages : String(client.mailbox.uidValidity) !== String(validity))) throw new Error('La identidad de la carpeta cambió; no se guardó el cuerpo')
-    const message = await client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true }, { uid: true })
+    const message = await client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true, headers: ['list-unsubscribe', 'list-unsubscribe-post', 'authentication-results'] }, { uid: true })
     if (!message || message.uid !== uid || !message.bodyStructure) throw new Error('No se encontró la estructura del mensaje')
     const split = messageParts(message.bodyStructure)
+    let unsubscribe: import('@shared/ipc').UnsubscribeInfo | undefined
+    let authWarning: 'dmarc-fail' | 'spf-dkim-fail' | undefined
+    if (message.headers) {
+      const rawHeaders = Buffer.isBuffer(message.headers) ? message.headers.toString('utf8') : String(message.headers)
+      const unfolded = rawHeaders.replace(/\r?\n[ \t]+/g, ' ')
+      if (typeof parseListUnsubscribe === 'function') {
+        const unsubLine = /^list-unsubscribe:\s*(.+)$/im.exec(unfolded)?.[1]
+        const postLine = /^list-unsubscribe-post:\s*(.+)$/im.exec(unfolded)?.[1]
+        unsubscribe = parseListUnsubscribe(unsubLine, postLine)
+      }
+      if (typeof parseAuthWarning === 'function') {
+        const authLines = [...unfolded.matchAll(/^authentication-results:\s*(.+)$/gim)].map(m => m[1]).join(' ; ')
+        authWarning = parseAuthWarning(authLines)
+      }
+    }
     const parts = split.body.map(node => ({ part: node.part || '1', type: node.type.toLowerCase() }))
     const attachments = split.attachments.map((node, index) => ({
       name: node.dispositionParameters?.filename ?? node.parameters?.name ?? `adjunto-${index + 1}`,
@@ -1333,11 +1350,30 @@ async function cacheMessageBody(path: string, uid: number, includeInlineImages =
       }
       markup = markup.replace(/\bcid:([^"'<>\s)]+)/gi, (reference, cid: string) => images.get(cid) ?? reference)
     }
+    let calendarEvent: import('@shared/ipc').CalendarEvent | undefined
+    if (includeInlineImages && typeof parseIcsEvent === 'function') {
+      const icsPart = split.attachments.find(node => node.part && (/^text\/calendar/i.test(node.type) || /\.ics$/i.test(node.dispositionParameters?.filename ?? node.parameters?.name ?? '')))
+      if (icsPart && (icsPart.size ?? 0) <= 512 * 1024) {
+        try {
+          const dl = await client.download(String(uid), icsPart.part, { uid: true })
+          if (dl.content) {
+            const bytes = await readLimited(dl.content, 512 * 1024, 'Evento demasiado grande')
+            calendarEvent = parseIcsEvent(bytes.toString('utf8')) ?? undefined
+          }
+        } catch {
+          // Un .ics malformado no impide abrir el correo.
+        }
+      }
+    }
     if (generation !== syncGeneration || !readEnvelope(path, uid)) return
+    const meta = unsubscribe || calendarEvent || authWarning
+      ? { ...(unsubscribe ? { unsubscribe } : {}), ...(calendarEvent ? { calendarEvent } : {}), ...(authWarning ? { authWarning } : {}) }
+      : undefined
     saveBody(path, uid, {
       text: plain, html: markup,
       to: (message.envelope?.to ?? []).flatMap(address => toAddress(address) ?? []),
-      cc: (message.envelope?.cc ?? []).flatMap(address => toAddress(address) ?? []), attachments
+      cc: (message.envelope?.cc ?? []).flatMap(address => toAddress(address) ?? []), attachments,
+      ...(meta ? { meta } : {})
     })
   } finally { lock.release() }
 }
@@ -1369,7 +1405,10 @@ function cachedDetail(path: string, uid: number): MessageDetail | null {
     cc: body.cc,
     text: body.text ?? '',
     html: body.html,
-    attachments
+    attachments,
+    ...(body.meta?.unsubscribe ? { unsubscribe: body.meta.unsubscribe } : {}),
+    ...(body.meta?.calendarEvent ? { calendarEvent: body.meta.calendarEvent } : {}),
+    ...(body.meta?.authWarning ? { authWarning: body.meta.authWarning } : {})
   }
 }
 
@@ -1543,6 +1582,167 @@ export async function searchMail(query: string, limit = 60, offset = 0, allAccou
   const merged = accounts.flatMap((account) => mapRows(account.id, account.label || account.user))
   merged.sort((left, right) => Date.parse(right.date) - Date.parse(left.date))
   return merged.slice(0, limit)
+}
+
+/** Búsqueda directa en el servidor IMAP para encontrar correos antiguos fuera de la caché local. */
+export async function searchServer(query: string, mailbox = 'INBOX', limit = 30): Promise<SearchHit[]> {
+  const trimmed = query.trim().slice(0, 200)
+  if (!trimmed) return []
+  const target = mailbox && mailbox !== '__unified_inbox__' ? mailbox : 'INBOX'
+  const bounded = Math.max(1, Math.min(50, Math.floor(limit)))
+  const generation = syncGeneration
+
+  return serialBackground(async () => {
+    if (generation !== syncGeneration) return []
+    let client: ImapFlow
+    try {
+      client = await ensureBackgroundClient()
+    } catch {
+      client = await ensureClient()
+    }
+
+    const criteria: Record<string, unknown> = {}
+    const freeParts: string[] = []
+    for (const token of trimmed.split(/\s+/)) {
+      const m = /^(from|subject|is):(.+)$/i.exec(token)
+      if (!m) { freeParts.push(token); continue }
+      const key = m[1]!.toLowerCase()
+      const val = m[2]!.replace(/^["']|["']$/g, '')
+      if (!val) continue
+      if (key === 'from') criteria.from = val
+      else if (key === 'subject') criteria.subject = val
+      else if (key === 'is') {
+        const lower = val.toLowerCase()
+        if (lower === 'unread') criteria.seen = false
+        else if (lower === 'read') criteria.seen = true
+        else if (lower === 'starred') criteria.flagged = true
+      }
+    }
+    const free = freeParts.join(' ').trim()
+    if (free) {
+      criteria.or = [{ subject: free }, { from: free }, { body: free }]
+    }
+    if (Object.keys(criteria).length === 0) return []
+
+    const lock = await client.getMailboxLock(target, { readOnly: true })
+    try {
+      if (generation !== syncGeneration) return []
+      const uids = await client.search(criteria as Parameters<ImapFlow['search']>[0], { uid: true })
+      if (!uids || uids.length === 0) return []
+      const recent = [...uids].sort((a, b) => b - a).slice(0, bounded)
+      const fetched: Envelope[] = []
+      for await (const msg of client.fetch(recent.join(','), {
+        uid: true,
+        flags: true,
+        envelope: true,
+        internalDate: true,
+        size: true,
+        bodyStructure: true
+      }, { uid: true })) {
+        if (generation !== syncGeneration) return []
+        const from = msg.envelope?.from?.[0] ? toAddress(msg.envelope.from[0]) : null
+        fetched.push({
+          uid: msg.uid,
+          subject: msg.envelope?.subject ?? '',
+          from,
+          date: toDate(msg.envelope?.date ?? msg.internalDate).toISOString(),
+          size: msg.size ?? 0,
+          unread: !(msg.flags?.has('\\Seen') ?? false),
+          flagged: msg.flags?.has('\\Flagged') ?? false,
+          messageId: msg.envelope?.messageId,
+          inReplyTo: msg.envelope?.inReplyTo,
+          references: [],
+          hasAttachments: msg.bodyStructure ? hasAttachments(msg.bodyStructure) : false
+        })
+      }
+      if (fetched.length > 0 && generation === syncGeneration) {
+        upsertEnvelopes(target, fetched)
+      }
+      const boxName = readMailboxes().find(b => b.path === target)?.name ?? target
+      fetched.sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+      return fetched.map((env): SearchHit => ({
+        mailbox: target,
+        mailboxName: boxName,
+        uid: env.uid,
+        subject: env.subject,
+        from: env.from,
+        date: env.date,
+        unread: env.unread,
+        flagged: env.flagged,
+        snippet: ''
+      }))
+    } finally {
+      lock.release()
+    }
+  })
+}
+
+const MAX_INACTIVE_IDLE = 3
+const inactiveIdleClients = new Map<string, ImapFlow>()
+let accountsActivityListener: ((activity: AccountActivity[]) => void) | null = null
+let inactiveActivityDebounce: ReturnType<typeof setTimeout> | null = null
+
+export function setAccountsActivityListener(listener: (activity: AccountActivity[]) => void): void {
+  accountsActivityListener = listener
+}
+
+export async function closeInactiveIdleWatchers(): Promise<void> {
+  if (inactiveActivityDebounce !== null) {
+    clearTimeout(inactiveActivityDebounce)
+    inactiveActivityDebounce = null
+  }
+  const clients = [...inactiveIdleClients.values()]
+  inactiveIdleClients.clear()
+  await Promise.allSettled(clients.map(c => c.logout().catch(() => { c.close() })))
+}
+
+async function ensureInactiveIdleWatchers(inactiveAccounts: readonly StoredAccount[]): Promise<void> {
+  const wanted = inactiveAccounts.slice(0, MAX_INACTIVE_IDLE)
+  const wantedIds = new Set(wanted.map(a => a.id))
+  for (const [id, c] of inactiveIdleClients) {
+    if (!wantedIds.has(id)) {
+      inactiveIdleClients.delete(id)
+      void c.logout().catch(() => { c.close() })
+    }
+  }
+  for (const account of wanted) {
+    if (inactiveIdleClients.has(account.id)) continue
+    try {
+      const auth = await authFor(account)
+      if (!auth) continue
+      const idleClient = new ImapFlow({
+        host: account.host,
+        port: account.port,
+        secure: account.secure,
+        auth: 'accessToken' in auth
+          ? { user: account.user, accessToken: auth.accessToken }
+          : { user: account.user, pass: auth.password },
+        logger: false,
+        tls: { rejectUnauthorized: true }
+      })
+      idleClient.on('error', () => {
+        if (inactiveIdleClients.get(account.id) === idleClient) inactiveIdleClients.delete(account.id)
+      })
+      idleClient.on('close', () => {
+        if (inactiveIdleClients.get(account.id) === idleClient) inactiveIdleClients.delete(account.id)
+      })
+      idleClient.on('exists', () => {
+        if (!accountsActivityListener) return
+        if (inactiveActivityDebounce !== null) clearTimeout(inactiveActivityDebounce)
+        inactiveActivityDebounce = setTimeout(() => {
+          inactiveActivityDebounce = null
+          void checkAccountsActivity().then(list => accountsActivityListener?.(list)).catch(() => undefined)
+        }, 2000)
+      })
+      inactiveIdleClients.set(account.id, idleClient)
+      await idleClient.connect()
+      await idleClient.mailboxOpen('INBOX', { readOnly: true })
+    } catch {
+      const stale = inactiveIdleClients.get(account.id)
+      inactiveIdleClients.delete(account.id)
+      stale?.close()
+    }
+  }
 }
 
 /** Actualización manual: espera a la red y devuelve el error al usuario. */
@@ -1876,6 +2076,9 @@ export function checkAccountsActivity(): Promise<AccountActivity[]> {
 
 async function pollAccountsActivity(): Promise<AccountActivity[]> {
   const { accounts, active } = await readAccounts()
+  if (typeof ensureInactiveIdleWatchers === 'function') {
+    void ensureInactiveIdleWatchers(accounts.filter(account => account.id !== active)).catch(() => undefined)
+  }
 
   const activity = await Promise.all(accounts.map(async (account): Promise<AccountActivity> => {
     const isActive = account.id === active

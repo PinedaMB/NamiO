@@ -128,6 +128,7 @@ async function bootEngine(userDataDir: string, isPackaged: boolean): Promise<voi
   imap.setSyncProgressListener((progress) => post({ type: 'event', name: 'syncProgress', args: [progress] }))
   imap.setRulesListener(() => post({ type: 'event', name: 'rulesChanged', args: [] }))
   imap.setNewMailListener((account, path, messages) => post({ type: 'event', name: 'newMail', args: [account, path, messages] }))
+  imap.setAccountsActivityListener((activity) => post({ type: 'event', name: 'accountsActivity', args: [activity] }))
   mail.setOutboxListener(() => post({ type: 'event', name: 'outboxChanged', args: [] }))
 
   methods = {
@@ -148,6 +149,9 @@ async function bootEngine(userDataDir: string, isPackaged: boolean): Promise<voi
     readMailboxes: () => db.readMailboxes(),
     getMailboxMeta: (args) => db.getMailboxMeta(args[0] as string),
     enqueueOutbox: (args) => db.enqueueOutbox(args[0] as Parameters<typeof db.enqueueOutbox>[0]),
+    listSnoozed: () => db.listSnoozed(),
+    snoozeMessage: (args) => db.snoozeMessage(args[0] as string, args[1] as number, args[2] as number),
+    unsnoozeMessage: (args) => db.unsnoozeMessage(args[0] as string, args[1] as number),
 
     // imap
     accountIdFor: (args) => imap.accountIdFor(args[0] as string, args[1] as number, args[2] as string),
@@ -188,6 +192,8 @@ async function bootEngine(userDataDir: string, isPackaged: boolean): Promise<voi
       ),
     searchMail: (args) =>
       imap.searchMail(args[0] as string, args[1] as number | undefined, args[2] as number | undefined, args[3] as boolean | undefined),
+    searchServer: (args) =>
+      imap.searchServer(args[0] as string, args[1] as string | undefined, args[2] as number | undefined),
     selectAccount: (args) => imap.selectAccount(args[0] as string),
     syncMailbox: (args) => imap.syncMailbox(args[0] as string),
     syncInbox: (args) => imap.syncInbox(args[0] as number | undefined),
@@ -207,6 +213,7 @@ async function bootEngine(userDataDir: string, isPackaged: boolean): Promise<voi
     processOutbox: () => mail.processOutbox(),
     retryOutbox: (args) => mail.retryOutbox(args[0] as string),
     sendMail: (args) => mail.sendMail(args[0] as Parameters<typeof mail.sendMail>[0]),
+    replyCalendarInvite: (args) => mail.replyCalendarInvite(args[0] as Parameters<typeof mail.replyCalendarInvite>[0], args[1] as 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'),
 
     // drafts
     openServerDraft: (args) => drafts.openServerDraft(args[0] as string, args[1] as number),

@@ -91,6 +91,18 @@ export function enqueueOutbox(input: Parameters<typeof db.enqueueOutbox>[0]): Pr
   return isEngineActive() ? callEngine<string>('enqueueOutbox', [input]) : db.enqueueOutbox(input)
 }
 
+export function listSnoozed(): ReturnType<typeof db.listSnoozed> | Promise<ReturnType<typeof db.listSnoozed>> {
+  return isEngineActive() ? callEngine('listSnoozed') : db.listSnoozed()
+}
+
+export function snoozeMessage(mailbox: string, uid: number, wakeAt: number): ReturnType<typeof db.snoozeMessage> | Promise<ReturnType<typeof db.snoozeMessage>> {
+  return isEngineActive() ? callEngine('snoozeMessage', [mailbox, uid, wakeAt]) : db.snoozeMessage(mailbox, uid, wakeAt)
+}
+
+export function unsnoozeMessage(mailbox: string, uid: number): ReturnType<typeof db.unsnoozeMessage> | Promise<ReturnType<typeof db.unsnoozeMessage>> {
+  return isEngineActive() ? callEngine('unsnoozeMessage', [mailbox, uid]) : db.unsnoozeMessage(mailbox, uid)
+}
+
 // IMAP
 export function accountIdFor(host: string, port: number, user: string): Promise<string> {
   return isEngineActive() ? callEngine<string>('accountIdFor', [host, port, user]) : imap.accountIdFor(host, port, user)
@@ -203,6 +215,10 @@ export function searchMail(query: string, limit = 60, offset = 0, allAccounts = 
   return isEngineActive() ? callEngine('searchMail', [query, limit, offset, allAccounts]) : imap.searchMail(query, limit, offset, allAccounts)
 }
 
+export function searchServer(query: string, mailbox = 'INBOX', limit = 30): ReturnType<typeof imap.searchServer> {
+  return isEngineActive() ? callEngine('searchServer', [query, mailbox, limit]) : imap.searchServer(query, mailbox, limit)
+}
+
 export function selectAccount(id: string): ReturnType<typeof imap.selectAccount> {
   return isEngineActive() ? callEngine('selectAccount', [id]) : imap.selectAccount(id)
 }
@@ -266,6 +282,13 @@ export function retryOutbox(id: string): ReturnType<typeof mail.retryOutbox> {
 
 export function sendMail(payload: SendMailPayload): ReturnType<typeof mail.sendMail> {
   return isEngineActive() ? callEngine('sendMail', [payload]) : mail.sendMail(payload)
+}
+
+export function replyCalendarInvite(
+  event: Parameters<typeof mail.replyCalendarInvite>[0],
+  status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
+): ReturnType<typeof mail.replyCalendarInvite> {
+  return isEngineActive() ? callEngine('replyCalendarInvite', [event, status]) : mail.replyCalendarInvite(event, status)
 }
 
 export async function registerAttachments(window: BrowserWindow | null): Promise<PickedAttachment[]> {
@@ -358,4 +381,9 @@ export function setRulesListener(listener: () => void): void {
 export function setOutboxListener(listener: () => void): void {
   onEngineEvent('outboxChanged', () => listener())
   mail.setOutboxListener(listener)
+}
+
+export function setAccountsActivityListener(listener: (activity: import('@shared/ipc').AccountActivity[]) => void): void {
+  onEngineEvent('accountsActivity', (a) => listener(a as import('@shared/ipc').AccountActivity[]))
+  imap.setAccountsActivityListener(listener)
 }

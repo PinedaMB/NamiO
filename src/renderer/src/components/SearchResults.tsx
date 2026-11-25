@@ -14,6 +14,9 @@ interface SearchResultsProps {
   onLoadMore: () => void
   onRetry: () => void
   onUpdateQuery?: (next: string) => void
+  searchingServer?: boolean
+  serverSearched?: boolean
+  onSearchServer?: () => void
   selectedKey: string | null
   onOpen: (hit: SearchHit) => void
 }
@@ -51,6 +54,9 @@ export function SearchResults({
   onLoadMore,
   onRetry,
   onUpdateQuery,
+  searchingServer = false,
+  serverSearched = false,
+  onSearchServer,
   selectedKey,
   onOpen
 }: SearchResultsProps): React.JSX.Element {
@@ -147,6 +153,12 @@ export function SearchResults({
         {!error && hasMore && <button className="btn" type="button" disabled={loading} onClick={onLoadMore}>
           {t(loading ? 'search.searching' : 'list.loadMore')}
         </button>}
+        {!error && !loading && onSearchServer && !serverSearched && (
+          <button className="btn" type="button" disabled={searchingServer} onClick={onSearchServer}>
+            <Icon name={searchingServer ? 'progress_activity' : 'cloud_sync'} size={15} className={searchingServer ? 'spin' : undefined} />
+            {t(searchingServer ? 'search.serverSearching' : 'search.serverButton')}
+          </button>
+        )}
       </div>
     </section>
   )

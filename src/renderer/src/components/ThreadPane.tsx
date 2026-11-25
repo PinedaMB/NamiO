@@ -50,6 +50,10 @@ interface ThreadPaneProps {
   ai?: boolean
   savingAttachment?: { mailbox: string; messageId: string; index: number } | null
   onOpenAttachment: (index: number, messageId?: string) => void
+  onPrint?: () => void
+  onUnsubscribe?: (info: import('@shared/ipc').UnsubscribeInfo) => void
+  onCalendarReply?: (event: import('@shared/ipc').CalendarEvent, status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED') => void
+  onSnooze?: (wakeAt: number) => void
   onPrev: () => void
   onNext: () => void
   onBack: () => void
@@ -161,6 +165,10 @@ export function ThreadPane({
   onQuickDraft,
   ai = false,
   onOpenAttachment,
+  onPrint,
+  onUnsubscribe,
+  onCalendarReply,
+  onSnooze,
   savingAttachment = null,
   onPrev,
   onNext,
@@ -195,7 +203,21 @@ export function ThreadPane({
   const [aiThread, setAiThread] = useState<{ key: string; open: boolean } | null>(null)
   const aiThreadKey = `${mailbox}:${thread.id}`
   const [recipientsId, setRecipientsId] = useState<string | null>(null)
+  const [snoozeOpen, setSnoozeOpen] = useState(false)
   const recipientsMessage = thread.messages.find(message => message.id === recipientsId)
+
+  const snoozeOptions = (): { label: string; wakeAt: number }[] => {
+    const now = new Date()
+    const later = new Date(now.getTime() + 3 * 3600_000)
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 8, 0, 0)
+    const daysToMonday = ((8 - now.getDay()) % 7) || 7
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToMonday, 8, 0, 0)
+    return [
+      { label: t('snooze.laterToday'), wakeAt: later.getTime() },
+      { label: t('snooze.tomorrow'), wakeAt: tomorrow.getTime() },
+      { label: t('snooze.nextWeek'), wakeAt: monday.getTime() }
+    ]
+  }
 
   return (
     <main className="reading" aria-label={thread.subject}>
@@ -223,6 +245,40 @@ export function ThreadPane({
           >
             <Icon name="archive" size={15} />
           </TooltipButton>
+          {onSnooze && (
+            <div className="snooze-wrap">
+              <TooltipButton
+                className="tool-btn tool-btn--icon"
+                type="button"
+                disabled={!canMutate}
+                aria-expanded={snoozeOpen}
+                aria-haspopup="menu"
+                title={t('snooze.title')}
+                onClick={() => setSnoozeOpen(open => !open)}
+              >
+                <Icon name="schedule" size={15} />
+              </TooltipButton>
+              {snoozeOpen && (
+                <div className="snooze-menu" role="menu">
+                  {snoozeOptions().map(option => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="menuitem"
+                      className="tool-btn"
+                      onClick={() => {
+                        setSnoozeOpen(false)
+                        onSnooze(option.wakeAt)
+                      }}
+                    >
+                      <Icon name="schedule" size={14} />
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <TooltipButton
             className="tool-btn tool-btn--icon btn--danger"
             type="button"
@@ -243,6 +299,11 @@ export function ThreadPane({
 
         <div className="toolbar-group">
           {ai && <TooltipButton className="tool-btn" type="button" title={t('ai.threadTitle')} aria-expanded={aiThread?.key === aiThreadKey && aiThread.open} aria-controls="thread-copilot" onClick={() => setAiThread(current => ({ key: aiThreadKey, open: current?.key === aiThreadKey ? !current.open : true }))}><Icon name="auto_awesome" size={16} />{t('ai.threadTitle')}</TooltipButton>}
+          {onPrint && (
+            <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onPrint} title={t('thread.print')}>
+              <Icon name="print" size={16} />
+            </TooltipButton>
+          )}
           <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onToggleFocus} title={t(readingFocused ? 'thread.exitFocus' : 'thread.focus')} aria-pressed={readingFocused}>
             <Icon name={readingFocused ? 'left_panel_open' : 'left_panel_close'} size={18} />
           </TooltipButton>
@@ -341,6 +402,20 @@ export function ThreadPane({
                         onClick={event => { event.preventDefault(); event.stopPropagation(); setRecipientsId(message.id) }}>
                         {t('thread.details')}<Icon name="expand_more" size={14} />
                       </TooltipButton>
+                      {message.unsubscribe && onUnsubscribe && (
+                        <button
+                          type="button"
+                          className="unsubscribe-btn"
+                          onClick={event => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            onUnsubscribe(message.unsubscribe!)
+                          }}
+                        >
+                          <Icon name="unsubscribe" size={12} />
+                          {t('thread.unsubscribe')}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -432,7 +507,49 @@ export function ThreadPane({
                   </details>
                 )}
 
-              {expanded && (message.html ? <EmailBody html={message.html} blockRemote={spam} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} loading={loadingMessage} />)}
+              {expanded && message.authWarning && (
+                <div className="auth-warning" role="alert">
+                  <Icon name="gpp_maybe" size={16} />
+                  <span>{t('mail.authWarning')}</span>
+                </div>
+              )}
+
+              {expanded && message.calendarEvent && (
+                <div className="calendar-card" role="region" aria-label={t('calendar.invite')}>
+                  <div className="calendar-card__info">
+                    <span className="calendar-card__title">
+                      <Icon name="event" size={16} />
+                      {message.calendarEvent.summary}
+                    </span>
+                    {message.calendarEvent.start && (
+                      <span className="calendar-card__meta">
+                        {formatMessageDateTime(message.calendarEvent.start, locale, false, timeFormat)}
+                        {message.calendarEvent.location ? ` · ${message.calendarEvent.location}` : ''}
+                      </span>
+                    )}
+                    {(message.calendarEvent.organizerName || message.calendarEvent.organizerEmail) && (
+                      <span className="calendar-card__meta">
+                        {t('calendar.organizer', { name: message.calendarEvent.organizerName || message.calendarEvent.organizerEmail || '' })}
+                      </span>
+                    )}
+                  </div>
+                  {onCalendarReply && message.calendarEvent.organizerEmail && (
+                    <div className="calendar-card__actions">
+                      <button type="button" className="btn btn--primary" onClick={() => onCalendarReply(message.calendarEvent!, 'ACCEPTED')}>
+                        {t('calendar.accept')}
+                      </button>
+                      <button type="button" className="tool-btn" onClick={() => onCalendarReply(message.calendarEvent!, 'TENTATIVE')}>
+                        {t('calendar.tentative')}
+                      </button>
+                      <button type="button" className="tool-btn" onClick={() => onCalendarReply(message.calendarEvent!, 'DECLINED')}>
+                        {t('calendar.decline')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {expanded && (message.html ? <EmailBody html={message.html} blockRemote={spam} senderEmail={message.from.email} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} loading={loadingMessage} />)}
               </details>
               )
             })}

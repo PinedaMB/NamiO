@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as zlib from 'node:zlib'
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { app } from 'electron'
-import type { CacheUsage, Draft, Envelope, EnvelopeListOptions, MailboxInfo, RecipientSuggestion } from '@shared/ipc'
+import type { CacheUsage, CalendarEvent, Draft, Envelope, EnvelopeListOptions, MailboxInfo, RecipientSuggestion, SnoozedItem, UnsubscribeInfo } from '@shared/ipc'
 
 /**
  * Caché local. Es la fuente de verdad para la UI: la red solo la actualiza.
@@ -245,6 +245,14 @@ function openDatabase(accountId: string): DatabaseSync {
       to_json TEXT,
       cc_json TEXT,
       attachments_json TEXT,
+      meta_json TEXT,
+      PRIMARY KEY (mailbox, uid)
+    );
+
+    CREATE TABLE IF NOT EXISTS snoozed_messages (
+      mailbox TEXT NOT NULL,
+      uid INTEGER NOT NULL,
+      wake_at INTEGER NOT NULL,
       PRIMARY KEY (mailbox, uid)
     );
 
@@ -284,6 +292,11 @@ function openDatabase(accountId: string): DatabaseSync {
   // Migraciones aditivas: cuerpos separados con compresión y tabla de referencias.
   migrateMessageBodies(database)
   migrateMessageRefs(database)
+  const bodyColumns = database.prepare('PRAGMA table_info(message_bodies)').all() as unknown as { name: string }[]
+  if (!bodyColumns.some((item) => item.name === 'meta_json')) {
+    database.exec('ALTER TABLE message_bodies ADD COLUMN meta_json TEXT')
+  }
+
   // El índice de búsqueda usa identificadores estables.
   migrateSearchIndex(database)
 
@@ -943,6 +956,7 @@ export interface CachedBody {
   to: { name: string; address: string }[]
   cc: { name: string; address: string }[]
   attachments: { name: string; size: number; type: string; part?: string }[]
+  meta?: { unsubscribe?: UnsubscribeInfo; calendarEvent?: CalendarEvent; authWarning?: 'dmarc-fail' | 'spf-dkim-fail' }
   fetched: boolean
 }
 
@@ -961,13 +975,14 @@ export function countBodies(mailbox: string): number {
 }
 
 export function readBody(mailbox: string, uid: number): CachedBody {
-  const row = stmt(handle(), 'SELECT body_text, body_html, to_json, cc_json, attachments_json FROM message_bodies WHERE mailbox = ? AND uid = ?')
+  const row = stmt(handle(), 'SELECT body_text, body_html, to_json, cc_json, attachments_json, meta_json FROM message_bodies WHERE mailbox = ? AND uid = ?')
     .get(mailbox, uid) as unknown as {
       body_text: string | Uint8Array | null
       body_html: string | Uint8Array | null
       to_json: string | null
       cc_json: string | null
       attachments_json: string | null
+      meta_json: string | null
     } | undefined
 
   const parseAddresses = (value: string | null): { name: string; address: string }[] => {
@@ -990,6 +1005,16 @@ export function readBody(mailbox: string, uid: number): CachedBody {
     }
   }
 
+  let meta: CachedBody['meta']
+  if (row?.meta_json) {
+    try {
+      const parsed: unknown = JSON.parse(row.meta_json)
+      if (parsed && typeof parsed === 'object') meta = parsed as CachedBody['meta']
+    } catch {
+      // ignore corrupt meta
+    }
+  }
+
   const text = decodeBody(row?.body_text)
   const html = decodeBody(row?.body_html)
 
@@ -999,6 +1024,7 @@ export function readBody(mailbox: string, uid: number): CachedBody {
     to: parseAddresses(row?.to_json ?? null),
     cc: parseAddresses(row?.cc_json ?? null),
     attachments: parseAttachments(row?.attachments_json ?? null),
+    meta,
     fetched: row != null && (text !== null || html !== null)
   }
 }
@@ -1012,20 +1038,22 @@ export function saveBody(
     to: { name: string; address: string }[]
     cc: { name: string; address: string }[]
     attachments: { name: string; size: number; type: string; part?: string }[]
+    meta?: { unsubscribe?: UnsubscribeInfo; calendarEvent?: CalendarEvent; authWarning?: 'dmarc-fail' | 'spf-dkim-fail' }
   }
 ): void {
   const database = handle()
   inAtomic(database, () => {
     stmt(
       database,
-      `INSERT INTO message_bodies (mailbox, uid, body_text, body_html, to_json, cc_json, attachments_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO message_bodies (mailbox, uid, body_text, body_html, to_json, cc_json, attachments_json, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(mailbox, uid) DO UPDATE SET
          body_text = excluded.body_text,
          body_html = excluded.body_html,
          to_json = excluded.to_json,
          cc_json = excluded.cc_json,
-         attachments_json = excluded.attachments_json`
+         attachments_json = excluded.attachments_json,
+         meta_json = COALESCE(excluded.meta_json, message_bodies.meta_json)`
     ).run(
       mailbox,
       uid,
@@ -1033,11 +1061,32 @@ export function saveBody(
       encodeBody(body.html),
       JSON.stringify(body.to),
       JSON.stringify(body.cc),
-      JSON.stringify(body.attachments)
+      JSON.stringify(body.attachments),
+      body.meta ? JSON.stringify(body.meta) : null
     )
     // El cuerpo recién descargado entra al índice de búsqueda.
     reindexMessage(mailbox, uid)
   })
+}
+
+export function listSnoozed(): SnoozedItem[] {
+  const rows = stmt(handle(), 'SELECT mailbox, uid, wake_at FROM snoozed_messages ORDER BY wake_at ASC')
+    .all() as unknown as { mailbox: string; uid: number; wake_at: number }[]
+  return rows.map(row => ({ mailbox: row.mailbox, uid: row.uid, wakeAt: row.wake_at }))
+}
+
+export function snoozeMessage(mailbox: string, uid: number, wakeAt: number): SnoozedItem[] {
+  stmt(
+    handle(),
+    `INSERT INTO snoozed_messages (mailbox, uid, wake_at) VALUES (?, ?, ?)
+     ON CONFLICT(mailbox, uid) DO UPDATE SET wake_at = excluded.wake_at`
+  ).run(mailbox, uid, Math.round(wakeAt))
+  return listSnoozed()
+}
+
+export function unsnoozeMessage(mailbox: string, uid: number): SnoozedItem[] {
+  stmt(handle(), 'DELETE FROM snoozed_messages WHERE mailbox = ? AND uid = ?').run(mailbox, uid)
+  return listSnoozed()
 }
 
 /** Reindexa un mensaje (asunto, remitentes y cuerpo si ya se descargó). */

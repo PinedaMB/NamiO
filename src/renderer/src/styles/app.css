@@ -2792,6 +2792,213 @@
   animation: toast-in var(--normal) var(--ease);
 }
 
+.toast__action {
+  margin-left: var(--sp-xs);
+  padding: 3px 10px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toast__action:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.nav-item--drop-target {
+  outline: 1.5px dashed var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.composer__dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-sm);
+  background: color-mix(in srgb, var(--surface-container-high) 92%, transparent);
+  border: 2px dashed var(--primary);
+  border-radius: var(--r-md);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.unsubscribe-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high);
+  cursor: pointer;
+}
+
+.unsubscribe-btn:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.calendar-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-sm);
+  margin: var(--sp-sm) 0 var(--sp-md);
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+}
+
+.calendar-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 200px;
+}
+
+.calendar-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.calendar-card__meta {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+
+.calendar-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.snooze-wrap {
+  position: relative;
+}
+
+.snooze-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  box-shadow: var(--shadow-lg);
+}
+
+.templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.templates-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-container-high);
+}
+
+.templates-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.templates-form__input,
+.templates-form__textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font: inherit;
+  font-size: 13px;
+}
+
+.templates-form__textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.tracker-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high);
+}
+
+.auth-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--sp-sm) 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+}
+
+.allowed-senders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.allowed-senders__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.allowed-senders__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

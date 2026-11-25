@@ -379,6 +379,13 @@ export function ThreadList({
           return (
             <div className="thread-group" key={thread.id} ref={node => measureRow(key, node)}>
             <article
+              draggable={live && !thread.id.startsWith('draft:') && !thread.sendStatus}
+              onDragStart={event => {
+                if (!live || thread.id.startsWith('draft:') || thread.sendStatus) return
+                const dragIds = checkedSet.has(thread.id) ? [...checkedSet] : [thread.id]
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('application/x-namio-drag', JSON.stringify({ folder: mailbox, ids: dragIds }))
+              }}
               onContextMenu={event => { if (!onContextMenu) return; event.preventDefault(); onContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLElement>('.thread__content')! }, thread.id) }}
               aria-busy={deleting}
               className={cx('thread', active && 'thread--active', thread.unread && 'thread--unread', arrivingIds.length > 0 && 'thread--arriving')}

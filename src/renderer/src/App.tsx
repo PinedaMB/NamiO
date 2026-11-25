@@ -170,7 +170,7 @@ function threadMatchesId(thread: Thread, id: string | null): boolean {
 }
 
 export function App(): React.JSX.Element {
-  const { timeFormat } = usePreferences()
+  const { timeFormat, undoSendSeconds } = usePreferences()
   const { t, locale } = useI18n()
   const { bindings } = useShortcuts()
 
@@ -212,6 +212,9 @@ export function App(): React.JSX.Element {
   const [composeSession, setComposeSession] = useState(0)
   const [mailtoDrafts, setMailtoDrafts] = useState<MailtoDraft[]>([])
   const [compose, setCompose] = useState<ComposeState | null>(null)
+  const [undoSend, setUndoSend] = useState<{ id: string; draft: ComposeState } | null>(null)
+  const undoSendTimer = useRef<number | null>(null)
+  const [snoozed, setSnoozed] = useState<import('@shared/ipc').SnoozedItem[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [compactWindow, setCompactWindow] = useState(() => window.matchMedia('(max-width: 960px)').matches)
@@ -279,6 +282,8 @@ export function App(): React.JSX.Element {
   const savingAttachmentRef = useRef(false)
   const [hits, setHits] = useState<readonly SearchHit[]>([])
   const [searching, setSearching] = useState(false)
+  const [searchingServer, setSearchingServer] = useState(false)
+  const [serverSearched, setServerSearched] = useState(false)
   const busySwitch = useRef(false)
   const manualSyncBusy = useRef(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -382,7 +387,33 @@ export function App(): React.JSX.Element {
     }
     return conversationThreads.filter((thread) => matchesFolder(thread, folder) && matchesFilter(thread, filter))
   }, [live, conversationThreads, filter, folder, selectedId])
-  const visible = useMemo(() => sortThreads(filteredThreads, oldestFirst), [filteredThreads, oldestFirst])
+  const visible = useMemo(() => {
+    const sorted = sortThreads(filteredThreads, oldestFirst)
+    if (!live || snoozed.length === 0) return sorted
+    const now = Date.now()
+    const hidden = new Set(snoozed.filter(item => item.mailbox === folder && item.wakeAt > now).map(item => item.uid))
+    if (hidden.size === 0) return sorted
+    return sorted.filter(thread => {
+      const id = uidOf(thread.id)
+      return id === null || !hidden.has(id)
+    })
+  }, [filteredThreads, oldestFirst, live, snoozed, folder])
+
+  useEffect(() => {
+    if (!live || !window.api?.listSnoozed) return
+    void window.api.listSnoozed().then(setSnoozed).catch(() => undefined)
+    const timer = window.setInterval(() => {
+      setSnoozed(current => {
+        const now = Date.now()
+        const due = current.filter(item => item.wakeAt <= now)
+        if (due.length === 0) return current
+        for (const item of due) void window.api.unsnoozeMessage(item.mailbox, item.uid).catch(() => undefined)
+        setToast(t('snooze.woke'))
+        return current.filter(item => item.wakeAt > now)
+      })
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [live, account?.account?.user, t])
 
   useEffect(() => {
     setCheckedIds([])
@@ -1709,6 +1740,22 @@ export function App(): React.JSX.Element {
         syncDetail={syncDetail}
         offline={live && sync.offline}
         onFolderContextMenu={(anchor, id) => setContextMenu({ ...anchor, kind: 'folder', id })}
+        onDropMessages={live ? (targetFolder, payload) => {
+          void (async () => {
+            const uids = payload.ids.map(uidOf).filter((id): id is number => id !== null)
+            if (uids.length === 0 || payload.folder === targetFolder) return
+            let moved = 0
+            for (const uid of uids) {
+              const res = await window.api.moveMessage(payload.folder, uid, targetFolder).catch(() => null)
+              if (res?.ok) moved += 1
+            }
+            if (moved > 0) {
+              setCheckedIds([])
+              setToast(t('move.done', { folder: folderViews.find(item => item.id === targetFolder)?.label ?? targetFolder }))
+              void refreshOutbox()
+            }
+          })()
+        } : undefined}
         onSelectFolder={selectFolder}
         onOpenSettings={openSettings}
         onOpenAccount={() => { setAddingAccount(false); setAccountOpen(true) }}
@@ -1786,8 +1833,29 @@ export function App(): React.JSX.Element {
                   error={searchError}
                   hasMore={searchHasMore}
                   onLoadMore={() => setSearchOffset(hits.length)}
-                  onRetry={() => { setSearchOffset(0); setSearchRetry(value => value + 1) }}
-                  onUpdateQuery={(next) => { setSearchOffset(0); setQuery(next) }}
+                  onRetry={() => { setSearchOffset(0); setServerSearched(false); setSearchRetry(value => value + 1) }}
+                  onUpdateQuery={(next) => { setSearchOffset(0); setServerSearched(false); setQuery(next) }}
+                  searchingServer={searchingServer}
+                  serverSearched={serverSearched}
+                  onSearchServer={live && window.api?.searchServer ? () => {
+                    const q = query.trim()
+                    if (q.length < 2 || searchingServer) return
+                    setSearchingServer(true)
+                    const targetMailbox = folder === '__unified_inbox__' ? 'INBOX' : folder
+                    void window.api.searchServer(q, targetMailbox, 30).then(serverHits => {
+                      setHits(current => {
+                        const seen = new Set(current.map(item => `${item.mailbox}:${item.uid}`))
+                        const added = serverHits.filter(item => !seen.has(`${item.mailbox}:${item.uid}`))
+                        return [...current, ...added].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+                      })
+                      setServerSearched(true)
+                      setToast(t('search.serverDone'))
+                    }).catch(() => {
+                      setSearchError(true)
+                    }).finally(() => {
+                      setSearchingServer(false)
+                    })
+                  } : undefined}
                   selectedKey={selected ? `${folder}:${uidOf(selected.id) ?? ''}` : null}
                   onOpen={openHit}
                 />
@@ -1879,6 +1947,41 @@ export function App(): React.JSX.Element {
                   onReplyAll={() => openReply('', true)}
                   savingAttachment={savingAttachment}
                   onOpenAttachment={openAttachment}
+                  onPrint={readerThread ? () => {
+                    const msg = readerThread.messages.find(item => item.id === individualMessageId) ?? readerThread.messages.at(-1)
+                    if (!msg) return
+                    const fmtAddr = (list?: readonly { name: string; email: string }[]): string =>
+                      (list ?? []).map(p => p.name && p.name !== p.email ? `${p.name} <${p.email}>` : p.email).join(', ')
+                    void window.api?.printMessage?.({
+                      subject: readerThread.subject,
+                      from: msg.from.name && msg.from.name !== msg.from.email ? `${msg.from.name} <${msg.from.email}>` : msg.from.email,
+                      to: fmtAddr(msg.to),
+                      cc: fmtAddr(msg.cc),
+                      date: msg.sentAt,
+                      html: msg.html ?? null,
+                      text: msg.body.join('\n\n')
+                    }).catch(() => undefined)
+                  } : undefined}
+                  onUnsubscribe={live ? (info) => {
+                    void window.api?.unsubscribeMessage?.(info).then(res => {
+                      if (res?.ok) setToast(t('thread.unsubscribed'))
+                      else if (res?.error) setToast(t('toast.actionFailed', { error: res.error }))
+                    }).catch(() => undefined)
+                  } : undefined}
+                  onCalendarReply={live ? (event, status) => {
+                    void window.api?.replyCalendarInvite?.(event, status).then(res => {
+                      if (res?.ok) setToast(t('calendar.replied'))
+                      else if (res?.error) setToast(t('toast.actionFailed', { error: res.error }))
+                    }).catch(() => undefined)
+                  } : undefined}
+                  onSnooze={live && selected ? (wakeAt) => {
+                    const targetUid = uidOf(selected.id)
+                    if (targetUid === null) return
+                    void window.api?.snoozeMessage?.(folder, targetUid, wakeAt).then(next => {
+                      setSnoozed(next)
+                      setToast(t('snooze.done'))
+                    }).catch(() => undefined)
+                  } : undefined}
                   ai={live}
                   onQuickDraft={() => openReply(live ? '' : COPILOT_DRAFT, false, live)}
                   onPrev={() => step(-1)}
@@ -2003,17 +2106,32 @@ export function App(): React.JSX.Element {
           setCompose(null)
         }}
         onPickAttachments={live ? () => window.api.pickAttachments() : undefined}
-        onSend={async ({ to, cc, bcc, subject, body, html, attachments, priority }) => {
+        onAttachFiles={live ? (files) => window.api.attachBuffers(files) : undefined}
+        onSend={async ({ to, cc, bcc, subject, body, html, attachments, priority, scheduledAt }) => {
           if (!live) { setCompose(null); setToast(t('toast.sent')); return }
           const generation = accountGeneration.current
-          const result = await window.api.sendMail({ priority, draftId: compose?.id, to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references })
+          const delayMs = !scheduledAt && undoSendSeconds > 0 ? undoSendSeconds * 1000 : undefined
+          const result = await window.api.sendMail({ priority, draftId: compose?.id, to, cc, bcc, subject, text: body, html, attachments: attachments?.map(file => file.id), inReplyTo: compose?.inReplyTo, references: compose?.references, delayMs, scheduledAt })
           if (!result.ok) throw new Error(result.error ?? 'SMTP')
           if (generation !== accountGeneration.current) return
+          const snapshot: ComposeState = { id: compose?.id, to, cc, bcc, subject, body, html, priority, attachments, inReplyTo: compose?.inReplyTo, references: compose?.references, reply: compose?.reply }
           setCompose(null)
+          if (scheduledAt) {
+            setToast(t('schedule.scheduled'))
+          } else if (result.undoId && delayMs) {
+            if (undoSendTimer.current !== null) window.clearTimeout(undoSendTimer.current)
+            setUndoSend({ id: result.undoId, draft: snapshot })
+            undoSendTimer.current = window.setTimeout(() => {
+              undoSendTimer.current = null
+              setUndoSend(null)
+              setToast(t('toast.sent'))
+            }, delayMs)
+          } else {
             setToast(result.queued ? t('toast.queued') : t('toast.sent'))
-            setSentRepliesVersion(current => current + 1)
-            void refreshOutbox()
-          }}
+          }
+          setSentRepliesVersion(current => current + 1)
+          void refreshOutbox()
+        }}
           />
       )}
 
@@ -2091,7 +2209,34 @@ export function App(): React.JSX.Element {
         <Icon name="progress_activity" size={16} className="spin" />
         {t('attachment.preparing')}
       </div>}
-      {toast && !savingAttachment && (
+      {undoSend && !savingAttachment && (
+        <div className="toast" role="status">
+          <Icon name="schedule_send" size={16} />
+          <span>{t('toast.sendingUndo')}</span>
+          <button
+            type="button"
+            className="toast__action"
+            onClick={() => {
+              const current = undoSend
+              if (undoSendTimer.current !== null) {
+                window.clearTimeout(undoSendTimer.current)
+                undoSendTimer.current = null
+              }
+              setUndoSend(null)
+              void window.api.cancelOutbox(current.id).then(() => {
+                setCompose(current.draft)
+                setComposeMinimized(false)
+                setComposeSession(s => s + 1)
+                setToast(t('toast.sendUndone'))
+                void refreshOutbox()
+              }).catch(() => undefined)
+            }}
+          >
+            {t('common.undo')}
+          </button>
+        </div>
+      )}
+      {toast && !savingAttachment && !undoSend && (
         <div className="toast" role="status">
           <Icon name="check_circle" size={16} />
           {toast}

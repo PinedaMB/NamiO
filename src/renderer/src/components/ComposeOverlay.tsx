@@ -50,9 +50,11 @@ interface ComposeOverlayProps {
   ai?: boolean
   initialAiOpen?: boolean
   onClose: (values: Omit<Draft, 'updatedAt'>) => Promise<void>
-  onSend: (payload: Omit<Draft, 'updatedAt'>) => Promise<void>
+  onSend: (payload: Omit<Draft, 'updatedAt'> & { scheduledAt?: number }) => Promise<void>
   /** Abre el diálogo del sistema; solo existe con cuenta real. */
   onPickAttachments?: () => Promise<PickedAttachment[]>
+  /** Adjunta archivos soltados sobre el redactor (Drag & Drop). */
+  onAttachFiles?: (files: { name: string; data: Uint8Array }[]) => Promise<PickedAttachment[]>
 }
 
 function replyPlainHtml(text: string): string {
@@ -95,7 +97,8 @@ export function ComposeOverlay({
   initialAiOpen = false,
   onClose,
   onSend,
-  onPickAttachments
+  onPickAttachments,
+  onAttachFiles
 }: ComposeOverlayProps): React.JSX.Element | null {
   const formatCombo = useFormatCombo()
   const { t } = useI18n()
@@ -137,7 +140,7 @@ export function ComposeOverlay({
   const missingAttachmentConfirmed = useRef(false)
   const [sending, setSending] = useState(false)
   const [autoSaved, setAutoSaved] = useState(false)
-  const { spellcheckLanguage, setSpellcheckLanguage, saveError } = usePreferences()
+  const { spellcheckLanguage, setSpellcheckLanguage, templates = [], saveError } = usePreferences()
   const [error, setError] = useState<string | null>(null)
   const [sendOptionsOpen, setSendOptionsOpen] = useState(false)
   const sendOptionsRef = useRef<HTMLDivElement>(null)
@@ -150,6 +153,7 @@ export function ComposeOverlay({
   const [generating, setGenerating] = useState(false)
   const [applied, setApplied] = useState(false)
   const [picked, setPicked] = useState<PickedAttachment[]>([])
+  const [dragOver, setDragOver] = useState(false)
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<ReadonlyArray<{ name: string; detail: string; icon: string }>>(
     copilot
@@ -231,7 +235,7 @@ export function ComposeOverlay({
     finally { sendingRef.current = false }
   }
 
-  const send = async (formatted = true): Promise<void> => {
+  const send = async (formatted = true, scheduledAt?: number): Promise<void> => {
     setSendOptionsOpen(false)
     if (sendingRef.current) return
     const payload = values()
@@ -249,8 +253,21 @@ export function ComposeOverlay({
     sendingRef.current = true
     setSending(true)
     setError(null)
-    try { await onSend({ ...payload, html: formatted && payload.html ? composeEmailHtml(payload.html) : undefined }) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    try { await onSend({ ...payload, html: formatted && payload.html ? composeEmailHtml(payload.html) : undefined, ...(scheduledAt ? { scheduledAt } : {}) }) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { sendingRef.current = false; setSending(false) }
+  }
+
+  const schedulePresets = (): { label: string; at: number }[] => {
+    const now = new Date()
+    const oneHour = new Date(now.getTime() + 3600_000)
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 8, 0, 0)
+    const daysToMonday = ((8 - now.getDay()) % 7) || 7
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToMonday, 8, 0, 0)
+    return [
+      { label: t('schedule.inOneHour'), at: oneHour.getTime() },
+      { label: t('schedule.tomorrow'), at: tomorrow.getTime() },
+      { label: t('schedule.monday'), at: monday.getTime() }
+    ]
   }
 
   useEffect(() => {
@@ -328,7 +345,44 @@ export function ComposeOverlay({
         if (event.target === event.currentTarget) { if (sendOptionsOpen) setSendOptionsOpen(false); else void closeWithDraft() }
       }}
     >
-      <div ref={composerRef} className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')} data-compose-theme={composeTheme || undefined} aria-busy={sending} role="dialog" aria-modal={!minimized} aria-label={t('compose.newMessage')}>
+      <div
+        ref={composerRef}
+        className={cx('composer', expanded && 'composer--expanded', minimized && 'composer--minimized')}
+        data-compose-theme={composeTheme || undefined}
+        aria-busy={sending}
+        role="dialog"
+        aria-modal={!minimized}
+        aria-label={t('compose.newMessage')}
+        onDragOver={(event) => {
+          if (!onAttachFiles || sending || !event.dataTransfer.types.includes('Files')) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+          if (!dragOver) setDragOver(true)
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+          setDragOver(false)
+        }}
+        onDrop={(event) => {
+          setDragOver(false)
+          if (!onAttachFiles || sending) return
+          const dropped = Array.from(event.dataTransfer.files ?? [])
+          if (dropped.length === 0) return
+          event.preventDefault()
+          void Promise.all(dropped.map(async file => ({ name: file.name, data: new Uint8Array(await file.arrayBuffer()) })))
+            .then(buffers => onAttachFiles(buffers))
+            .then(added => {
+              if (added.length > 0) setPicked(current => [...current, ...added])
+            })
+            .catch(cause => setAttachmentNotice(cause instanceof Error ? cause.message : String(cause)))
+        }}
+      >
+        {dragOver && (
+          <div className="composer__dropzone" aria-hidden="true">
+            <Icon name="upload_file" size={28} />
+            <span>{t('compose.dropFiles')}</span>
+          </div>
+        )}
         <div className="composer__head">
           <div className="composer__title">
             <Icon name="edit_square" size={18} className="composer__title-icon" />
@@ -658,6 +712,12 @@ export function ComposeOverlay({
               onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSendOptionsOpen(false); sendCaretRef.current?.focus() } }}>
               <button className="tool-btn" type="button" onClick={() => void send()}><Icon name="send" size={16} />{t('compose.sendNow')}</button>
               <button className="tool-btn" type="button" onClick={() => void send(false)}><Icon name="text_fields" size={16} />{t('compose.sendPlain')}</button>
+              {schedulePresets().map(preset => (
+                <button key={preset.label} className="tool-btn" type="button" onClick={() => void send(true, preset.at)}>
+                  <Icon name="schedule_send" size={16} />
+                  {t('schedule.sendLater')}: {preset.label}
+                </button>
+              ))}
               <button className="tool-btn" type="button" onClick={() => { setSendOptionsOpen(false); void closeWithDraft() }}><Icon name="save" size={16} />{t('compose.saveDraft')}</button>
               <label className="composer__priority">
                 <span className="composer__priority-label">{t('mail.priority')}</span>
@@ -674,6 +734,24 @@ export function ComposeOverlay({
           </div>
 
           <div className="composer__foot-right">
+            {templates.length > 0 && (
+              <Select
+                aria-label={t('templates.insert')}
+                value=""
+                disabled={sending}
+                onChange={event => {
+                  const chosen = templates.find(item => item.id === event.target.value)
+                  if (!chosen) return
+                  const nextText = bodyRef.current.body ? `${bodyRef.current.body}\n\n${chosen.body}` : chosen.body
+                  replaceBody(nextText)
+                }}
+              >
+                <option value="">{t('templates.insert')}</option>
+                {templates.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </Select>
+            )}
             {copilot && (
               <>
                 <span>

@@ -7,9 +7,40 @@ import { usePreferences } from '../settings/PreferencesProvider'
 import { Icon } from './Icon'
 import { applyEmailTheme, fitEmailTextToSurface } from '../lib/emailTheme'
 
+const TRACKER_HOST_RE = /(?:^|\.)(?:list-manage\d*\.com|mandrillapp\.com|sendgrid\.net|hubspotlinks\.com|hs-analytics\.net|klaviyo\.com|mailgun\.org|mailgun\.net|postmarkapp\.com|sparkpostmail\.com|mailjet\.com|constantcontact\.com|exacttarget\.com|pardot\.com|marketo\.com|doubleclick\.net|google-analytics\.com|mixpanel\.com|segment\.io|intercom-mail\.com|brevo\.com|sendinblue\.com|activecampaign\.com|dripemail2\.com|convertkit-mail\d*\.com|beehiiv\.com|substack\.com)$/i
+const TRACKER_PATH_RE = /\/(?:track\/open|wf\/open|open\.gif|pixel\.gif|beacon|o\/eJ|t\/o\/|trk\/|e\/o\/)/i
+const TRACKER_SUBDOMAIN_RE = /^(?:track|trk|pixel|open|beacon|clicks?|email-open|analytics)\./i
+
+function parseTrackerDim(raw: string | null): number | null {
+  if (!raw) return null
+  const match = /^\s*(\d+(?:\.\d+)?)\s*(?:px)?\s*$/i.exec(raw)
+  return match ? Number(match[1]) : null
+}
+
+function styleTrackerDim(style: string, prop: 'width' | 'height'): number | null {
+  const match = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*(\\d+(?:\\.\\d+)?)\\s*px`, 'i').exec(style)
+  return match ? Number(match[1]) : null
+}
+
+function isTrackingPixel(src: string, attrs?: { width?: string | null; height?: string | null; style?: string | null }): boolean {
+  if (!/^https?:\/\//i.test(src)) return false
+  let parsed: URL
+  try { parsed = new URL(src) } catch { return false }
+  const w = parseTrackerDim(attrs?.width ?? null) ?? styleTrackerDim(attrs?.style ?? '', 'width')
+  const h = parseTrackerDim(attrs?.height ?? null) ?? styleTrackerDim(attrs?.style ?? '', 'height')
+  if (w !== null && w <= 1 && h !== null && h <= 1) return true
+  if (attrs?.style && /display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?:\D|$)/i.test(attrs.style)) return true
+  const host = parsed.hostname.toLowerCase()
+  const path = `${parsed.pathname}${parsed.search}`
+  if (TRACKER_HOST_RE.test(host) && TRACKER_PATH_RE.test(path)) return true
+  if (TRACKER_SUBDOMAIN_RE.test(host) && (TRACKER_PATH_RE.test(path) || (w !== null && w <= 2) || (h !== null && h <= 2))) return true
+  return false
+}
+
 interface EmailBodyProps {
   html: string
   blockRemote?: boolean
+  senderEmail?: string
   theme?: BodyTheme
   integrated?: boolean
 }
@@ -112,10 +143,11 @@ function findInlineQuoteStart(document_: Document): Node | null {
   return null
 }
 
-/** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas se bloquearon. */
-function prepare(html: string, allowImages: boolean, showQuote: string, hideQuote: string): { document: Document; blocked: number } {
+/** Devuelve el cuerpo listo para el iframe y cuántas imágenes remotas / rastreadores se bloquearon. */
+function prepare(html: string, allowImages: boolean, blockTrackers: boolean, showQuote: string, hideQuote: string): { document: Document; blocked: number; trackersBlocked: number } {
   const document_ = new DOMParser().parseFromString(html, 'text/html')
   let blocked = 0
+  let trackersBlocked = 0
   // Los clientes también envían cabeceras citadas sin un marcador propio.
   let quote: Node | null = document_.body.querySelector('blockquote[data-namio-reply-quote], .gmail_quote, .gmail_attr, .yahoo_quoted, #divRplyFwdMsg, .moz-cite-prefix, blockquote[type="cite"]')
   for (const candidate of document_.body.querySelectorAll('p, div, td')) {
@@ -163,9 +195,17 @@ function prepare(html: string, allowImages: boolean, showQuote: string, hideQuot
         blocked += 1
       }
     })
+  } else if (blockTrackers) {
+    document_.querySelectorAll('img').forEach((image) => {
+      const src = image.getAttribute('src') ?? ''
+      if (isTrackingPixel(src, { width: image.getAttribute('width'), height: image.getAttribute('height'), style: image.getAttribute('style') })) {
+        image.setAttribute('src', TRANSPARENT)
+        trackersBlocked += 1
+      }
+    })
   }
 
-  return { document: document_, blocked }
+  return { document: document_, blocked, trackersBlocked }
 }
 
 function buildDocument(document_: Document, allowImages: boolean): string {
@@ -216,10 +256,10 @@ function buildDocument(document_: Document, allowImages: boolean): string {
 }
 
 const MAX_PREPARED_CACHE = 24
-const preparedCache = new Map<string, { documentHtml: string; blocked: number }>()
+const preparedCache = new Map<string, { documentHtml: string; blocked: number; trackersBlocked: number }>()
 
-function getPreparedDocument(html: string, allowImages: boolean, showQuote: string, hideQuote: string): { documentHtml: string; blocked: number } {
-  const key = `${allowImages ? '1' : '0'}|${showQuote}|${hideQuote}|${html}`
+function getPreparedDocument(html: string, allowImages: boolean, blockTrackers: boolean, showQuote: string, hideQuote: string): { documentHtml: string; blocked: number; trackersBlocked: number } {
+  const key = `${allowImages ? '1' : '0'}|${blockTrackers ? '1' : '0'}|${showQuote}|${hideQuote}|${html}`
   const hit = preparedCache.get(key)
   if (hit) {
     // Mueve la entrada al final para mantener orden LRU.
@@ -227,8 +267,8 @@ function getPreparedDocument(html: string, allowImages: boolean, showQuote: stri
     preparedCache.set(key, hit)
     return hit
   }
-  const prepared = prepare(sanitize(html), allowImages, showQuote, hideQuote)
-  const entry = { documentHtml: buildDocument(prepared.document, allowImages), blocked: prepared.blocked }
+  const prepared = prepare(sanitize(html), allowImages, blockTrackers, showQuote, hideQuote)
+  const entry = { documentHtml: buildDocument(prepared.document, allowImages), blocked: prepared.blocked, trackersBlocked: prepared.trackersBlocked }
   preparedCache.set(key, entry)
   if (preparedCache.size > MAX_PREPARED_CACHE) {
     const oldest = preparedCache.keys().next().value
@@ -237,9 +277,9 @@ function getPreparedDocument(html: string, allowImages: boolean, showQuote: stri
   return entry
 }
 
-export function EmailBody({ html, blockRemote = false, theme, integrated = false }: EmailBodyProps): React.JSX.Element {
+export function EmailBody({ html, blockRemote = false, senderEmail, theme, integrated = false }: EmailBodyProps): React.JSX.Element {
   const { t } = useI18n()
-  const { remoteImages, bodyTheme: preferredTheme } = usePreferences()
+  const { remoteImages, bodyTheme: preferredTheme, allowedImageSenders = [], allowImageSender, blockTrackers = true } = usePreferences()
   const bodyTheme = theme ?? preferredTheme
   const frameRef = useRef<HTMLIFrameElement>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
@@ -259,10 +299,11 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
     setPreviewImage(null)
   }, [remoteImages, html])
 
-  const allowImages = !blockRemote && (allowOverride ?? remoteImages === 'allow')
+  const senderAllowed = Boolean(!blockRemote && senderEmail && allowedImageSenders.includes(senderEmail.trim().toLowerCase()))
+  const allowImages = !blockRemote && (allowOverride ?? (remoteImages === 'allow' || senderAllowed))
   const prepared = useMemo(
-    () => getPreparedDocument(html, allowImages, t('mail.showQuote'), t('mail.hideQuote')),
-    [html, allowImages, t]
+    () => getPreparedDocument(html, allowImages, blockTrackers, t('mail.showQuote'), t('mail.hideQuote')),
+    [html, allowImages, blockTrackers, t]
   )
   const documentHtml = prepared.documentHtml
 
@@ -432,6 +473,17 @@ export function EmailBody({ html, blockRemote = false, theme, integrated = false
           {!blockRemote && <button className="btn btn--primary" type="button" onClick={() => setAllowOverride(true)}>
             {t('mail.showImages')}
           </button>}
+          {!blockRemote && senderEmail && allowImageSender && (
+            <button className="tool-btn" type="button" onClick={() => void allowImageSender(senderEmail)}>
+              {t('mail.alwaysAllowSender')}
+            </button>
+          )}
+        </div>
+      )}
+      {!blockRemote && prepared.trackersBlocked > 0 && (
+        <div className="tracker-badge" role="status">
+          <Icon name="shield" size={14} />
+          <span>{prepared.trackersBlocked === 1 ? t('mail.trackerBlockedOne') : t('mail.trackersBlocked', { count: prepared.trackersBlocked })}</span>
         </div>
       )}
 

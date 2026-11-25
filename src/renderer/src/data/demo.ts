@@ -53,6 +53,9 @@ export interface Message {
   inlineImagesPending?: boolean
   summary?: { title: string; bullets: string[] }
   attachments?: Attachment[]
+  unsubscribe?: import('@shared/ipc').UnsubscribeInfo
+  calendarEvent?: import('@shared/ipc').CalendarEvent
+  authWarning?: 'dmarc-fail' | 'spf-dkim-fail'
   signature?: { name: string; role: string; place: string }
 }
 

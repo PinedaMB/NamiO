@@ -55,7 +55,14 @@ export const IPC = {
   shellOpen: 'shell:open',
   cacheChanged: 'cache:changed',
   mailSend: 'mail:send',
+  mailUnsubscribe: 'mail:unsubscribe',
+  mailCalendarReply: 'mail:calendar-reply',
+  messageSnooze: 'message:snooze',
+  messageUnsnooze: 'message:unsnooze',
+  snoozedList: 'snoozed:list',
+  messagePrint: 'message:print',
   attachmentPick: 'attachment:pick',
+  attachmentAttachBuffers: 'attachment:attach-buffers',
   draftGet: 'draft:get',
   draftsList: 'drafts:list',
   draftOpen: 'draft:open',
@@ -66,6 +73,7 @@ export const IPC = {
   outboxCancel: 'outbox:cancel',
   outboxChanged: 'outbox:changed',
   searchQuery: 'search:query',
+  searchServer: 'search:server',
   syncProgress: 'sync:progress',
   syncMailbox: 'sync:mailbox',
   senderLogo: 'sender:logo',
@@ -134,9 +142,41 @@ export interface CopilotRequest {
 export type CopilotError = 'invalid' | 'busy' | 'key' | 'limit' | 'service' | 'empty' | 'canceled' | 'configuration' | 'model'
 export type CopilotResult = { text: string; error?: never } | { error: CopilotError; text?: never }
 
+export interface MailTemplate {
+  id: string
+  name: string
+  body: string
+}
+
+export interface UnsubscribeInfo {
+  url?: string
+  mailto?: string
+  oneClick?: boolean
+}
+
+export interface CalendarEvent {
+  uid: string
+  summary: string
+  start: string
+  end?: string
+  location?: string
+  organizerName?: string
+  organizerEmail?: string
+  method?: string
+  attendees?: { name?: string; email: string }[]
+}
+
+export interface SnoozedItem {
+  mailbox: string
+  uid: number
+  wakeAt: number
+}
+
 export interface AppSettings {
   /** HTML de firma por identidad de cuenta (host, puerto y usuario). */
   signatures?: Record<string, string>
+  /** Plantillas rápidas de respuesta. */
+  templates?: MailTemplate[]
   appTheme?: AppTheme
   offlineDownload?: boolean
   keepInBackground?: boolean
@@ -152,9 +192,15 @@ export interface AppSettings {
   contextPanel?: boolean
   /** Imágenes remotas en el HTML de los correos: bloqueadas salvo que se permita. */
   remoteImages?: RemoteImagePolicy
+  /** Direcciones de remitentes con imágenes remotas permitidas siempre. */
+  allowedImageSenders?: string[]
+  /** Bloquear píxeles de rastreo incluso con imágenes remotas activadas. */
+  blockTrackers?: boolean
   /** Lienzo del cuerpo HTML: claro (papel del correo) u oscuro (invertido). */
   timeFormat?: TimeFormat
   bodyTheme?: BodyTheme
+  /** Segundos de margen para deshacer un envío (0 = desactivado). */
+  undoSendSeconds?: 0 | 5 | 7 | 10 | 20
   /** Ya eligió cuenta o demo: no se vuelve a mostrar la bienvenida. */
   onboarded?: boolean
 }
@@ -321,6 +367,9 @@ export interface MessageDetail extends Envelope {
   /** HTML crudo del mensaje: lo sanitiza el renderer antes de mostrarlo. */
   html: string | null
   attachments: MessageAttachment[]
+  unsubscribe?: UnsubscribeInfo
+  calendarEvent?: CalendarEvent
+  authWarning?: 'dmarc-fail' | 'spf-dkim-fail'
 }
 
 export type ImapResult<T> = { ok: true; data: T } | { ok: false; code: ImapErrorCode; detail: string }
@@ -373,6 +422,10 @@ export interface SendMailPayload {
   text: string
   /** Ids devueltos por `pickAttachments`; los archivos los lee el proceso principal. */
   attachments?: string[]
+  /** Retraso en ms antes de entregar por SMTP (para Deshacer envío). */
+  delayMs?: number
+  /** Timestamp epoch (ms) para envío programado (Send Later). */
+  scheduledAt?: number
 }
 
 export interface DraftServerRef {
@@ -474,7 +527,19 @@ export interface MailAction {
   canceled?: boolean
   /** `true` si quedó en la cola en vez de aplicarse en el acto. */
   queued: boolean
+  /** Id de la cola si el envío quedó en ventana de «Deshacer». */
+  undoId?: string
   error?: string
+}
+
+export interface PrintableMessage {
+  subject: string
+  from: string
+  to: string
+  cc?: string
+  date: string
+  html?: string | null
+  text?: string
 }
 
 export interface NotificationTarget {
@@ -556,8 +621,16 @@ export interface MailApi {
   saveAttachment(path: string, uid: number, index: number): Promise<string | null>
 
   sendMail(payload: SendMailPayload): Promise<MailAction>
+  unsubscribeMessage(info: UnsubscribeInfo): Promise<{ ok: boolean; error?: string }>
+  replyCalendarInvite(event: CalendarEvent, status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'): Promise<{ ok: boolean; error?: string }>
+  snoozeMessage(mailbox: string, uid: number, wakeAt: number): Promise<SnoozedItem[]>
+  unsnoozeMessage(mailbox: string, uid: number): Promise<SnoozedItem[]>
+  listSnoozed(): Promise<SnoozedItem[]>
+  printMessage(message: PrintableMessage): Promise<boolean>
   /** Abre el diálogo del sistema y devuelve los archivos a adjuntar. */
   pickAttachments(): Promise<PickedAttachment[]>
+  /** Adjunta archivos soltados mediante arrastrar y soltar. */
+  attachBuffers(files: { name: string; data: Uint8Array }[]): Promise<PickedAttachment[]>
   /** Borrador único del compositor, persistido en la caché. */
   getDraft(id?: string): Promise<Draft | null>
   listDrafts(): Promise<Draft[]>
@@ -570,6 +643,8 @@ export interface MailApi {
   onOutboxChanged(listener: () => void): () => void
   /** Búsqueda de texto completo sobre la caché local. */
   search(query: string, limit?: number, offset?: number, allAccounts?: boolean): Promise<SearchHit[]>
+  /** Búsqueda complementaria directa en el servidor IMAP (mensajes aún no cacheados). */
+  searchServer(query: string, mailbox?: string, limit?: number): Promise<SearchHit[]>
   /** Progreso de la descarga completa del buzón (o null si no hay una en curso). */
   senderLogo(email: string, mailbox: string): Promise<string | null>
   syncMailbox(path: string): Promise<ImapResult<boolean>>

@@ -8,6 +8,7 @@ import {
   type UpdateState,
   type NotificationTarget,
   type AccountConfig,
+  type CalendarEvent,
   type RecipientSuggestion,
   type AccountActivity,
   type AccountState,
@@ -24,6 +25,7 @@ import {
   type MessageDetail,
   type OutboxItem,
   type PickedAttachment,
+  type PrintableMessage,
   type AttachmentPreview,
   type AttachmentProgress,
   type DiscoveredMailConfig,
@@ -33,7 +35,9 @@ import {
   type RuleDraft,
   type SearchHit,
   type SyncProgress,
-  type SendMailPayload
+  type SendMailPayload,
+  type SnoozedItem,
+  type UnsubscribeInfo
 } from '@shared/ipc'
 
 /**
@@ -147,7 +151,19 @@ const api: MailApi = {
     ipcRenderer.invoke(IPC.attachmentSave, path, uid, index),
 
   sendMail: (payload: SendMailPayload): Promise<MailAction> => ipcRenderer.invoke(IPC.mailSend, payload),
+  unsubscribeMessage: (info: UnsubscribeInfo): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.mailUnsubscribe, info),
+  replyCalendarInvite: (event: CalendarEvent, status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.mailCalendarReply, event, status),
+  snoozeMessage: (mailbox: string, uid: number, wakeAt: number): Promise<SnoozedItem[]> =>
+    ipcRenderer.invoke(IPC.messageSnooze, mailbox, uid, wakeAt),
+  unsnoozeMessage: (mailbox: string, uid: number): Promise<SnoozedItem[]> =>
+    ipcRenderer.invoke(IPC.messageUnsnooze, mailbox, uid),
+  listSnoozed: (): Promise<SnoozedItem[]> => ipcRenderer.invoke(IPC.snoozedList),
+  printMessage: (message: PrintableMessage): Promise<boolean> => ipcRenderer.invoke(IPC.messagePrint, message),
   pickAttachments: (): Promise<PickedAttachment[]> => ipcRenderer.invoke(IPC.attachmentPick),
+  attachBuffers: (files: { name: string; data: Uint8Array }[]): Promise<PickedAttachment[]> =>
+    ipcRenderer.invoke(IPC.attachmentAttachBuffers, files),
   getDraft: (id?: string): Promise<Draft | null> => ipcRenderer.invoke(IPC.draftGet, id),
   listDrafts: (): Promise<Draft[]> => ipcRenderer.invoke(IPC.draftsList),
   openDraft: (path: string, uid: number): Promise<Draft> => ipcRenderer.invoke(IPC.draftOpen, path, uid),
@@ -158,6 +174,8 @@ const api: MailApi = {
   cancelOutbox: (id: string): Promise<void> => ipcRenderer.invoke(IPC.outboxCancel, id),
   search: (query: string, limit = 60, offset = 0, allAccounts = false): Promise<SearchHit[]> =>
     ipcRenderer.invoke(IPC.searchQuery, query, limit, offset, allAccounts),
+  searchServer: (query: string, mailbox = 'INBOX', limit = 30): Promise<SearchHit[]> =>
+    ipcRenderer.invoke(IPC.searchServer, query, mailbox, limit),
   senderLogo: (email: string, mailbox: string): Promise<string | null> => ipcRenderer.invoke(IPC.senderLogo, email, mailbox),
   syncMailbox: (path: string): Promise<ImapResult<boolean>> => ipcRenderer.invoke(IPC.syncMailbox, path),
   syncProgress: (): Promise<SyncProgress | null> => ipcRenderer.invoke(IPC.syncProgress),

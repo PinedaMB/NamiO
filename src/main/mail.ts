@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { createTransport } from 'nodemailer'
-import type { MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
+import type { CalendarEvent, MailAction, OutboxItem, OutboxKind, OutboxStatus, PickedAttachment, SendMailPayload } from '@shared/ipc'
 import { readMailboxes, readEnvelope, getMailboxMeta, readDraft, cacheAccountId, rememberRecipients, prunePickedAttachments, storePickedAttachment, readPickedAttachment, deleteOutbox, enqueueOutbox, listOutbox, updateOutbox, type OutboxRow } from './db'
 import { readActiveAccount } from './settings'
 import { appendToSent, archivePath, deleteMessage, deleteMessageBatch, getCredentials, moveMessage, removeServerDraft, sentContains, setSeen, syncInbox } from './imap'
@@ -460,24 +460,113 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
   if ((payload.inReplyTo !== undefined && (typeof payload.inReplyTo !== 'string' || /[\r\n]/.test(payload.inReplyTo))) || (payload.references !== undefined && (!Array.isArray(payload.references) || payload.references.some(id => typeof id !== 'string' || /[\r\n]/.test(id))))) {
     return { ok: false, queued: false, error: 'Cabeceras de respuesta inválidas' }
   }
-  payload = { ...payload, messageId: newMessageId((await readActiveAccount())?.user), draftUpdatedAt: payload.draftId ? readDraft(payload.draftId)?.updatedAt : undefined, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
+  const scheduledAt = typeof payload.scheduledAt === 'number' && Number.isFinite(payload.scheduledAt) && payload.scheduledAt > Date.now()
+    ? Math.round(payload.scheduledAt)
+    : 0
+  const delayMs = !scheduledAt && typeof payload.delayMs === 'number' && Number.isFinite(payload.delayMs) && payload.delayMs > 0 && payload.delayMs <= 60_000
+    ? Math.round(payload.delayMs)
+    : 0
+  const { delayMs: _ignoredDelay, scheduledAt: _ignoredScheduled, ...cleanPayload } = payload
+  const prepared = { ...cleanPayload, messageId: newMessageId((await readActiveAccount())?.user), draftUpdatedAt: payload.draftId ? readDraft(payload.draftId)?.updatedAt : undefined, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
   // Cancelar cualquier autoguardado pendiente de este borrador para que no compita con el envío.
-  if (payload.draftId) {
+  if (prepared.draftId) {
     for (const row of listOutbox()) {
-      if (row.kind === 'draft-save' && payloadOf(row).draftId === payload.draftId) deleteOutbox(row.id)
+      if (row.kind === 'draft-save' && payloadOf(row).draftId === prepared.draftId) deleteOutbox(row.id)
     }
   }
-  const id = enqueueOutbox({ kind: 'send', payload })
+  const id = enqueueOutbox({ kind: 'send', payload: prepared })
+  if (scheduledAt > 0) {
+    updateOutbox(id, { nextAttemptAt: scheduledAt })
+  } else if (delayMs > 0) {
+    updateOutbox(id, { nextAttemptAt: Date.now() + delayMs })
+  }
   try {
-    rememberRecipients([payload.to, payload.cc, payload.bcc ?? ''].flatMap(splitRecipients))
+    rememberRecipients([prepared.to, prepared.cc, prepared.bcc ?? ''].flatMap(splitRecipients))
   } catch (cause) {
     console.error('[recipient-cache]', cause)
   }
   notify()
+  if (scheduledAt > 0) {
+    scheduleOutboxWake()
+    return { ok: true, queued: true }
+  }
+  if (delayMs > 0) {
+    scheduleOutboxWake()
+    return { ok: true, queued: false, undoId: id }
+  }
   if (processingDone) await processingDone
   await processOutbox()
 
   return { ok: true, queued: listOutbox().some(row => row.id === id) }
+}
+
+function buildIcsReply(
+  event: CalendarEvent,
+  attendeeEmail: string,
+  status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
+): string {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
+  const fmtDate = (iso?: string): string | null => {
+    if (!iso) return null
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso.replace(/-/g, '')
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
+  }
+  const dtStart = fmtDate(event.start)
+  const dtEnd = fmtDate(event.end)
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//NamiO//Mail Client//EN',
+    'METHOD:REPLY',
+    'BEGIN:VEVENT',
+    `UID:${event.uid}`,
+    `DTSTAMP:${stamp}`,
+    ...(dtStart ? [`DTSTART:${dtStart}`] : []),
+    ...(dtEnd ? [`DTEND:${dtEnd}`] : []),
+    `SUMMARY:${event.summary.replace(/[\r\n]+/g, ' ')}`,
+    ...(event.organizerEmail ? [`ORGANIZER:mailto:${event.organizerEmail}`] : []),
+    `ATTENDEE;PARTSTAT=${status}:mailto:${attendeeEmail}`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n') + '\r\n'
+}
+
+export async function replyCalendarInvite(
+  event: CalendarEvent,
+  status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
+): Promise<{ ok: boolean; error?: string }> {
+  if (!event?.organizerEmail) return { ok: false, error: 'El evento no tiene organizador' }
+  const credentials = await getCredentials()
+  if (!credentials) return { ok: false, error: 'La cuenta no tiene credenciales guardadas' }
+  const { account, password, accessToken } = credentials
+  const sender = account.user.includes('@') ? account.user : `${account.user}@${account.host || 'localhost'}`
+  const ics = buildIcsReply(event, sender, status)
+  const label = status === 'ACCEPTED' ? 'Aceptado' : status === 'TENTATIVE' ? 'Quizás' : 'Rechazado'
+  const transport = createTransport({
+    host: account.smtp.host,
+    port: account.smtp.port,
+    secure: account.smtp.secure,
+    auth: accessToken
+      ? { type: 'OAuth2' as const, user: account.user, accessToken }
+      : { user: account.user, pass: password ?? '' },
+    tls: { rejectUnauthorized: true }
+  })
+  try {
+    await transport.sendMail({
+      from: sender,
+      to: event.organizerEmail,
+      subject: `${label}: ${event.summary}`,
+      text: `${label}: ${event.summary}`,
+      icalEvent: { method: 'REPLY', content: ics }
+    })
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  } finally {
+    transport.close()
+  }
 }
 
 export async function moveMessageAction(path: string, uid: number, target: string): Promise<MailAction> {

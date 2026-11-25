@@ -25,6 +25,7 @@ interface SidebarProps {
   syncDetail: string
   offline: boolean
   onFolderContextMenu?: (anchor: ContextAnchor, id: string) => void
+  onDropMessages?: (targetFolder: string, payload: { folder: string; ids: string[] }) => void
   onSelectFolder: (id: string) => void
   onOpenSettings: () => void
   onOpenAccount: () => void
@@ -62,6 +63,7 @@ export function Sidebar({
   offline,
   onSelectFolder,
   onFolderContextMenu,
+  onDropMessages,
   onOpenSettings,
   onOpenAccount,
   onExitDemo,
@@ -71,6 +73,7 @@ export function Sidebar({
 }: SidebarProps): React.JSX.Element {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [dragTarget, setDragTarget] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(readExpandedGroups)
 
   useEffect(() => {
@@ -295,10 +298,35 @@ export function Sidebar({
                 aria-label={`${folder.spam && folder.label !== t('sidebar.spam') ? `${folder.label} · ${t('sidebar.spam')}` : folder.label}${folder.count ? ` (${folder.count})` : ''}`}
                 aria-expanded={folder.hasChildren ? groupExpanded : undefined}
                 type="button"
-                className={cx('nav-item', folder.hasChildren && 'nav-group__target', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam')}
+                className={cx('nav-item', folder.hasChildren && 'nav-group__target', activeFolder === folder.id && 'nav-item--active', folder.spam && 'nav-item--spam', dragTarget === folder.id && 'nav-item--drop-target')}
                 style={!collapsed && nested && !folder.hasChildren ? { paddingLeft: `calc(var(--sp-sm) + ${(folder.depth ?? 0) * 14}px)` } : undefined}
                 data-mailbox={folder.id}
                 data-depth={folder.depth || undefined}
+                onDragOver={event => {
+                  if (!onDropMessages || folder.id === '__unified_inbox__' || folder.id === activeFolder) return
+                  if (!event.dataTransfer.types.includes('application/x-namio-drag')) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  if (dragTarget !== folder.id) setDragTarget(folder.id)
+                }}
+                onDragLeave={() => {
+                  if (dragTarget === folder.id) setDragTarget(null)
+                }}
+                onDrop={event => {
+                  setDragTarget(null)
+                  if (!onDropMessages || folder.id === '__unified_inbox__' || folder.id === activeFolder) return
+                  const raw = event.dataTransfer.getData('application/x-namio-drag')
+                  if (!raw) return
+                  event.preventDefault()
+                  try {
+                    const parsed = JSON.parse(raw) as { folder?: string; ids?: string[] }
+                    if (typeof parsed.folder === 'string' && Array.isArray(parsed.ids) && parsed.ids.length > 0) {
+                      onDropMessages(folder.id, { folder: parsed.folder, ids: parsed.ids })
+                    }
+                  } catch {
+                    // ignore malformed drag payload
+                  }
+                }}
                 onContextMenu={event => { if (!onFolderContextMenu) return; event.preventDefault(); onFolderContextMenu({ x: event.clientX, y: event.clientY, trigger: event.currentTarget }, folder.id) }}
                 onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onFolderContextMenu?.({ x: rect.left, y: rect.bottom, trigger: event.currentTarget }, folder.id) } }}
                 onClick={() => {

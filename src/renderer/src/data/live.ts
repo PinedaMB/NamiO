@@ -152,7 +152,10 @@ export function detailToMessage(detail: MessageDetail, locale: string, partial =
       size: formatBytes(attachment.size),
       detail: attachment.type,
       kind: attachmentKind(attachment.name, attachment.type)
-    }))
+    })),
+    ...(detail.unsubscribe ? { unsubscribe: detail.unsubscribe } : {}),
+    ...(detail.calendarEvent ? { calendarEvent: detail.calendarEvent } : {}),
+    ...(detail.authWarning ? { authWarning: detail.authWarning } : {})
   }
 }
 
