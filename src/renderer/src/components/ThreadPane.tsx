@@ -550,7 +550,7 @@ export function ThreadPane({
                 </div>
               )}
 
-              {expanded && (message.html ? <EmailBody html={message.html} blockRemote={spam} senderEmail={message.from.email} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} loading={loadingMessage} />)}
+              {(expanded || !message.partial) && (message.html ? <EmailBody html={message.html} blockRemote={spam} senderEmail={message.from.email} theme={bodyTheme} integrated={bodyTheme === appBodyTheme} /> : <Body message={message} theme={bodyTheme === appBodyTheme ? undefined : bodyTheme} onRetry={onRetryMessage} loading={loadingMessage} />)}
               </details>
               )
             })}
