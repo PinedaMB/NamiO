@@ -215,6 +215,7 @@ export function ThreadList({
     const element = listRef.current
     if (!virtual || !element) return
     const syncHeight = (): void => {
+      viewportRef.current.top = element.scrollTop
       viewportRef.current.height = element.clientHeight
       setArrivals(current => new Set(current))
     }
@@ -224,8 +225,12 @@ export function ThreadList({
     return () => observer.disconnect()
   }, [virtual])
 
-  // Si j/k lleva la selección fuera de la ventana montada, la lista la sigue.
+  // Si j/k cambia la selección fuera de la ventana montada, la lista la sigue.
+  // No debe ejecutarse al cargar más mensajes (`loadMore`) ni al activar virtualización.
+  const lastScrolledSelected = useRef<string | null>(selectedId)
   useEffect(() => {
+    if (selectedId === lastScrolledSelected.current) return
+    lastScrolledSelected.current = selectedId
     const element = listRef.current
     if (!virtual || !selectedId || !element) return
     const index = conversations.findIndex(thread => thread.id === selectedId || thread.messageIds?.some(id => String(id) === selectedId))

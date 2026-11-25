@@ -29,6 +29,7 @@ import { SearchResults } from './components/SearchResults'
 import { ThreadPane, ThreadPaneEmpty } from './components/ThreadPane'
 import { StatusBar } from './components/StatusBar'
 import { ComposeOverlay, type ReplyContext } from './components/ComposeOverlay'
+import { CommandPalette } from './components/CommandPalette'
 import { ERROR_KEYS } from './components/errorKeys'
 import { BootSplash } from './components/BootSplash'
 import { ImageViewer } from './components/ImageViewer'
@@ -37,7 +38,6 @@ const FolderDialog = lazy(() => import('./components/FolderDialog').then(m => ({
 const DocumentViewer = lazy(() => import('./components/DocumentViewer').then(m => ({ default: m.DocumentViewer })))
 const MoveDialog = lazy(() => import('./components/MoveDialog').then(m => ({ default: m.MoveDialog })))
 const ContextRail = lazy(() => import('./components/ContextRail').then(m => ({ default: m.ContextRail })))
-const CommandPalette = lazy(() => import('./components/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })))
 const AccountDialog = lazy(() => import('./components/AccountDialog').then(m => ({ default: m.AccountDialog })))
 const Onboarding = lazy(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })))
@@ -2028,25 +2028,21 @@ export function App(): React.JSX.Element {
         })()}
       </div>
 
-      {paletteOpen && (
-        <Suspense fallback={null}>
-          <CommandPalette
-            key={accountIdentity.current ?? 'demo'}
-            searchCache={live ? window.api.search : undefined}
-            onOpenSearchHit={hit => { setView('mailbox'); setQuery(''); openHit(hit) }}
-            open={paletteOpen}
-            threads={visible}
-            folders={folderViews}
-            canArchive={!!selected && !selected.id.startsWith('draft:')}
-            onClose={() => setPaletteOpen(false)}
-            onOpenThread={select}
-            onCompose={openCompose}
-            onArchive={archive}
-            onSelectFolder={selectFolder}
-            onOpenSettings={openSettings}
-          />
-        </Suspense>
-      )}
+      <CommandPalette
+        key={accountIdentity.current ?? 'demo'}
+        searchCache={live ? window.api.search : undefined}
+        onOpenSearchHit={hit => { setView('mailbox'); setQuery(''); openHit(hit) }}
+        open={paletteOpen}
+        threads={visible}
+        folders={folderViews}
+        canArchive={!!selected && !selected.id.startsWith('draft:')}
+        onClose={() => setPaletteOpen(false)}
+        onOpenThread={select}
+        onCompose={openCompose}
+        onArchive={archive}
+        onSelectFolder={selectFolder}
+        onOpenSettings={openSettings}
+      />
 
       {moveOpen && selected && <Suspense fallback={null}><MoveDialog subject={selected.subject} folders={moveFolders} onClose={() => setMoveOpen(false)} onMove={moveSelected} /></Suspense>}
       {folderDialog && <Suspense fallback={null}><FolderDialog onClose={() => setFolderDialog(false)} onCreate={name => changeFolder(name, false)} /></Suspense>}

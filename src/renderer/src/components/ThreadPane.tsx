@@ -304,6 +304,7 @@ export function ThreadPane({
               <Icon name="print" size={16} />
             </TooltipButton>
           )}
+          {(ai || onPrint) && <span className="vsep" style={{ margin: '0 4px' }} />}
           <TooltipButton className="tool-btn tool-btn--icon" type="button" onClick={onToggleFocus} title={t(readingFocused ? 'thread.exitFocus' : 'thread.focus')} aria-pressed={readingFocused}>
             <Icon name={readingFocused ? 'left_panel_open' : 'left_panel_close'} size={18} />
           </TooltipButton>
