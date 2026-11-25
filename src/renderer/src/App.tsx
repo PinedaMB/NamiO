@@ -1910,14 +1910,19 @@ export function App(): React.JSX.Element {
           )}
         </div>
 
-        <StatusBar
-          pending={outbox.length}
-          outbox={outbox}
-          onRetryOutbox={id => void window.api.retryOutbox(id)}
-          onCancelOutbox={id => void window.api.cancelOutbox(id)}
-          deletion={outbox.find(item => item.deletionProgress?.running) ?? outbox.find(item => item.kind === 'delete-many' && item.status !== 'failed')}
-          progress={syncProgress}
-        />
+        {(() => {
+          const visibleOutbox = outbox.filter(item => (item.kind !== 'draft-save' && item.kind !== 'draft-delete') || item.status === 'failed')
+          return (
+            <StatusBar
+              pending={visibleOutbox.length}
+              outbox={visibleOutbox}
+              onRetryOutbox={id => void window.api.retryOutbox(id)}
+              onCancelOutbox={id => void window.api.cancelOutbox(id)}
+              deletion={outbox.find(item => item.deletionProgress?.running) ?? outbox.find(item => item.kind === 'delete-many' && item.status !== 'failed')}
+              progress={syncProgress}
+            />
+          )
+        })()}
       </div>
 
       {paletteOpen && (

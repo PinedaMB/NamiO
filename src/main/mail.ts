@@ -192,6 +192,24 @@ export async function registerAttachments(window: BrowserWindow | null): Promise
   return picked
 }
 
+function smtpAutoSavesSent(host: string): boolean {
+  const h = host.trim().toLowerCase()
+  return (
+    h === 'smtp.gmail.com' ||
+    h === 'smtp-relay.gmail.com' ||
+    h === 'smtp.office365.com' ||
+    h === 'smtp-mail.outlook.com' ||
+    h === 'smtp.mail.me.com' ||
+    h === 'smtp.mail.yahoo.com' ||
+    h === 'smtp.fastmail.com' ||
+    h === 'smtp.zoho.com' ||
+    h === 'smtp.zoho.eu' ||
+    h === 'smtppro.zoho.com' ||
+    h.endsWith('.outlook.com') ||
+    h.endsWith('.office365.com')
+  )
+}
+
 async function sendWithSmtp(payload: SendMailPayload, accountId: string | null): Promise<void> {
   // `getCredentials` revalida la cuenta: si cambió, no se envían credenciales
   // (ni el correo) desde el buzón equivocado.
@@ -255,10 +273,20 @@ async function sendWithSmtp(payload: SendMailPayload, accountId: string | null):
       raw
     })
 
-    // Copia en Enviados: si falla, el mensaje ya salió y no debe reintentarse.
-    await appendToSent(raw, accountId ?? undefined).catch((error: unknown) => {
-      console.error('[sent-copy]', error)
-    })
+    // Proveedores como Gmail, Outlook/Microsoft 365, iCloud, Yahoo, Fastmail o Zoho
+    // guardan automáticamente una copia en Enviados al enviar por SMTP: hacer APPEND
+    // duplicaría el mensaje. En servidores SMTP propios comprobamos primero por
+    // Message-ID antes de hacer APPEND.
+    if (!smtpAutoSavesSent(account.smtp.host)) {
+      const alreadyInSent = payload.messageId
+        ? await sentContains(payload.messageId, accountId ?? undefined).catch(() => false)
+        : false
+      if (!alreadyInSent) {
+        await appendToSent(raw, accountId ?? undefined).catch((error: unknown) => {
+          console.error('[sent-copy]', error)
+        })
+      }
+    }
 
 
     // Un servidor puede devolvernos la copia (o escribir a nosotros mismos):
@@ -433,6 +461,12 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
     return { ok: false, queued: false, error: 'Cabeceras de respuesta inválidas' }
   }
   payload = { ...payload, messageId: newMessageId((await readActiveAccount())?.user), draftUpdatedAt: payload.draftId ? readDraft(payload.draftId)?.updatedAt : undefined, to: splitRecipients(payload.to).join(', '), cc: splitRecipients(payload.cc).join(', '), bcc: splitRecipients(payload.bcc ?? '').join(', ') }
+  // Cancelar cualquier autoguardado pendiente de este borrador para que no compita con el envío.
+  if (payload.draftId) {
+    for (const row of listOutbox()) {
+      if (row.kind === 'draft-save' && payloadOf(row).draftId === payload.draftId) deleteOutbox(row.id)
+    }
+  }
   const id = enqueueOutbox({ kind: 'send', payload })
   try {
     rememberRecipients([payload.to, payload.cc, payload.bcc ?? ''].flatMap(splitRecipients))
@@ -440,6 +474,7 @@ export async function sendMail(payload: SendMailPayload): Promise<MailAction> {
     console.error('[recipient-cache]', cause)
   }
   notify()
+  if (processingDone) await processingDone
   await processOutbox()
 
   return { ok: true, queued: listOutbox().some(row => row.id === id) }

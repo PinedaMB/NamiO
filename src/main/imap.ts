@@ -2217,7 +2217,7 @@ export function uploadDraft(draft: Draft, raw: Buffer, messageId: string, accoun
     if (generation !== syncGeneration) throw new Error('La cuenta activa cambió')
     const current = readLocalDraft(draft.id)
     if (current) storeDraft({ ...current, server: saved.server, syncedAt: draft.updatedAt, previousServer: undefined })
-    await syncMessages(folder.path, 50)
+    void syncMessages(folder.path, 50).catch(() => undefined)
     notify(folder.path)
   })
 }
