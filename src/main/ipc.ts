@@ -1,8 +1,6 @@
 import { setSpellcheckLanguage } from './spellcheck'
 import { autodiscoverAccount } from './autodiscover'
 import { copilotStatus, configureCopilot, listOllamaModels, setCopilotKey, generateCopilot, cancelCopilot } from './copilot'
-import { attachmentPreview } from './attachmentPreview'
-import { openServerDraft, queueDraftDelete, queueDraftSave } from './drafts'
 import { setBackgroundMode } from './background'
 import { testNotification } from './notifications'
 import { senderLogo } from './senderLogo'
@@ -24,33 +22,58 @@ import {
 import {
   accountIdFor,
   activateAccount,
+  applyRulesToCache,
+  archiveMessage,
+  attachmentPreview,
+  cacheAccountId,
+  cacheUsage,
+  cancelOutbox,
+  changeMailbox,
   checkAccountsActivity,
   clearCachedMail,
   connectAccount,
   connectAccountOAuth,
+  deleteMessageAction,
   disconnectAccount,
+  enqueueOutbox,
   getAccountState,
+  getMailboxMeta,
   getMessage,
   getSentReplies,
   getSyncProgress,
-  resumeOfflineDownload,
   listAccounts,
+  listDrafts,
   listEnvelopes,
-  listUnifiedInbox,
   listMailboxes,
-  changeMailbox,
+  listUnifiedInbox,
   mailboxDeletionSnapshot,
+  moveMessageAction,
+  openServerDraft,
+  outboxItems,
+  pauseOutbox,
+  processOutbox,
+  prunePickedAttachments,
+  queueDraftDelete,
+  queueDraftSave,
   readAttachment,
+  readDraft,
+  readMailboxes,
+  readRules,
+  registerAttachments,
+  removeRule,
+  resumeOfflineDownload,
+  resumeOutbox,
+  retryOutbox,
+  saveRule,
   searchMail,
   selectAccount,
-  syncMailbox,
-  trashPath,
+  sendMail,
   setFlagged,
-  setSeen
-} from './imap'
-import { moveMessageAction, archiveMessage, cancelOutbox, deleteMessageAction, outboxItems, pauseOutbox, resumeOutbox, processOutbox, registerAttachments, retryOutbox, sendMail } from './mail'
-import { suggestRecipients, cacheUsage, listDrafts, readDraft, prunePickedAttachments, readMailboxes, getMailboxMeta, cacheAccountId, enqueueOutbox } from './db'
-import { applyRulesToCache, readRules, removeRule, saveRule } from './rules'
+  setSeen,
+  suggestRecipients,
+  syncMailbox,
+  trashPath
+} from './engineProxy'
 import { encryptSecret, readActiveAccount, readAccounts, updateAccount, readAppSettings, readSettings, sanitizeSettingsPatch, writeSettings } from './settings'
 
 function validConfig(config: AccountConfig): boolean {
@@ -262,11 +285,11 @@ export function registerIpcHandlers(): void {
     disconnecting = true
     try {
       const account = await readActiveAccount()
-      if (!account || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      if (!account || (await cacheAccountId()) !== account.id) throw new Error('La cuenta activa cambió')
       await pauseOutbox()
-      if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
-      const pending = listDrafts().filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer).length
-      const queued = outboxItems().length
+      if ((await readActiveAccount())?.id !== account.id || (await cacheAccountId()) !== account.id) throw new Error('La cuenta activa cambió')
+      const pending = (await listDrafts()).filter(draft => !draft.server || draft.syncedAt !== draft.updatedAt || draft.previousServer).length
+      const queued = (await outboxItems()).length
       const english = (await readSettings()).language === 'en'
       const options = {
         type: 'warning' as const,
@@ -281,18 +304,18 @@ export function registerIpcHandlers(): void {
       const owner = BrowserWindow.fromWebContents(event.sender)
       const choice = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options)
       if (choice.response !== 1) return false
-      if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      if ((await readActiveAccount())?.id !== account.id || (await cacheAccountId()) !== account.id) throw new Error('La cuenta activa cambió')
       await disconnectAccount(account.id)
       return true
     } finally {
       disconnecting = false
-      resumeOutbox()
+      void resumeOutbox()
     }
   })
 
   ipcMain.handle(IPC.mailboxChange, async (event, path: string, remove: boolean) => {
     const account = await readActiveAccount()
-    if (!account || account.id !== cacheAccountId() || typeof path !== 'string' || typeof remove !== 'boolean') return { ok: false, code: 'unknown', detail: 'Cuenta o carpeta inválida' }
+    if (!account || account.id !== (await cacheAccountId()) || typeof path !== 'string' || typeof remove !== 'boolean') return { ok: false, code: 'unknown', detail: 'Cuenta o carpeta inválida' }
     if (remove) {
       const settings = await readSettings()
       const es = settings.language !== 'en'
@@ -335,7 +358,7 @@ export function registerIpcHandlers(): void {
     if (typeof path !== 'string' || !path || !Number.isInteger(uid) || uid <= 0) {
       return { ok: false, queued: false, error: 'Mensaje inválido' }
     }
-    const permanent = path === trashPath()
+    const permanent = path === (await trashPath())
     {
       const account = await readActiveAccount()
       const english = (await readSettings()).language === 'en'
@@ -360,12 +383,13 @@ export function registerIpcHandlers(): void {
     try {
       if (typeof path !== 'string' || !path || (selectedUids !== undefined && (!Array.isArray(selectedUids) || selectedUids.length > 10000 || selectedUids.some(uid => !Number.isSafeInteger(uid) || uid <= 0)))) throw new Error('Selección inválida')
       const account = await readActiveAccount()
-      if (!account || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
+      if (!account || (await cacheAccountId()) !== account.id) throw new Error('La cuenta activa cambió')
       const empty = selectedUids === undefined
-      const box = readMailboxes().find(item => item.path === path)
-      if (empty && (!box || (path !== trashPath() && !isSpamMailbox(box)))) throw new Error('Solo se puede vaciar Spam o Papelera')
-      const permanent = empty || path === trashPath()
-      const cachedValidity = getMailboxMeta(path)?.uidValidity
+      const box = (await readMailboxes()).find(item => item.path === path)
+      const trash = await trashPath()
+      if (empty && (!box || (path !== trash && !isSpamMailbox(box)))) throw new Error('Solo se puede vaciar Spam o Papelera')
+      const permanent = empty || path === trash
+      const cachedValidity = (await getMailboxMeta(path))?.uidValidity
       const snapshot = empty || !cachedValidity ? await mailboxDeletionSnapshot(path) : null
       const uids = [...new Set(selectedUids ?? snapshot!.uids)]
       const uidValidity = snapshot?.uidValidity ?? String(cachedValidity)
@@ -383,8 +407,8 @@ export function registerIpcHandlers(): void {
       const window = BrowserWindow.fromWebContents(event.sender)
       const choice = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
       if (choice.response !== 1) return { ok: true, queued: false, canceled: true }
-      if ((await readActiveAccount())?.id !== account.id || cacheAccountId() !== account.id) throw new Error('La cuenta activa cambió')
-      enqueueOutbox({ kind: 'delete-many', mailbox: path, payload: { uids, uidValidity, permanent }, accountId: account.id, uidValidity })
+      if ((await readActiveAccount())?.id !== account.id || (await cacheAccountId()) !== account.id) throw new Error('La cuenta activa cambió')
+      await enqueueOutbox({ kind: 'delete-many', mailbox: path, payload: { uids, uidValidity, permanent }, accountId: account.id, uidValidity })
       void processOutbox()
       return { ok: true, queued: true }
     } catch (error) {
@@ -424,13 +448,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.draftsList, () => listDrafts())
   ipcMain.handle(IPC.draftOpen, (_event, path: string, uid: number) => openServerDraft(path, uid))
   ipcMain.handle(IPC.draftSave, async (_event, input: Draft) => {
-    const draft = queueDraftSave(input)
+    const draft = await queueDraftSave(input)
     void processOutbox()
     return { id: draft.id!, queued: true }
   })
   ipcMain.handle(IPC.draftClear, async (_event, id?: string) => {
-    if (id) queueDraftDelete(id)
-    else prunePickedAttachments()
+    if (id) await queueDraftDelete(id)
+    else await prunePickedAttachments()
     void processOutbox()
   })
 
@@ -479,7 +503,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.rulesDelete, (_event, id: number) => removeRule(Number(id)))
 
   ipcMain.handle(IPC.rulesApply, async () => {
-    const matched = applyRulesToCache()
+    const matched = await applyRulesToCache()
     if (matched > 0) await processOutbox()
     return { matched }
   })

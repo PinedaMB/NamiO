@@ -176,8 +176,13 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000, onAuth
   const { verifier, challenge } = pkce()
   const state = base64url(randomBytes(16))
   let authWindow: BrowserWindow | null = null
+  let closeBridgeWindow: (() => void) | null = null
   let settled = false
   const closeAuthWindow = (): void => {
+    if (closeBridgeWindow) {
+      closeBridgeWindow()
+      closeBridgeWindow = null
+    }
     if (authWindow && !authWindow.isDestroyed()) authWindow.close()
     authWindow = null
   }
@@ -253,6 +258,30 @@ export async function authorize(config: OAuthConfig, timeoutMs = 300_000, onAuth
       console.log('[oauth] authorize', url.toString())
       onAuthUrl?.(url.toString())
       if (config.provider === 'microsoft') {
+        const bridge = (globalThis as {
+          __namioOAuthWindowBridge?: {
+            open: (url: string, onClosed: () => void, onError: (message: string) => void) => () => void
+          }
+        }).__namioOAuthWindowBridge
+        if (bridge) {
+          closeBridgeWindow = bridge.open(
+            url.toString(),
+            () => {
+              if (settled) return
+              settled = true
+              server.close()
+              reject(new Error('Se cerró la ventana de autorización'))
+            },
+            (message) => {
+              if (settled) return
+              settled = true
+              closeAuthWindow()
+              server.close()
+              reject(new Error(message))
+            }
+          )
+          return
+        }
         // Outlook se autentica en una ventana propia: no depende de que Windows
         // tenga un navegador predeterminado ni de que `shell` abra una pestaña.
         const window = new BrowserWindow({

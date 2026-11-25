@@ -924,7 +924,7 @@ export function App(): React.JSX.Element {
       ordered.splice(ordered.indexOf(firstUid), 1)
       ordered.unshift(firstUid)
     }
-    const applyMessages = (results: ReadonlyArray<Awaited<ReturnType<typeof window.api.getMessage>>>): void => {
+    const applyMessages = (results: ReadonlyArray<Awaited<ReturnType<typeof window.api.getMessage>>>, notifyPartial = true): void => {
       const incoming: Message[] = []
       let wentOffline = false
       let anyPartial = false
@@ -935,7 +935,7 @@ export function App(): React.JSX.Element {
         incoming.push({ ...detailToMessage(result.data, locale, result.meta.partial === true), inlineImagesPending: result.meta.inlineImagesPending === true })
       }
       if (wentOffline) setSync(current => current.offline ? current : { ...current, offline: true })
-      if (anyPartial) setToast(t('offline.bodyUnavailable'))
+      if (anyPartial && notifyPartial) setToast(t('offline.bodyUnavailable'))
       if (incoming.length === 0) return
       setThreads(current => current.map(thread => {
         if (thread.id !== selected.id) return thread
@@ -956,7 +956,7 @@ export function App(): React.JSX.Element {
         if (result?.ok && (!result.meta.partial || disconnected || ordered.length > 4)) readyCached.push(result)
         if (!result?.ok || result.meta.partial || result.meta.inlineImagesPending) pending.push(messageUid)
       })
-      applyMessages(readyCached)
+      applyMessages(readyCached, disconnected)
       if (disconnected) return
       // En hilos extensos solo se descarga inicialmente el mensaje abierto; los colapsados se piden al expandir.
       const toFetch = ordered.length > 4 ? pending.slice(0, 1) : pending

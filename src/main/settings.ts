@@ -39,8 +39,21 @@ export interface StoredSettings extends Partial<AppSettings> {
   account?: StoredAccount
 }
 
+interface SecretBridge {
+  encryptSecret: (password: string) => Promise<string | null>
+  decryptSecret: (secret: string) => Promise<string | null>
+}
+
+function userDataDir(): string {
+  return (globalThis as { __namioUserData?: string }).__namioUserData ?? app.getPath('userData')
+}
+
+function secretBridge(): SecretBridge | undefined {
+  return (globalThis as { __namioSecretBridge?: SecretBridge }).__namioSecretBridge
+}
+
 function settingsPath(): string {
-  return join(app.getPath('userData'), 'settings.json')
+  return join(userDataDir(), 'settings.json')
 }
 
 export async function readSettings(): Promise<StoredSettings> {
@@ -208,6 +221,8 @@ export async function updateAccount(id: string, patch: Partial<StoredAccount>): 
 }
 
 export async function encryptSecret(password: string): Promise<string | null> {
+  const bridge = secretBridge()
+  if (bridge) return bridge.encryptSecret(password)
   // En Linux sin keyring, Electron puede usar el backend `basic_text`, que
   // "cifra" con una clave fija de Chromium: eso no protege una contraseña.
   if (process.platform === 'linux') {
@@ -222,6 +237,8 @@ export async function encryptSecret(password: string): Promise<string | null> {
 }
 
 export async function decryptSecret(secret: string): Promise<string | null> {
+  const bridge = secretBridge()
+  if (bridge) return bridge.decryptSecret(secret)
   try {
     const decrypted = await safeStorage.decryptStringAsync(Buffer.from(secret, 'base64'))
     return decrypted.result

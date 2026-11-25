@@ -122,12 +122,16 @@ export function initCache(accountId: string = 'default'): void {
   openAccountCache(accountId)
 }
 
+function userDataDir(): string {
+  return (globalThis as { __namioUserData?: string }).__namioUserData ?? app.getPath('userData')
+}
+
 function openDatabase(accountId: string): DatabaseSync {
   const existing = handles.get(accountId)
   if (existing) return existing
 
   const file = accountCacheFile(accountId)
-  const database = new DatabaseSync(join(app.getPath('userData'), file))
+  const database = new DatabaseSync(join(userDataDir(), file))
   handles.set(accountId, database)
   database.exec('PRAGMA journal_mode = WAL')
   database.exec('PRAGMA synchronous = NORMAL')
@@ -1576,7 +1580,7 @@ function accountCacheFile(accountId: string): string {
 }
 
 export async function cacheUsage(accounts: readonly { id: string }[]): Promise<CacheUsage> {
-  const directory = app.getPath('userData')
+  const directory = userDataDir()
   const files = (await readdir(directory)).filter(name => /^cache(?:-[a-z0-9_-]+)?\.db(?:-wal|-shm|-journal)?$/i.test(name))
   const sizes = await Promise.all(files.map(async name => {
     try {
@@ -1610,13 +1614,13 @@ export async function cacheUsage(accounts: readonly { id: string }[]): Promise<C
 export async function deleteAccountCache(accountId: string): Promise<void> {
   if (!/^[a-z0-9_-]+$/i.test(accountId)) throw new Error('Cuenta inválida')
   closeAccountCache(accountId)
-  const file = join(app.getPath('userData'), accountCacheFile(accountId))
+  const file = join(userDataDir(), accountCacheFile(accountId))
   for (const suffix of ['-wal', '-shm', '-journal', '']) await rm(file + suffix, { force: true })
 }
 
 /** Libera cuerpos descargados sin tocar sobres, borradores, reglas ni la cola. */
 export async function clearAccountCache(accountId: string): Promise<void> {
-  const file = join(app.getPath('userData'), accountCacheFile(accountId))
+  const file = join(userDataDir(), accountCacheFile(accountId))
   try {
     await stat(file)
   } catch (cause) {

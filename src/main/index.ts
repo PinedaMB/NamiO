@@ -4,12 +4,23 @@ import { app, BrowserWindow, Menu, session, shell, nativeTheme } from 'electron'
 import { parseMailto, type MailtoDraft } from '@shared/mailto'
 import { setupBackground } from './background'
 import { IPC } from '@shared/ipc'
-import { closeCache, initCache } from './db'
-import { checkAccountsActivity, closeAllSessions, setNewMailListener, setCacheListener, setRulesListener, setSyncProgressListener, syncInbox } from './imap'
+import {
+  checkAccountsActivity,
+  closeAllSessions,
+  closeCache,
+  initCache,
+  outboxItems,
+  processOutbox,
+  setCacheListener,
+  setNewMailListener,
+  setOutboxListener,
+  setRulesListener,
+  setSyncProgressListener,
+  syncInbox
+} from './engineProxy'
 import { showNewMail } from './notifications'
 import { migrateOAuthSecrets, readActiveAccount, readSettings } from './settings'
 import { registerIpcHandlers } from './ipc'
-import { outboxItems, processOutbox, setOutboxListener } from './mail'
 import { setupAutoUpdate } from './updater'
 import { setupSpellcheck } from './spellcheck'
 import icon from '../../build/icon.png?asset'
@@ -215,7 +226,7 @@ void app.whenReady().then(async () => {
     // Un secreto que no se puede cifrar no impide abrir la app.
   }
   const account = await readActiveAccount().catch(() => null)
-  initCache(account?.id ?? 'default')
+  await initCache(account?.id ?? 'default')
 
   registerIpcHandlers()
   setNewMailListener((account, path, messages) => {
@@ -244,12 +255,14 @@ void app.whenReady().then(async () => {
   // La cola de salida también avisa a la UI cuando cambia.
   let lastOutboxSignature = ''
   setOutboxListener(() => {
-    const signature = JSON.stringify(outboxItems().map((item) => [item.id, item.status, item.attempts, item.lastError, item.deletionProgress]))
-    if (signature === lastOutboxSignature) return
-    lastOutboxSignature = signature
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed()) window.webContents.send(IPC.outboxChanged)
-    }
+    void Promise.resolve(outboxItems()).then((items) => {
+      const signature = JSON.stringify(items.map((item) => [item.id, item.status, item.attempts, item.lastError, item.deletionProgress]))
+      if (signature === lastOutboxSignature) return
+      lastOutboxSignature = signature
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send(IPC.outboxChanged)
+      }
+    }).catch(() => undefined)
   })
 
   // Reintento periódico: si quedó algo encolado sin red, se drena solo.
@@ -285,7 +298,7 @@ void app.whenReady().then(async () => {
 })
 
 app.on('will-quit', () => {
-  void closeAllSessions()
+  void closeAllSessions().catch(() => undefined)
   closeCache()
 })
 

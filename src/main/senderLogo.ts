@@ -10,7 +10,9 @@ const requests = new Map<string, Promise<string | null>>()
 
 export async function senderLogo(email: string, mailbox: string): Promise<string | null> {
   if (typeof email !== 'string' || email.length > 320 || typeof mailbox !== 'string') return null
-  const box = readMailboxes().find((item) => item.path === mailbox)
+  const remoteMailboxes = (globalThis as { __namioReadMailboxes?: () => Promise<ReturnType<typeof readMailboxes>> }).__namioReadMailboxes
+  const boxes = remoteMailboxes ? await remoteMailboxes() : readMailboxes()
+  const box = boxes.find((item) => item.path === mailbox)
   if (!box || isSpamMailbox(box) || (await readSettings()).remoteImages !== 'allow') return null
   const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase()
   if (!email.includes('@') || domain.length > 253 || !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain) || PERSONAL.has(domain)) return null
